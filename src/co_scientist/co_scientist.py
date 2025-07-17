@@ -1130,7 +1130,7 @@ Generate an improved, more scientifically grounded version of the scenario."""
 
 Original Scenario: {scenario["scenario_content"]}
 Research Direction: {scenario["research_direction"]}
-Inspiration from Competing Approaches: {competing_scenarios[:1500]}
+Inspiration from Competing Approaches: {competing_scenarios}
 
 Research Tasks:
 1. Investigate emerging technologies and research frontiers in relevant fields
@@ -1153,7 +1153,7 @@ Generate a creatively enhanced version incorporating research-backed innovations
 Original Scenario: {scenario["scenario_content"]}
 Research Direction: {scenario["research_direction"]}
 Expert Critiques: {critique_summary}
-Alternative Approaches: {competing_scenarios[:1200]}
+Alternative Approaches: {competing_scenarios}
 
 Research Tasks:
 1. Research solutions that address expert critiques while maintaining innovation
@@ -1228,7 +1228,7 @@ Generate a more detailed and technically rich version of the scenario."""
         "evolved_content": evolved_content,
         "original_direction": scenario["research_direction"],
         "critique_summary": critique_summary,
-        "competing_scenarios": competing_scenarios[:2000] if competing_scenarios else "",
+        "competing_scenarios": competing_scenarios if competing_scenarios else "",
         "raw_research_result": str(research_result) if 'research_result' in locals() else "No research result",
         "timestamp": datetime.now().isoformat()
     }
@@ -1414,7 +1414,7 @@ def extract_severity_score(content: str) -> int:
 
 def get_critique_summary(scenario_id: str, critiques: list) -> str:
     """Get summary of critiques for a specific scenario."""
-    relevant_critiques = [c for c in critiques if c.get("scenario_id") == scenario_id]
+    relevant_critiques = [c for c in critiques if c.get("target_scenario_id") == scenario_id]
     
     if not relevant_critiques:
         return "No specific critiques identified."
@@ -1424,9 +1424,9 @@ def get_critique_summary(scenario_id: str, critiques: list) -> str:
         domain = critique.get("critique_domain", "Unknown")
         severity = critique.get("severity_score", 5)
         summary += f"- {domain} (severity {severity}/10): "
-        # Extract key points from critique content
+        # Include full critique content - no truncation for evolution
         content = critique.get("critique_content", "")
-        summary += content[:200] + "...\n" if len(content) > 200 else content + "\n"
+        summary += content + "\n"
     
     return summary
 
@@ -1437,12 +1437,13 @@ def get_competing_scenarios(target_scenario: dict, all_scenarios: list) -> str:
     if not competing:
         return "No competing scenarios available."
     
-    # Take up to 3 competing scenarios
+    # Take up to 3 competing scenarios  
     summary = "Competing approaches for inspiration:\n"
     for i, scenario in enumerate(competing[:3]):
         summary += f"\nApproach {i+1} ({scenario['research_direction']}):\n"
         content = scenario.get("scenario_content", "")
-        summary += content[:500] + "...\n" if len(content) > 500 else content + "\n"
+        # Include full scenario content - no truncation for evolution
+        summary += content + "\n"
     
     return summary
 
