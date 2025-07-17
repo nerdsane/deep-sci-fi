@@ -1291,6 +1291,9 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     
     # Save meta-review results
     if configuration.save_intermediate_results:
+        # Save the 3 final winning scenarios as complete standalone files
+        save_final_winners(top_scenarios, state, configuration.output_dir)
+        
         save_co_scientist_output("meta_review.md", response.content, configuration.output_dir)
         
         # Also save the complete competition summary
@@ -1301,6 +1304,67 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
         "top_scenarios": top_scenarios,
         "competition_summary": competition_summary
     }
+
+def save_final_winners(top_scenarios: list, state: dict, output_dir: str = "output"):
+    """Save the 3 final winning scenarios as complete standalone files."""
+    manager = get_output_manager(output_dir)
+    
+    if not top_scenarios:
+        print("No final winning scenarios to save")
+        return
+    
+    for i, scenario in enumerate(top_scenarios, 1):
+        scenario_id = scenario.get('scenario_id', f'winner_{i}')
+        research_direction = scenario.get('research_direction', 'Unknown Direction')
+        evolution_type = scenario.get('evolution_type', 'unknown')
+        competition_rank = scenario.get('competition_rank', i)
+        
+        content = f"# Final Winner {competition_rank}: {research_direction}\n\n"
+        content += f"**Competition Rank:** #{competition_rank} of 3 Final Winners\n"
+        content += f"**Research Direction:** {research_direction}\n"
+        content += f"**Scenario ID:** {scenario_id}\n"
+        content += f"**Evolution Type:** {evolution_type}\n"
+        content += f"**Selection Process:** {scenario.get('selection_reasoning', 'Won evolution tournament')}\n"
+        content += f"**Generated:** {datetime.now().isoformat()}\n\n"
+        
+        content += "## Complete Scenario\n\n"
+        content += scenario.get('scenario_content', 'No scenario content available')
+        
+        # Add competition context
+        content += "\n\n## Competition Journey\n\n"
+        content += f"This scenario emerged as the winner through co-scientist's competitive process:\n\n"
+        content += f"1. **Initial Generation**: One of 6 scenarios in the '{research_direction}' research direction\n"
+        content += f"2. **Expert Reflection**: Critiqued by 5 domain experts across physics, biology, engineering, social science, and economics\n"
+        content += f"3. **Tournament Victory**: Won tournament bracket against other scenarios in its direction\n"
+        content += f"4. **Evolution Enhancement**: Improved through 4 evolution strategies (feasibility, creativity, synthesis, detail enhancement)\n"
+        content += f"5. **Evolution Tournament**: Final contest between original winner and 4 evolved variants\n"
+        content += f"6. **Meta-Review**: Selected as one of 3 final representatives\n\n"
+        
+        # Add competition statistics
+        total_scenarios = len(state.get("scenario_population", []))
+        total_critiques = len(state.get("reflection_critiques", []))
+        total_evolutions = len(state.get("evolved_scenarios", []))
+        
+        content += "## Competition Statistics\n\n"
+        content += f"- **Total Scenarios Generated:** {total_scenarios}\n"
+        content += f"- **Expert Critiques Produced:** {total_critiques}\n"
+        content += f"- **Evolution Attempts:** {total_evolutions}\n"
+        content += f"- **Final Selection Rate:** {competition_rank}/3 from {total_scenarios} initial scenarios ({(1/total_scenarios)*100:.2f}% selection rate)\n\n"
+        
+        # Add research directions context
+        research_directions = state.get("research_directions", [])
+        if research_directions:
+            content += "## Research Directions Explored\n\n"
+            for j, direction in enumerate(research_directions, 1):
+                direction_name = direction.get('name', f'Direction {j}')
+                direction_assumption = direction.get('assumption', 'No assumption listed')
+                marker = "🏆 **WINNER** - " if direction_name == research_direction else ""
+                content += f"{j}. {marker}**{direction_name}**\n"
+                content += f"   - Core Assumption: {direction_assumption}\n\n"
+        
+        filename = f"winner_{competition_rank:02d}_{research_direction.replace(' ', '_')}_{scenario_id[:8]}.md"
+        manager.save_file(filename, content, "final_winners")
+        print(f"Saved final winner #{competition_rank}: {filename}")
 
 # Helper functions
 def parse_research_directions(content: str) -> list:
