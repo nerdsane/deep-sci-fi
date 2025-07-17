@@ -473,11 +473,16 @@ async def generate_domain_critique(scenario: dict, domain: str, config: Runnable
         }
     )
     
+    # Get scenario information with defaults for missing fields
+    scenario_id = scenario.get("scenario_id", f"missing_id_{uuid.uuid4().hex[:8]}")
+    research_direction = scenario.get("research_direction", "Unknown Direction")
+    scenario_content = scenario.get("scenario_content", "No scenario content available")
+    
     critique_prompt = DOMAIN_CRITIQUE_PROMPT.format(
         critique_domain=domain,
-        scenario_id=scenario["scenario_id"],
-        research_direction=scenario["research_direction"],
-        scenario_content=scenario["scenario_content"]
+        scenario_id=scenario_id,
+        research_direction=research_direction,
+        scenario_content=scenario_content
     )
     
     response = await model.ainvoke([HumanMessage(content=critique_prompt)])
@@ -487,7 +492,7 @@ async def generate_domain_critique(scenario: dict, domain: str, config: Runnable
     
     return {
         "critique_id": str(uuid.uuid4()),
-        "scenario_id": scenario["scenario_id"],
+        "target_scenario_id": scenario_id,
         "critique_domain": domain,
         "critique_content": response.content,
         "severity_score": severity_score,
@@ -756,7 +761,7 @@ async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState
     model = configurable_model.with_config(
         configurable={
             "model": configuration.research_model,
-            "max_tokens": 4096,
+            "max_tokens": 8000,
         }
     )
     
@@ -1041,7 +1046,7 @@ def format_reflection_critiques(critiques: list) -> str:
         
         for critique in domain_critiques:
             severity = critique.get("severity_score", "Unknown")
-            scenario_id = critique.get("scenario_id", "Unknown")
+            scenario_id = critique.get("target_scenario_id", "Unknown")
             content += f"### Scenario {scenario_id[:8]}... (Severity: {severity}/10)\n"
             
             critique_content = critique.get('critique_content', 'No content')
