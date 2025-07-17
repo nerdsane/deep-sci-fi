@@ -1,8 +1,8 @@
 {
     "dockerfile_lines": [],
     "graphs": {
-      "Deep Researcher": "./src/open_deep_research/deep_researcher.py:deep_researcher",
-      "Deep Sci-Fi": "./src/deep_sci_fi/deep_sci_fi_writer.py:app"
+      "Deep Sci-Fi": "./src/deep_sci_fi/deep_sci_fi_writer.py:app",
+      "Co-Scientist": "./src/co_scientist/co_scientist.py:co_scientist"
     },
     "python_version": "3.11",
     "env": "./.env",

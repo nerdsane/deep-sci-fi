@@ -52,13 +52,14 @@ requires = ["setuptools>=73.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["open_deep_research", "legacy", "tests", "deep_sci_fi"]
+packages = ["open_deep_research", "legacy", "tests", "deep_sci_fi", "co_scientist"]
 
 [tool.setuptools.package-dir]
 "open_deep_research" = "src/open_deep_research"
 "legacy" = "src/legacy"
 "tests" = "tests"
 "deep_sci_fi" = "src/deep_sci_fi"
+"co_scientist" = "src/co_scientist"
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]

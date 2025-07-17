@@ -9,6 +9,7 @@ import operator
 import uuid
 from langchain_core.messages import HumanMessage, AIMessage
 from open_deep_research.deep_researcher import deep_researcher
+from co_scientist.co_scientist import co_scientist
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -56,6 +57,37 @@ async def _run_deep_researcher(research_query: str, config: RunnableConfig) -> s
     
     return final_state.get("final_report", "Error: Research failed to produce a report.")
 
+async def _run_co_scientist(research_context: str, config: RunnableConfig, **kwargs) -> dict:
+    """Helper to run the co_scientist subgraph for competitive scenario generation."""
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": model_config["research_model"],
+        "general_model": model_config["general_model"],
+        "search_api": "tavily",
+        "scenarios_per_direction": model_config.get("scenarios_per_direction", 6),
+        "parallel_directions": model_config.get("parallel_directions", 3),
+        "enable_parallel_execution": model_config.get("enable_parallel_execution", True),
+    })
+
+    co_scientist_input = {
+        "research_context": research_context,
+        **kwargs  # storyline, target_year, baseline_world_state, years_in_future
+    }
+    
+    # Pass output_dir to co_scientist configuration
+    if "output_dir" in kwargs:
+        subgraph_config["configurable"]["output_dir"] = kwargs["output_dir"]
+
+    final_state = {}
+    async for chunk in co_scientist.astream(
+        co_scientist_input,
+        subgraph_config,
+        stream_mode="values"
+    ):
+        final_state = chunk
+    
+    return final_state
+
 def save_output(output_dir: str, filename: str, content: str):
     """Saves content to a markdown file in the specified output directory."""
     os.makedirs(output_dir, exist_ok=True)
@@ -88,9 +120,18 @@ class AgentState(TypedDict):
 
 # === Model Configuration ===
 model_config = {
-    "research_model": "openai:o4-mini", # "anthropic:claude-3-7-sonnet-20250219",
-    "writing_model": "anthropic:claude-opus-4-20250514",
+    "research_model": "openai:o4-mini", # "anthropic:claude-3-5-sonnet-20241022",
+    "writing_model": "anthropic:claude-3-7-sonnet-20250219", 
     "general_model": "anthropic:claude-3-7-sonnet-20250219",
+    
+    # Co-scientist configuration
+    "use_co_scientist": True,
+    "scenarios_per_direction": 6,
+    "parallel_directions": 3,
+    "enable_parallel_execution": True,
+    "save_intermediate_results": True,  # Enable intermediate file saving
+    "reflection_domains": ["physics", "biology", "engineering", "social_science", "economics"],
+    "evolution_strategies": ["feasibility", "creativity", "synthesis", "detail_enhancement"],
 }
 
 # Initialize the models with retry logic
@@ -205,32 +246,169 @@ def generate_world_building_questions(state: AgentState):
     return {"world_building_questions": content}
 
 async def research_and_propose_scenarios(state: AgentState, config: RunnableConfig):
-    """Uses the deep_researcher to research and propose 3 plausible scenarios."""
+    """Uses co_scientist competitive tournament to generate and rank high-quality scenarios."""
     if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (questions := state.get("world_building_questions")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")) or not (first_chapter := state.get("first_chapter")):
         raise ValueError("Required state for this research step is missing.")
     
-    print("--- Researching and Proposing Scenarios ---")
-    
-    if state.get("baseline_world_state") and state.get("years_in_future"):
-        research_query = PROJECT_THREE_SCENARIOS_PROMPT.format(
-            questions=questions,
-            baseline_world_state=state["baseline_world_state"],
-            years_to_project=state["years_in_future"]
-        )
-    else:
-        research_query = RESEARCH_THREE_SCENARIOS_PROMPT.format(
-            questions=questions, 
-            target_year=target_year,
+    # Check if co_scientist is enabled
+    if model_config.get("use_co_scientist", False):
+        print("--- Starting Co-Scientist Competition ---")
+        
+        # Run co_scientist competitive tournament
+        co_scientist_result = await _run_co_scientist(
+            research_context=questions,
+            config=config,
             storyline=storyline,
-            chapter_arcs=chapter_arcs,
-            first_chapter=first_chapter
+            target_year=target_year,
+            baseline_world_state=state.get("baseline_world_state"),
+            years_in_future=state.get("years_in_future"),
+            output_dir=output_dir
         )
+        
+        # Format top scenarios for user selection
+        top_scenarios = co_scientist_result.get("top_scenarios", [])
+        competition_summary = co_scientist_result.get("competition_summary", "")
+        
+        # Format scenarios for user presentation
+        formatted_scenarios = format_co_scientist_scenarios(top_scenarios, competition_summary)
+        
+        # Save intermediate results for debugging
+        if model_config.get("save_intermediate_results", True):
+            save_output(output_dir, f"{state['loop_count']:02d}_05a_competition_summary.md", competition_summary)
+            
+            # Save detailed competition data
+            detailed_results = format_detailed_competition_results(co_scientist_result)
+            save_output(output_dir, f"{state['loop_count']:02d}_05b_detailed_results.md", detailed_results)
+        
+        save_output(output_dir, f"{state['loop_count']:02d}_05_world_building_scenarios.md", formatted_scenarios)
+        print("--- Co-Scientist Competition Complete ---")
+        
+        return {"world_building_scenarios": formatted_scenarios}
     
-    scenarios = await _run_deep_researcher(research_query, config)
+    else:
+        # Fallback to original deep_researcher approach
+        print("--- Researching and Proposing Scenarios (Original Method) ---")
+        
+        if state.get("baseline_world_state") and state.get("years_in_future"):
+            research_query = PROJECT_THREE_SCENARIOS_PROMPT.format(
+                questions=questions,
+                baseline_world_state=state["baseline_world_state"],
+                years_to_project=state["years_in_future"]
+            )
+        else:
+            research_query = RESEARCH_THREE_SCENARIOS_PROMPT.format(
+                questions=questions, 
+                target_year=target_year,
+                storyline=storyline,
+                chapter_arcs=chapter_arcs,
+                first_chapter=first_chapter
+            )
+        
+        scenarios = await _run_deep_researcher(research_query, config)
+        
+        save_output(output_dir, f"{state['loop_count']:02d}_05_world_building_scenarios.md", scenarios)
+        print("--- World-Building Scenarios Proposed ---")
+        return {"world_building_scenarios": scenarios}
+
+def format_co_scientist_scenarios(top_scenarios: list, competition_summary: str) -> str:
+    """Format co_scientist competition results for user selection."""
     
-    save_output(output_dir, f"{state['loop_count']:02d}_05_world_building_scenarios.md", scenarios)
-    print("--- World-Building Scenarios Proposed ---")
-    return {"world_building_scenarios": scenarios}
+    formatted_output = "# Top World-Building Scenarios (Co-Scientist Competition Winners)\n\n"
+    formatted_output += "These scenarios have been refined through competitive multi-agent tournament, reflection, and evolution.\n\n"
+    
+    # Add competition overview
+    formatted_output += "## Competition Overview\n"
+    formatted_output += competition_summary + "\n\n"
+    
+    # Format each scenario
+    for i, scenario in enumerate(top_scenarios[:3], 1):
+        formatted_output += f"## Scenario {i}: {scenario.get('research_direction', 'Unknown Direction')}\n"
+        formatted_output += f"**Competition Rank: #{scenario.get('competition_rank', i)}**\n\n"
+        formatted_output += f"**Selection Reasoning:** {scenario.get('selection_reasoning', 'Selected by competitive tournament')}\n\n"
+        formatted_output += f"{scenario.get('scenario_content', 'No content available')}\n\n"
+        formatted_output += "---\n\n"
+    
+    formatted_output += "## Selection Instructions\n"
+    formatted_output += "Please review these scenarios and provide the full text of your chosen scenario in the `selected_scenario` field.\n"
+    formatted_output += "You may also modify or combine elements from multiple scenarios.\n\n"
+    formatted_output += "Note: These scenarios have been scientifically validated through multi-agent competition and are ready for development.\n"
+    
+    return formatted_output
+
+def format_detailed_competition_results(co_scientist_result: dict) -> str:
+    """Format detailed competition results for debugging and analysis."""
+    
+    detailed = "# Detailed Co-Scientist Competition Results\n\n"
+    
+    # Research directions
+    directions = co_scientist_result.get("research_directions", [])
+    detailed += f"## Research Directions ({len(directions)})\n"
+    for i, direction in enumerate(directions, 1):
+        detailed += f"### Direction {i}: {direction.get('name', 'Unknown')}\n"
+        detailed += f"- **Assumption:** {direction.get('assumption', 'N/A')}\n"
+        detailed += f"- **Focus:** {direction.get('focus', 'N/A')}\n\n"
+    
+    # Population statistics
+    population = co_scientist_result.get("scenario_population", [])
+    detailed += f"## Scenario Population\n"
+    detailed += f"- **Total Generated:** {len(population)}\n"
+    detailed += f"- **Per Direction:** ~{len(population) // max(len(directions), 1)}\n\n"
+    
+    # Reflection results
+    critiques = co_scientist_result.get("reflection_critiques", [])
+    detailed += f"## Reflection Phase\n"
+    detailed += f"- **Total Critiques:** {len(critiques)}\n"
+    
+    if critiques:
+        # Count critiques by domain
+        domain_counts = {}
+        for critique in critiques:
+            domain = critique.get("critique_domain", "Unknown")
+            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        
+        detailed += "- **By Domain:**\n"
+        for domain, count in domain_counts.items():
+            detailed += f"  - {domain}: {count}\n"
+    
+    detailed += "\n"
+    
+    # Tournament results
+    winners = co_scientist_result.get("tournament_winners", [])
+    detailed += f"## Tournament Results\n"
+    detailed += f"- **Direction Winners:** {len(winners)}\n"
+    for i, winner in enumerate(winners, 1):
+        direction = winner.get("direction", "Unknown")
+        detailed += f"  - Winner {i}: {direction}\n"
+    
+    detailed += "\n"
+    
+    # Evolution results
+    evolved = co_scientist_result.get("evolved_scenarios", [])
+    detailed += f"## Evolution Phase\n"
+    detailed += f"- **Total Evolutions:** {len(evolved)}\n"
+    
+    if evolved:
+        # Count by strategy
+        strategy_counts = {}
+        for evolution in evolved:
+            strategy = evolution.get("strategy", "Unknown")
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+        
+        detailed += "- **By Strategy:**\n"
+        for strategy, count in strategy_counts.items():
+            detailed += f"  - {strategy}: {count}\n"
+    
+    detailed += "\n"
+    
+    # Final selection
+    top_scenarios = co_scientist_result.get("top_scenarios", [])
+    detailed += f"## Final Selection\n"
+    detailed += f"- **Top Scenarios Selected:** {len(top_scenarios)}\n"
+    for i, scenario in enumerate(top_scenarios, 1):
+        direction = scenario.get("research_direction", "Unknown")
+        detailed += f"  - Scenario {i}: {direction}\n"
+    
+    return detailed
 
 def prompt_for_scenario_selection(state: AgentState):
     """Adds a message to the state to ask the user to select a scenario."""
@@ -241,8 +419,19 @@ def prompt_for_scenario_selection(state: AgentState):
 
 def critique_scenario(state: AgentState):
     """Critically reflects on the selected scenario to identify second-order effects and unanswered questions."""
-    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")) or not (world_building_scenarios := state.get("world_building_scenarios")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")) or not (first_chapter := state.get("first_chapter")) or not (years_in_future := state.get("years_in_future")):
+    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")):
         raise ValueError("Required state for critiquing scenario is missing.")
+    
+    # Skip critique if co_scientist is enabled (scenarios already thoroughly critiqued)
+    if model_config.get("use_co_scientist", False):
+        print("--- Skipping Scenario Critique (Already Done by Co-Scientist) ---")
+        content = "Scenario critique was performed during the co-scientist competition phase. See detailed competition results for comprehensive analysis."
+        save_output(output_dir, f"{state['loop_count']:02d}_07_scenario_critique.md", content)
+        return {"scenario_critique": content}
+    
+    # Original critique for non-co_scientist scenarios
+    if not (world_building_scenarios := state.get("world_building_scenarios")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")) or not (first_chapter := state.get("first_chapter")) or not (years_in_future := state.get("years_in_future")):
+        raise ValueError("Required state for traditional critiquing scenario is missing.")
         
     prompt = ChatPromptTemplate.from_template(CRITIQUE_SCENARIO_PROMPT)
     response = general_model.invoke(prompt.format(
@@ -260,13 +449,37 @@ def critique_scenario(state: AgentState):
     return {"scenario_critique": content}
 
 async def world_projection_deep_research(state: AgentState, config: RunnableConfig):
-    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")) or not (scenario_critique := state.get("scenario_critique")):
+    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")):
         raise ValueError("Required state for world projection research is missing.")
+    
+    # Skip deep research if co_scientist is enabled (scenarios already research-backed)
+    if model_config.get("use_co_scientist", False):
+        print("--- Skipping World Projection Research (Co-Scientist Scenarios Already Research-Backed) ---")
+        
+        # Use the selected scenario as the baseline world state since it's already comprehensive
+        world_state = f"# Baseline World State for {target_year}\n\n"
+        world_state += "This world state is derived from co-scientist competition results and is already research-backed.\n\n"
+        world_state += f"## Selected Scenario\n\n{state['selected_scenario']}\n\n"
+        world_state += "Note: This scenario has undergone:\n"
+        world_state += "- Deep literature research by specialized teams\n"
+        world_state += "- Expert critique by domain specialists\n" 
+        world_state += "- Competitive tournament selection\n"
+        world_state += "- Evolution and improvement phases\n"
+        world_state += "- Meta-review synthesis\n\n"
+        world_state += "No additional research is required as the scenario is scientifically grounded and comprehensive."
+        
+        save_output(output_dir, f"{state['loop_count']:02d}_08_world_state_{target_year}.md", world_state)
+        return {"baseline_world_state": state["selected_scenario"]}
+    
+    # Original workflow for non-co_scientist scenarios
+    if not (scenario_critique := state.get("scenario_critique")):
+        raise ValueError("Required state for traditional world projection research is missing.")
+        
     print("--- Conducting Baseline World State Research ---")
     if baseline_world_state := state.get("baseline_world_state"):
-        final_query = EVOLVE_BASELINE_WORLD_STATE_PROMPT.format(baseline_world_state=baseline_world_state, selected_scenario=selected_scenario, scenario_critique=scenario_critique, target_year=target_year)
+        final_query = EVOLVE_BASELINE_WORLD_STATE_PROMPT.format(baseline_world_state=baseline_world_state, selected_scenario=state["selected_scenario"], scenario_critique=scenario_critique, target_year=target_year)
     else:
-        final_query = CREATE_BASELINE_WORLD_STATE_PROMPT.format(selected_scenario=selected_scenario, scenario_critique=scenario_critique, target_year=target_year)
+        final_query = CREATE_BASELINE_WORLD_STATE_PROMPT.format(selected_scenario=state["selected_scenario"], scenario_critique=scenario_critique, target_year=target_year)
     world_state = await _run_deep_researcher(final_query, config)
     save_output(output_dir, f"{state['loop_count']:02d}_08_world_state_{target_year}.md", world_state)
     print("--- Baseline World State Created ---")
