@@ -10,6 +10,8 @@ import uuid
 from langchain_core.messages import HumanMessage, AIMessage
 from open_deep_research.deep_researcher import deep_researcher
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from deep_sci_fi.prompts import (
     CREATE_STORYLINE_PROMPT,
@@ -36,9 +38,9 @@ async def _run_deep_researcher(research_query: str, config: RunnableConfig) -> s
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
-        "summarization_model": model_config["general_model"],
-        "compression_model": model_config["general_model"],
-        "compression_model_max_tokens": 4096,
+        "summarization_model": model_config["research_model"],
+        "compression_model": model_config["research_model"],
+        "compression_model_max_tokens": 8000,
         "final_report_model": model_config["research_model"],
         "allow_clarification": False,
         "search_api": "tavily",
@@ -86,15 +88,16 @@ class AgentState(TypedDict):
 
 # === Model Configuration ===
 model_config = {
-    "research_model": "openai:gpt-4o",
-    "writing_model": "anthropic:claude-3-5-sonnet-20240620",
-    "general_model": "openai:gpt-4-turbo",
+    "research_model": "openai:o4-mini", # "anthropic:claude-3-7-sonnet-20250219",
+    "writing_model": "anthropic:claude-opus-4-20250514",
+    "general_model": "anthropic:claude-3-7-sonnet-20250219",
 }
 
 # Initialize the models with retry logic
 writing_model = init_chat_model(
     model_config["writing_model"], 
-    temperature=0.7
+    temperature=0.7,
+    max_tokens=8000 
 ).with_retry()
 
 general_model = init_chat_model(

@@ -44,6 +44,7 @@ Write the full first chapter of the novel based on the provided storyline and ch
 <Instructions>
 - Bring the story to life with vivid descriptions and engaging dialogue.
 - Write only the first chapter.
+- Complete the chapter fully - do not cut off mid-scene or mid-sentence.
 </Instructions>
 """
 
