@@ -636,7 +636,7 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     }
 
 async def generate_domain_critique(scenario: dict, domain: str, config: RunnableConfig) -> dict:
-    """Generate critique from a domain expert using deep research."""
+    """Generate scientific analysis from a domain expert using deep research."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -645,39 +645,40 @@ async def generate_domain_critique(scenario: dict, domain: str, config: Runnable
     research_direction = scenario.get("research_direction", "Unknown Direction")
     scenario_content = scenario.get("scenario_content", "No scenario content available")
     
-    # Create research query for domain-specific critique
-    research_query = f"""As a {domain} expert, conduct deep research to critique this sci-fi scenario for scientific accuracy and plausibility.
+    # Create research query for domain-specific scientific analysis
+    research_query = f"""As a {domain} expert, conduct deep research to provide scientific analysis and assessment of this sci-fi scenario.
 
 Research Direction: {research_direction}
 Scenario ID: {scenario_id}
 
-Scenario to Research and Critique:
+Scenario for Scientific Analysis:
 {scenario_content}
 
 Research Tasks:
 1. Investigate current scientific literature in {domain} relevant to the technologies mentioned
 2. Analyze the feasibility of proposed timelines and technological developments  
-3. Check for violations of fundamental principles in {domain}
-4. Look up recent research that supports or contradicts the scenario's assumptions
+3. Evaluate alignment with established principles in {domain}
+4. Look up recent research that supports or challenges the scenario's assumptions
 5. Research current technical limitations and realistic development trajectories
 
-Critique Focus for {domain}:
+Analysis Focus for {domain}:
 - Physics: Energy conservation, thermodynamics, materials science limits, fundamental constraints
 - Biology: Evolutionary timescales, biological constraints, medical/genetic plausibility 
 - Engineering: Manufacturing feasibility, scalability, infrastructure requirements
 - Social Science: Human behavior patterns, social adoption curves, cultural factors
 - Economics: Market dynamics, resource allocation, economic incentives
 
-Provide a rigorous scientific critique including:
-- Specific inaccuracies or implausible claims with evidence
-- Timeline realism assessment based on current research
-- Fundamental constraints not adequately considered
-- Severity score (1-10, where 10 = major scientific problems)
-- Specific suggestions for making the scenario more scientifically sound
+Provide a comprehensive scientific assessment including:
+- Areas where the scenario aligns well with current science
+- Aspects that may need refinement based on current evidence
+- Timeline feasibility assessment based on current research
+- Scientific considerations that could strengthen the scenario
+- Realism score (1-10, where 10 = highly scientifically realistic)
+- Constructive suggestions for enhancing scientific accuracy
 
-Use current research and scientific literature to support your critique."""
+Use current research and scientific literature to support your analysis."""
 
-    # Use deep_researcher for comprehensive scientific critique
+    # Use deep_researcher for comprehensive scientific analysis
     research_config = config.copy()
     co_config = CoScientistConfiguration.from_runnable_config(config)
     research_config["configurable"].update({
@@ -698,13 +699,13 @@ Use current research and scientific literature to support your critique."""
             research_config
         )
         critique_content = research_result.get("final_report", "No research results available")
-        print(f"Successfully generated {domain} critique for {scenario_id}, content length: {len(critique_content)}")
+        print(f"Successfully generated {domain} analysis for {scenario_id}, content length: {len(critique_content)}")
     except Exception as e:
-        print(f"Failed to generate {domain} critique for {scenario_id}: {e}")
-        # Fallback to basic critique without research
-        critique_content = f"Research failed for {domain} critique of scenario {scenario_id}. Error: {str(e)}"
+        print(f"Failed to generate {domain} analysis for {scenario_id}: {e}")
+        # Fallback to basic analysis without research
+        critique_content = f"Research failed for {domain} analysis of scenario {scenario_id}. Error: {str(e)}"
     
-    # Parse severity score from response
+    # Parse severity score from response (converted from realism score)
     severity_score = extract_severity_score(critique_content)
     
     return {
@@ -1390,20 +1391,24 @@ def parse_research_directions(content: str) -> list:
     return directions
 
 def extract_severity_score(content: str) -> int:
-    """Extract severity score from critique content."""
+    """Extract severity score from scientific analysis content."""
     import re
-    # Look for patterns like "severity score: 7" or "score: 7/10"
+    # Look for patterns like "realism score: 7" or "score: 7/10"
+    # Convert realism score to severity (realism 10 = severity 1, realism 1 = severity 10)
     patterns = [
-        r"severity score[:\s]+(\d+)",
+        r"realism score[:\s]+(\d+)",
         r"score[:\s]+(\d+)",
         r"(\d+)/10",
-        r"severity[:\s]+(\d+)"
+        r"realism[:\s]+(\d+)"
     ]
     
     for pattern in patterns:
         match = re.search(pattern, content.lower())
         if match:
-            return min(int(match.group(1)), 10)
+            realism_score = min(int(match.group(1)), 10)
+            # Convert realism score to severity score (invert the scale)
+            severity_score = 11 - realism_score
+            return max(severity_score, 1)  # Ensure minimum severity of 1
     
     return 5  # Default moderate severity
 
