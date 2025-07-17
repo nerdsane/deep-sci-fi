@@ -152,8 +152,20 @@ def save_individual_critiques(critiques: list, output_dir: str = "output"):
             content += f"**Target Scenario:** {scenario_id}\n"
             content += f"**Severity Score:** {severity}/10\n"
             content += f"**Generated:** {datetime.now().isoformat()}\n\n"
+            
+            # Include research query if available
+            if 'research_query' in critique:
+                content += "## Research Query\n\n"
+                content += critique.get('research_query', 'No research query available')
+                content += "\n\n"
+            
             content += "## Critique Content\n\n"
             content += critique.get('critique_content', 'No critique content available')
+            
+            # Include raw research result if available
+            if 'raw_research_result' in critique:
+                content += "\n\n## Raw Research Output\n\n"
+                content += critique.get('raw_research_result', 'No raw research result')
             
             filename = f"critique_{critique_counter:03d}_{domain}_{scenario_id[:8]}_sev{severity}.md"
             manager.save_file(filename, content, "critiques")
@@ -227,6 +239,11 @@ def save_individual_evolution_attempts(evolutions: list, output_dir: str = "outp
         
         content += "\n\n## Competing Scenarios (for creativity/synthesis)\n\n"
         content += evolution.get('competing_scenarios', 'No competing scenarios')
+        
+        # Include raw research result if available
+        if 'raw_research_result' in evolution:
+            content += "\n\n## Raw Research Output\n\n"
+            content += evolution.get('raw_research_result', 'No raw research result')
         
         filename = f"evolution_{evolution_counter:03d}_{strategy}_{original_scenario_id[:8]}_{evolution_id[:8]}.md"
         manager.save_file(filename, content, "evolution_attempts")
@@ -619,39 +636,84 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     }
 
 async def generate_domain_critique(scenario: dict, domain: str, config: RunnableConfig) -> dict:
-    """Generate critique from a domain expert."""
+    """Generate critique from a domain expert using deep research."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
-    
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.general_model,
-            "max_tokens": 2048,
-        }
-    )
     
     # Get scenario information with defaults for missing fields
     scenario_id = scenario.get("scenario_id", f"missing_id_{uuid.uuid4().hex[:8]}")
     research_direction = scenario.get("research_direction", "Unknown Direction")
     scenario_content = scenario.get("scenario_content", "No scenario content available")
     
-    critique_prompt = DOMAIN_CRITIQUE_PROMPT.format(
-        critique_domain=domain,
-        scenario_id=scenario_id,
-        research_direction=research_direction,
-        scenario_content=scenario_content
-    )
+    # Create research query for domain-specific critique
+    research_query = f"""As a {domain} expert, conduct deep research to critique this sci-fi scenario for scientific accuracy and plausibility.
+
+Research Direction: {research_direction}
+Scenario ID: {scenario_id}
+
+Scenario to Research and Critique:
+{scenario_content}
+
+Research Tasks:
+1. Investigate current scientific literature in {domain} relevant to the technologies mentioned
+2. Analyze the feasibility of proposed timelines and technological developments  
+3. Check for violations of fundamental principles in {domain}
+4. Look up recent research that supports or contradicts the scenario's assumptions
+5. Research current technical limitations and realistic development trajectories
+
+Critique Focus for {domain}:
+- Physics: Energy conservation, thermodynamics, materials science limits, fundamental constraints
+- Biology: Evolutionary timescales, biological constraints, medical/genetic plausibility 
+- Engineering: Manufacturing feasibility, scalability, infrastructure requirements
+- Social Science: Human behavior patterns, social adoption curves, cultural factors
+- Economics: Market dynamics, resource allocation, economic incentives
+
+Provide a rigorous scientific critique including:
+- Specific inaccuracies or implausible claims with evidence
+- Timeline realism assessment based on current research
+- Fundamental constraints not adequately considered
+- Severity score (1-10, where 10 = major scientific problems)
+- Specific suggestions for making the scenario more scientifically sound
+
+Use current research and scientific literature to support your critique."""
+
+    # Use deep_researcher for comprehensive scientific critique
+    research_config = config.copy()
+    co_config = CoScientistConfiguration.from_runnable_config(config)
+    research_config["configurable"].update({
+        "research_model": co_config.research_model,
+        "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
+        "summarization_model": co_config.general_model,
+        "compression_model": co_config.research_model,
+        "compression_model_max_tokens": 8000,
+        "final_report_model": co_config.research_model,
+        "final_report_model_max_tokens": 8000,
+        "allow_clarification": False,
+        "search_api": co_config.search_api
+    })
     
-    response = await model.ainvoke([HumanMessage(content=critique_prompt)])
+    try:
+        research_result = await deep_researcher.ainvoke(
+            {"messages": [HumanMessage(content=research_query)]},
+            research_config
+        )
+        critique_content = research_result.get("final_report", "No research results available")
+        print(f"Successfully generated {domain} critique for {scenario_id}, content length: {len(critique_content)}")
+    except Exception as e:
+        print(f"Failed to generate {domain} critique for {scenario_id}: {e}")
+        # Fallback to basic critique without research
+        critique_content = f"Research failed for {domain} critique of scenario {scenario_id}. Error: {str(e)}"
     
     # Parse severity score from response
-    severity_score = extract_severity_score(response.content)
+    severity_score = extract_severity_score(critique_content)
     
     return {
         "critique_id": str(uuid.uuid4()),
         "target_scenario_id": scenario_id,
         "critique_domain": domain,
-        "critique_content": response.content,
+        "critique_content": critique_content,
+        "research_query": research_query,
+        "raw_research_result": str(research_result) if 'research_result' in locals() else "No research result",
         "severity_score": severity_score,
         "timestamp": datetime.now().isoformat()
     }
@@ -1018,64 +1080,155 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
     }
 
 async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState, config: RunnableConfig) -> dict:
-    """Evolve a single scenario using specified strategy."""
+    """Evolve a single scenario using specified strategy with deep research."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.research_model,
-            "max_tokens": 8000,
-        }
-    )
+    # Collect critiques and competing scenarios as needed
+    critique_summary = ""
+    competing_scenarios = ""
     
-    # Select appropriate evolution prompt
-    if strategy == "feasibility":
-        prompt_template = FEASIBILITY_EVOLUTION_PROMPT
-        # Collect critiques for this scenario
+    if strategy in ["feasibility", "synthesis"]:
         critique_summary = get_critique_summary(scenario["scenario_id"], state["reflection_critiques"])
+    
+    if strategy in ["creativity", "synthesis"]:
+        competing_scenarios = get_competing_scenarios(scenario, state["scenario_population"])
+    
+    # Create research query based on evolution strategy
+    if strategy == "feasibility":
+        research_query = f"""Conduct deep research to improve the scientific feasibility and realism of this sci-fi scenario.
+
+Original Scenario: {scenario["scenario_content"]}
+Research Direction: {scenario["research_direction"]}
+Expert Critiques Identified: {critique_summary}
+
+Research Tasks:
+1. Investigate current scientific literature relevant to the technologies mentioned
+2. Research recent breakthroughs that could support the scenario's assumptions
+3. Find evidence for realistic implementation timelines and pathways
+4. Research current technical limitations and how they might be overcome
+5. Look up cutting-edge research that addresses the identified critiques
+
+Evolution Goals:
+- Address specific scientific critiques with evidence-based solutions
+- Strengthen technological feasibility using current research trends
+- Improve timeline realism based on actual development trajectories
+- Enhance internal consistency across technological systems
+- Provide specific implementation details supported by research
+
+Research-Based Improvements:
+- Cite recent scientific papers or technological developments
+- Explain how current trends enable the proposed future
+- Address potential obstacles with realistic, research-backed solutions
+- Provide more specific technical implementation details
+
+Generate an improved, more scientifically grounded version of the scenario."""
+
     elif strategy == "creativity":
-        prompt_template = CREATIVE_EVOLUTION_PROMPT
-        # Get competing scenarios for inspiration
-        competing_scenarios = get_competing_scenarios(scenario, state["scenario_population"])
+        research_query = f"""Conduct research to creatively enhance this sci-fi scenario with novel technological possibilities.
+
+Original Scenario: {scenario["scenario_content"]}
+Research Direction: {scenario["research_direction"]}
+Inspiration from Competing Approaches: {competing_scenarios[:1500]}
+
+Research Tasks:
+1. Investigate emerging technologies and research frontiers in relevant fields
+2. Research novel approaches and paradigm shifts in the scientific domains
+3. Find interdisciplinary research that could inspire creative solutions
+4. Look up recent breakthroughs that open new technological possibilities
+5. Research unconventional applications of existing technologies
+
+Creative Enhancement Goals:
+- Discover emerging research that suggests new technological directions
+- Find novel interdisciplinary approaches that could enhance the scenario
+- Research cutting-edge developments that could inspire creative additions
+- Identify breakthrough technologies that could transform the narrative
+
+Generate a creatively enhanced version incorporating research-backed innovations."""
+
     elif strategy == "synthesis":
-        prompt_template = SYNTHESIS_EVOLUTION_PROMPT
-        competing_scenarios = get_competing_scenarios(scenario, state["scenario_population"])
-        critique_summary = get_critique_summary(scenario["scenario_id"], state["reflection_critiques"])
+        research_query = f"""Conduct comprehensive research to synthesize the best elements while addressing critiques.
+
+Original Scenario: {scenario["scenario_content"]}
+Research Direction: {scenario["research_direction"]}
+Expert Critiques: {critique_summary}
+Alternative Approaches: {competing_scenarios[:1200]}
+
+Research Tasks:
+1. Research solutions that address expert critiques while maintaining innovation
+2. Investigate how competing approaches could be integrated scientifically
+3. Find evidence for the most promising technological pathways
+4. Research interdisciplinary solutions that combine different approaches
+5. Look up recent developments that bridge different technological paradigms
+
+Synthesis Goals:
+- Research evidence to address scientific critiques effectively
+- Find ways to integrate strengths from competing scenarios
+- Research technological convergence points for different approaches
+- Discover scientific bridges between different technological paradigms
+
+Generate a synthesized scenario that combines the best research-backed elements."""
+
     else:
-        # Default to feasibility evolution
-        prompt_template = FEASIBILITY_EVOLUTION_PROMPT
-        critique_summary = get_critique_summary(scenario["scenario_id"], state["reflection_critiques"])
+        # Default to detail enhancement with research
+        research_query = f"""Conduct research to add scientific depth and technical detail to this scenario.
+
+Original Scenario: {scenario["scenario_content"]}
+Research Direction: {scenario["research_direction"]}
+
+Research Tasks:
+1. Research specific technical details for the technologies mentioned
+2. Investigate current research on implementation challenges and solutions
+3. Find evidence for detailed technical specifications and capabilities
+4. Research infrastructure requirements and development pathways
+5. Look up recent technical developments that add realistic detail
+
+Enhancement Goals:
+- Add research-backed technical specifications and capabilities
+- Include realistic infrastructure and implementation details
+- Provide evidence-based performance parameters and limitations
+- Add scientific depth to technological explanations
+
+Generate a more detailed and technically rich version of the scenario."""
+
+    # Use deep_researcher for evolution
+    research_config = config.copy()
+    co_config = CoScientistConfiguration.from_runnable_config(config)
+    research_config["configurable"].update({
+        "research_model": co_config.research_model,
+        "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
+        "summarization_model": co_config.general_model,
+        "compression_model": co_config.research_model,
+        "compression_model_max_tokens": 8000,
+        "final_report_model": co_config.research_model,
+        "final_report_model_max_tokens": 8000,
+        "allow_clarification": False,
+        "search_api": co_config.search_api
+    })
     
-    # Format prompt based on strategy
-    if strategy == "feasibility":
-        evolution_prompt = prompt_template.format(
-            scenario_content=scenario["scenario_content"],
-            research_direction=scenario["research_direction"],
-            critique_summary=critique_summary
+    try:
+        research_result = await deep_researcher.ainvoke(
+            {"messages": [HumanMessage(content=research_query)]},
+            research_config
         )
-        competing_scenarios_used = ""
-    else:
-        evolution_prompt = prompt_template.format(
-            scenario_content=scenario["scenario_content"],
-            research_direction=scenario["research_direction"],
-            competing_scenarios=competing_scenarios[:2000],  # Limit length
-            critique_summary=critique_summary if strategy == "synthesis" else ""
-        )
-        competing_scenarios_used = competing_scenarios[:2000]
-    
-    response = await model.ainvoke([HumanMessage(content=evolution_prompt)])
+        evolved_content = research_result.get("final_report", "No evolution results available")
+        print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy, content length: {len(evolved_content)}")
+    except Exception as e:
+        print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy}: {e}")
+        # Fallback to basic evolution without research
+        evolved_content = f"Evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
     
     return {
         "evolution_id": str(uuid.uuid4()),
         "original_scenario_id": scenario["scenario_id"],
         "original_scenario_content": scenario["scenario_content"],
-        "evolution_prompt": evolution_prompt,
+        "evolution_prompt": research_query,
         "strategy": strategy,
-        "evolved_content": response.content,
+        "evolved_content": evolved_content,
         "original_direction": scenario["research_direction"],
-        "critique_summary": critique_summary if strategy in ["feasibility", "synthesis"] else "",
-        "competing_scenarios": competing_scenarios_used,
+        "critique_summary": critique_summary,
+        "competing_scenarios": competing_scenarios[:2000] if competing_scenarios else "",
+        "raw_research_result": str(research_result) if 'research_result' in locals() else "No research result",
         "timestamp": datetime.now().isoformat()
     }
 
