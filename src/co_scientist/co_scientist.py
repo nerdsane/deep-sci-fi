@@ -159,6 +159,163 @@ def save_individual_critiques(critiques: list, output_dir: str = "output"):
             manager.save_file(filename, content, "critiques")
             critique_counter += 1
 
+def save_individual_tournament_comparisons(all_tournament_data: list, output_dir: str = "output"):
+    """Save each tournament comparison individually with full reasoning."""
+    manager = get_output_manager(output_dir)
+    
+    comparison_counter = 1
+    for tournament in all_tournament_data:
+        if not tournament or isinstance(tournament, Exception):
+            continue
+            
+        direction = tournament.get('direction', 'unknown')
+        comparisons = tournament.get('all_comparisons', [])
+        
+        for comparison in comparisons:
+            scenario1_id = comparison.get('scenario1_id', 'unknown')
+            scenario2_id = comparison.get('scenario2_id', 'unknown')
+            round_num = comparison.get('round', 'unknown')
+            winner_id = comparison.get('winner', {}).get('scenario_id', 'unknown')
+            
+            content = f"# Tournament Comparison {comparison_counter:03d}\n\n"
+            content += f"**Direction:** {direction}\n"
+            content += f"**Round:** {round_num}\n"
+            content += f"**Scenario 1 ID:** {scenario1_id}\n"
+            content += f"**Scenario 2 ID:** {scenario2_id}\n"
+            content += f"**Winner ID:** {winner_id}\n"
+            content += f"**Timestamp:** {comparison.get('timestamp', 'unknown')}\n\n"
+            
+            content += "## Comparison Reasoning\n\n"
+            content += comparison.get('reasoning', 'No reasoning available')
+            
+            filename = f"comparison_{comparison_counter:03d}_round{round_num}_{direction.replace(' ', '_')}_{scenario1_id[:8]}_vs_{scenario2_id[:8]}.md"
+            manager.save_file(filename, content, "tournament_comparisons")
+            comparison_counter += 1
+
+def save_individual_evolution_attempts(evolutions: list, output_dir: str = "output"):
+    """Save each evolution attempt individually with full prompts and reasoning."""
+    manager = get_output_manager(output_dir)
+    
+    evolution_counter = 1
+    for evolution in evolutions:
+        if not evolution:
+            continue
+            
+        strategy = evolution.get('strategy', 'unknown')
+        original_direction = evolution.get('original_direction', 'unknown')
+        original_scenario_id = evolution.get('original_scenario_id', 'unknown')
+        evolution_id = evolution.get('evolution_id', 'unknown')
+        
+        content = f"# Evolution Attempt {evolution_counter:03d}\n\n"
+        content += f"**Evolution ID:** {evolution_id}\n"
+        content += f"**Strategy:** {strategy}\n"
+        content += f"**Original Direction:** {original_direction}\n"
+        content += f"**Original Scenario ID:** {original_scenario_id}\n"
+        content += f"**Timestamp:** {evolution.get('timestamp', 'unknown')}\n\n"
+        
+        content += "## Original Scenario Content\n\n"
+        content += evolution.get('original_scenario_content', 'No original scenario content')
+        
+        content += "\n\n## Evolution Prompt Used\n\n"
+        content += evolution.get('evolution_prompt', 'No evolution prompt available')
+        
+        content += "\n\n## Evolved Content\n\n"
+        content += evolution.get('evolved_content', 'No evolved content available')
+        
+        content += "\n\n## Critique Summary (for feasibility/synthesis)\n\n"
+        content += evolution.get('critique_summary', 'No critique summary')
+        
+        content += "\n\n## Competing Scenarios (for creativity/synthesis)\n\n"
+        content += evolution.get('competing_scenarios', 'No competing scenarios')
+        
+        filename = f"evolution_{evolution_counter:03d}_{strategy}_{original_scenario_id[:8]}_{evolution_id[:8]}.md"
+        manager.save_file(filename, content, "evolution_attempts")
+        evolution_counter += 1
+
+def save_tournament_brackets(all_tournament_data: list, output_dir: str = "output"):
+    """Save detailed tournament bracket progression for each direction."""
+    manager = get_output_manager(output_dir)
+    
+    for i, tournament in enumerate(all_tournament_data, 1):
+        if not tournament or isinstance(tournament, Exception):
+            continue
+            
+        direction = tournament.get('direction', 'unknown')
+        rounds = tournament.get('round_progression', [])
+        winner = tournament.get('winner', {})
+        
+        content = f"# Tournament Bracket {i}: {direction}\n\n"
+        content += f"**Direction:** {direction}\n"
+        content += f"**Total Rounds:** {len(rounds)}\n"
+        content += f"**Final Winner:** {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')})\n\n"
+        
+        content += "## Bracket Progression\n\n"
+        for round_num, round_data in enumerate(rounds, 1):
+            content += f"### Round {round_num}\n\n"
+            participants = round_data.get('participants', [])
+            winners = round_data.get('winners', [])
+            
+            content += f"**Participants:** {len(participants)}\n"
+            for participant in participants:
+                content += f"- {participant.get('team_id', 'unknown')} ({participant.get('scenario_id', 'unknown')[:8]})\n"
+            
+            content += f"\n**Winners advancing:** {len(winners)}\n"
+            for winner in winners:
+                content += f"- {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')[:8]})\n"
+            content += "\n"
+        
+        content += "## Final Winner Details\n\n"
+        content += f"**Team ID:** {winner.get('team_id', 'unknown')}\n"
+        content += f"**Scenario ID:** {winner.get('scenario_id', 'unknown')}\n"
+        content += f"**Research Direction:** {winner.get('research_direction', 'unknown')}\n\n"
+        content += "**Winning Scenario Content:**\n\n"
+        content += winner.get('scenario_content', 'No scenario content available')
+        
+        filename = f"bracket_{i:02d}_{direction.replace(' ', '_')}.md"
+        manager.save_file(filename, content, "tournament_brackets")
+
+def save_evolution_tournament_details(evolution_tournaments: list, output_dir: str = "output"):
+    """Save detailed evolution tournament comparisons."""
+    manager = get_output_manager(output_dir)
+    
+    tournament_counter = 1
+    for tournament in evolution_tournaments:
+        if not tournament:
+            continue
+            
+        direction = tournament.get('direction', 'unknown')
+        original_winner = tournament.get('original_winner', {})
+        final_winner = tournament.get('final_winner', {})
+        all_comparisons = tournament.get('comparisons', [])
+        
+        content = f"# Evolution Tournament {tournament_counter:03d}: {direction}\n\n"
+        content += f"**Direction:** {direction}\n"
+        content += f"**Original Winner:** {original_winner.get('team_id', 'unknown')} ({original_winner.get('scenario_id', 'unknown')[:8]})\n"
+        content += f"**Final Winner:** {final_winner.get('team_id', 'unknown')} ({final_winner.get('scenario_id', 'unknown')[:8]})\n"
+        content += f"**Total Comparisons:** {len(all_comparisons)}\n\n"
+        
+        content += "## Evolution Tournament Comparisons\n\n"
+        for i, comparison in enumerate(all_comparisons, 1):
+            content += f"### Comparison {i}: {comparison.get('type', 'unknown')}\n\n"
+            content += f"**Participant 1:** {comparison.get('scenario1_type', 'unknown')} - {comparison.get('scenario1_id', 'unknown')[:8]}\n"
+            content += f"**Participant 2:** {comparison.get('scenario2_type', 'unknown')} - {comparison.get('scenario2_id', 'unknown')[:8]}\n"
+            content += f"**Winner:** {comparison.get('winner_type', 'unknown')} - {comparison.get('winner_id', 'unknown')[:8]}\n\n"
+            
+            content += "**Reasoning:**\n"
+            content += comparison.get('reasoning', 'No reasoning available')
+            content += "\n\n---\n\n"
+        
+        content += "## Final Winner Details\n\n"
+        content += f"**Type:** {final_winner.get('type', 'unknown')} (original vs evolved)\n"
+        content += f"**Team ID:** {final_winner.get('team_id', 'unknown')}\n"
+        content += f"**Scenario ID:** {final_winner.get('scenario_id', 'unknown')}\n\n"
+        content += "**Content:**\n\n"
+        content += final_winner.get('scenario_content', 'No content available')
+        
+        filename = f"evolution_tournament_{tournament_counter:03d}_{direction.replace(' ', '_')}.md"
+        manager.save_file(filename, content, "evolution_tournaments")
+        tournament_counter += 1
+
 def save_tournament_details(tournaments: list, output_dir: str = "output"):
     """Save detailed tournament results."""
     manager = get_output_manager(output_dir)
@@ -537,8 +694,18 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
     
     # Save tournament results
     if configuration.save_intermediate_results:
-        # Save individual tournament details
+        # Save individual tournament comparisons with full reasoning
+        save_individual_tournament_comparisons(direction_winners, configuration.output_dir)
+        
+        # Save tournament bracket progressions
+        save_tournament_brackets(direction_winners, configuration.output_dir)
+        
+        # Save individual tournament details (existing function)
         save_tournament_details(direction_winners, configuration.output_dir)
+        
+        # Save raw JSON data for debugging
+        manager = get_output_manager(configuration.output_dir)
+        manager.save_json("tournaments_raw_data.json", {"tournaments": direction_winners}, "raw_data")
         
         # Save summary
         tournament_content = format_tournament_results(direction_winners, tournament_results)
@@ -554,14 +721,24 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
     """Run tournament bracket for a single direction."""
     
     if len(scenarios) < 2:
-        return scenarios[0] if scenarios else None
+        winner = scenarios[0] if scenarios else None
+        return {
+            "direction": direction,
+            "winner": winner,
+            "total_rounds": 0,
+            "all_comparisons": [],
+            "round_progression": []
+        }
     
     current_round = scenarios.copy()
     round_number = 1
+    all_comparisons = []
+    round_progression = []
     
     while len(current_round) > 1:
         next_round = []
         comparison_tasks = []
+        round_participants = current_round.copy()
         
         # Create pairwise comparisons for this round
         for i in range(0, len(current_round), 2):
@@ -580,10 +757,21 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
         # Execute all comparisons for this round in parallel
         round_results = await asyncio.gather(*comparison_tasks, return_exceptions=True)
         
-        # Collect winners
+        # Collect winners and store comparison data
+        round_winners = []
         for result in round_results:
             if not isinstance(result, Exception) and result:
                 next_round.append(result["winner"])
+                round_winners.append(result["winner"])
+                all_comparisons.append(result)
+        
+        # Store round progression
+        round_progression.append({
+            "round": round_number,
+            "participants": round_participants,
+            "winners": round_winners,
+            "comparisons_count": len([r for r in round_results if not isinstance(r, Exception)])
+        })
         
         current_round = next_round
         round_number += 1
@@ -591,7 +779,9 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
     return {
         "direction": direction,
         "winner": current_round[0] if current_round else None,
-        "total_rounds": round_number - 1
+        "total_rounds": round_number - 1,
+        "all_comparisons": all_comparisons,
+        "round_progression": round_progression
     }
 
 async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: int, config: RunnableConfig) -> dict:
@@ -663,8 +853,15 @@ async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> di
     
     # Save evolution results
     if configuration.save_intermediate_results:
-        # Save individual evolution details
+        # Save individual evolution attempts with full prompts and reasoning
+        save_individual_evolution_attempts(evolved_scenarios, configuration.output_dir)
+        
+        # Save individual evolution details (existing function)
         save_evolution_details(evolved_scenarios, configuration.output_dir)
+        
+        # Save raw JSON data for debugging
+        manager = get_output_manager(configuration.output_dir)
+        manager.save_json("evolutions_raw_data.json", {"evolutions": evolved_scenarios}, "raw_data")
         
         # Save summary
         evolution_content = format_evolution_results(evolved_scenarios)
@@ -673,6 +870,65 @@ async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> di
     return {
         "evolved_scenarios": evolved_scenarios,
         "evolution_complete": True
+    }
+
+async def run_evolution_tournament_with_metadata(direction: str, original_winner: dict, competitors: list, config: RunnableConfig) -> dict:
+    """Run evolution tournament and add metadata about original vs evolved scenarios."""
+    
+    # Run the tournament
+    tournament_result = await run_direction_tournament(f"Evolution_{direction}", competitors, config)
+    
+    if isinstance(tournament_result, Exception) or not tournament_result:
+        return {
+            "direction": direction,
+            "original_winner": original_winner,
+            "final_winner": None,
+            "comparisons": [],
+            "tournament_failed": True
+        }
+    
+    # Extract comparison data and add original vs evolved metadata
+    enhanced_comparisons = []
+    for comparison in tournament_result.get("all_comparisons", []):
+        # Determine if each scenario is original or evolved
+        scenario1_id = comparison.get("scenario1_id")
+        scenario2_id = comparison.get("scenario2_id")
+        winner_id = comparison.get("winner", {}).get("scenario_id")
+        
+        scenario1_type = "original" if scenario1_id == original_winner.get("scenario_id") else "evolved"
+        scenario2_type = "original" if scenario2_id == original_winner.get("scenario_id") else "evolved"
+        winner_type = "original" if winner_id == original_winner.get("scenario_id") else "evolved"
+        
+        enhanced_comparison = {
+            "type": f"{scenario1_type}_vs_{scenario2_type}",
+            "scenario1_id": scenario1_id,
+            "scenario1_type": scenario1_type,
+            "scenario2_id": scenario2_id,
+            "scenario2_type": scenario2_type,
+            "winner_id": winner_id,
+            "winner_type": winner_type,
+            "reasoning": comparison.get("reasoning", ""),
+            "round": comparison.get("round", "unknown"),
+            "timestamp": comparison.get("timestamp", "")
+        }
+        enhanced_comparisons.append(enhanced_comparison)
+    
+    # Determine final winner type
+    final_winner = tournament_result.get("winner", {})
+    final_winner_type = "original" if final_winner.get("scenario_id") == original_winner.get("scenario_id") else "evolved"
+    
+    # Add type metadata to final winner
+    enhanced_final_winner = final_winner.copy()
+    enhanced_final_winner["type"] = final_winner_type
+    
+    return {
+        "direction": direction,
+        "original_winner": original_winner,
+        "final_winner": enhanced_final_winner,
+        "comparisons": enhanced_comparisons,
+        "total_rounds": tournament_result.get("total_rounds", 0),
+        "round_progression": tournament_result.get("round_progression", []),
+        "tournament_successful": True
     }
 
 async def evolution_tournament_phase(state: CoScientistState, config: RunnableConfig) -> dict:
@@ -730,7 +986,7 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
             competitors.append(evolved_scenario)
         
         # Run tournament for this direction (original + evolved)
-        task = run_direction_tournament(f"Evolution_{direction}", competitors, config)
+        task = run_evolution_tournament_with_metadata(direction, original_winner, competitors, config)
         evolution_tournament_tasks.append(task)
     
     # Execute all evolution tournaments in parallel
@@ -744,6 +1000,14 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
     
     # Save evolution tournament results
     if configuration.save_intermediate_results:
+        # Save detailed evolution tournament comparisons
+        save_evolution_tournament_details(evolution_results, configuration.output_dir)
+        
+        # Save raw JSON data for debugging
+        manager = get_output_manager(configuration.output_dir)
+        manager.save_json("evolution_tournaments_raw_data.json", {"evolution_tournaments": evolution_results}, "raw_data")
+        
+        # Save summary
         tournament_content = format_evolution_tournament_results(final_representatives)
         save_co_scientist_output("evolution_tournaments_summary.md", tournament_content, configuration.output_dir)
     
@@ -790,6 +1054,7 @@ async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState
             research_direction=scenario["research_direction"],
             critique_summary=critique_summary
         )
+        competing_scenarios_used = ""
     else:
         evolution_prompt = prompt_template.format(
             scenario_content=scenario["scenario_content"],
@@ -797,15 +1062,20 @@ async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState
             competing_scenarios=competing_scenarios[:2000],  # Limit length
             critique_summary=critique_summary if strategy == "synthesis" else ""
         )
+        competing_scenarios_used = competing_scenarios[:2000]
     
     response = await model.ainvoke([HumanMessage(content=evolution_prompt)])
     
     return {
         "evolution_id": str(uuid.uuid4()),
         "original_scenario_id": scenario["scenario_id"],
+        "original_scenario_content": scenario["scenario_content"],
+        "evolution_prompt": evolution_prompt,
         "strategy": strategy,
         "evolved_content": response.content,
         "original_direction": scenario["research_direction"],
+        "critique_summary": critique_summary if strategy in ["feasibility", "synthesis"] else "",
+        "competing_scenarios": competing_scenarios_used,
         "timestamp": datetime.now().isoformat()
     }
 
