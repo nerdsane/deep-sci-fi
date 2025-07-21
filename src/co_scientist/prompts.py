@@ -75,29 +75,54 @@ INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with ide
 {task_description}
 </Task>
 
-<Story Context>
+<Reference Material>
 {reference_material}
-</Story Context>
+</Reference Material>
 
-<World-Building Questions>
+<Context>
 {context}
-</World-Building Questions>
+</Context>
+
+<Domain Context>
+{domain_context}
+</Domain Context>
+
+<Scope>
+Analyze the provided context to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
+</Scope>
 
 <Requirements>
-- Each direction must be scientifically plausible but represent different development paths
-- All directions should address ALL the world-building questions, not focus on just one aspect
-- Different core assumptions about technological development
-- Different but equally plausible scientific trajectories  
-- Different implications for society, energy, transport, communication, etc.
-- Meaningful variety for storytelling purposes
+- Scientific plausibility: All directions must be grounded in real scientific principles
+- Comprehensive coverage: Each direction must address ALL questions in the context, not focus on just one aspect
+- Meaningful differentiation: Different core assumptions about technological development paths
+- Equal viability: Different but equally plausible scientific trajectories
+- Societal implications: Consider impacts on society, energy, transport, communication, governance, etc.
 </Requirements>
 
+<Key Constraints>
+- Maintain scientific rigor while exploring different possibilities
+- Ensure each direction provides unique storytelling opportunities
+- Balance innovation with plausibility
+- Create directions that are genuinely distinct, not variations of the same theme
+</Key Constraints>
+
 <Process>
-1. Identify key technological choice points in the story that could develop in different directions
-2. Create 3 distinct research directions based on different assumptions about which technologies/approaches will dominate
-3. Ensure each direction is scientifically plausible but represents different development paths
-4. Each direction should address ALL the world-building questions, not focus on just one aspect
+1. Analyze the context to identify key technological and scientific choice points
+2. Determine which technologies/approaches could develop in fundamentally different directions
+3. Create 3 distinct research directions based on different core assumptions
+4. Ensure each direction comprehensively addresses all questions in the context
+5. Validate that directions are scientifically plausible but meaningfully different
 </Process>
+
+<Domain Focus Areas>
+technological_development: Core assumptions about which technologies will dominate
+scientific_trajectories: Different paths for scientific advancement and discovery
+societal_systems: Implications for governance, economics, and social structures
+energy_paradigms: Different approaches to energy generation and distribution
+communication_evolution: How information exchange and connectivity develop
+transportation_futures: Different models for mobility and logistics
+environmental_interaction: Relationship between technology and ecological systems
+</Domain Focus Areas>
 
 <Output Format>
 Direction 1: [Name]
@@ -118,7 +143,8 @@ Reasoning: [Explain why these 3 directions provide meaningful variety while rema
 <Reminders>
 - Focus on technological choice points that create meaningful differentiation
 - Ensure all directions remain scientifically grounded and plausible
-- Address the complete scope of world-building questions in each direction
+- Address the complete scope of questions provided in the context
+- Each direction should offer unique narrative and world-building possibilities
 </Reminders>
 """
 
