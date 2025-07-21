@@ -773,14 +773,14 @@ Generate a comprehensive character development that is:
 # === Research and Analysis Templates ===
 
 # Used in: get_meta_analysis_prompt() for "linguistic_evolution" use case
-LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist and sociolinguist tasked with identifying distinct approaches for researching linguistic evolution in advanced technological societies.
+LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist and sociolinguist from this advanced technological world identifying distinct approaches for researching how language has evolved in our society.
 
 <Task>
 {task_description}
 </Task>
 
 <Scope>
-Identify 2 fundamentally different linguistic research approaches for projecting language evolution in this technological world state.
+Identify 2 fundamentally different research approaches for understanding how language naturally evolved within our established technological world.
 </Scope>
 
 <Research Context>
@@ -800,34 +800,34 @@ Identify 2 fundamentally different linguistic research approaches for projecting
 </Domain Focus>
 
 <Requirements>
-- Technology-Driven Evolution: How technological advances reshape communication patterns
-- Cultural-Social Dynamics: How social structures and cultural shifts influence language
-- Communication Efficiency: How new communication methods affect linguistic structures
-- Generational Adaptation: How different age groups adapt to linguistic changes
-- Cross-Cultural Integration: How global technological integration affects local linguistic identity
+- Technology Integration Patterns: How our integrated technological systems naturally shaped communication
+- Cultural-Social Evolution: How our society's structures and cultural developments influenced language
+- Communication Efficiency: How our established communication methods affected linguistic patterns
+- Generational Inheritance: How different generations naturally adapted to and shaped linguistic changes
+- Cultural Identity Preservation: How our global technological framework affected local linguistic identity
 </Requirements>
 
 <Key Constraints>
-- Build upon any previous linguistic research cycles if available
-- Consider cumulative effects of technological and social changes
-- Account for the specific timeline and technological development trajectory
-- Integrate with established world-building and social systems
+- Build upon previous linguistic research cycles from our ongoing studies
+- Document cumulative effects of our technological and social development
+- Account for our specific timeline and technological development trajectory
+- Work within our established world systems and social structures
 </Key Constraints>
 
 <Process>
-1. Analyze the world state for key technological and social factors affecting language
-2. Identify which linguistic domains will experience the most significant evolution
-3. Create 2 distinct research approaches with different focus areas and methodologies
-4. If previous research exists, build projections that extend and refine those findings
+1. Analyze our world's technological and social factors that influenced language evolution
+2. Identify which linguistic domains experienced natural evolution in our society
+3. Create 2 distinct research approaches focusing on different aspects of our linguistic development
+4. Extend previous research with refined understanding of our linguistic evolution
 </Process>
 
 <Domain Focus Areas>
-technological_linguistics: How technology directly shapes language structure and usage
-sociolinguistics: How social and cultural changes drive linguistic evolution
-communication_systems: Evolution of communication methods and their linguistic impact
-cultural_preservation: Balance between linguistic change and cultural identity maintenance
-generational_dynamics: How different age groups adopt and resist linguistic changes
-semantic_evolution: How meanings and concepts evolve with technological advancement
+technological_linguistics: How our integrated technology naturally shaped language structure and usage
+sociolinguistics: How our social and cultural development drove natural linguistic evolution
+communication_systems: How our communication methods naturally evolved with linguistic impact
+cultural_preservation: How our society balanced linguistic change with cultural identity maintenance
+generational_dynamics: How different generations in our world naturally adapted to linguistic changes
+semantic_evolution: How meanings and concepts naturally evolved with our technological advancement
 </Domain Focus Areas>
 
 <Output Format>
@@ -843,64 +843,62 @@ Reasoning: [Why these approaches provide comprehensive linguistic evolution anal
 </Output Format>
 
 <Reminders>
-- This is linguistic evolution research, not generic analysis
-- Focus on how language actually changes in technological societies
-- Consider both gradual evolution and rapid technological disruption
-- If previous research exists, extend and build upon those foundations
-- Remember the specific timeline and years being projected
+- This is research into our world's linguistic evolution, not theoretical analysis
+- Focus on how language naturally evolved within our established technological society
+- Document both gradual evolution and disruption as natural processes in our world
+- Build upon previous research from our ongoing linguistic studies
+- Work within our specific timeline and documented evolutionary periods
 </Reminders>
 """
 
 # Used in: get_generation_prompt() for "linguistic_evolution" use case
-LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team analyzing language evolution in advanced technological societies using the {direction_name} approach.
+LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team from this advanced technological world analyzing how language has evolved using the {direction_name} approach.
 
 <Research Approach>
 {direction_assumption}
 </Research Approach>
 
-<World State Foundation>
+<Current World State>
 {reference_material}
-</World State Foundation>
+</Current World State>
 
 <Research Requirements>
 {context}
 </Research Requirements>
 
-<Previous Research>
+<Previous Linguistic Research>
 {world_state_context}
-</Previous Research>
+</Previous Linguistic Research>
 
 <Task>
-Conduct comprehensive linguistic evolution research that projects how language, communication, and cultural expression will develop in this technological world state.
+Project how language, communication, and cultural expression naturally evolved in our technological society. Research for fellow inhabitants of this world who understand these systems.
 </Task>
 
-<Research Focus>
-- Language Structure Evolution: How technological and social changes reshape grammar, syntax, and semantics
-- Communication Methods: Evolution of communication technologies and their linguistic impact
-- Cultural-Linguistic Integration: How cultural shifts influence language development patterns
-- Generational Linguistic Dynamics: How different age groups adapt to and drive linguistic change
-- Cross-Cultural Communication: How global technological integration affects linguistic diversity and unity
-- Semantic and Conceptual Evolution: How new concepts and technologies create new vocabulary and meaning
-</Research Focus>
+<Evolution Analysis Focus>
+- Natural language adaptation to integrated technological systems
+- Communication efficiency patterns within established social structures  
+- Cultural expression evolution reflecting our society's values and norms
+- Generational linguistic inheritance and innovation patterns
+- Cross-cultural communication within our global technological framework
+- Semantic evolution reflecting concepts native to our technological reality
+</Evolution Analysis Focus>
 
-<Research Methodology>
-- Build upon any previous linguistic research cycles if available
-- Ground findings in established linguistic research and sociolinguistic theory
-- Consider technological disruption patterns and their linguistic parallels
-- Analyze generational adoption patterns and resistance to change
-- Project timelines for linguistic evolution based on technological development speed
-- Consider both gradual evolution and rapid disruption scenarios
-</Research Methodology>
+<Research Approach>
+- Document natural linguistic evolution within established world systems
+- Project from current technological and social trajectories we understand
+- Build upon previous research cycles if available from earlier projections
+- Analyze communication patterns as they naturally developed in this world
+- Account for linguistic adaptation as normal response to technological integration
+- Consider both gradual evolution and disruption as natural processes
+</Research Approach>
 
 <Key Principles>
-- Project realistic linguistic evolution based on technological and social trajectories
-- Account for human linguistic adaptation patterns and resistance to change
-- Consider how communication efficiency drives linguistic simplification or complexity
-- Factor in cultural preservation vs. technological adaptation tensions
-- Build cumulative projections if this extends previous research cycles
+- document natural language evolution within established world reality
+- build upon previous linguistic research as cumulative understanding
+- present evolution as natural adaptation, not revolutionary change
 </Key Principles>
 
-Provide comprehensive linguistic evolution analysis with specific projections, timelines, and examples of evolved language elements.
+Research how language naturally evolved in our technological society with specific projections, timelines, and examples of evolved language elements as they naturally exist.
 """
 
 # === Narrative Revision Templates ===
