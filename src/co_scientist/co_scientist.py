@@ -373,7 +373,7 @@ def save_evolution_details(evolutions: list, output_dir: str = "output"):
         content += f"**Generated:** {datetime.now().isoformat()}\n\n"
         
         content += "## Original Scenario\n\n"
-        content += evolution.get('original_scenario', 'No original scenario')
+        content += evolution.get('original_scenario_content', 'No original scenario')
         
         content += "\n\n## Evolution Prompt\n\n"
         content += evolution.get('evolution_prompt', 'No evolution prompt')
@@ -1329,8 +1329,8 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     tournament_winners = state.get("tournament_winners", [])
     direction_winners = []
     
-    # Extract the 2 direction winners
-    for i, tournament_result in enumerate(tournament_winners[:2]):
+    # Extract all direction winners (up to number of research directions)
+    for i, tournament_result in enumerate(tournament_winners):
         winner = tournament_result.get("winner", {})
         if winner:
             direction_winners.append({
@@ -1363,11 +1363,20 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     reflection_data = format_reflection_analysis(state.get("reflection_critiques", []))
     evolution_data = format_evolution_analysis(state.get("evolved_scenarios", []))
     
+    # Format direction winners summary dynamically
+    direction_winners_summary = ""
+    for i, winner in enumerate(direction_winners, 1):
+        direction_winners_summary += f"Direction {i} Winner: {winner.get('research_direction', 'Unknown')}\n"
+        direction_winners_summary += f"  - Core Assumption: {winner.get('core_assumption', 'N/A')}\n"
+        direction_winners_summary += f"  - Team: {winner.get('team_id', 'Unknown')}\n\n"
+    
+    if not direction_winners_summary:
+        direction_winners_summary = "No direction winners available.\n"
+
     # Use the new process-focused meta review prompt
     meta_review_prompt = META_REVIEW_PROMPT.format(
         competition_summary=format_competition_process_summary(state),
-        direction1_winner=direction_winners[0] if len(direction_winners) > 0 else "No winner",
-        direction2_winner=direction_winners[1] if len(direction_winners) > 1 else "No winner",
+        direction_winners_summary=direction_winners_summary,
         tournament_data=tournament_data,
         reflection_data=reflection_data,
         evolution_data=evolution_data
@@ -1443,8 +1452,8 @@ def generate_user_competition_summary(state: dict, direction_winners: list) -> s
         summary += f"- Approach: {winner.get('core_assumption', 'No assumption available')}\n"
         summary += f"- Team: {winner.get('team_id', 'Unknown')}\n\n"
     
-    summary += "These represent the two strongest approaches from the competitive process. "
-    summary += "Please review both options and select your preferred direction.\n"
+    summary += f"These represent the {len(direction_winners)} strongest approaches from the competitive process. "
+    summary += f"Please review all {len(direction_winners)} options and select your preferred direction.\n"
     
     return summary
 

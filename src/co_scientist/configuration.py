@@ -23,7 +23,8 @@ class UseCase(str, Enum):
     CHAPTER_REWRITING = "chapter_rewriting" 
     CHARACTER_DEVELOPMENT = "character_development"
     PLOT_ANALYSIS = "plot_analysis"
-    CUSTOM = "custom"
+    LINGUISTIC_EVOLUTION = "linguistic_evolution"
+    STORYLINE_ADJUSTMENT = "storyline_adjustment"
 
 # Use case configurations
 USE_CASE_CONFIGS = {
@@ -63,14 +64,23 @@ USE_CASE_CONFIGS = {
         "meta_prompt_key": "chapter_meta",
         "generation_prompt_key": "chapter_generation"
     },
-    "custom": {
-        "direction_type": "approaches",
-        "task_type": "content development",
-        "reflection_domains": ["quality", "consistency", "effectiveness", "creativity", "feasibility"],
-        "evolution_strategies": ["quality_improvement", "creative_enhancement", "structural_refinement", "detail_expansion"],
-        "output_name": "outputs",
-        "meta_prompt_key": "custom_meta", 
-        "generation_prompt_key": "custom_generation"
+    "linguistic_evolution": {
+        "direction_type": "research approaches",
+        "task_type": "linguistic evolution analysis",
+        "reflection_domains": ["linguistics", "technology", "sociology_and_anthropology"],
+        "evolution_strategies": ["research_depth", "cultural_insight", "technological_integration", "social_impact"],
+        "output_name": "linguistic_analyses",
+        "meta_prompt_key": "research_meta",
+        "generation_prompt_key": "research_generation"
+    },
+    "storyline_adjustment": {
+        "direction_type": "narrative approaches",
+        "task_type": "storyline revision",
+        "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence"],
+        "evolution_strategies": ["narrative_enhancement", "world_integration", "character_consistency", "thematic_depth"],
+        "output_name": "revised_storylines",
+        "meta_prompt_key": "narrative_meta",
+        "generation_prompt_key": "narrative_generation"
     }
 }
 
@@ -81,7 +91,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "chapter_rewriting", "character_development", "plot_analysis", "custom"],
+                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "character_development", "plot_analysis", "linguistic_evolution", "storyline_adjustment"],
                 "default": "scenario_generation",
                 "description": "Pre-configured use case template"
             }
@@ -353,7 +363,7 @@ class CoScientistConfiguration(BaseModel):
         if self.reflection_domains is not None:
             return self.reflection_domains
             
-        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["custom"])
+        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
         return use_case_config["reflection_domains"]
     
     def get_evolution_strategies(self) -> List[str]:
@@ -361,7 +371,7 @@ class CoScientistConfiguration(BaseModel):
         if self.evolution_strategies is not None:
             return self.evolution_strategies
             
-        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["custom"])
+        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
         return use_case_config["evolution_strategies"]
     
     def get_enabled_phases_for_depth(self) -> List[str]:
@@ -380,7 +390,7 @@ class CoScientistConfiguration(BaseModel):
     
     def get_use_case_config(self) -> Dict:
         """Get the configuration for the current use case."""
-        return USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["custom"])
+        return USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
     
     def get_phase_list(self) -> List[str]:
         """Get the list of phases to run based on process depth."""
@@ -390,7 +400,7 @@ class CoScientistConfiguration(BaseModel):
     def create_input_state(cls, 
                           task_description: str,
                           context: str,
-                          use_case: UseCase = UseCase.CUSTOM,
+                          use_case: UseCase = UseCase.SCENARIO_GENERATION,
                           reference_material: str = None,
                           domain_context: str = None,
                           **legacy_fields) -> dict:

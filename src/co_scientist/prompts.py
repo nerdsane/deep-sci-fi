@@ -14,20 +14,31 @@ def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
         "chapter_writing": STORYLINE_META_ANALYSIS_PROMPT,  # Same template for both
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
         "character_development": CHARACTER_META_ANALYSIS_PROMPT,
-        "custom": CUSTOM_META_ANALYSIS_PROMPT
+        "linguistic_evolution": RESEARCH_META_ANALYSIS_PROMPT,
+        "storyline_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
     }
     
-    template = templates.get(use_case, CUSTOM_META_ANALYSIS_PROMPT)
+    # Special handling for scenario generation
+    if use_case == "scenario_generation":
+        if state.get("research_context") and state.get("storyline"):
+            # Use storyline-based prompt when we have a storyline
+            return INITIAL_META_ANALYSIS_PROMPT.format(
+                storyline=state.get("storyline"),
+                research_context=state.get("research_context"),
+                target_year=state.get("target_year", "future")
+            )
+        elif state.get("context"):
+            # Use research-based prompt when we have research questions but no storyline
+            return INITIAL_RESEARCH_META_ANALYSIS_PROMPT.format(
+                context=state.get("context"),
+                target_year=state.get("target_year", "future")
+            )
     
-    # Handle backward compatibility for scenario generation
-    if use_case == "scenario_generation" and state.get("research_context"):
-        return template.format(
-            storyline=state.get("storyline", ""),
-            research_context=state.get("research_context", state.get("context", "")),
-            target_year=state.get("target_year", "future")
-        )
-    
-    # New flexible format
+    # Other use cases use flexible format
+    template = templates.get(use_case)
+    if not template:
+        raise ValueError(f"No template found for use_case: {use_case}")
+        
     return template.format(
         task_description=state.get("task_description", ""),
         context=state.get("context", ""),
@@ -43,13 +54,16 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
         "character_development": CHARACTER_GENERATION_PROMPT,
-        "custom": CUSTOM_GENERATION_PROMPT
+        "linguistic_evolution": RESEARCH_GENERATION_PROMPT,
+        "storyline_adjustment": NARRATIVE_GENERATION_PROMPT,
     }
     
-    template = templates.get(use_case, CUSTOM_GENERATION_PROMPT)
+    template = templates.get(use_case)
+    if not template:
+        raise ValueError(f"No template found for use_case: {use_case}")
     
-    # Handle backward compatibility for scenario generation
-    if use_case == "scenario_generation" and state.get("research_context"):
+    # Handle scenario generation with proper template format
+    if use_case == "scenario_generation":
         return template.format(
             research_direction=direction.get("name", ""),
             core_assumption=direction.get("assumption", ""),
@@ -74,7 +88,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
 # Meta-Analysis Phase
 ###################
 
-# Used in: get_meta_analysis_prompt() for "scenario_generation" use case (legacy format)
+# Used in: get_meta_analysis_prompt() for "scenario_generation" use case when storyline is available
 INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for scenario competition.
 
 Your goal is to analyze the provided story context and research questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
@@ -98,6 +112,44 @@ Requirements for good research directions:
 - Different but equally plausible scientific trajectories  
 - Different implications for society, energy, transport, communication, etc.
 - Meaningful variety for storytelling purposes
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key technological assumption]
+Focus: [What this direction emphasizes]
+
+Direction 2: [Name] 
+Core Assumption: [Key technological assumption]
+Focus: [What this direction emphasizes]
+
+Direction 3: [Name]
+Core Assumption: [Key technological assumption] 
+Focus: [What this direction emphasizes]
+
+Reasoning: [Explain why these 3 directions provide meaningful variety while remaining scientifically grounded]
+"""
+
+# Used in: get_meta_analysis_prompt() for "scenario_generation" use case when no storyline is available
+INITIAL_RESEARCH_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for future scenario development.
+
+Your goal is to analyze the provided research questions and identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
+
+Research Questions:
+{context}
+
+Target Year: {target_year}
+
+Instructions:
+1. Identify key technological choice points from the research questions that could develop in different directions
+2. Create 3 distinct research directions based on different assumptions about which technologies/approaches will dominate
+3. Ensure each direction is scientifically plausible but represents different development paths
+4. Each direction should address ALL the research questions, not focus on just one aspect
+
+Requirements for good research directions:
+- Different core assumptions about technological development
+- Different but equally plausible scientific trajectories  
+- Different implications for society, energy, transport, communication, etc.
+- Meaningful variety for future scenario storytelling
 
 Format your response as:
 Direction 1: [Name]
@@ -429,86 +481,7 @@ Generate a comprehensive character development that is:
 Character Content:
 """
 
-###################
-# Custom/Generic Templates
-###################
 
-# Used in: get_meta_analysis_prompt() for "custom" use case (fallback)
-CUSTOM_META_ANALYSIS_PROMPT = """You are an expert analyst tasked with identifying distinct approaches for competitive content development.
-
-Your goal is to analyze the task requirements and identify 2 fundamentally different approaches that would lead to meaningfully different outcomes.
-
-Task Description: {task_description}
-Context and Requirements: {context}
-Reference Material: {reference_material}
-Domain Context: {domain_context}
-
-Instructions:
-1. Identify key choice points that could be developed in different directions
-2. Create 2 distinct approaches based on different core assumptions
-3. Ensure each approach is sound and represents different creative/analytical paths
-4. Each approach should address the full task requirements
-
-Requirements for good approaches:
-- Different core assumptions about methodology or style
-- Different but equally valid directions  
-- Different implications for quality, effectiveness, and outcome
-- Meaningful variety for the intended purpose
-
-Format your response as:
-Direction 1: [Name]
-Core Assumption: [Key assumption]
-Focus: [What this approach emphasizes]
-
-Direction 2: [Name] 
-Core Assumption: [Key assumption]
-Focus: [What this approach emphasizes]
-
-Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining sound]
-"""
-
-# Used in: get_generation_prompt() for "custom" use case (fallback)
-CUSTOM_GENERATION_PROMPT = """You are an expert practitioner conducting a comprehensive approach to content development.
-
-Approach: {direction_name}
-Core Assumption: {direction_assumption}
-Team ID: {team_id}
-
-Task: {task_description}
-Requirements: {context}
-Reference Material: {reference_material}
-Domain Context: {domain_context}
-
-Instructions:
-1. Analyze the requirements to understand the full scope of work needed
-2. Apply your approach to develop the content comprehensively
-3. Ground every choice in established best practices and sound methodology
-4. Maintain consistency with requirements while implementing your approach
-5. Consider the impact on quality, effectiveness, and intended outcomes
-
-Your development must address all specified requirements and demonstrate:
-- Sound methodology and technique
-- Consistency with domain best practices
-- Quality and attention to detail
-- Effectiveness for the intended purpose
-- Professional standards and expectations
-
-Development Methodology:
-- Start with your core assumption as the foundation
-- Apply established principles and techniques for this type of content
-- Consider what makes content in this domain effective and engaging
-- Address implementation challenges and requirements
-- Focus on creating compelling, well-crafted content
-
-Generate comprehensive content that is:
-- Well-crafted and engaging for the intended purpose
-- Consistent with requirements and expectations
-- Specific and complete in implementation
-- Demonstrates quality writing and creativity
-- Achieves the goals outlined in the task
-
-Content:
-"""
 
 # Generic Storyline Template
 # Used in: get_meta_analysis_prompt() for "storyline_creation" and "chapter_writing" use cases
@@ -749,8 +722,7 @@ Competition Process Data:
 {competition_summary}
 
 Tournament Results from Each Direction:
-Direction 1 Winner: {direction1_winner}
-Direction 2 Winner: {direction2_winner}
+{direction_winners_summary}
 
 Competition Process Analysis:
 {tournament_data}
@@ -791,5 +763,149 @@ Generate a comprehensive process analysis covering:
 [Comprehensive overview of the competition process and methodology for research purposes]
 
 This analysis will optimize future co-scientist performance and enhance the quality of subsequent iterations.
+"""
+
+###################
+# Research and Narrative Use Cases
+###################
+
+# Used in: get_meta_analysis_prompt() for "linguistic_evolution" use case
+RESEARCH_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research approaches for competitive analysis.
+
+Your goal is to analyze the task requirements and identify 2 fundamentally different research methodologies that would lead to meaningfully different analytical outcomes.
+
+Task Description: {task_description}
+Context and Requirements: {context}
+Reference Material: {reference_material}
+Domain Context: {domain_context}
+
+Instructions:
+1. Identify key analytical choice points that could be approached in different directions
+2. Create 2 distinct research approaches based on different core assumptions about methodology
+3. Ensure each approach is academically sound but represents different research perspectives
+4. Each approach should address the full research requirements
+
+Requirements for good research approaches:
+- Different core assumptions about research methodology or analytical framework
+- Different but equally valid academic perspectives
+- Different implications for depth, scope, and analytical outcomes
+- Meaningful variety for comprehensive analysis
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key methodological assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name]
+Core Assumption: [Key methodological assumption]
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining academically sound]
+"""
+
+# Used in: get_generation_prompt() for "linguistic_evolution" use case
+RESEARCH_GENERATION_PROMPT = """You are a research team conducting comprehensive academic analysis.
+
+Research Approach: {direction_name}
+Core Methodology: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Research Context: {context}
+Reference Material: {reference_material}
+Domain: {domain_context}
+
+Instructions:
+1. Apply your research methodology to conduct thorough analysis
+2. Ground every finding in current academic literature and research
+3. Consider multiple perspectives and interdisciplinary insights
+4. Address all aspects of the research requirements systematically
+5. Provide evidence-based conclusions and recommendations
+
+Research Methodology:
+- Use your core methodology as the analytical framework
+- Integrate relevant academic theories and current research
+- Consider empirical evidence and case studies
+- Address potential limitations and alternative interpretations
+- Provide clear, well-supported conclusions
+
+Generate a comprehensive research analysis that is:
+- Methodologically rigorous and academically sound
+- Well-supported by current literature and evidence
+- Internally consistent with your analytical framework
+- Thorough in addressing all research requirements
+- Clear and accessible for academic and practical application
+
+Analysis Content:
+"""
+
+# Used in: get_meta_analysis_prompt() for "storyline_adjustment" use case  
+NARRATIVE_META_ANALYSIS_PROMPT = """You are an expert narrative analyst tasked with identifying distinct revision approaches for competitive storyline development.
+
+Your goal is to analyze the narrative requirements and identify 2 fundamentally different revision strategies that would lead to meaningfully different storyline outcomes.
+
+Task Description: {task_description}
+Context and Requirements: {context}
+Reference Material: {reference_material}
+Domain Context: {domain_context}
+
+Instructions:
+1. Identify key narrative choice points that could be revised in different directions
+2. Create 2 distinct revision approaches based on different core assumptions about narrative priority
+3. Ensure each approach is literarily sound but represents different creative perspectives
+4. Each approach should address the full revision requirements
+
+Requirements for good revision approaches:
+- Different core assumptions about narrative focus (structure vs character vs theme vs world-building)
+- Different but equally valid creative directions
+- Different implications for story flow, character development, and thematic coherence
+- Meaningful variety for narrative enhancement
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining literarily sound]
+"""
+
+# Used in: get_generation_prompt() for "storyline_adjustment" use case
+NARRATIVE_GENERATION_PROMPT = """You are a narrative development team specializing in storyline revision and enhancement.
+
+Revision Approach: {direction_name}
+Core Philosophy: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Revision Context: {context}
+Reference Material: {reference_material}
+Genre/Style: {domain_context}
+
+Instructions:
+1. Apply your revision philosophy to enhance the storyline systematically
+2. Maintain narrative coherence while integrating new elements
+3. Ensure character consistency and development throughout
+4. Balance plot structure with thematic depth
+5. Create engaging, well-paced narrative flow
+
+Revision Methodology:
+- Use your core philosophy as the guiding principle
+- Integrate new elements seamlessly with existing narrative
+- Maintain character voice and development consistency
+- Ensure thematic coherence and meaningful progression
+- Address pacing, tension, and reader engagement
+
+Generate a comprehensive revised storyline that is:
+- Narratively coherent and well-structured
+- Character-consistent with clear development arcs
+- Thematically rich and meaningfully integrated
+- Engaging with appropriate pacing and tension
+- Seamlessly incorporating required new elements
+
+Revised Storyline:
 """
 

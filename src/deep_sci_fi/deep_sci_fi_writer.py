@@ -64,19 +64,26 @@ class AgentState(TypedDict):
     baseline_world_state: Optional[str]
     storyline: Optional[str]
     storyline_options: Optional[dict]  # Co-scientist storyline options
+    storyline_choice: Optional[str]  # User's storyline selection (1 or 2)
     chapter_arcs: Optional[str]
     first_chapter: Optional[str]
     first_chapter_options: Optional[dict]  # Co-scientist first chapter options
+    chapter_choice: Optional[str]  # User's chapter selection (1 or 2)
     world_building_questions: Optional[str]
     world_building_scenarios: Optional[str]
+    world_scenario_options: Optional[dict]  # Co-scientist world scenario options
+    world_scenario_choice: Optional[str]  # User's world scenario selection (1, 2, or 3)
     scenario_critique: Optional[str]
     linguistic_evolution: Optional[str]
     linguistic_evolution_options: Optional[dict]  # Co-scientist linguistic options
+    linguistic_choice: Optional[str]  # User's linguistic evolution selection (1 or 2)
     revised_storyline: Optional[str]
     storyline_adjustment_options: Optional[dict]  # Co-scientist storyline adjustment options
+    storyline_adjustment_choice: Optional[str]  # User's storyline adjustment selection (1 or 2)
     revised_chapter_arcs: Optional[str]
     revised_first_chapter: Optional[str]
     chapter_rewrite_options: Optional[dict]  # Co-scientist chapter rewrite options
+    chapter_rewrite_choice: Optional[str]  # User's chapter rewrite selection (1 or 2)
     scientific_explanations: Optional[str]
     glossary: Optional[str]
 
@@ -204,10 +211,37 @@ def select_storyline(state: AgentState):
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
     print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
     
-    # For now, auto-select option 1 to continue workflow development
-    # In a real implementation, this would pause and wait for user input
-    selected_storyline = option_1_content
-    selected_option = options_metadata[0]
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- Storyline options prepared. Workflow will pause for user selection. ---")
+    
+    return {"storyline_options": storyline_options}
+
+def process_storyline_selection(state: AgentState):
+    """Process user's storyline selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (storyline_options := state.get("storyline_options")):
+        raise ValueError("Required state 'output_dir' or 'storyline_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("storyline_choice", "1")  # Default to option 1
+    options_metadata = storyline_options.get("options_metadata", [])
+    
+    option_1_content = storyline_options.get("option_1", "")
+    option_2_content = storyline_options.get("option_2", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_storyline = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_storyline = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_storyline = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
     
     save_output(output_dir, "00_01_selected_storyline.md", selected_storyline)
     
@@ -289,16 +323,74 @@ async def write_first_chapter(state: AgentState, config: RunnableConfig):
             "options_metadata": direction_winners
         }
         
-        # Auto-select the first chapter to allow workflow to continue
-        # (Options are still saved for reference)
-        selected_chapter = direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else ""
-        save_output(output_dir, "00_03_selected_first_chapter.md", selected_chapter)
+        print("--- Co-Scientist First Chapter Competition Complete ---")
+        print("--- Two chapter options created. User selection required. ---")
+        
+        return {"first_chapter_options": chapter_options, "first_chapter": None}  # No auto-selection
     else:
         # Co-scientist failed to produce direction winners - this is a system failure
         raise RuntimeError("Co-scientist first chapter competition failed to produce direction winners. Check competition configuration and model availability.")
+
+def select_first_chapter(state: AgentState):
+    """User selection node - presents first chapter options and waits for user choice."""
+    if not (output_dir := state.get("output_dir")) or not (first_chapter_options := state.get("first_chapter_options")):
+        raise ValueError("Required state 'output_dir' or 'first_chapter_options' is missing.")
     
-    print("--- Co-Scientist First Chapter Competition Complete ---")
-    return {"first_chapter_options": chapter_options, "first_chapter": selected_chapter}
+    # Present options to user through the interface
+    options_metadata = first_chapter_options.get("options_metadata", [])
+    if len(options_metadata) < 2:
+        raise ValueError("Not enough first chapter options for user selection.")
+    
+    # Save individual option files for reference
+    option_1_content = first_chapter_options.get("option_1", "")
+    option_2_content = first_chapter_options.get("option_2", "")
+    
+    save_output(output_dir, "00_03a_first_chapter_option_1.md", option_1_content)
+    save_output(output_dir, "00_03b_first_chapter_option_2.md", option_2_content)
+    
+    print("--- First Chapter Options Prepared for User Selection ---")
+    print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
+    print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
+    
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- First chapter options prepared. Workflow will pause for user selection. ---")
+    
+    return {"first_chapter_options": first_chapter_options}
+
+def process_chapter_selection(state: AgentState):
+    """Process user's first chapter selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (first_chapter_options := state.get("first_chapter_options")):
+        raise ValueError("Required state 'output_dir' or 'first_chapter_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("chapter_choice", "1")  # Default to option 1
+    options_metadata = first_chapter_options.get("options_metadata", [])
+    
+    option_1_content = first_chapter_options.get("option_1", "")
+    option_2_content = first_chapter_options.get("option_2", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_chapter = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_chapter = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_chapter = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    save_output(output_dir, "00_03_selected_first_chapter.md", selected_chapter)
+    
+    print(f"--- First Chapter Selected: {selected_option.get('research_direction', 'Unknown')} ---")
+    
+    return {
+        "first_chapter": selected_chapter
+    }
 
 def prompt_for_projection_year(state: AgentState):
     message = AIMessage(content="The initial draft is complete. To project this world further into the future, please provide the number of years to project forward in the `years_in_future` field and then resume.")
@@ -352,13 +444,23 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     print("--- Starting Co-Scientist Competition ---")
     
     # Transform parent state to subgraph input state
-    co_scientist_input = {
-        "research_context": questions,
-        "storyline": storyline,
-        "target_year": target_year,
-        "baseline_world_state": state.get("baseline_world_state"),
-        "years_in_future": state.get("years_in_future")
-    }
+    if storyline:
+        # Use storyline-based scenario generation
+        co_scientist_input = {
+            "research_context": questions,
+            "storyline": storyline,
+            "target_year": target_year,
+            "baseline_world_state": state.get("baseline_world_state"),
+            "years_in_future": state.get("years_in_future")
+        }
+    else:
+        # Use research-based scenario generation (no storyline)
+        co_scientist_input = {
+            "context": questions,
+            "target_year": target_year,
+            "baseline_world_state": state.get("baseline_world_state"),
+            "years_in_future": state.get("years_in_future")
+        }
     
     # Configure subgraph
     subgraph_config = config.copy()
@@ -375,52 +477,70 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
         subgraph_config
     )
     
-    # Transform subgraph output back to parent state
-    top_scenarios = co_scientist_result.get("top_scenarios", [])
-    competition_summary = co_scientist_result.get("competition_summary", "")
-    
-    # Format scenarios for user presentation
-    formatted_scenarios = format_co_scientist_scenarios(top_scenarios, competition_summary)
-    
-    # Save intermediate results for debugging
+    # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
+        # Save competition summary
+        competition_summary = co_scientist_result.get("competition_summary", "")
         save_output(output_dir, f"{state['loop_count']:02d}_05a_competition_summary.md", competition_summary)
         
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
         save_output(output_dir, f"{state['loop_count']:02d}_05b_detailed_results.md", detailed_results)
-    
-    save_output(output_dir, f"{state['loop_count']:02d}_05_world_building_scenarios.md", formatted_scenarios)
-    print("--- Co-Scientist Competition Complete ---")
-    
-    return {"world_building_scenarios": formatted_scenarios}
+        
+        # Save all 3 direction winners with metadata
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners, 1):
+            winner_details = format_co_scientist_winner_details(winner, f"world_scenario_option_{i}")
+            save_output(output_dir, f"{state['loop_count']:02d}_05c_world_scenario_option_{i}_full.md", winner_details)
+
+    # Extract direction winners for user selection
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        # Format all 3 options for user presentation
+        formatted_options = format_world_scenario_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
+        save_output(output_dir, f"{state['loop_count']:02d}_05_world_building_scenario_options.md", formatted_options)
+        
+        # Store options in state for user selection
+        world_scenario_options = {
+            "option_1": direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else "",
+            "option_2": direction_winners[1].get("scenario_content", "") if len(direction_winners) > 1 else "",
+            "option_3": direction_winners[2].get("scenario_content", "") if len(direction_winners) > 2 else "",
+            "options_metadata": direction_winners
+        }
+        
+        print("--- Co-Scientist World Scenario Competition Complete ---")
+        print(f"--- {len(direction_winners)} world scenario options created. User selection required. ---")
+        
+        return {"world_scenario_options": world_scenario_options, "world_building_scenarios": None}  # No auto-selection
+    else:
+        # Co-scientist failed to produce direction winners - this is a system failure
+        raise RuntimeError("Co-scientist world scenario competition failed to produce direction winners. Check competition configuration and model availability.")
 
 
 
-def format_co_scientist_scenarios(top_scenarios: list, competition_summary: str) -> str:
-    """Format co_scientist competition results for user selection."""
+def format_world_scenario_options_for_selection(direction_winners: list, competition_summary: str) -> str:
+    """Format world scenario options for user selection."""
     
-    formatted_output = "# Top World-Building Scenarios (Co-Scientist Competition Winners)\n\n"
-    formatted_output += "These scenarios have been refined through competitive multi-agent tournament, reflection, and evolution.\n\n"
+    content = "# World Scenario Options from Co-Scientist Competition\n\n"
+    content += f"{len(direction_winners)} different research approaches competed and are now available for your selection.\n\n"
     
-    # Add competition overview
-    formatted_output += "## Competition Overview\n"
-    formatted_output += competition_summary + "\n\n"
+    content += "## Competition Overview\n"
+    content += competition_summary + "\n\n"
     
-    # Format each scenario
-    for i, scenario in enumerate(top_scenarios[:3], 1):
-        formatted_output += f"## Scenario {i}: {scenario.get('research_direction', 'Unknown Direction')}\n"
-        formatted_output += f"**Competition Rank: #{scenario.get('competition_rank', i)}**\n\n"
-        formatted_output += f"**Selection Reasoning:** {scenario.get('selection_reasoning', 'Selected by competitive tournament')}\n\n"
-        formatted_output += f"{scenario.get('scenario_content', 'No content available')}\n\n"
-        formatted_output += "---\n\n"
+    for i, winner in enumerate(direction_winners, 1):
+        content += f"## Option {i}: {winner.get('research_direction', 'Unknown Approach')}\n\n"
+        content += f"**Core Approach:** {winner.get('core_assumption', 'No assumption available')}\n\n"
+        content += f"**Selection Reasoning:** {winner.get('selection_reasoning', 'Tournament winner')}\n\n"
+        content += "### Full World Scenario:\n\n"
+        content += f"{winner.get('scenario_content', 'No content available')}\n\n"
+        content += "---\n\n"
     
-    formatted_output += "## Selection Instructions\n"
-    formatted_output += "Please review these scenarios and provide the full text of your chosen scenario in the `selected_scenario` field.\n"
-    formatted_output += "You may also modify or combine elements from multiple scenarios.\n\n"
-    formatted_output += "Note: These scenarios have been scientifically validated through multi-agent competition and are ready for development.\n"
+    content += "## Selection Instructions\n"
+    content += f"Please review all {len(direction_winners)} world scenario options above and choose your preferred approach. "
+    content += "You can select one option as-is, or combine elements from multiple approaches.\n\n"
+    content += "To continue, provide your chosen world scenario (or modified version) in the workflow.\n"
     
-    return formatted_output
+    return content
 
 def format_storyline_options_for_selection(direction_winners: list, competition_summary: str) -> str:
     """Format storyline options for user selection."""
@@ -653,34 +773,68 @@ def format_detailed_competition_results(co_scientist_result: dict) -> str:
     
     return detailed
 
-def prompt_for_scenario_selection(state: AgentState):
-    """Adds a message to the state to ask the user to select a scenario."""
-    message = AIMessage(
-        content="The research is complete and three potential scenarios have been proposed. Please review the scenarios and provide the full text of the one you'd like to develop further in the `selected_scenario` field."
-    )
-    return {"messages": [message]}
+def select_world_scenario(state: AgentState):
+    """User selection node - presents world scenario options and waits for user choice."""
+    if not (output_dir := state.get("output_dir")) or not (world_scenario_options := state.get("world_scenario_options")):
+        raise ValueError("Required state 'output_dir' or 'world_scenario_options' is missing.")
+    
+    # Present options to user through the interface
+    options_metadata = world_scenario_options.get("options_metadata", [])
+    if len(options_metadata) < 2:
+        raise ValueError("Not enough world scenario options for user selection.")
+    
+    # Save individual option files for reference
+    for i in range(len(options_metadata)):
+        option_content = world_scenario_options.get(f"option_{i+1}", "")
+        save_output(output_dir, f"{state['loop_count']:02d}_05a_world_scenario_option_{i+1}.md", option_content)
+    
+    print("--- World Scenario Options Prepared for User Selection ---")
+    for i, metadata in enumerate(options_metadata, 1):
+        print(f"Option {i}: {metadata.get('research_direction', 'Unknown')}")
+    
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- World scenario options prepared. Workflow will pause for user selection. ---")
+    
+    return {"world_scenario_options": world_scenario_options}
 
-def save_selected_scenario(state: AgentState):
-    """Save the full selected scenario content to output for easy access."""
-    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")):
-        raise ValueError("Required state for saving selected scenario is missing.")
+def process_world_scenario_selection(state: AgentState):
+    """Process user's world scenario selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (world_scenario_options := state.get("world_scenario_options")):
+        raise ValueError("Required state 'output_dir' or 'world_scenario_options' is missing.")
     
-    print("--- Saving Selected Scenario ---")
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("world_scenario_choice", "1")  # Default to option 1
+    options_metadata = world_scenario_options.get("options_metadata", [])
     
-    # Save the full selected scenario content
-    content = f"# Selected Scenario\n\n"
-    content += f"This scenario was selected from the co-scientist competition results.\n\n"
-    content += f"## Full Scenario Content\n\n"
-    content += selected_scenario
-    content += f"\n\n## Notes\n\n"
-    content += "This scenario has undergone comprehensive research, critique, and competitive validation through the co-scientist process."
+    # Process user choice
+    choice = str(user_choice).strip()
+    try:
+        choice_index = int(choice) - 1
+        if 0 <= choice_index < len(options_metadata):
+            selected_scenario = world_scenario_options.get(f"option_{choice_index + 1}", "")
+            selected_option = options_metadata[choice_index]
+        else:
+            # Default to option 1 if invalid choice
+            print(f"Invalid choice '{choice}', defaulting to Option 1")
+            selected_scenario = world_scenario_options.get("option_1", "")
+            selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    except (ValueError, IndexError):
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_scenario = world_scenario_options.get("option_1", "")
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
     
-    save_output(output_dir, f"{state['loop_count']:02d}_06_selected_scenario.md", content)
+    save_output(output_dir, f"{state['loop_count']:02d}_05_selected_world_scenario.md", selected_scenario)
     
-    # Set scenario_critique field for compatibility (though it's not really needed)
-    critique_note = "Scenario critique was performed during the co-scientist competition phase. See detailed competition results for comprehensive analysis."
+    print(f"--- World Scenario Selected: {selected_option.get('research_direction', 'Unknown')} ---")
     
-    return {"scenario_critique": critique_note}
+    return {
+        "world_building_scenarios": selected_scenario,
+        "selected_scenario": selected_option.get('research_direction', 'Unknown')
+    }
+
+
 
 async def world_projection_deep_research(state: AgentState, config: RunnableConfig):
     """Use the co-scientist selected scenario as the baseline world state since it's already research-backed."""
@@ -723,7 +877,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     co_scientist_input = CoScientistConfiguration.create_input_state(
         task_description=task_description,
         context=context,
-        use_case=UseCase.CUSTOM,
+        use_case=UseCase.LINGUISTIC_EVOLUTION,
         reference_material=f"World State: {baseline_world_state}\n\nStoryline: {storyline}",
         domain_context="Linguistics, sociolinguistics, communication technology, cultural evolution, and anthropology"
     )
@@ -733,7 +887,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
-        "use_case": "custom",
+        "use_case": "linguistic_evolution",
         "process_depth": "quick",     # Fast iteration
         "population_scale": "light",  # Quick processing
         "use_deep_researcher": True,  # Use deep research for linguistic analysis
@@ -755,10 +909,10 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         detailed_results = format_detailed_competition_results(co_scientist_result)
         save_output(output_dir, f"{state['loop_count']:02d}_08b_linguistic_competition_details.md", detailed_results)
         
-        # Save both direction winners
+        # Save all direction winners
         direction_winners = co_scientist_result.get("direction_winners", [])
         if direction_winners:
-            for i, winner in enumerate(direction_winners[:2]):
+            for i, winner in enumerate(direction_winners):
                 winner_details = format_co_scientist_winner_details(winner, f"linguistic_evolution_option_{i+1}")
                 save_output(output_dir, f"{state['loop_count']:02d}_08c_linguistic_winner_{i+1}_full.md", winner_details)
 
@@ -776,16 +930,74 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
             "options_metadata": direction_winners
         }
         
-        # Auto-select the first linguistic evolution to allow workflow to continue
-        # (Options are still saved for reference)
-        selected_linguistic_evolution = direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else ""
-        save_output(output_dir, f"{state['loop_count']:02d}_08_selected_linguistic_evolution.md", selected_linguistic_evolution)
+        print("--- Co-Scientist Linguistic Evolution Competition Complete ---")
+        print("--- Two linguistic evolution options created. User selection required. ---")
+        
+        return {"linguistic_evolution_options": linguistic_options, "linguistic_evolution": None}  # No auto-selection
     else:
         # Co-scientist failed to produce direction winners - this is a system failure
         raise RuntimeError("Co-scientist linguistic evolution competition failed to produce direction winners. Check competition configuration and model availability.")
 
-    print("--- Co-Scientist Linguistic Evolution Competition Complete ---")
-    return {"linguistic_evolution_options": linguistic_options, "linguistic_evolution": selected_linguistic_evolution}
+def select_linguistic_evolution(state: AgentState):
+    """User selection node - presents linguistic evolution options and waits for user choice."""
+    if not (output_dir := state.get("output_dir")) or not (linguistic_evolution_options := state.get("linguistic_evolution_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'linguistic_evolution_options' is missing.")
+    
+    # Present options to user through the interface
+    options_metadata = linguistic_evolution_options.get("options_metadata", [])
+    if len(options_metadata) < 2:
+        raise ValueError("Not enough linguistic evolution options for user selection.")
+    
+    # Save individual option files for reference
+    option_1_content = linguistic_evolution_options.get("option_1", "")
+    option_2_content = linguistic_evolution_options.get("option_2", "")
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_08a_linguistic_option_1.md", option_1_content)
+    save_output(output_dir, f"{state['loop_count']:02d}_08b_linguistic_option_2.md", option_2_content)
+    
+    print("--- Linguistic Evolution Options Prepared for User Selection ---")
+    print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
+    print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
+    
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- Linguistic evolution options prepared. Workflow will pause for user selection. ---")
+    
+    return {"linguistic_evolution_options": linguistic_evolution_options}
+
+def process_linguistic_evolution_selection(state: AgentState):
+    """Process user's linguistic evolution selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (linguistic_evolution_options := state.get("linguistic_evolution_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'linguistic_evolution_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("linguistic_choice", "1")  # Default to option 1
+    options_metadata = linguistic_evolution_options.get("options_metadata", [])
+    
+    option_1_content = linguistic_evolution_options.get("option_1", "")
+    option_2_content = linguistic_evolution_options.get("option_2", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_linguistic = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_linguistic = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_linguistic = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_08_selected_linguistic_evolution.md", selected_linguistic)
+    
+    print(f"--- Linguistic Evolution Selected: {selected_option.get('research_direction', 'Unknown')} ---")
+    
+    return {
+        "linguistic_evolution": selected_linguistic
+    }
 
 async def adjust_storyline(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (storyline := state.get("storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (linguistic_evolution := state.get("linguistic_evolution")):
@@ -797,7 +1009,7 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
     co_scientist_input = CoScientistConfiguration.create_input_state(
         task_description="Revise and enhance the storyline to integrate world-building developments and linguistic evolution",
         context=f"Adjust the original storyline to incorporate the detailed world-building and linguistic evolution that has been developed. The revised storyline should seamlessly integrate new technological, social, and cultural developments while maintaining narrative coherence and character consistency.\n\nOriginal Storyline: {storyline}\n\nWorld Developments: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}",
-        use_case=UseCase.CUSTOM,
+        use_case=UseCase.STORYLINE_ADJUSTMENT,
         reference_material=f"Original Storyline: {storyline}",
         domain_context="Science fiction narrative development with world-building integration and linguistic consistency"
     )
@@ -807,7 +1019,7 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
-        "use_case": "custom",
+        "use_case": "storyline_adjustment",
         "process_depth": "quick",     # Fast iteration
         "population_scale": "light",  # Quick processing
         "use_deep_researcher": False,  # Use regular LLM for creative writing
@@ -829,10 +1041,10 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
         detailed_results = format_detailed_competition_results(co_scientist_result)
         save_output(output_dir, f"{state['loop_count']:02d}_09b_storyline_adjustment_competition_details.md", detailed_results)
         
-        # Save both direction winners
+        # Save all direction winners
         direction_winners = co_scientist_result.get("direction_winners", [])
         if direction_winners:
-            for i, winner in enumerate(direction_winners[:2]):
+            for i, winner in enumerate(direction_winners):
                 winner_details = format_co_scientist_winner_details(winner, f"storyline_adjustment_option_{i+1}")
                 save_output(output_dir, f"{state['loop_count']:02d}_09c_storyline_adjustment_winner_{i+1}_full.md", winner_details)
     
@@ -850,16 +1062,74 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
             "options_metadata": direction_winners
         }
         
-        # Auto-select the first storyline adjustment to allow workflow to continue
-        # (Options are still saved for reference)
-        selected_revised_storyline = direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else ""
-        save_output(output_dir, f"{state['loop_count']:02d}_09_selected_revised_storyline.md", selected_revised_storyline)
+        print("--- Co-Scientist Storyline Adjustment Competition Complete ---")
+        print("--- Two storyline adjustment options created. User selection required. ---")
+        
+        return {"storyline_adjustment_options": storyline_adjustment_options, "revised_storyline": None}  # No auto-selection
     else:
         # Co-scientist failed to produce direction winners - this is a system failure
         raise RuntimeError("Co-scientist storyline adjustment competition failed to produce direction winners. Check competition configuration and model availability.")
+
+def select_storyline_adjustment(state: AgentState):
+    """User selection node - presents storyline adjustment options and waits for user choice."""
+    if not (output_dir := state.get("output_dir")) or not (storyline_adjustment_options := state.get("storyline_adjustment_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'storyline_adjustment_options' is missing.")
     
-    print("--- Co-Scientist Storyline Adjustment Competition Complete ---")
-    return {"storyline_adjustment_options": storyline_adjustment_options, "revised_storyline": selected_revised_storyline}
+    # Present options to user through the interface
+    options_metadata = storyline_adjustment_options.get("options_metadata", [])
+    if len(options_metadata) < 2:
+        raise ValueError("Not enough storyline adjustment options for user selection.")
+    
+    # Save individual option files for reference
+    option_1_content = storyline_adjustment_options.get("option_1", "")
+    option_2_content = storyline_adjustment_options.get("option_2", "")
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_09a_storyline_adjustment_option_1.md", option_1_content)
+    save_output(output_dir, f"{state['loop_count']:02d}_09b_storyline_adjustment_option_2.md", option_2_content)
+    
+    print("--- Storyline Adjustment Options Prepared for User Selection ---")
+    print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
+    print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
+    
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- Storyline adjustment options prepared. Workflow will pause for user selection. ---")
+    
+    return {"storyline_adjustment_options": storyline_adjustment_options}
+
+def process_storyline_adjustment_selection(state: AgentState):
+    """Process user's storyline adjustment selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (storyline_adjustment_options := state.get("storyline_adjustment_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'storyline_adjustment_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("storyline_adjustment_choice", "1")  # Default to option 1
+    options_metadata = storyline_adjustment_options.get("options_metadata", [])
+    
+    option_1_content = storyline_adjustment_options.get("option_1", "")
+    option_2_content = storyline_adjustment_options.get("option_2", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_adjustment = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_adjustment = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_adjustment = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_09_selected_revised_storyline.md", selected_adjustment)
+    
+    print(f"--- Storyline Adjustment Selected: {selected_option.get('research_direction', 'Unknown')} ---")
+    
+    return {
+        "revised_storyline": selected_adjustment
+    }
 
 def adjust_chapter_arcs(state: AgentState):
     if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_storyline := state.get("revised_storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (chapter_arcs := state.get("chapter_arcs")) or not (linguistic_evolution := state.get("linguistic_evolution")):
@@ -911,10 +1181,10 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
         detailed_results = format_detailed_competition_results(co_scientist_result)
         save_output(output_dir, f"{state['loop_count']:02d}_11b_chapter_rewrite_competition_details.md", detailed_results)
         
-        # Save both direction winners
+        # Save all direction winners
         direction_winners = co_scientist_result.get("direction_winners", [])
         if direction_winners:
-            for i, winner in enumerate(direction_winners[:2]):
+            for i, winner in enumerate(direction_winners):
                 winner_details = format_co_scientist_winner_details(winner, f"chapter_rewrite_option_{i+1}")
                 save_output(output_dir, f"{state['loop_count']:02d}_11c_chapter_rewrite_winner_{i+1}_full.md", winner_details)
     
@@ -932,16 +1202,74 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
             "options_metadata": direction_winners
         }
         
-        # Auto-select the first chapter rewrite to allow workflow to continue
-        # (Options are still saved for reference)
-        selected_revised_first_chapter = direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else ""
-        save_output(output_dir, f"{state['loop_count']:02d}_11_selected_revised_first_chapter.md", selected_revised_first_chapter)
+        print("--- Co-Scientist Chapter Rewriting Competition Complete ---")
+        print("--- Two chapter rewrite options created. User selection required. ---")
+        
+        return {"chapter_rewrite_options": chapter_rewrite_options, "revised_first_chapter": None}  # No auto-selection
     else:
         # Co-scientist failed to produce direction winners - this is a system failure
         raise RuntimeError("Co-scientist chapter rewrite competition failed to produce direction winners. Check competition configuration and model availability.")
+
+def select_chapter_rewrite(state: AgentState):
+    """User selection node - presents chapter rewrite options and waits for user choice."""
+    if not (output_dir := state.get("output_dir")) or not (chapter_rewrite_options := state.get("chapter_rewrite_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'chapter_rewrite_options' is missing.")
     
-    print("--- Co-Scientist Chapter Rewriting Competition Complete ---")
-    return {"chapter_rewrite_options": chapter_rewrite_options, "revised_first_chapter": selected_revised_first_chapter}
+    # Present options to user through the interface
+    options_metadata = chapter_rewrite_options.get("options_metadata", [])
+    if len(options_metadata) < 2:
+        raise ValueError("Not enough chapter rewrite options for user selection.")
+    
+    # Save individual option files for reference
+    option_1_content = chapter_rewrite_options.get("option_1", "")
+    option_2_content = chapter_rewrite_options.get("option_2", "")
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_11a_chapter_rewrite_option_1.md", option_1_content)
+    save_output(output_dir, f"{state['loop_count']:02d}_11b_chapter_rewrite_option_2.md", option_2_content)
+    
+    print("--- Chapter Rewrite Options Prepared for User Selection ---")
+    print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
+    print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
+    
+    # This function prepares options for user selection via LangGraph Studio interrupt
+    # The actual selection happens in the next node via interrupt_before mechanism
+    print("--- Chapter rewrite options prepared. Workflow will pause for user selection. ---")
+    
+    return {"chapter_rewrite_options": chapter_rewrite_options}
+
+def process_chapter_rewrite_selection(state: AgentState):
+    """Process user's chapter rewrite selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (chapter_rewrite_options := state.get("chapter_rewrite_options")) or not (loop_count := state.get("loop_count") is not None):
+        raise ValueError("Required state 'output_dir' or 'chapter_rewrite_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("chapter_rewrite_choice", "1")  # Default to option 1
+    options_metadata = chapter_rewrite_options.get("options_metadata", [])
+    
+    option_1_content = chapter_rewrite_options.get("option_1", "")
+    option_2_content = chapter_rewrite_options.get("option_2", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_rewrite = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_rewrite = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_rewrite = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    save_output(output_dir, f"{state['loop_count']:02d}_11_selected_revised_first_chapter.md", selected_rewrite)
+    
+    print(f"--- Chapter Rewrite Selected: {selected_option.get('research_direction', 'Unknown')} ---")
+    
+    return {
+        "revised_first_chapter": selected_rewrite
+    }
 
 def generate_scientific_explanations(state: AgentState):
     if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_first_chapter := state.get("revised_first_chapter")) or not (baseline_world_state := state.get("baseline_world_state")):
@@ -988,46 +1316,74 @@ workflow = StateGraph(AgentState)
 
 workflow.add_node("create_storyline", create_storyline)
 workflow.add_node("select_storyline", select_storyline)
+workflow.add_node("get_storyline_selection_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_storyline_selection", process_storyline_selection)
 workflow.add_node("create_chapter_arcs", create_chapter_arcs)
 workflow.add_node("write_first_chapter", write_first_chapter)
+workflow.add_node("select_first_chapter", select_first_chapter)
+workflow.add_node("get_chapter_selection_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_chapter_selection", process_chapter_selection)
 workflow.add_node("prompt_for_projection_year", prompt_for_projection_year)
 workflow.add_node("get_projection_year_input", lambda state: None)
 workflow.add_node("set_target_year", set_target_year)
 workflow.add_node("generate_world_building_questions", generate_world_building_questions)
 workflow.add_node("research_and_propose_scenarios", research_and_propose_scenarios)
-workflow.add_node("prompt_for_scenario_selection", prompt_for_scenario_selection)
-workflow.add_node("get_scenario_selection_input", lambda state: None) # Dummy node for interrupt
-workflow.add_node("save_selected_scenario", save_selected_scenario)
+workflow.add_node("select_world_scenario", select_world_scenario)
+workflow.add_node("get_world_scenario_selection_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_world_scenario_selection", process_world_scenario_selection)
 workflow.add_node("world_projection_deep_research", world_projection_deep_research)
 workflow.add_node("linguistic_evolution_research", linguistic_evolution_research)
+workflow.add_node("select_linguistic_evolution", select_linguistic_evolution)
+workflow.add_node("get_linguistic_selection_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_linguistic_evolution_selection", process_linguistic_evolution_selection)
 workflow.add_node("adjust_storyline", adjust_storyline)
+workflow.add_node("select_storyline_adjustment", select_storyline_adjustment)
+workflow.add_node("get_storyline_adjustment_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_storyline_adjustment_selection", process_storyline_adjustment_selection)
 workflow.add_node("adjust_chapter_arcs", adjust_chapter_arcs)
 workflow.add_node("rewrite_first_chapter", rewrite_first_chapter)
+workflow.add_node("select_chapter_rewrite", select_chapter_rewrite)
+workflow.add_node("get_chapter_rewrite_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_chapter_rewrite_selection", process_chapter_rewrite_selection)
 workflow.add_node("generate_scientific_explanations", generate_scientific_explanations)
 workflow.add_node("generate_glossary", generate_glossary)
 workflow.add_node("compile_baseline_world_state", compile_baseline_world_state)
 
 workflow.add_edge(START, "create_storyline")
 workflow.add_edge("create_storyline", "select_storyline")
-workflow.add_edge("select_storyline", "create_chapter_arcs")
+workflow.add_edge("select_storyline", "get_storyline_selection_input")
+workflow.add_edge("get_storyline_selection_input", "process_storyline_selection")
+workflow.add_edge("process_storyline_selection", "create_chapter_arcs")
 workflow.add_edge("create_chapter_arcs", "write_first_chapter")
-workflow.add_edge("write_first_chapter", "prompt_for_projection_year")
+workflow.add_edge("write_first_chapter", "select_first_chapter")
+workflow.add_edge("select_first_chapter", "get_chapter_selection_input")
+workflow.add_edge("get_chapter_selection_input", "process_chapter_selection")
+workflow.add_edge("process_chapter_selection", "prompt_for_projection_year")
 workflow.add_edge("prompt_for_projection_year", "get_projection_year_input")
 workflow.add_edge("get_projection_year_input", "set_target_year")
 workflow.add_edge("set_target_year", "generate_world_building_questions")
 workflow.add_edge("generate_world_building_questions", "research_and_propose_scenarios")
-workflow.add_edge("research_and_propose_scenarios", "prompt_for_scenario_selection")
-workflow.add_edge("prompt_for_scenario_selection", "get_scenario_selection_input")
-workflow.add_edge("get_scenario_selection_input", "save_selected_scenario")
-workflow.add_edge("save_selected_scenario", "world_projection_deep_research")
+workflow.add_edge("research_and_propose_scenarios", "select_world_scenario")
+workflow.add_edge("select_world_scenario", "get_world_scenario_selection_input")
+workflow.add_edge("get_world_scenario_selection_input", "process_world_scenario_selection")
+workflow.add_edge("process_world_scenario_selection", "world_projection_deep_research")
 workflow.add_edge("world_projection_deep_research", "linguistic_evolution_research")
-workflow.add_edge("linguistic_evolution_research", "adjust_storyline")
-workflow.add_edge("adjust_storyline", "adjust_chapter_arcs")
+workflow.add_edge("linguistic_evolution_research", "select_linguistic_evolution")
+workflow.add_edge("select_linguistic_evolution", "get_linguistic_selection_input")
+workflow.add_edge("get_linguistic_selection_input", "process_linguistic_evolution_selection")
+workflow.add_edge("process_linguistic_evolution_selection", "adjust_storyline")
+workflow.add_edge("adjust_storyline", "select_storyline_adjustment")
+workflow.add_edge("select_storyline_adjustment", "get_storyline_adjustment_input")
+workflow.add_edge("get_storyline_adjustment_input", "process_storyline_adjustment_selection")
+workflow.add_edge("process_storyline_adjustment_selection", "adjust_chapter_arcs")
 workflow.add_edge("adjust_chapter_arcs", "rewrite_first_chapter")
-workflow.add_edge("rewrite_first_chapter", "generate_scientific_explanations")
+workflow.add_edge("rewrite_first_chapter", "select_chapter_rewrite")
+workflow.add_edge("select_chapter_rewrite", "get_chapter_rewrite_input")
+workflow.add_edge("get_chapter_rewrite_input", "process_chapter_rewrite_selection")
+workflow.add_edge("process_chapter_rewrite_selection", "generate_scientific_explanations")
 workflow.add_edge("generate_scientific_explanations", "generate_glossary")
 workflow.add_edge("generate_glossary", "compile_baseline_world_state")
 
 workflow.add_conditional_edges("compile_baseline_world_state", should_loop, {"prompt_for_projection_year": "prompt_for_projection_year", END: END})
 
-app = workflow.compile(interrupt_before=["get_projection_year_input", "get_scenario_selection_input"]) 
+app = workflow.compile(interrupt_before=["get_storyline_selection_input", "get_chapter_selection_input", "get_world_scenario_selection_input", "get_linguistic_selection_input", "get_storyline_adjustment_input", "get_chapter_rewrite_input", "get_projection_year_input"]) 
