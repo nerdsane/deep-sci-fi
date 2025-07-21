@@ -82,9 +82,19 @@ def override_reducer(current_value, new_value):
         return operator.add(current_value, new_value)
 
 class CoScientistInputState(TypedDict):
-    """Input state for the co-scientist subgraph."""
-    research_context: str  # The research questions and context
-    storyline: Optional[str]  # Story context for scenario generation
+    """Input state for the co-scientist subgraph - flexible for different use cases."""
+    # Core fields (universal) - optional for backward compatibility
+    task_description: Optional[str]  # What the competitive process should accomplish
+    context: Optional[str]  # Background information, requirements, constraints
+    
+    # Optional fields for different use cases
+    reference_material: Optional[str]  # Existing content to work with (e.g., current chapter, character)
+    domain_context: Optional[str]  # Genre/domain-specific context
+    use_case: Optional[str]  # Which template to use (defaults to "scenario_generation")
+    
+    # Legacy fields for backward compatibility (scenario generation)
+    research_context: Optional[str]  # Alias for 'context' in scenario generation
+    storyline: Optional[str]  # Story context for scenario generation  
     target_year: Optional[int]  # Target year for projections
     baseline_world_state: Optional[str]  # Current world state if available
     years_in_future: Optional[int]  # Years to project forward
@@ -119,7 +129,9 @@ class CoScientistState(CoScientistInputState):
     evolution_tournament_complete: bool
     
     # Final outputs
-    top_scenarios: List[Dict[str, str]]  # Final 3 scenarios for user selection
+    direction_winners: List[Dict[str, Any]]  # Final 2 direction winners for user selection
+    top_scenarios: List[Dict[str, str]]  # Final 3 scenarios for user selection  
+    process_analysis: str  # Meta-review process analysis
     competition_summary: str  # Summary of the competition process
 
 class TournamentDirectionState(TypedDict):

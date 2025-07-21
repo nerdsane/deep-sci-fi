@@ -1,10 +1,80 @@
 # Co-Scientist Competition Prompts
 # Following the methodology from Google's AI co-scientist paper
+# Enhanced with templates for different use cases
+
+###################
+# Template Management
+###################
+
+def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
+    """Get the appropriate meta-analysis prompt for the use case."""
+    templates = {
+        "scenario_generation": INITIAL_META_ANALYSIS_PROMPT,
+        "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
+        "chapter_writing": STORYLINE_META_ANALYSIS_PROMPT,  # Same template for both
+        "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
+        "character_development": CHARACTER_META_ANALYSIS_PROMPT,
+        "custom": CUSTOM_META_ANALYSIS_PROMPT
+    }
+    
+    template = templates.get(use_case, CUSTOM_META_ANALYSIS_PROMPT)
+    
+    # Handle backward compatibility for scenario generation
+    if use_case == "scenario_generation" and state.get("research_context"):
+        return template.format(
+            storyline=state.get("storyline", ""),
+            research_context=state.get("research_context", state.get("context", "")),
+            target_year=state.get("target_year", "future")
+        )
+    
+    # New flexible format
+    return template.format(
+        task_description=state.get("task_description", ""),
+        context=state.get("context", ""),
+        reference_material=state.get("reference_material", ""),
+        domain_context=state.get("domain_context", "")
+    )
+
+def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str) -> str:
+    """Get the appropriate generation prompt for the use case."""
+    templates = {
+        "scenario_generation": INITIAL_SCENARIO_GENERATION_PROMPT,
+        "storyline_creation": STORYLINE_GENERATION_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
+        "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
+        "character_development": CHARACTER_GENERATION_PROMPT,
+        "custom": CUSTOM_GENERATION_PROMPT
+    }
+    
+    template = templates.get(use_case, CUSTOM_GENERATION_PROMPT)
+    
+    # Handle backward compatibility for scenario generation
+    if use_case == "scenario_generation" and state.get("research_context"):
+        return template.format(
+            research_direction=direction.get("name", ""),
+            core_assumption=direction.get("assumption", ""),
+            team_id=team_id,
+            research_context=state.get("research_context", state.get("context", "")),
+            storyline=state.get("storyline", ""),
+            target_year=state.get("target_year", "future")
+        )
+    
+    # New flexible format
+    return template.format(
+        direction_name=direction.get("name", ""),
+        direction_assumption=direction.get("assumption", ""),
+        team_id=team_id,
+        task_description=state.get("task_description", ""),
+        context=state.get("context", ""),
+        reference_material=state.get("reference_material", ""),
+        domain_context=state.get("domain_context", "")
+    )
 
 ###################
 # Meta-Analysis Phase
 ###################
 
+# Used in: get_meta_analysis_prompt() for "scenario_generation" use case (legacy format)
 INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for scenario competition.
 
 Your goal is to analyze the provided story context and research questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
@@ -45,6 +115,7 @@ Focus: [What this direction emphasizes]
 Reasoning: [Explain why these 3 directions provide meaningful variety while remaining scientifically grounded]
 """
 
+# Used in: meta_analysis_phase() for scenario generation with baseline world state
 INCREMENTAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for evolutionary scenario competition.
 
 Your goal is to analyze the current world state and identify 3 fundamentally different evolutionary paths that could develop over the specified time period.
@@ -91,6 +162,7 @@ Reasoning: [Explain why these 3 evolutionary directions provide meaningful varie
 # Generation Phase  
 ###################
 
+# Used in: get_generation_prompt() for "scenario_generation" use case (legacy format)
 INITIAL_SCENARIO_GENERATION_PROMPT = """You are a research team conducting rigorous scientific analysis to develop a comprehensive world-building scenario for the target year.
 
 Research Direction: {research_direction}
@@ -137,6 +209,7 @@ Generate a comprehensive scenario that is:
 Scenario Content:
 """
 
+# Used in: generate_single_scenario() for scenario generation with baseline world state
 INCREMENTAL_SCENARIO_GENERATION_PROMPT = """You are a research team conducting rigorous scientific analysis to project how the world will evolve from an established baseline state.
 
 Research Direction: {research_direction}
@@ -185,9 +258,386 @@ Scenario Content:
 """
 
 ###################
-# Reflection Phase
+# Chapter Rewriting Templates
 ###################
 
+# Used in: get_meta_analysis_prompt() for "chapter_rewriting" use case
+CHAPTER_META_ANALYSIS_PROMPT = """You are an expert literary analyst tasked with identifying distinct narrative approaches for competitive chapter rewriting.
+
+Your goal is to analyze the task requirements and identify 3 fundamentally different narrative/stylistic approaches that would lead to meaningfully different chapter versions.
+
+Task Description: {task_description}
+Context and Requirements: {context}
+Current Chapter Content: {reference_material}
+Genre/Domain Context: {domain_context}
+
+Instructions:
+1. Identify key narrative choice points that could be developed in different directions
+2. Create 3 distinct approaches based on different assumptions about narrative style, pacing, character focus, etc.
+3. Ensure each approach is literarily sound but represents different creative paths
+4. Each approach should address the full task requirements
+
+Requirements for good narrative approaches:
+- Different core assumptions about narrative style and structure
+- Different but equally valid creative directions  
+- Different implications for character development, pacing, tension, etc.
+- Meaningful variety for storytelling purposes
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name] 
+Core Assumption: [Key narrative assumption]
+Focus: [What this approach emphasizes]
+
+Direction 3: [Name]
+Core Assumption: [Key narrative assumption] 
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 3 approaches provide meaningful variety while remaining literarily sound]
+"""
+
+# Used in: get_generation_prompt() for "chapter_rewriting" use case
+CHAPTER_GENERATION_PROMPT = """You are a skilled writer conducting a comprehensive approach to chapter rewriting.
+
+Narrative Approach: {direction_name}
+Core Assumption: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Requirements: {context}
+Current Chapter: {reference_material}
+Genre Context: {domain_context}
+
+Instructions:
+1. Analyze the current chapter to understand its role in the larger narrative
+2. Apply your narrative approach to rewrite the chapter completely
+3. Ground every creative choice in established literary techniques and genre conventions
+4. Maintain consistency with the overall story while implementing your approach
+5. Consider the impact on character development, plot progression, and reader engagement
+
+Your rewrite must address:
+- Character development and dialogue
+- Narrative structure and pacing
+- Descriptive language and prose style
+- Plot advancement and tension
+- Thematic elements and mood
+- Reader engagement and emotional impact
+
+Creative Methodology:
+- Start with your core assumption as the foundation
+- Research current literary techniques supporting this approach
+- Apply established narrative principles realistically
+- Consider implementation challenges and reader expectations
+- Address potential weaknesses and how they're overcome
+
+Generate a comprehensive chapter rewrite that is:
+- Literarily grounded in established techniques
+- Consistent with character and plot requirements
+- Specific and complete in implementation
+- Realistic about genre and audience expectations
+- Aware of narrative and emotional implications
+
+Chapter Content:
+"""
+
+###################
+# Character Development Templates
+###################
+
+# Used in: get_meta_analysis_prompt() for "character_development" use case
+CHARACTER_META_ANALYSIS_PROMPT = """You are an expert character development analyst tasked with identifying distinct approaches for competitive character enhancement.
+
+Your goal is to analyze the character requirements and identify 3 fundamentally different development approaches that would lead to meaningfully different character versions.
+
+Task Description: {task_description}
+Context and Requirements: {context}
+Current Character Material: {reference_material}
+Genre/Domain Context: {domain_context}
+
+Instructions:
+1. Identify key character development choice points that could be explored in different directions
+2. Create 3 distinct approaches based on different assumptions about psychology, motivation, narrative function, etc.
+3. Ensure each approach is psychologically sound but represents different creative paths
+4. Each approach should address the full character requirements
+
+Requirements for good character approaches:
+- Different core assumptions about character psychology and motivation
+- Different but equally valid development directions  
+- Different implications for character arc, relationships, and narrative role
+- Meaningful variety for character depth and complexity
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key character assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name] 
+Core Assumption: [Key character assumption]
+Focus: [What this approach emphasizes]
+
+Direction 3: [Name]
+Core Assumption: [Key character assumption] 
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 3 approaches provide meaningful variety while remaining psychologically sound]
+"""
+
+# Used in: get_generation_prompt() for "character_development" use case
+CHARACTER_GENERATION_PROMPT = """You are a skilled character developer conducting a comprehensive approach to character enhancement.
+
+Character Approach: {direction_name}
+Core Assumption: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Requirements: {context}
+Current Character: {reference_material}
+Genre Context: {domain_context}
+
+Instructions:
+1. Analyze the current character to understand their role and existing development
+2. Apply your character approach to enhance the character comprehensively
+3. Ground every development choice in established psychological principles and narrative techniques
+4. Maintain consistency with the story while implementing your approach
+5. Consider the impact on character relationships, plot function, and reader connection
+
+Your development must address:
+- Character psychology and inner life
+- Motivations and goals
+- Character arc and growth
+- Relationships and interactions
+- Dialogue and voice
+- Narrative function and story role
+
+Development Methodology:
+- Start with your core assumption as the foundation
+- Research current character development techniques supporting this approach
+- Apply established psychological and narrative principles realistically
+- Consider implementation challenges and story requirements
+- Address potential weaknesses and how they're overcome
+
+Generate a comprehensive character development that is:
+- Psychologically grounded in established principles
+- Consistent with story and genre requirements
+- Specific and complete in implementation
+- Realistic about character and narrative expectations
+- Aware of emotional and story implications
+
+Character Content:
+"""
+
+###################
+# Custom/Generic Templates
+###################
+
+# Used in: get_meta_analysis_prompt() for "custom" use case (fallback)
+CUSTOM_META_ANALYSIS_PROMPT = """You are an expert analyst tasked with identifying distinct approaches for competitive content development.
+
+Your goal is to analyze the task requirements and identify 2 fundamentally different approaches that would lead to meaningfully different outcomes.
+
+Task Description: {task_description}
+Context and Requirements: {context}
+Reference Material: {reference_material}
+Domain Context: {domain_context}
+
+Instructions:
+1. Identify key choice points that could be developed in different directions
+2. Create 2 distinct approaches based on different core assumptions
+3. Ensure each approach is sound and represents different creative/analytical paths
+4. Each approach should address the full task requirements
+
+Requirements for good approaches:
+- Different core assumptions about methodology or style
+- Different but equally valid directions  
+- Different implications for quality, effectiveness, and outcome
+- Meaningful variety for the intended purpose
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name] 
+Core Assumption: [Key assumption]
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining sound]
+"""
+
+# Used in: get_generation_prompt() for "custom" use case (fallback)
+CUSTOM_GENERATION_PROMPT = """You are an expert practitioner conducting a comprehensive approach to content development.
+
+Approach: {direction_name}
+Core Assumption: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Requirements: {context}
+Reference Material: {reference_material}
+Domain Context: {domain_context}
+
+Instructions:
+1. Analyze the requirements to understand the full scope of work needed
+2. Apply your approach to develop the content comprehensively
+3. Ground every choice in established best practices and sound methodology
+4. Maintain consistency with requirements while implementing your approach
+5. Consider the impact on quality, effectiveness, and intended outcomes
+
+Your development must address all specified requirements and demonstrate:
+- Sound methodology and technique
+- Consistency with domain best practices
+- Quality and attention to detail
+- Effectiveness for the intended purpose
+- Professional standards and expectations
+
+Development Methodology:
+- Start with your core assumption as the foundation
+- Apply established principles and techniques for this type of content
+- Consider what makes content in this domain effective and engaging
+- Address implementation challenges and requirements
+- Focus on creating compelling, well-crafted content
+
+Generate comprehensive content that is:
+- Well-crafted and engaging for the intended purpose
+- Consistent with requirements and expectations
+- Specific and complete in implementation
+- Demonstrates quality writing and creativity
+- Achieves the goals outlined in the task
+
+Content:
+"""
+
+# Generic Storyline Template
+# Used in: get_meta_analysis_prompt() for "storyline_creation" and "chapter_writing" use cases
+STORYLINE_META_ANALYSIS_PROMPT = """You are a master storyteller and narrative expert tasked with identifying distinct storytelling approaches.
+
+Your goal is to analyze the story requirements and identify 2 fundamentally different narrative approaches that would lead to meaningfully different storylines.
+
+Task Description: {task_description}
+User's Story Idea: {context}
+Reference Material: {reference_material}
+Genre/Style Context: {domain_context}
+
+Instructions:
+1. Identify key narrative choice points that could be developed in different directions
+2. Create 2 distinct storytelling approaches based on different core assumptions about narrative style, focus, or structure
+3. Ensure each approach is literarily sound but represents different creative paths
+4. Each approach should address the full story requirements and user's vision
+
+Requirements for good storytelling approaches:
+- Different core assumptions about narrative focus (character vs plot vs theme vs setting)
+- Different but equally valid creative directions
+- Different implications for story structure, character development, and reader engagement
+- Meaningful variety for storytelling purposes
+
+Format your response as:
+Direction 1: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [What this approach emphasizes]
+
+Direction 2: [Name]
+Core Assumption: [Key narrative assumption] 
+Focus: [What this approach emphasizes]
+
+Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining literarily sound]
+"""
+
+# Used in: get_generation_prompt() for "storyline_creation" use case
+STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a compelling storyline.
+
+Narrative Approach: {direction_name}
+Core Assumption: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+User's Story Idea: {context}
+Reference Material: {reference_material}
+Genre/Style Context: {domain_context}
+
+Instructions:
+1. Analyze the user's story idea to understand their vision and requirements
+2. Apply your narrative approach to develop a complete storyline
+3. Ground every creative choice in established storytelling principles and techniques
+4. Create compelling characters, engaging plot structure, and meaningful themes
+5. Consider the impact on reader engagement and narrative effectiveness
+
+Your storyline must include:
+- Main plot points and story arc
+- Key character development and relationships
+- Subplots that enhance the main narrative
+- Clear beginning, middle, and end structure
+- Compelling conflicts and resolutions
+- Thematic elements that resonate with readers
+
+Storytelling Methodology:
+- Start with your core narrative assumption as the foundation
+- Apply proven storytelling techniques that support this approach
+- Create authentic characters with clear motivations and growth arcs
+- Develop plot events that naturally flow from character decisions and conflicts
+- Ensure thematic coherence throughout the narrative
+
+Generate a comprehensive storyline that is:
+- Engaging and compelling for readers
+- Structurally sound with good pacing
+- Character-driven with authentic development
+- Complete with clear plot progression
+- Demonstrates mastery of storytelling craft
+
+Storyline Content:
+"""
+
+# Used in: get_generation_prompt() for "chapter_writing" use case
+CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging opening chapter.
+
+Narrative Approach: {direction_name}
+Core Assumption: {direction_assumption}
+Team ID: {team_id}
+
+Task: {task_description}
+Requirements and Context: {context}
+Reference Material: {reference_material}
+Genre/Style Context: {domain_context}
+
+Instructions:
+1. Analyze the storyline and chapter requirements to understand the narrative goals
+2. Apply your narrative approach to write a complete first chapter
+3. Ground every creative choice in established writing techniques and literary craft
+4. Create compelling characters, vivid descriptions, and engaging dialogue
+5. Consider the impact on reader engagement, character introduction, and story setup
+
+Your chapter must accomplish:
+- Hook readers immediately with compelling opening
+- Establish protagonist voice and character
+- Introduce key setting and world elements
+- Set up central conflict or tension
+- Advance plot while building character
+- Create atmosphere and tone for the story
+
+Writing Methodology:
+- Start with your core assumption as the foundation
+- Apply proven techniques for opening chapters and reader engagement
+- Create authentic dialogue that reveals character and advances plot
+- Use vivid, specific descriptions that immerse readers in the world
+- Balance action, dialogue, and exposition effectively
+
+Generate a complete first chapter that is:
+- Immediately engaging and hooks readers
+- Well-paced with strong narrative flow
+- Rich in character development and voice
+- Establishes story world and conflict clearly
+- Demonstrates excellent prose craft and storytelling
+
+Chapter Content:
+"""
+
+###################
+# Reflection Phase  
+###################
+
+# Used in: generate_domain_critique() function for scientific analysis of scenarios
 DOMAIN_CRITIQUE_PROMPT = """You are a {critique_domain} expert providing rigorous scientific critique of a world-building scenario.
 
 Scenario ID: {scenario_id}
@@ -228,35 +678,13 @@ Provide:
 Critique:
 """
 
-CROSS_SCENARIO_REFLECTION_PROMPT = """You are conducting comparative analysis between two research approaches to identify strengths and weaknesses.
 
-Scenario A: {scenario_a_content}
-Research Direction A: {direction_a}
-
-Scenario B: {scenario_b_content}  
-Research Direction B: {direction_b}
-
-Instructions:
-1. Compare these two approaches to the same world-building challenges
-2. Identify which scenario handles specific aspects more convincingly
-3. Look for complementary insights that could improve both scenarios
-4. Assess which assumptions are better supported by current research
-
-Comparative Analysis:
-- Which scenario better addresses technological feasibility?
-- Which has more realistic timelines and implementation paths?
-- Which considers broader systemic implications more thoroughly?
-- What strengths from each could be combined?
-
-Generate insights that could improve both scenarios through cross-pollination of ideas.
-
-Analysis:
-"""
 
 ###################
 # Tournament Phase
 ###################
 
+# Used in: pairwise_comparison() function for head-to-head scenario tournaments
 PAIRWISE_RANKING_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts engaged in structured discussion to evaluate two competing world-building scenarios.
 
 The objective is to rigorously determine which scenario is superior based on scientific grounding and narrative potential.
@@ -306,184 +734,62 @@ Then indicate the superior scenario by writing: "better scenario: 1" or "better 
 Comparative Analysis:
 """
 
-TOURNAMENT_SCORING_PROMPT = """You are evaluating a world-building scenario on multiple scientific and narrative criteria.
 
-Scenario: {scenario_content}
-Research Direction: {research_direction}
 
-Rate this scenario on a scale of 1-10 for each criterion:
 
-1. Scientific Plausibility (1-10): Are the technological claims grounded in current research and plausible extrapolation?
-
-2. Internal Consistency (1-10): Do all elements of the world work together logically without contradictions?
-
-3. Timeline Realism (1-10): Are the proposed development timelines realistic given current technological progress?
-
-4. Systemic Thinking (1-10): Does the scenario consider second-order effects and complex interactions between systems?
-
-5. Detail Richness (1-10): Is there sufficient specific detail for world-building and story development?
-
-6. Narrative Potential (1-10): Does this world create interesting opportunities for storytelling and character development?
-
-7. Originality (1-10): How creative and fresh is this take on future world development?
-
-8. Implementation Feasibility (1-10): How realistic are the proposed solutions from an engineering/economic perspective?
-
-For each score, provide brief justification.
-
-Then calculate total score out of 80.
-
-Scoring Analysis:
-"""
-
-###################
-# Evolution Phase
-###################
-
-FEASIBILITY_EVOLUTION_PROMPT = """You are an expert in scientific research and technological feasibility analysis.
-
-Your task is to enhance the provided scenario's practical implementability while retaining its novelty and narrative appeal.
-
-Original Scenario: {scenario_content}
-Research Direction: {research_direction}
-Identified Issues: {critique_summary}
-
-Guidelines:
-1. Begin with an overview of the relevant scientific domains
-2. Provide recent research findings that support or challenge elements of the scenario
-3. Articulate how current technological trends could realistically enable the proposed future
-4. CORE CONTRIBUTION: Develop detailed, innovative, and technologically viable improvements
-
-Improvement Focus:
-- Address specific scientific critiques raised during reflection
-- Strengthen evidence grounding with current research
-- Improve timeline realism and implementation pathways
-- Enhance internal consistency across technological systems
-- Maintain the scenario's unique creative vision
-
-Research-Based Improvements:
-- Cite recent scientific papers or technological developments
-- Explain how current trends support the scenario's assumptions
-- Address potential obstacles with realistic solutions
-- Provide more specific implementation details
-
-Enhanced Scenario:
-"""
-
-CREATIVE_EVOLUTION_PROMPT = """You are an expert researcher tasked with generating novel enhancements inspired by cross-scenario insights.
-
-Original Scenario: {scenario_content}
-Research Direction: {research_direction}
-
-Inspiration Sources (utilize analogy and inspiration, not direct replication):
-{competing_scenarios}
-
-Instructions:
-1. Provide a brief overview of creative possibilities in the scenario's domain
-2. Identify innovative approaches from the inspiration sources
-3. Find novel ways to integrate complementary insights
-4. CORE CONTRIBUTION: Develop original, creative enhancements that think outside conventional approaches
-
-Enhancement Goals:
-- Combine the best creative insights from multiple approaches
-- Introduce novel elements that weren't in any single scenario
-- Think beyond conventional extrapolation to find breakthrough possibilities
-- Maintain scientific grounding while pushing creative boundaries
-
-This should not be mere aggregation of existing elements, but genuine creative synthesis that produces new possibilities.
-
-Enhanced Creative Scenario:
-"""
-
-SYNTHESIS_EVOLUTION_PROMPT = """You are synthesizing insights from multiple competing scenarios to create an improved version.
-
-Primary Scenario: {primary_scenario}
-Research Direction: {research_direction}
-
-Competing Insights to Integrate:
-{competing_scenarios}
-
-Critical Feedback Addressed:
-{critique_summary}
-
-Instructions:
-1. Analyze the strengths of each competing approach
-2. Identify complementary elements that could enhance the primary scenario
-3. Resolve any contradictions through higher-level synthesis
-4. Create a unified scenario that combines the best elements
-
-Synthesis Principles:
-- Maintain the core identity of the primary scenario
-- Integrate valuable insights from competitors where compatible
-- Address identified weaknesses through strategic improvements
-- Ensure enhanced internal consistency and scientific rigor
-
-The result should be stronger than any individual scenario while maintaining coherent vision.
-
-Synthesized Scenario:
-"""
 
 ###################
 # Final Selection
 ###################
 
-META_REVIEW_PROMPT = """You are conducting a meta-analysis of the co-scientist competition results to select the top scenarios for user presentation.
+# Used in: final_meta_review_phase() function for process analysis and optimization insights
+META_REVIEW_PROMPT = """You are a meta-review agent analyzing the co-scientist competition process to synthesize insights and optimize future performance.
 
-Competition Results:
+Competition Process Data:
 {competition_summary}
 
-Final Scenarios from Each Direction:
-Direction 1: {direction1_winner}
-Direction 2: {direction2_winner} 
-Direction 3: {direction3_winner}
+Tournament Results from Each Direction:
+Direction 1 Winner: {direction1_winner}
+Direction 2 Winner: {direction2_winner}
 
-Additional Evolved Variants:
-{evolved_scenarios}
+Competition Process Analysis:
+{tournament_data}
+{reflection_data}
+{evolution_data}
 
-Instructions:
-1. Analyze the competition process and identify the highest quality outcomes
-2. Ensure the final selection provides meaningful variety for user choice
-3. Select the 3 best scenarios that combine scientific rigor with narrative potential
-4. Provide clear reasoning for each selection
+Your Role as Meta-Review Agent:
+1. Synthesize insights from all reviews and competition phases
+2. Identify recurring patterns in tournament debates and agent performance
+3. Analyze the effectiveness of different approaches and methodologies
+4. Generate optimization recommendations for subsequent iterations
+5. Create a comprehensive research overview of the competition process
 
-Selection Criteria:
-- Scientific grounding and evidence quality
-- Internal consistency and logical coherence
-- Narrative potential for storytelling
-- Meaningful differentiation between options
-- Overall quality as demonstrated through competition
+Process Analysis Framework:
+- Competition methodology effectiveness
+- Quality patterns across different approaches
+- Agent performance and decision-making patterns
+- Tournament reasoning quality and consistency
+- Areas for process improvement and optimization
 
-For each selected scenario, provide:
-- Summary of core approach and assumptions
-- Key strengths demonstrated through competition
-- Quality score and competitive ranking
-- Why this represents a good choice for the user
+DO NOT select winners - that is for user choice. Focus on process synthesis.
 
-Final Selection Analysis:
+Generate a comprehensive process analysis covering:
+
+## Competition Process Effectiveness
+[Analyze how well the competition methodology worked]
+
+## Recurring Patterns in Tournament Debates  
+[Identify patterns in how different approaches were evaluated and compared]
+
+## Agent Performance Analysis
+[Evaluate how well different agent types performed their roles]
+
+## Quality Optimization Insights
+[Recommendations for improving future competition quality]
+
+## Research Overview Summary
+[Comprehensive overview of the competition process and methodology for research purposes]
+
+This analysis will optimize future co-scientist performance and enhance the quality of subsequent iterations.
 """
 
-COMPETITION_SUMMARY_PROMPT = """Generate a comprehensive summary of the co-scientist competition process and outcomes.
-
-Competition Data:
-Research Directions: {research_directions}
-Total Scenarios Generated: {total_scenarios}
-Reflection Critiques: {critique_count}
-Tournament Rounds: {tournament_rounds}
-Evolution Improvements: {evolution_count}
-
-Process Overview:
-1. Meta-analysis identified research directions
-2. Parallel scenario generation and competition
-3. Domain expert reflection and critique
-4. Tournament ranking and selection
-5. Evolution and improvement phases
-
-Summarize:
-- How the competition improved scenario quality
-- Key insights from the reflection and critique phases
-- Competitive advantages of winning scenarios
-- Evidence of scientific rigor throughout the process
-- Overall confidence in the final recommendations
-
-Competition Summary:
-""" 

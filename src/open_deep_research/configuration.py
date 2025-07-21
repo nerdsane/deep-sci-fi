@@ -109,11 +109,11 @@ class Configuration(BaseModel):
     )
     # Model Configuration
     summarization_model: str = Field(
-        default="openai:gpt-4.1-nano",
+        default="openai:gpt-4o-mini",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1-nano",
+                "default": "openai:gpt-4o-mini",
                 "description": "Model for summarizing research results from Tavily search results"
             }
         }

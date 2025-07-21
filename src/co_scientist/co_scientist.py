@@ -27,14 +27,10 @@ from co_scientist.prompts import (
     INITIAL_SCENARIO_GENERATION_PROMPT,
     INCREMENTAL_SCENARIO_GENERATION_PROMPT,
     DOMAIN_CRITIQUE_PROMPT,
-    CROSS_SCENARIO_REFLECTION_PROMPT,
     PAIRWISE_RANKING_PROMPT,
-    TOURNAMENT_SCORING_PROMPT,
-    FEASIBILITY_EVOLUTION_PROMPT,
-    CREATIVE_EVOLUTION_PROMPT,
-    SYNTHESIS_EVOLUTION_PROMPT,
     META_REVIEW_PROMPT,
-    COMPETITION_SUMMARY_PROMPT
+    get_meta_analysis_prompt,
+    get_generation_prompt
 )
 
 # Import deep_researcher for research tasks
@@ -390,7 +386,7 @@ def save_evolution_details(evolutions: list, output_dir: str = "output"):
         evolution_counter += 1
 
 async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConfig) -> dict:
-    """Meta-analysis to identify distinct research directions for competition."""
+    """Meta-analysis to identify distinct approaches for competition."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -402,22 +398,38 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
         }
     )
     
-    # Choose appropriate meta-analysis prompt based on whether we have baseline state
-    if state.get("baseline_world_state") and state.get("years_in_future"):
-        # Incremental analysis - building on existing world state
+    # Handle backward compatibility - convert old format to new format
+    processed_state = {}
+    if state.get("research_context"):
+        # Legacy scenario generation format
+        processed_state.update({
+            "task_description": f"Generate scenarios for {state.get('target_year', 'future')}",
+            "context": state["research_context"],
+            "storyline": state.get("storyline", ""),
+            "target_year": state.get("target_year"),
+            "baseline_world_state": state.get("baseline_world_state"),
+            "years_in_future": state.get("years_in_future"),
+            "use_case": "scenario_generation"
+        })
+    else:
+        # New flexible format
+        processed_state.update(state)
+    
+    # Get use case from state or configuration
+    use_case = processed_state.get("use_case", configuration.use_case.value)
+    
+    # Choose appropriate meta-analysis prompt
+    if use_case == "scenario_generation" and processed_state.get("baseline_world_state") and processed_state.get("years_in_future"):
+        # Use incremental prompt for scenario generation with baseline
         meta_prompt = INCREMENTAL_META_ANALYSIS_PROMPT.format(
-            storyline=state.get("storyline", ""),
-            research_context=state["research_context"],
-            baseline_world_state=state["baseline_world_state"],
-            years_in_future=state["years_in_future"]
+            storyline=processed_state.get("storyline", ""),
+            research_context=processed_state.get("context", processed_state.get("research_context", "")),
+            baseline_world_state=processed_state["baseline_world_state"],
+            years_in_future=processed_state["years_in_future"]
         )
     else:
-        # Initial analysis - projecting to target year from present
-        meta_prompt = INITIAL_META_ANALYSIS_PROMPT.format(
-            storyline=state.get("storyline", ""),
-            research_context=state["research_context"],
-            target_year=state.get("target_year", "future")
-        )
+        # Use flexible template system
+        meta_prompt = get_meta_analysis_prompt(use_case, processed_state)
     
     # Generate research directions
     response = await model.ainvoke([HumanMessage(content=meta_prompt)])
@@ -454,19 +466,23 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
     }
 
 async def parallel_scenario_generation(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Generate scenarios in parallel for each research direction."""
+    """Generate content in parallel for each direction."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
     # Create tasks for parallel generation
     generation_tasks = []
     
-    print(f"Starting scenario generation: {len(state['research_directions'])} directions, {configuration.scenarios_per_direction} scenarios per direction")
+    scenarios_per_direction = configuration.get_scenarios_per_direction()
+    use_case_config = configuration.get_use_case_config()
+    output_name = use_case_config.get("output_name", "scenarios")
+    
+    print(f"Starting {output_name} generation: {len(state['research_directions'])} directions, {scenarios_per_direction} items per direction")
     
     for direction_idx, direction in enumerate(state["research_directions"]):
         print(f"Processing direction {direction_idx}: {direction.get('name', 'Unknown')}")
         # Create multiple research teams per direction
-        for team_idx in range(configuration.scenarios_per_direction):
+        for team_idx in range(scenarios_per_direction):
             team_id = f"direction_{direction_idx}_team_{team_idx}"
             
             task = generate_single_scenario(
@@ -517,66 +533,105 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
     }
 
 async def generate_single_scenario(direction: dict, team_id: str, state: CoScientistState, config: RunnableConfig) -> dict:
-    """Generate a single scenario using deep research."""
+    """Generate a single content item using deep research."""
     
-    print(f"Generating scenario for {team_id} in direction: {direction.get('name', 'Unknown')}")
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    use_case_config = configuration.get_use_case_config()
+    output_name = use_case_config.get("output_name", "scenarios")
     
-    # Choose appropriate scenario generation prompt based on whether we have baseline state
-    if state.get("baseline_world_state") and state.get("years_in_future"):
-        # Incremental scenario generation - building on existing world state
+    print(f"Generating {output_name.rstrip('s')} for {team_id} in direction: {direction.get('name', 'Unknown')}")
+    
+    # Handle backward compatibility - convert old format to new format
+    processed_state = {}
+    if state.get("research_context"):
+        # Legacy scenario generation format
+        processed_state.update({
+            "task_description": f"Generate scenarios for {state.get('target_year', 'future')}",
+            "context": state["research_context"],
+            "storyline": state.get("storyline", ""),
+            "target_year": state.get("target_year"),
+            "baseline_world_state": state.get("baseline_world_state"),
+            "years_in_future": state.get("years_in_future"),
+            "use_case": "scenario_generation"
+        })
+    else:
+        # New flexible format
+        processed_state.update(state)
+    
+    # Get use case from state or configuration
+    use_case = processed_state.get("use_case", configuration.use_case.value)
+    
+    # Choose appropriate generation prompt
+    if use_case == "scenario_generation" and processed_state.get("baseline_world_state") and processed_state.get("years_in_future"):
+        # Use incremental prompt for scenario generation with baseline
         research_query = INCREMENTAL_SCENARIO_GENERATION_PROMPT.format(
             research_direction=direction.get("name", ""),
             core_assumption=direction.get("assumption", ""),
             team_id=team_id,
-            research_context=state["research_context"],
-            storyline=state.get("storyline", ""),
-            baseline_world_state=state["baseline_world_state"],
-            years_in_future=state["years_in_future"]
+            research_context=processed_state.get("context", processed_state.get("research_context", "")),
+            storyline=processed_state.get("storyline", ""),
+            baseline_world_state=processed_state["baseline_world_state"],
+            years_in_future=processed_state["years_in_future"]
         )
     else:
-        # Initial scenario generation - projecting to target year from present
-        research_query = INITIAL_SCENARIO_GENERATION_PROMPT.format(
-            research_direction=direction.get("name", ""),
-            core_assumption=direction.get("assumption", ""),
-            team_id=team_id,
-            research_context=state["research_context"],
-            storyline=state.get("storyline", ""),
-            target_year=state.get("target_year", "future")
-        )
+        # Use flexible template system
+        research_query = get_generation_prompt(use_case, processed_state, direction, team_id)
     
-    # Use deep_researcher for scenario generation
-    research_config = config.copy()
+    # Use either deep_researcher or regular LLM based on configuration
     co_config = CoScientistConfiguration.from_runnable_config(config)
-    research_config["configurable"].update({
-        "research_model": co_config.research_model,
-        "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
-        "summarization_model": co_config.general_model,
-        "compression_model": co_config.research_model,
-        "compression_model_max_tokens": 8000,
-        "final_report_model": co_config.research_model,
-        "final_report_model_max_tokens": 8000,
-        "allow_clarification": False,
-        "search_api": co_config.search_api
-    })
     
-    try:
-        research_result = await deep_researcher.ainvoke(
-            {"messages": [HumanMessage(content=research_query)]},
-            research_config
+    if co_config.use_deep_researcher:
+        # Use deep_researcher for research-based generation
+        research_config = config.copy()
+        research_config["configurable"].update({
+            "research_model": co_config.research_model,
+            "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
+            "summarization_model": co_config.general_model,
+            "compression_model": co_config.research_model,
+            "compression_model_max_tokens": 8000,
+            "final_report_model": co_config.research_model,
+            "final_report_model_max_tokens": 8000,
+            "allow_clarification": False,
+            "search_api": co_config.search_api
+        })
+        
+        try:
+            research_result = await deep_researcher.ainvoke(
+                {"messages": [HumanMessage(content=research_query)]},
+                research_config
+            )
+            scenario_content = research_result.get("final_report", "")
+            raw_result = str(research_result)
+            print(f"Successfully generated content for {team_id} using deep_researcher, length: {len(scenario_content)}")
+        except Exception as e:
+            print(f"Failed to generate content for {team_id} using deep_researcher: {e}")
+            raise e
+    else:
+        # Use regular LLM for creative generation
+        model = configurable_model.with_config(
+            configurable={
+                "model": co_config.general_model,
+                "max_tokens": 8000,
+            }
         )
-        print(f"Successfully generated scenario for {team_id}, content length: {len(research_result.get('final_report', ''))}")
-    except Exception as e:
-        print(f"Failed to generate scenario for {team_id}: {e}")
-        raise e
+        
+        try:
+            response = await model.ainvoke([HumanMessage(content=research_query)])
+            scenario_content = response.content
+            raw_result = f"Direct LLM response: {response.content}"
+            print(f"Successfully generated content for {team_id} using direct LLM, length: {len(scenario_content)}")
+        except Exception as e:
+            print(f"Failed to generate content for {team_id} using direct LLM: {e}")
+            raise e
     
     return {
         "scenario_id": str(uuid.uuid4()),
         "team_id": team_id,
         "research_direction": direction.get("name", ""),
         "core_assumption": direction.get("assumption", ""),
-        "scenario_content": research_result.get("final_report", ""),
+        "scenario_content": scenario_content,
         "research_query": research_query,
-        "raw_research_result": str(research_result),
+        "raw_research_result": raw_result,
         "generation_timestamp": datetime.now().isoformat(),
         "quality_score": None,
         "critiques": []
@@ -598,9 +653,10 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     
     # Create reflection tasks
     reflection_tasks = []
+    reflection_domains = configuration.get_reflection_domains()
     
     for scenario in scenario_population:
-        for domain in configuration.reflection_domains:
+        for domain in reflection_domains:
             task = generate_domain_critique(
                 scenario=scenario,
                 domain=domain,
@@ -774,6 +830,7 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         tournament_content = format_tournament_results(direction_winners, tournament_results)
         save_co_scientist_output("tournament_results_summary.md", tournament_content, configuration.output_dir)
     
+    
     return {
         "tournament_rounds": tournament_results,
         "tournament_winners": direction_winners,
@@ -822,11 +879,19 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
         
         # Collect winners and store comparison data
         round_winners = []
-        for result in round_results:
-            if not isinstance(result, Exception) and result:
-                next_round.append(result["winner"])
-                round_winners.append(result["winner"])
-                all_comparisons.append(result)
+        for i, result in enumerate(round_results):
+            if isinstance(result, Exception):
+                print(f"Warning: Comparison {i} failed with exception: {result}")
+            elif not result:
+                print(f"Warning: Comparison {i} returned empty result")
+            else:
+                winner = result.get("winner")
+                if winner:
+                    next_round.append(winner)
+                    round_winners.append(winner)
+                    all_comparisons.append(result)
+                else:
+                    print(f"Warning: Round {round_number}, comparison {i}: no winner in result")
         
         # Store round progression
         round_progression.append({
@@ -839,9 +904,12 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
         current_round = next_round
         round_number += 1
     
+    final_winner = current_round[0] if current_round else None
+    
+    
     return {
         "direction": direction,
-        "winner": current_round[0] if current_round else None,
+        "winner": final_winner,
         "total_rounds": round_number - 1,
         "all_comparisons": all_comparisons,
         "round_progression": round_progression
@@ -868,8 +936,25 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     
     response = await model.ainvoke([HumanMessage(content=comparison_prompt)])
     
-    # Determine winner based on response
-    winner = scenario1 if "better scenario: 1" in response.content else scenario2
+    # More robust winner determination
+    response_text = response.content.lower()
+    
+    # Look for the decision pattern
+    if "better scenario: 1" in response_text:
+        winner = scenario1
+        winner_number = 1
+    elif "better scenario: 2" in response_text:
+        winner = scenario2
+        winner_number = 2
+    else:
+        # Fallback: look for any mention of scenario numbers at the end
+        if "scenario 1" in response_text.split()[-20:]:  # Check last 20 words
+            winner = scenario1
+            winner_number = 1
+        else:
+            winner = scenario2
+            winner_number = 2
+    
     
     return {
         "round": round_number,
@@ -899,9 +984,10 @@ async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> di
     
     # Create evolution tasks
     evolution_tasks = []
+    evolution_strategies = configuration.get_evolution_strategies()
     
     for winner in winners:
-        for strategy in configuration.evolution_strategies:
+        for strategy in evolution_strategies:
             task = evolve_scenario(winner, strategy, state, config)
             evolution_tasks.append(task)
     
@@ -1234,19 +1320,35 @@ Generate a more detailed and technically rich version of the scenario."""
     }
 
 async def final_meta_review_phase(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Comprehensive meta-review and synthesis of competition results."""
+    """Meta-review agent: synthesize insights from competition process for optimization."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
-    # Check if we have any final representatives to review
-    final_representatives = state.get("final_representatives", [])
-    if not final_representatives:
-        print("No final representatives available for meta-review - generating summary with available data")
-        # Still generate a summary even if no final representatives exist
-        competition_summary = "Competition completed but no final representatives were generated due to scenario generation failures."
+    
+    # Get direction winners (not final representatives)
+    tournament_winners = state.get("tournament_winners", [])
+    direction_winners = []
+    
+    # Extract the 2 direction winners
+    for i, tournament_result in enumerate(tournament_winners[:2]):
+        winner = tournament_result.get("winner", {})
+        if winner:
+            direction_winners.append({
+                "scenario_id": winner.get("scenario_id", f"direction_{i}_winner"),
+                "research_direction": winner.get("research_direction", "Unknown"),
+                "scenario_content": winner.get("scenario_content", ""),
+                "core_assumption": winner.get("core_assumption", ""),
+                "team_id": winner.get("team_id", ""),
+                "competition_rank": i + 1,
+                "selection_reasoning": f"Tournament winner from {winner.get('research_direction', 'unknown')} direction"
+            })
+    
+    if not direction_winners:
+        print("No direction winners available for meta-review - generating process analysis with available data")
         return {
-            "top_scenarios": [],
-            "competition_summary": competition_summary
+            "direction_winners": [],
+            "process_analysis": "Competition completed but no direction winners were identified.",
+            "competition_summary": "Process analysis: No winners to analyze."
         }
     
     model = configurable_model.with_config(
@@ -1256,58 +1358,98 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
         }
     )
     
-    # Prepare comprehensive competition data for synthesis
-    competition_data = {
-        "research_directions": state.get("research_directions", []),
-        "total_scenarios": len(state.get("scenario_population", [])),
-        "critique_count": len(state.get("reflection_critiques", [])),
-        "tournament_rounds": len(state.get("tournament_rounds", [])),
-        "evolution_count": len(state.get("evolved_scenarios", [])),
-    }
+    # Prepare competition process data for meta-analysis
+    tournament_data = format_tournament_analysis(state.get("tournament_comparisons", []))
+    reflection_data = format_reflection_analysis(state.get("reflection_critiques", []))
+    evolution_data = format_evolution_analysis(state.get("evolved_scenarios", []))
     
-    meta_review_prompt = COMPETITION_SUMMARY_PROMPT.format(
-        research_directions=format_research_directions(state.get("research_directions", [])),
-        total_scenarios=competition_data["total_scenarios"],
-        critique_count=competition_data["critique_count"],
-        tournament_rounds=competition_data["tournament_rounds"],
-        evolution_count=competition_data["evolution_count"]
+    # Use the new process-focused meta review prompt
+    meta_review_prompt = META_REVIEW_PROMPT.format(
+        competition_summary=format_competition_process_summary(state),
+        direction1_winner=direction_winners[0] if len(direction_winners) > 0 else "No winner",
+        direction2_winner=direction_winners[1] if len(direction_winners) > 1 else "No winner",
+        tournament_data=tournament_data,
+        reflection_data=reflection_data,
+        evolution_data=evolution_data
     )
     
     response = await model.ainvoke([HumanMessage(content=meta_review_prompt)])
-    competition_summary = response.content
+    process_analysis = response.content
     
-    # Format final representatives as top scenarios (they're already the best)
-    top_scenarios = []
-    for i, rep in enumerate(final_representatives[:3]):
-        winner = rep.get("winner", {})
-        if winner:
-            top_scenarios.append({
-                "scenario_id": winner.get("scenario_id", f"final_rep_{i}"),
-                "research_direction": winner.get("research_direction", "Unknown"),
-                "scenario_content": winner.get("scenario_content", ""),
-                "competition_rank": i + 1,
-                "selection_reasoning": f"Winner of evolution tournament in {winner.get('research_direction', 'unknown')} direction",
-                "evolution_type": winner.get("evolution_type", "original")
-            })
+    # Generate a brief competition summary for user presentation
+    competition_summary = generate_user_competition_summary(state, direction_winners)
     
     # Save meta-review results
     if configuration.save_intermediate_results:
-        # Save the 3 final winning scenarios as complete standalone files
-        save_final_winners(top_scenarios, state, configuration.output_dir)
-        
-        save_co_scientist_output("meta_review.md", response.content, configuration.output_dir)
-        
-        # Also save the complete competition summary
-        full_summary = format_complete_summary(state, top_scenarios, competition_summary)
-        save_co_scientist_output("complete_summary.md", full_summary, configuration.output_dir)
+        save_co_scientist_output("meta_review_process_analysis.md", process_analysis, configuration.output_dir)
+        save_co_scientist_output("competition_summary.md", competition_summary, configuration.output_dir)
+    
     
     return {
-        "top_scenarios": top_scenarios,
+        "direction_winners": direction_winners,
+        "process_analysis": process_analysis,
         "competition_summary": competition_summary
     }
 
+def format_tournament_analysis(tournament_comparisons: list) -> str:
+    """Format tournament comparison data for meta-analysis."""
+    if not tournament_comparisons:
+        return "No tournament comparisons available."
+    
+    analysis = f"Tournament Analysis: {len(tournament_comparisons)} pairwise comparisons conducted.\n"
+    analysis += "Key patterns in decision-making and reasoning quality observed in tournament process."
+    return analysis
+
+def format_reflection_analysis(reflection_critiques: list) -> str:
+    """Format reflection critique data for meta-analysis."""
+    if not reflection_critiques:
+        return "No reflection critiques available."
+    
+    analysis = f"Reflection Analysis: {len(reflection_critiques)} expert critiques conducted.\n"
+    analysis += "Domain expert analysis patterns and quality assessments from reflection phase."
+    return analysis
+
+def format_evolution_analysis(evolved_scenarios: list) -> str:
+    """Format evolution data for meta-analysis."""
+    if not evolved_scenarios:
+        return "No evolution attempts available."
+    
+    analysis = f"Evolution Analysis: {len(evolved_scenarios)} evolution attempts conducted.\n"
+    analysis += "Enhancement strategy effectiveness and improvement patterns from evolution phase."
+    return analysis
+
+def format_competition_process_summary(state: dict) -> str:
+    """Format overall competition process summary for meta-analysis."""
+    directions = state.get("research_directions", [])
+    scenarios = state.get("scenario_population", [])
+    
+    summary = f"Competition Process Summary:\n"
+    summary += f"- {len(directions)} research directions explored\n"
+    summary += f"- {len(scenarios)} total scenarios generated\n"
+    summary += f"- Tournament, reflection, and evolution phases completed\n"
+    summary += f"- Process methodology and agent performance data available for analysis"
+    
+    return summary
+
+def generate_user_competition_summary(state: dict, direction_winners: list) -> str:
+    """Generate a brief summary for user presentation."""
+    summary = "# Co-Scientist Competition Summary\n\n"
+    summary += f"The competition explored {len(state.get('research_directions', []))} different approaches "
+    summary += f"and generated {len(state.get('scenario_population', []))} total variations.\n\n"
+    
+    summary += "## Direction Winners\n\n"
+    for i, winner in enumerate(direction_winners, 1):
+        summary += f"**Option {i}: {winner.get('research_direction', 'Unknown')}**\n"
+        summary += f"- Approach: {winner.get('core_assumption', 'No assumption available')}\n"
+        summary += f"- Team: {winner.get('team_id', 'Unknown')}\n\n"
+    
+    summary += "These represent the two strongest approaches from the competitive process. "
+    summary += "Please review both options and select your preferred direction.\n"
+    
+    return summary
+
 def save_final_winners(top_scenarios: list, state: dict, output_dir: str = "output"):
-    """Save the 3 final winning scenarios as complete standalone files."""
+    """Save the final winning scenarios as complete standalone files."""
     manager = get_output_manager(output_dir)
     
     if not top_scenarios:
@@ -1369,24 +1511,51 @@ def save_final_winners(top_scenarios: list, state: dict, output_dir: str = "outp
 
 # Helper functions
 def parse_research_directions(content: str) -> list:
-    """Parse research directions from meta-analysis output."""
+    """Parse research directions from meta-analysis output.
+    
+    Handles the format specified in the prompt:
+    Direction 1: [Name]
+    Core Assumption: [Key narrative assumption]
+    Focus: [What this approach emphasizes]
+    
+    Also handles markdown formatting that LLMs often add.
+    """
     directions = []
     lines = content.split('\n')
     
     current_direction = {}
     for line in lines:
         line = line.strip()
-        if line.startswith("Direction"):
+        
+        # Remove markdown formatting
+        clean_line = line.replace("###", "").replace("**", "").strip()
+        
+        # Look for Direction lines (e.g., "Direction 1: Name" or "### Direction 1: **Name**")
+        if clean_line.lower().startswith("direction") and ":" in clean_line:
             if current_direction:
                 directions.append(current_direction)
-            current_direction = {"name": line.split(":")[1].strip() if ":" in line else line}
-        elif line.startswith("Core Assumption:"):
-            current_direction["assumption"] = line.split(":", 1)[1].strip() if ":" in line else ""
-        elif line.startswith("Focus:"):
-            current_direction["focus"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            # Extract name after the colon
+            name_part = clean_line.split(":", 1)[1].strip()
+            current_direction = {"name": name_part}
+        
+        # Look for Core Assumption lines
+        elif clean_line.lower().startswith("core assumption") and ":" in clean_line:
+            if current_direction:  # Only add if we have a current direction
+                current_direction["assumption"] = clean_line.split(":", 1)[1].strip()
+        
+        # Look for Focus lines  
+        elif clean_line.lower().startswith("focus") and ":" in clean_line:
+            if current_direction:  # Only add if we have a current direction
+                current_direction["focus"] = clean_line.split(":", 1)[1].strip()
     
+    # Add the last direction if it exists
     if current_direction:
         directions.append(current_direction)
+    
+    # Debug logging
+    print(f"DEBUG: Parsed directions from LLM response:")
+    for i, direction in enumerate(directions):
+        print(f"  Direction {i+1}: {direction}")
     
     return directions
 
@@ -1698,7 +1867,7 @@ def format_evolution_tournament_results(final_representatives: list) -> str:
     return content
 
 def format_research_directions(directions: list) -> str:
-    """Format research directions for COMPETITION_SUMMARY_PROMPT."""
+    """Format research directions for meta-analysis."""
     if not directions:
         return "No research directions identified."
     
@@ -1711,6 +1880,49 @@ def format_research_directions(directions: list) -> str:
     return formatted
 
 # Build the co-scientist workflow
+# Routing functions for dynamic phase control
+def route_after_generation(state: CoScientistState, config: RunnableConfig) -> Literal["reflection", "tournament", "meta_review"]:
+    """Route after scenario generation based on process depth."""
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    enabled_phases = configuration.get_enabled_phases_for_depth()
+    
+    if "reflection" in enabled_phases:
+        return "reflection"
+    elif "tournament" in enabled_phases:
+        return "tournament"
+    else:
+        return "meta_review"
+
+def route_after_reflection(state: CoScientistState, config: RunnableConfig) -> Literal["tournament", "meta_review"]:
+    """Route after reflection based on process depth."""
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    enabled_phases = configuration.get_enabled_phases_for_depth()
+    
+    if "tournament" in enabled_phases:
+        return "tournament"
+    else:
+        return "meta_review"
+
+def route_after_tournament(state: CoScientistState, config: RunnableConfig) -> Literal["evolution", "meta_review"]:
+    """Route after tournament based on process depth."""
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    enabled_phases = configuration.get_enabled_phases_for_depth()
+    
+    if "evolution" in enabled_phases:
+        return "evolution"
+    else:
+        return "meta_review"
+
+def route_after_evolution(state: CoScientistState, config: RunnableConfig) -> Literal["evolution_tournament", "meta_review"]:
+    """Route after evolution based on process depth."""
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    enabled_phases = configuration.get_enabled_phases_for_depth()
+    
+    if "evolution_tournament" in enabled_phases:
+        return "evolution_tournament"
+    else:
+        return "meta_review"
+
 co_scientist_builder = StateGraph(CoScientistState, input=CoScientistInputState, config_schema=CoScientistConfiguration)
 
 # Add nodes for each phase
@@ -1722,13 +1934,13 @@ co_scientist_builder.add_node("evolution", evolution_phase)
 co_scientist_builder.add_node("evolution_tournament", evolution_tournament_phase)
 co_scientist_builder.add_node("meta_review", final_meta_review_phase)
 
-# Define the workflow edges
+# Define the dynamic workflow edges
 co_scientist_builder.add_edge(START, "meta_analysis")
 co_scientist_builder.add_edge("meta_analysis", "scenario_generation")
-co_scientist_builder.add_edge("scenario_generation", "reflection")
-co_scientist_builder.add_edge("reflection", "tournament")
-co_scientist_builder.add_edge("tournament", "evolution")
-co_scientist_builder.add_edge("evolution", "evolution_tournament")
+co_scientist_builder.add_conditional_edges("scenario_generation", route_after_generation)
+co_scientist_builder.add_conditional_edges("reflection", route_after_reflection)
+co_scientist_builder.add_conditional_edges("tournament", route_after_tournament)
+co_scientist_builder.add_conditional_edges("evolution", route_after_evolution)
 co_scientist_builder.add_edge("evolution_tournament", "meta_review")
 co_scientist_builder.add_edge("meta_review", END)
 
