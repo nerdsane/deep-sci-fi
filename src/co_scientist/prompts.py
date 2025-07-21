@@ -12,7 +12,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
         "character_development": CHARACTER_META_ANALYSIS_PROMPT,
-        "linguistic_evolution": RESEARCH_META_ANALYSIS_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
         "storyline_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
     }
     
@@ -34,7 +34,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         world_state_context=world_state_context
     )
 
-def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str) -> str:
+def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str, config: dict = None) -> str:
     """Get the appropriate generation prompt for the use case."""
     templates = {
         "scenario_generation": INITIAL_SCENARIO_GENERATION_PROMPT,
@@ -42,13 +42,18 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
         "character_development": CHARACTER_GENERATION_PROMPT,
-        "linguistic_evolution": RESEARCH_GENERATION_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
         "storyline_adjustment": NARRATIVE_GENERATION_PROMPT,
     }
     
     template = templates.get(use_case)
     if not template:
         raise ValueError(f"No template found for use_case: {use_case}")
+    
+    # Extract world state context from config if available
+    world_state_context = ""
+    if config and config.get("configurable"):
+        world_state_context = config["configurable"].get("world_state_context", "")
     
     # Handle scenario generation with proper template format
     if use_case == "scenario_generation":
@@ -69,7 +74,8 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         task_description=state.get("task_description", ""),
         context=state.get("context", ""),
         reference_material=state.get("reference_material", ""),
-        domain_context=state.get("domain_context", "")
+        domain_context=state.get("domain_context", ""),
+        world_state_context=world_state_context
     )
 
 # === Meta-Analysis Phase ===
@@ -599,65 +605,53 @@ Reasoning: [Why these approaches offer distinct methods for world-building integ
 """
 
 # Used in: get_generation_prompt() for "chapter_rewriting" use case
-CHAPTER_GENERATION_PROMPT = """You are a skilled writer conducting a comprehensive approach to chapter rewriting.
+CHAPTER_GENERATION_PROMPT = """You are a skilled science fiction writer rewriting a chapter to seamlessly integrate developed world-building using the {direction_name} approach.
 
-<Narrative Approach>
-{direction_name}
-</Narrative Approach>
-
-<Core Assumption>
+<Integration Approach>
 {direction_assumption}
-</Core Assumption>
+</Integration Approach>
 
-<Team ID>
-{team_id}
-</Team ID>
+<Original Chapter>
+{reference_material}
+</Original Chapter>
+
+<Rewriting Requirements>
+{context}
+</Rewriting Requirements>
+
+<Developed World State>
+{world_state_context}
+</Developed World State>
 
 <Task>
-{task_description}
+Completely rewrite the chapter to naturally integrate the established world-building, linguistic evolution, and technological developments. Write for readers who live in this future world and naturally understand these concepts.
 </Task>
 
-<Requirements>
-{context}
-</Requirements>
+<World Integration Requirements>
+- Seamlessly weave world technologies and systems into character actions and dialogue
+- Use evolved language and cultural expressions naturally, without explanation
+- Show characters interacting authentically with their world's systems and norms
+- Integrate world-specific details through character perspective, not exposition
+- Assume readers understand this world - don't explain basic concepts
+</World Integration Requirements>
 
-<Current Chapter>
-{reference_material}
-</Current Chapter>
+<Writing Approach>
+- Characters think, speak, and act as natives of this developed world
+- Technology and systems are background reality, not novelties to explain
+- Linguistic evolution is natural speech, not foreign terms requiring definition
+- Cultural and social norms are assumed knowledge, shown through behavior
+- World details emerge through authentic character interaction with their environment
+</Writing Approach>
 
-<Genre Context>
-{domain_context}
-</Genre Context>
+<Key Principles>
+- NO explaining concepts as if to readers from the past
+- NO exposition dumps about how the world works  
+- YES authentic character behavior within established world systems
+- YES natural use of evolved language and cultural elements
+- YES seamless integration where world-building serves story, not vice versa
+</Key Principles>
 
-<Instructions>
-1. Analyze the current chapter to understand its role in the larger narrative
-2. Apply your narrative approach to rewrite the chapter completely
-3. Ground every creative choice in established literary techniques and genre conventions
-4. Maintain consistency with the overall story while implementing your approach
-5. Consider the impact on character development, plot progression, and reader engagement
-
-Your rewrite must address:
-- Character development and dialogue
-- Narrative structure and pacing
-- Descriptive language and prose style
-- Plot advancement and tension
-- Thematic elements and mood
-- Reader engagement and emotional impact
-
-Creative Methodology:
-- Start with your core assumption as the foundation
-- Research current literary techniques supporting this approach
-- Apply established narrative principles realistically
-- Consider implementation challenges and reader expectations
-- Address potential weaknesses and how they're overcome
-
-Generate a comprehensive chapter rewrite that is:
-- Literarily grounded in established techniques
-- Consistent with character and plot requirements
-- Specific and complete in implementation
-- Realistic about genre and audience expectations
-- Aware of narrative and emotional implications
-</Instructions>
+Rewrite the complete chapter as a natural story within this established world.
 """
 
 # === Character Development Templates ===
@@ -779,105 +773,134 @@ Generate a comprehensive character development that is:
 # === Research and Analysis Templates ===
 
 # Used in: get_meta_analysis_prompt() for "linguistic_evolution" use case
-RESEARCH_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research approaches for competitive analysis.
-
-<Task>
-Analyze the task requirements and identify 2 fundamentally different research methodologies that would lead to meaningfully different analytical outcomes.
-</Task>
-
-<Task Description>
-{task_description}
-</Task Description>
-
-<Context and Requirements>
-{context}
-</Context and Requirements>
-
-<Reference Material>
-{reference_material}
-</Reference Material>
-
-<Domain Context>
-{domain_context}
-</Domain Context>
-
-<Instructions>
-1. Identify key analytical choice points that could be approached in different directions
-2. Create 2 distinct research approaches based on different core assumptions about methodology
-3. Ensure each approach is academically sound but represents different research perspectives
-4. Each approach should address the full research requirements
-
-Requirements for good research approaches:
-- Different core assumptions about research methodology or analytical framework
-- Different but equally valid academic perspectives
-- Different implications for depth, scope, and analytical outcomes
-- Meaningful variety for comprehensive analysis
-
-Format your response as:
-Direction 1: [Name]
-Core Assumption: [Key methodological assumption]
-Focus: [What this approach emphasizes]
-
-Direction 2: [Name]
-Core Assumption: [Key methodological assumption]
-Focus: [What this approach emphasizes]
-
-Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining academically sound]
-</Instructions>
-"""
-
-# Used in: get_generation_prompt() for "linguistic_evolution" use case
-RESEARCH_GENERATION_PROMPT = """You are a research team conducting comprehensive academic analysis.
-
-<Research Approach>
-{direction_name}
-</Research Approach>
-
-<Core Methodology>
-{direction_assumption}
-</Core Methodology>
-
-<Team ID>
-{team_id}
-</Team ID>
+LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist and sociolinguist tasked with identifying distinct approaches for researching linguistic evolution in advanced technological societies.
 
 <Task>
 {task_description}
 </Task>
+
+<Scope>
+Identify 2 fundamentally different linguistic research approaches for projecting language evolution in this technological world state.
+</Scope>
 
 <Research Context>
 {context}
 </Research Context>
 
-<Reference Material>
+<World State Foundation>
 {reference_material}
-</Reference Material>
+</World State Foundation>
 
-<Domain>
+<Previous Linguistic Research>
+{world_state_context}
+</Previous Linguistic Research>
+
+<Domain Focus>
 {domain_context}
-</Domain>
+</Domain Focus>
 
-<Instructions>
-1. Apply your research methodology to conduct thorough analysis
-2. Ground every finding in current academic literature and research
-3. Consider multiple perspectives and interdisciplinary insights
-4. Address all aspects of the research requirements systematically
-5. Provide evidence-based conclusions and recommendations
+<Requirements>
+- Technology-Driven Evolution: How technological advances reshape communication patterns
+- Cultural-Social Dynamics: How social structures and cultural shifts influence language
+- Communication Efficiency: How new communication methods affect linguistic structures
+- Generational Adaptation: How different age groups adapt to linguistic changes
+- Cross-Cultural Integration: How global technological integration affects local linguistic identity
+</Requirements>
 
-Research Methodology:
-- Use your core methodology as the analytical framework
-- Integrate relevant academic theories and current research
-- Consider empirical evidence and case studies
-- Address potential limitations and alternative interpretations
-- Provide clear, well-supported conclusions
+<Key Constraints>
+- Build upon any previous linguistic research cycles if available
+- Consider cumulative effects of technological and social changes
+- Account for the specific timeline and technological development trajectory
+- Integrate with established world-building and social systems
+</Key Constraints>
 
-Generate a comprehensive research analysis that is:
-- Methodologically rigorous and academically sound
-- Well-supported by current literature and evidence
-- Internally consistent with your analytical framework
-- Thorough in addressing all research requirements
-- Clear and accessible for academic and practical application
-</Instructions>
+<Process>
+1. Analyze the world state for key technological and social factors affecting language
+2. Identify which linguistic domains will experience the most significant evolution
+3. Create 2 distinct research approaches with different focus areas and methodologies
+4. If previous research exists, build projections that extend and refine those findings
+</Process>
+
+<Domain Focus Areas>
+technological_linguistics: How technology directly shapes language structure and usage
+sociolinguistics: How social and cultural changes drive linguistic evolution
+communication_systems: Evolution of communication methods and their linguistic impact
+cultural_preservation: Balance between linguistic change and cultural identity maintenance
+generational_dynamics: How different age groups adopt and resist linguistic changes
+semantic_evolution: How meanings and concepts evolve with technological advancement
+</Domain Focus Areas>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Technology-focused or Culture-focused approach]
+Focus: [Specific linguistic domains and research methodology]
+
+Direction 2: [Name] 
+Core Assumption: [Technology-focused or Culture-focused approach]
+Focus: [Specific linguistic domains and research methodology]
+
+Reasoning: [Why these approaches provide comprehensive linguistic evolution analysis]
+</Output Format>
+
+<Reminders>
+- This is linguistic evolution research, not generic analysis
+- Focus on how language actually changes in technological societies
+- Consider both gradual evolution and rapid technological disruption
+- If previous research exists, extend and build upon those foundations
+- Remember the specific timeline and years being projected
+</Reminders>
+"""
+
+# Used in: get_generation_prompt() for "linguistic_evolution" use case
+LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team analyzing language evolution in advanced technological societies using the {direction_name} approach.
+
+<Research Approach>
+{direction_assumption}
+</Research Approach>
+
+<World State Foundation>
+{reference_material}
+</World State Foundation>
+
+<Research Requirements>
+{context}
+</Research Requirements>
+
+<Previous Research>
+{world_state_context}
+</Previous Research>
+
+<Task>
+Conduct comprehensive linguistic evolution research that projects how language, communication, and cultural expression will develop in this technological world state.
+</Task>
+
+<Research Focus>
+- Language Structure Evolution: How technological and social changes reshape grammar, syntax, and semantics
+- Communication Methods: Evolution of communication technologies and their linguistic impact
+- Cultural-Linguistic Integration: How cultural shifts influence language development patterns
+- Generational Linguistic Dynamics: How different age groups adapt to and drive linguistic change
+- Cross-Cultural Communication: How global technological integration affects linguistic diversity and unity
+- Semantic and Conceptual Evolution: How new concepts and technologies create new vocabulary and meaning
+</Research Focus>
+
+<Research Methodology>
+- Build upon any previous linguistic research cycles if available
+- Ground findings in established linguistic research and sociolinguistic theory
+- Consider technological disruption patterns and their linguistic parallels
+- Analyze generational adoption patterns and resistance to change
+- Project timelines for linguistic evolution based on technological development speed
+- Consider both gradual evolution and rapid disruption scenarios
+</Research Methodology>
+
+<Key Principles>
+- Project realistic linguistic evolution based on technological and social trajectories
+- Account for human linguistic adaptation patterns and resistance to change
+- Consider how communication efficiency drives linguistic simplification or complexity
+- Factor in cultural preservation vs. technological adaptation tensions
+- Build cumulative projections if this extends previous research cycles
+</Key Principles>
+
+Provide comprehensive linguistic evolution analysis with specific projections, timelines, and examples of evolved language elements.
 """
 
 # === Narrative Revision Templates ===

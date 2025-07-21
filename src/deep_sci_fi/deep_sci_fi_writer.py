@@ -878,6 +878,18 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     
     # Configure co_scientist for quick competition with deep research
     subgraph_config = config.copy()
+    
+    # Build comprehensive world state context for linguistic research
+    world_context_parts = [f"Baseline World State: {baseline_world_state}"]
+    world_context_parts.append(f"Target Year: {target_year}")
+    world_context_parts.append(f"Years to Project: {years_in_future}")
+    
+    # Include previous linguistic evolution if this is a subsequent cycle
+    if previous_linguistic := state.get("linguistic_evolution"):
+        world_context_parts.append(f"Previous Linguistic Research: {previous_linguistic}")
+    
+    world_state_context = "\n\n".join(world_context_parts)
+    
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
@@ -886,6 +898,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         "population_scale": "light",  # Quick processing
         "use_deep_researcher": True,  # Use deep research for linguistic analysis
         "reflection_domains": ["linguistics", "technology", "sociology and anthropology"],
+        "world_state_context": world_state_context,  # Pass comprehensive world state and previous research
         "save_intermediate_results": True,
         "output_dir": output_dir
     })
