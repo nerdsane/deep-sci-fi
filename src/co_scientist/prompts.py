@@ -16,19 +16,13 @@ def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
         "storyline_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
     }
     
-    # Special handling for scenario generation
+    # Special handling for scenario generation with storyline context
     if use_case == "scenario_generation":
         if state.get("research_context") and state.get("storyline"):
-            # Use storyline-based prompt when we have a storyline
+            # Use storyline-based prompt (storyline always exists in current workflow)
             return INITIAL_META_ANALYSIS_PROMPT.format(
                 storyline=state.get("storyline"),
                 research_context=state.get("research_context"),
-                target_year=state.get("target_year", "future")
-            )
-        elif state.get("context"):
-            # Use research-based prompt when we have research questions but no storyline
-            return INITIAL_RESEARCH_META_ANALYSIS_PROMPT.format(
-                context=state.get("context"),
                 target_year=state.get("target_year", "future")
             )
     
@@ -142,59 +136,7 @@ Reasoning: [Explain why these 3 directions provide meaningful variety while rema
 </Reminders>
 """
 
-# Used in: get_meta_analysis_prompt() for "scenario_generation" use case when no storyline is available
-INITIAL_RESEARCH_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for future scenario development.
 
-<Task>
-Analyze the provided research questions and identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
-</Task>
-
-<Research Questions>
-{context}
-</Research Questions>
-
-<Target Year>
-{target_year}
-</Target Year>
-
-<Requirements>
-- Each direction must be scientifically plausible but represent different development paths
-- All directions should address ALL the research questions, not focus on just one aspect
-- Different core assumptions about technological development
-- Different but equally plausible scientific trajectories  
-- Different implications for society, energy, transport, communication, etc.
-- Meaningful variety for future scenario storytelling
-</Requirements>
-
-<Process>
-1. Identify key technological choice points from the research questions that could develop in different directions
-2. Create 3 distinct research directions based on different assumptions about which technologies/approaches will dominate
-3. Ensure each direction is scientifically plausible but represents different development paths
-4. Each direction should address ALL the research questions, not focus on just one aspect
-</Process>
-
-<Output Format>
-Direction 1: [Name]
-Core Assumption: [Key technological assumption]
-Focus: [What this direction emphasizes]
-
-Direction 2: [Name] 
-Core Assumption: [Key technological assumption]
-Focus: [What this direction emphasizes]
-
-Direction 3: [Name]
-Core Assumption: [Key technological assumption] 
-Focus: [What this direction emphasizes]
-
-Reasoning: [Explain why these 3 directions provide meaningful variety while remaining scientifically grounded]
-</Output Format>
-
-<Reminders>
-- Focus on technological choice points that create meaningful differentiation
-- Ensure all directions remain scientifically grounded and plausible
-- Address the complete scope of research questions in each direction
-</Reminders>
-"""
 
 # Used in: meta_analysis_phase() for scenario generation with baseline world state
 INCREMENTAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for evolutionary scenario competition.
@@ -524,7 +466,7 @@ Your storyline must include:
 """
 
 # Used in: get_generation_prompt() for "chapter_writing" use case
-CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging opening chapter.
+CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging chapter.
 
 <Narrative Approach>
 {direction_name}
