@@ -1,17 +1,4 @@
-# === Initial Story Creation ===
-
-# UNUSED - storyline creation now handled by co_scientist
-CREATE_STORYLINE_PROMPT = """You are a master storyteller.
-
-<Task>
-Based on the user's idea, create a compelling storyline for a novel.
-</Task>
-
-<Instructions>
-- The storyline should include main plot points, subplots, and key character arcs.
-- The user's idea for the novel is: '{input}'.
-</Instructions>
-"""
+# === Story Structure ===
 
 # Used in: create_chapter_arcs() function 
 CREATE_CHAPTER_ARCS_PROMPT = """You are a master planner for a novelist.
@@ -26,28 +13,6 @@ Based on the provided storyline, write a detailed chapter-by-chapter story arc f
 
 <Instructions>
 - The output should be a breakdown of what happens in each chapter.
-</Instructions>
-"""
-
-# UNUSED - chapter writing now handled by co_scientist
-WRITE_FIRST_CHAPTER_PROMPT = """You are a novelist.
-
-<Task>
-Write the full first chapter of the novel based on the provided storyline and chapter arcs.
-</Task>
-
-<Storyline>
-{storyline}
-</Storyline>
-
-<Chapter Arcs>
-{chapter_arcs}
-</Chapter Arcs>
-
-<Instructions>
-- Bring the story to life with vivid descriptions and engaging dialogue.
-- Write only the first chapter.
-- Complete the chapter fully - do not cut off mid-scene or mid-sentence.
 </Instructions>
 """
 

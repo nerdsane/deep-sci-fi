@@ -11,7 +11,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
         "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
-        "character_development": CHARACTER_META_ANALYSIS_PROMPT,
+
         "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
     }
@@ -41,7 +41,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "storyline_creation": STORYLINE_GENERATION_PROMPT,
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
-        "character_development": CHARACTER_GENERATION_PROMPT,
+
         "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
     }
@@ -654,121 +654,7 @@ Completely rewrite the chapter to naturally integrate the established world-buil
 Rewrite the complete chapter as a natural story within this established world.
 """
 
-# === Character Development Templates ===
 
-# Used in: get_meta_analysis_prompt() for "character_development" use case
-CHARACTER_META_ANALYSIS_PROMPT = """You are an expert character development analyst tasked with identifying distinct approaches for competitive character enhancement.
-
-<Task>
-Analyze the character requirements and identify 3 fundamentally different development approaches that would lead to meaningfully different character versions.
-</Task>
-
-<Task Description>
-{task_description}
-</Task Description>
-
-<Context and Requirements>
-{context}
-</Context and Requirements>
-
-<Current Character Material>
-{reference_material}
-</Current Character Material>
-
-<Genre/Domain Context>
-{domain_context}
-</Genre/Domain Context>
-
-<Instructions>
-1. Identify key character development choice points that could be explored in different directions
-2. Create 3 distinct approaches based on different assumptions about psychology, motivation, narrative function, etc.
-3. Ensure each approach is psychologically sound but represents different creative paths
-4. Each approach should address the full character requirements
-
-Requirements for good character approaches:
-- Different core assumptions about character psychology and motivation
-- Different but equally valid development directions  
-- Different implications for character arc, relationships, and narrative role
-- Meaningful variety for character depth and complexity
-
-Format your response as:
-Direction 1: [Name]
-Core Assumption: [Key character assumption]
-Focus: [What this approach emphasizes]
-
-Direction 2: [Name] 
-Core Assumption: [Key character assumption]
-Focus: [What this approach emphasizes]
-
-Direction 3: [Name]
-Core Assumption: [Key character assumption] 
-Focus: [What this approach emphasizes]
-
-Reasoning: [Explain why these 3 approaches provide meaningful variety while remaining psychologically sound]
-</Instructions>
-"""
-
-# Used in: get_generation_prompt() for "character_development" use case
-CHARACTER_GENERATION_PROMPT = """You are a skilled character developer conducting a comprehensive approach to character enhancement.
-
-<Character Approach>
-{direction_name}
-</Character Approach>
-
-<Core Assumption>
-{direction_assumption}
-</Core Assumption>
-
-<Team ID>
-{team_id}
-</Team ID>
-
-<Task>
-{task_description}
-</Task>
-
-<Requirements>
-{context}
-</Requirements>
-
-<Current Character>
-{reference_material}
-</Current Character>
-
-<Genre Context>
-{domain_context}
-</Genre Context>
-
-<Instructions>
-1. Analyze the current character to understand their role and existing development
-2. Apply your character approach to enhance the character comprehensively
-3. Ground every development choice in established psychological principles and narrative techniques
-4. Maintain consistency with the story while implementing your approach
-5. Consider the impact on character relationships, plot function, and reader connection
-
-Your development must address:
-- Character psychology and inner life
-- Motivations and goals
-- Character arc and growth
-- Relationships and interactions
-- Dialogue and voice
-- Narrative function and story role
-
-Development Methodology:
-- Start with your core assumption as the foundation
-- Research current character development techniques supporting this approach
-- Apply established psychological and narrative principles realistically
-- Consider implementation challenges and story requirements
-- Address potential weaknesses and how they're overcome
-
-Generate a comprehensive character development that is:
-- Psychologically grounded in established principles
-- Consistent with story and genre requirements
-- Specific and complete in implementation
-- Realistic about character and narrative expectations
-- Aware of emotional and story implications
-</Instructions>
-"""
 
 # === Research and Analysis Templates ===
 

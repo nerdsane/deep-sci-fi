@@ -21,7 +21,7 @@ class UseCase(str, Enum):
     STORYLINE_CREATION = "storyline_creation"
     CHAPTER_WRITING = "chapter_writing"
     CHAPTER_REWRITING = "chapter_rewriting" 
-    CHARACTER_DEVELOPMENT = "character_development"
+
     PLOT_ANALYSIS = "plot_analysis"
     LINGUISTIC_EVOLUTION = "linguistic_evolution"
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
@@ -91,7 +91,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "character_development", "plot_analysis", "linguistic_evolution", "storyline_adjustment"],
+                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "plot_analysis", "linguistic_evolution", "storyline_adjustment"],
                 "default": "scenario_generation",
                 "description": "Pre-configured use case template"
             }
