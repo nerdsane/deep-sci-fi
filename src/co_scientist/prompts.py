@@ -13,7 +13,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
         "character_development": CHARACTER_META_ANALYSIS_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
-        "storyline_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
+        "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
     }
     
     # Use flexible format for all use cases
@@ -43,7 +43,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
         "character_development": CHARACTER_GENERATION_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
-        "storyline_adjustment": NARRATIVE_GENERATION_PROMPT,
+        "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
     }
     
     template = templates.get(use_case)
@@ -904,105 +904,121 @@ Research how language naturally evolved in our technological society with specif
 # === Narrative Revision Templates ===
 
 # Used in: get_meta_analysis_prompt() for "storyline_adjustment" use case  
-NARRATIVE_META_ANALYSIS_PROMPT = """You are an expert narrative analyst tasked with identifying distinct revision approaches for competitive storyline development.
+STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT = """You are an expert narrative analyst from this advanced world identifying distinct approaches for adjusting storylines to integrate developed world-building.
 
 <Task>
-Analyze the narrative requirements and identify 2 fundamentally different revision strategies that would lead to meaningfully different storyline outcomes.
+{task_description}
 </Task>
 
-<Task Description>
-{task_description}
-</Task Description>
+<Scope>
+Identify 2 fundamentally different approaches for revising the storyline to seamlessly integrate our newly developed world state, linguistic evolution, and technological developments.
+</Scope>
 
-<Context and Requirements>
-{context}
-</Context and Requirements>
-
-<Reference Material>
+<Original Storyline>
 {reference_material}
-</Reference Material>
+</Original Storyline>
+
+<Storyline Adjustment Requirements>
+{context}
+</Storyline Adjustment Requirements>
+
+<Developed World State>
+{world_state_context}
+</Developed World State>
 
 <Domain Context>
 {domain_context}
 </Domain Context>
 
-<Instructions>
-1. Identify key narrative choice points that could be revised in different directions
-2. Create 2 distinct revision approaches based on different core assumptions about narrative priority
-3. Ensure each approach is literarily sound but represents different creative perspectives
-4. Each approach should address the full revision requirements
+<Requirements>
+- World Integration: How to weave developed world-building naturally into the narrative structure
+- Character Consistency: How to maintain character authenticity within the evolved world context
+- Plot Coherence: How to adjust plot elements to align with established world systems
+- Thematic Enhancement: How to strengthen themes through world-building integration
+- Narrative Flow: How to maintain story momentum while incorporating developed elements
+</Requirements>
 
-Requirements for good revision approaches:
-- Different core assumptions about narrative focus (structure vs character vs theme vs world-building)
-- Different but equally valid creative directions
-- Different implications for story flow, character development, and thematic coherence
-- Meaningful variety for narrative enhancement
+<Key Constraints>
+- Preserve original storyline's core narrative appeal and character essence
+- Seamlessly integrate world developments without disrupting story flow
+- Ensure characters and plot elements are authentic to the developed world
+- Maintain reader engagement while incorporating complex world-building
+</Key Constraints>
 
-Format your response as:
+<Process>
+1. Analyze how the original storyline can be enhanced with developed world integration
+2. Create 2 distinct approaches for weaving world elements into the narrative structure
+3. Focus on different strategies for character, plot, and thematic integration
+</Process>
+
+<Output Format>
 Direction 1: [Name]
-Core Assumption: [Key narrative assumption]
-Focus: [What this approach emphasizes]
+Core Assumption: [World integration strategy]
+Focus: [How this approach integrates developed world into storyline]
 
-Direction 2: [Name]
-Core Assumption: [Key narrative assumption]
-Focus: [What this approach emphasizes]
+Direction 2: [Name] 
+Core Assumption: [World integration strategy]
+Focus: [How this approach integrates developed world into storyline]
 
-Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining literarily sound]
-</Instructions>
+Reasoning: [Why these approaches offer distinct methods for world-building integration]
+</Output Format>
+
+<Reminders>
+- This is about adjusting storyline to integrate our developed world state, not generic revision
+- Focus on world-building integration strategies, not just narrative techniques
+- Consider how our linguistic evolution and cultural elements enhance the story
+- Each approach should create authentic integration with our established world
+</Reminders>
 """
 
 # Used in: get_generation_prompt() for "storyline_adjustment" use case
-NARRATIVE_GENERATION_PROMPT = """You are a narrative development team specializing in storyline revision and enhancement.
+STORYLINE_ADJUSTMENT_GENERATION_PROMPT = """You are a narrative development team from this advanced world revising storylines to integrate our developed world-building using the {direction_name} approach.
 
-<Revision Approach>
-{direction_name}
-</Revision Approach>
-
-<Core Philosophy>
+<Integration Approach>
 {direction_assumption}
-</Core Philosophy>
+</Integration Approach>
 
-<Team ID>
-{team_id}
-</Team ID>
+<Original Storyline>
+{reference_material}
+</Original Storyline>
+
+<Adjustment Requirements>
+{context}
+</Adjustment Requirements>
+
+<Developed World State>
+{world_state_context}
+</Developed World State>
 
 <Task>
-{task_description}
+Revise the original storyline to seamlessly integrate our developed world state, linguistic evolution, and technological systems. Adjust for inhabitants of this world who naturally understand these developments.
 </Task>
 
-<Revision Context>
-{context}
-</Revision Context>
+<World Integration Requirements>
+- Seamlessly weave developed world-building into narrative structure and character actions
+- Integrate our evolved linguistic and cultural elements naturally into dialogue and description
+- Ensure characters think and act authentically within our established world systems
+- Adjust plot elements to align with our technological and social realities
+- Preserve storyline's core appeal while enhancing it with our world developments
+</World Integration Requirements>
 
-<Reference Material>
-{reference_material}
-</Reference Material>
+<Adjustment Approach>
+- Characters inhabit and understand our developed world naturally
+- Technological and social systems are background reality, not foreign concepts
+- Our linguistic evolution is natural speech, not terms requiring explanation
+- Cultural and social developments are assumed knowledge, shown through behavior
+- World details enhance story flow rather than interrupting it
+</Adjustment Approach>
 
-<Genre/Style>
-{domain_context}
-</Genre/Style>
+<Key Principles>
+- NO explaining world developments as if to readers from the past
+- NO treating our advanced systems as foreign or requiring definition
+- YES authentic character behavior within our established world systems
+- YES natural integration of our linguistic and cultural evolution
+- YES seamless enhancement where world-building serves story development
+</Key Principles>
 
-<Instructions>
-1. Apply your revision philosophy to enhance the storyline systematically
-2. Maintain narrative coherence while integrating new elements
-3. Ensure character consistency and development throughout
-4. Balance plot structure with thematic depth
-5. Create engaging, well-paced narrative flow
-
-Revision Methodology:
-- Use your core philosophy as the guiding principle
-- Integrate new elements seamlessly with existing narrative
-- Maintain character voice and development consistency
-- Ensure thematic coherence and meaningful progression
-- Address pacing, tension, and reader engagement
-
-Generate a comprehensive revised storyline that is:
-- Narratively coherent and well-structured
-- Character-consistent with clear development arcs
-- Thematically rich and meaningfully integrated
-- Engaging with appropriate pacing and tension
-- Seamlessly incorporating required new elements
-</Instructions>
+Revise the complete storyline as a natural story enhanced by our developed world elements.
 """
 
 # === Expert Reflection Phase ===
