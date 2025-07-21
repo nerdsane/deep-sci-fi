@@ -1291,10 +1291,10 @@ def generate_scientific_explanations(state: AgentState):
     return {"scientific_explanations": content}
 
 def generate_glossary(state: AgentState):
-    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_first_chapter := state.get("revised_first_chapter")) or not (linguistic_evolution := state.get("linguistic_evolution")):
+    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_first_chapter := state.get("revised_first_chapter")) or not (baseline_world_state := state.get("baseline_world_state")) or not (linguistic_evolution := state.get("linguistic_evolution")):
         raise ValueError("Required state for generating glossary is missing.")
     prompt = ChatPromptTemplate.from_template(GENERATE_GLOSSARY_PROMPT)
-    response = general_model.invoke(prompt.format(revised_first_chapter=revised_first_chapter, linguistic_evolution=linguistic_evolution))
+    response = general_model.invoke(prompt.format(revised_first_chapter=revised_first_chapter, baseline_world_state=baseline_world_state, linguistic_evolution=linguistic_evolution))
     content = response.content
     save_output(output_dir, f"{state['loop_count']:02d}_13_glossary.md", content)
     return {"glossary": content}

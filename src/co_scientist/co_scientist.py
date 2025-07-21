@@ -36,7 +36,6 @@ from co_scientist.prompts import (
 
 # Import deep_researcher for research tasks
 from open_deep_research.deep_researcher import deep_researcher
-import os
 
 # Initialize configurable models
 configurable_model = init_chat_model(
@@ -576,7 +575,7 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
         )
     else:
         # Use flexible template system
-        research_query = get_generation_prompt(use_case, processed_state, direction, team_id)
+        research_query = get_generation_prompt(use_case, processed_state, direction, team_id, config)
     
     # Use either deep_researcher or regular LLM based on configuration
     co_config = CoScientistConfiguration.from_runnable_config(config)

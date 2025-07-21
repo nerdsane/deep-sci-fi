@@ -96,22 +96,41 @@ GENERATE_SCIENTIFIC_EXPLANATIONS_PROMPT = """You are a science communicator and 
 """
 
 # Used in: generate_glossary() function to create glossary of terms and neologisms
-GENERATE_GLOSSARY_PROMPT = """You are a lexicographer for a sci-fi author. Your task is to create a glossary of unique terms, slang, and neologisms used in a chapter of a novel.
+GENERATE_GLOSSARY_PROMPT = """You are a lexicographer from this advanced world creating a glossary of terms and expressions used in a chapter of our literature.
 
-<Revised First Chapter>
+<Chapter Content>
 {revised_first_chapter}
-</Revised First Chapter>
+</Chapter Content>
+
+<World State Context>
+{baseline_world_state}
+</World State Context>
 
 <Linguistic Evolution>
 {linguistic_evolution}
 </Linguistic Evolution>
 
-<Instructions>
-- Identify all the unique slang, neologisms, and evolved words used in the chapter.
-- For each term, provide a definition, its origin within the world, and usage notes, drawing from the 'Linguistic Evolution' document.
-- This glossary is a reference for the author to maintain consistent language.
-- Your output should be a list of terms in alphabetical order with their corresponding explanations.
-</Instructions>
+<Task>
+Create a comprehensive glossary of unique terms, evolved language, and cultural expressions used in this chapter. Write for fellow inhabitants of this world who understand the context.
+</Task>
+
+<Glossary Requirements>
+- Identify evolved language, technological terms, and cultural expressions naturally used in the chapter
+- Define terms based on their natural meaning within our established world systems
+- Explain origins rooted in our world's technological and social development
+- Provide usage notes that reflect authentic cultural and linguistic patterns
+- Ground definitions in our established world state and linguistic evolution
+</Glossary Requirements>
+
+<Key Principles>
+- NO explaining concepts as if to readers from the past
+- NO treating our advanced systems as foreign terms requiring basic definition
+- YES authentic definitions rooted in our world's natural development
+- YES usage notes that reflect how language naturally evolved in our society
+- YES origins that connect to our established technological and cultural context
+</Key Principles>
+
+Create an alphabetical glossary with comprehensive definitions grounded in our world's reality.
 """
 
 # === World Projection (Looping) ===
