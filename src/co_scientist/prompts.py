@@ -9,7 +9,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
     templates = {
         "scenario_generation": INITIAL_META_ANALYSIS_PROMPT,
         "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
-        "chapter_writing": STORYLINE_META_ANALYSIS_PROMPT,  # Same template for both
+        "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
         "character_development": CHARACTER_META_ANALYSIS_PROMPT,
         "linguistic_evolution": RESEARCH_META_ANALYSIS_PROMPT,
@@ -347,196 +347,180 @@ Generate a comprehensive evolutionary scenario that is:
 
 # === Storyline and Chapter Templates ===
 
-# Used in: get_meta_analysis_prompt() for "storyline_creation" and "chapter_writing" use cases
-STORYLINE_META_ANALYSIS_PROMPT = """You are a master storyteller and narrative expert tasked with identifying distinct storytelling approaches.
+# Used in: get_meta_analysis_prompt() for "storyline_creation" use case
+STORYLINE_META_ANALYSIS_PROMPT = """You are a master storyteller tasked with identifying distinct storyline approaches.
 
 <Task>
-Analyze the story requirements and identify 2 fundamentally different narrative approaches that would lead to meaningfully different storylines.
+{task_description}
 </Task>
 
-<User's Story Idea>
+<Scope>
+Identify 2 fundamentally different narrative approaches for creating a compelling storyline.
+</Scope>
+
+<Story Concept>
 {context}
-</User's Story Idea>
+</Story Concept>
 
-<Task Description>
-{task_description}
-</Task Description>
-
-<Reference Material>
-{reference_material}
-</Reference Material>
-
-<Genre/Style Context>
+<Domain Context>
 {domain_context}
-</Genre/Style Context>
+</Domain Context>
 
 <Requirements>
-- Each approach must be literarily sound but represent different creative paths
-- Address the full story requirements and user's vision
-- Different core assumptions about narrative focus (character vs plot vs theme vs setting)
-- Different but equally valid creative directions
-- Different implications for story structure, character development, and reader engagement
-- Meaningful variety for storytelling purposes
+- Character-driven vs Plot-driven approaches
+- Different structural frameworks (linear, non-linear, multiple POV, etc.)
+- Distinct thematic emphasis and emotional tone
+- Varied pacing and narrative tension strategies
 </Requirements>
 
 <Process>
-1. Identify key narrative choice points that could be developed in different directions
-2. Create 2 distinct storytelling approaches based on different core assumptions about narrative style, focus, or structure
-3. Ensure each approach is literarily sound but represents different creative paths
-4. Each approach should address the full story requirements and user's vision
+1. Analyze the story concept for key narrative possibilities
+2. Create 2 distinct storyline approaches with different structural frameworks
+3. Focus on character vs plot emphasis, pacing, and thematic direction
+</Process>
+
+<Output Format>
+Direction 1: [Name] 
+Core Assumption: [Character-driven/Plot-driven/Structure focus]
+Focus: [Narrative emphasis and approach]
+
+Direction 2: [Name]
+Core Assumption: [Character-driven/Plot-driven/Structure focus] 
+Focus: [Narrative emphasis and approach]
+
+Reasoning: [Why these approaches offer distinct storyline possibilities]
+</Output Format>
+
+<Reminders>
+- Focus on structural and thematic differentiation
+- One approach should emphasize character development, the other plot momentum
+- Consider pacing, POV, and narrative tension strategies
+</Reminders>
+"""
+
+# Used in: get_meta_analysis_prompt() for "chapter_writing" use case
+CHAPTER_WRITING_META_ANALYSIS_PROMPT = """You are an expert chapter editor tasked with identifying distinct writing approaches.
+
+<Task>
+{task_description}
+</Task>
+
+<Scope>
+Identify 2 fundamentally different approaches for writing an engaging opening chapter.
+</Scope>
+
+<Storyline>
+{reference_material}
+</Storyline>
+
+<Context>
+{context}
+</Context>
+
+<Domain Context>
+{domain_context}
+</Domain Context>
+
+<Requirements>
+- Action-driven vs Character-driven openings
+- Different narrative perspectives and voice styles
+- Varied pacing strategies (immediate action vs atmospheric buildup)
+- Distinct reader engagement tactics
+</Requirements>
+
+<Process>
+1. Analyze the storyline for key opening possibilities
+2. Create 2 approaches: one action-focused, one character/atmosphere-focused  
+3. Consider POV, voice, pacing, and hook strategies
 </Process>
 
 <Output Format>
 Direction 1: [Name]
-Core Assumption: [Key narrative assumption]
-Focus: [What this approach emphasizes]
+Core Assumption: [Action-driven/Character-driven/Atmosphere focus]
+Focus: [Opening strategy and reader engagement]
 
-Direction 2: [Name]
-Core Assumption: [Key narrative assumption] 
-Focus: [What this approach emphasizes]
+Direction 2: [Name] 
+Core Assumption: [Action-driven/Character-driven/Atmosphere focus]
+Focus: [Opening strategy and reader engagement]
 
-Reasoning: [Explain why these 2 approaches provide meaningful variety while remaining literarily sound]
+Reasoning: [Why these approaches create distinct chapter openings]
 </Output Format>
 
 <Reminders>
-- Focus on narrative choice points that create meaningful differentiation
-- Ensure both approaches remain literarily sound and compelling
-- Address the user's complete vision while exploring different creative directions
+- One approach should hook with immediate action/conflict
+- Other should hook with character voice/world atmosphere
+- Consider how each serves the overall storyline differently
 </Reminders>
 """
 
 # Used in: get_generation_prompt() for "storyline_creation" use case
-STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a compelling storyline.
+STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a compelling storyline using the {direction_name} approach.
 
-<Narrative Approach>
-{direction_name}
-</Narrative Approach>
-
-<Core Assumption>
+<Approach>
 {direction_assumption}
-</Core Assumption>
+</Approach>
 
-<Team ID>
-{team_id}
-</Team ID>
+<Story Concept>
+{context}
+</Story Concept>
 
 <Task>
-{task_description}
+Create a complete storyline that follows your narrative approach and brings the story concept to life.
 </Task>
-
-<User's Story Idea>
-{context}
-</User's Story Idea>
-
-<Reference Material>
-{reference_material}
-</Reference Material>
-
-<Genre/Style Context>
-{domain_context}
-</Genre/Style Context>
 
 <Requirements>
-- Engaging and compelling for readers
-- Structurally sound with good pacing
-- Character-driven with authentic development
-- Complete with clear plot progression
-- Demonstrates mastery of storytelling craft
+- Complete narrative arc with beginning, middle, end
+- Compelling protagonist and supporting characters  
+- Central conflict and meaningful resolution
+- Appropriate pacing for your chosen approach
+- Clear thematic foundation
 </Requirements>
 
-<Process>
-1. Analyze the user's story idea to understand their vision and requirements
-2. Apply your narrative approach to develop a complete storyline
-3. Ground every creative choice in established storytelling principles and techniques
-4. Create compelling characters, engaging plot structure, and meaningful themes
-5. Consider the impact on reader engagement and narrative effectiveness
-</Process>
+<Storyline Must Include>
+- Protagonist introduction and motivation
+- Inciting incident and central conflict
+- Key plot points and turning moments
+- Character relationships and development
+- Climactic resolution and conclusion
 
-<Content Requirements>
-Your storyline must include:
-- Main plot points and story arc
-- Key character development and relationships
-- Subplots that enhance the main narrative
-- Clear beginning, middle, and end structure
-- Compelling conflicts and resolutions
-- Thematic elements that resonate with readers
-</Content Requirements>
-
-<Storytelling Methodology>
-- Start with your core narrative assumption as the foundation
-- Apply proven storytelling techniques that support this approach
-- Create authentic characters with clear motivations and growth arcs
-- Develop plot events that naturally flow from character decisions and conflicts
-- Ensure thematic coherence throughout the narrative
-</Storytelling Methodology>
-
-<Reminders>
-- Stay true to your assigned narrative approach while serving the user's vision
-- Ensure authentic character development and compelling plot progression
-- Maintain thematic coherence and reader engagement throughout
-</Reminders>
+Create a compelling, complete storyline that exemplifies your narrative approach.
 """
 
-# Used in: get_generation_prompt() for "chapter_writing" use case
-CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging opening chapter.
+# Used in: get_generation_prompt() for "chapter_writing" use case  
+CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging first chapter using the {direction_name} approach.
 
-<Narrative Approach>
-{direction_name}
-</Narrative Approach>
-
-<Core Assumption>
+<Approach>
 {direction_assumption}
-</Core Assumption>
+</Approach>
 
-<Team ID>
-{team_id}
-</Team ID>
+<Storyline>
+{reference_material}
+</Storyline>
+
+<Chapter Requirements>
+{context}
+</Chapter Requirements>
 
 <Task>
-{task_description}
+Write a complete first chapter that hooks readers and launches the story using your chosen approach.
 </Task>
 
-<Requirements and Context>
-{context}
-</Requirements and Context>
-
-<Reference Material>
-{reference_material}
-</Reference Material>
-
-<Genre/Style Context>
-{domain_context}
-</Genre/Style Context>
-
-<Instructions>
-1. Analyze the storyline and chapter requirements to understand the narrative goals
-2. Apply your narrative approach to write a complete first chapter
-3. Ground every creative choice in established writing techniques and literary craft
-4. Create compelling characters, vivid descriptions, and engaging dialogue
-5. Consider the impact on reader engagement, character introduction, and story setup
-
-Your chapter must accomplish:
+<Chapter Must Accomplish>
 - Hook readers immediately with compelling opening
-- Establish protagonist voice and character
-- Introduce key setting and world elements
+- Establish protagonist voice and perspective
+- Introduce setting and story world naturally
 - Set up central conflict or tension
-- Advance plot while building character
-- Create atmosphere and tone for the story
+- Create strong atmosphere and tone
+</Chapter Must Accomplish>
 
-Writing Methodology:
-- Start with your core assumption as the foundation
-- Apply proven techniques for opening chapters and reader engagement
-- Create authentic dialogue that reveals character and advances plot
-- Use vivid, specific descriptions that immerse readers in the world
-- Balance action, dialogue, and exposition effectively
+<Writing Requirements>
+- Vivid scene-setting and character introduction
+- Natural dialogue that reveals character
+- Balanced pacing appropriate to your approach
+- Strong opening hook and chapter-ending momentum
+- Authentic voice and engaging prose style
 
-Generate a complete first chapter that is:
-- Immediately engaging and hooks readers
-- Well-paced with strong narrative flow
-- Rich in character development and voice
-- Establishes story world and conflict clearly
-- Demonstrates excellent prose craft and storytelling
-</Instructions>
+Write a complete, compelling first chapter that exemplifies your chosen approach.
 """
 
 # === Chapter Rewriting Templates ===
