@@ -4,7 +4,7 @@
 
 # === Template Management Functions ===
 
-def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
+def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) -> str:
     """Get the appropriate meta-analysis prompt for the use case."""
     templates = {
         "scenario_generation": INITIAL_META_ANALYSIS_PROMPT,
@@ -20,12 +20,18 @@ def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
     template = templates.get(use_case)
     if not template:
         raise ValueError(f"No template found for use_case: {use_case}")
+    
+    # Extract world state context from config if available
+    world_state_context = ""
+    if config and config.get("configurable"):
+        world_state_context = config["configurable"].get("world_state_context", "")
         
     return template.format(
         task_description=state.get("task_description", ""),
         context=state.get("context", ""),
         reference_material=state.get("reference_material", ""),
-        domain_context=state.get("domain_context", "")
+        domain_context=state.get("domain_context", ""),
+        world_state_context=world_state_context
     )
 
 def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str) -> str:
@@ -526,55 +532,70 @@ Write a complete, compelling first chapter that exemplifies your chosen approach
 # === Chapter Rewriting Templates ===
 
 # Used in: get_meta_analysis_prompt() for "chapter_rewriting" use case
-CHAPTER_META_ANALYSIS_PROMPT = """You are an expert literary analyst tasked with identifying distinct narrative approaches for competitive chapter rewriting.
+CHAPTER_META_ANALYSIS_PROMPT = """You are an expert literary analyst tasked with identifying distinct approaches for rewriting a chapter to fully integrate developed world-building.
 
 <Task>
-Analyze the task requirements and identify 3 fundamentally different narrative/stylistic approaches that would lead to meaningfully different chapter versions.
+{task_description}
 </Task>
 
-<Task Description>
-{task_description}
-</Task Description>
+<Scope>
+Identify 2 fundamentally different approaches for rewriting the chapter to seamlessly integrate the developed world state, linguistic evolution, and storyline revisions.
+</Scope>
 
-<Context and Requirements>
-{context}
-</Context and Requirements>
-
-<Current Chapter Content>
+<Current Chapter>
 {reference_material}
-</Current Chapter Content>
+</Current Chapter>
 
-<Genre/Domain Context>
+<Chapter Rewriting Requirements>
+{context}
+</Chapter Rewriting Requirements>
+
+<World State Context>
+{world_state_context}
+</World State Context>
+
+<Domain Context>
 {domain_context}
-</Genre/Domain Context>
+</Domain Context>
 
-<Instructions>
-1. Identify key narrative choice points that could be developed in different directions
-2. Create 3 distinct approaches based on different assumptions about narrative style, pacing, character focus, etc.
-3. Ensure each approach is literarily sound but represents different creative paths
-4. Each approach should address the full task requirements
+<Requirements>
+- World Integration: How to weave world-building naturally into the narrative
+- Linguistic Consistency: How to incorporate evolved language and cultural elements
+- Character Authenticity: How characters behave within the established world constraints
+- Immersion Strategy: How to immerse readers in the developed world without exposition dumps
+</Requirements>
 
-Requirements for good narrative approaches:
-- Different core assumptions about narrative style and structure
-- Different but equally valid creative directions  
-- Different implications for character development, pacing, tension, etc.
-- Meaningful variety for storytelling purposes
+<Key Constraints>
+- Maintain narrative flow while incorporating complex world-building
+- Balance world detail with character development and plot progression
+- Ensure linguistic evolution feels natural and authentic to the world
+- Create reader immersion without overwhelming with information
+</Key Constraints>
 
-Format your response as:
+<Process>
+1. Analyze how the current chapter can be enhanced with world-building integration
+2. Create 2 distinct approaches for weaving world elements into the narrative
+3. Focus on different strategies for linguistic integration and world immersion
+</Process>
+
+<Output Format>
 Direction 1: [Name]
-Core Assumption: [Key narrative assumption]
-Focus: [What this approach emphasizes]
+Core Assumption: [World integration strategy]
+Focus: [How this approach integrates world-building into the chapter]
 
 Direction 2: [Name] 
-Core Assumption: [Key narrative assumption]
-Focus: [What this approach emphasizes]
+Core Assumption: [World integration strategy]
+Focus: [How this approach integrates world-building into the chapter]
 
-Direction 3: [Name]
-Core Assumption: [Key narrative assumption] 
-Focus: [What this approach emphasizes]
+Reasoning: [Why these approaches offer distinct methods for world-building integration]
+</Output Format>
 
-Reasoning: [Explain why these 3 approaches provide meaningful variety while remaining literarily sound]
-</Instructions>
+<Reminders>
+- This is about rewriting to integrate developed world state, not generic chapter improvement
+- Focus on world-building integration strategies, not just narrative techniques  
+- Consider how linguistic evolution and cultural elements enhance the story
+- Each approach should create authentic immersion in the established world
+</Reminders>
 """
 
 # Used in: get_generation_prompt() for "chapter_rewriting" use case

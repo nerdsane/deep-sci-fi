@@ -27,6 +27,7 @@ from co_scientist.prompts import (
     INITIAL_SCENARIO_GENERATION_PROMPT,
     INCREMENTAL_SCENARIO_GENERATION_PROMPT,
     DOMAIN_CRITIQUE_PROMPT,
+    WORLD_INTEGRATION_CRITIQUE_PROMPT,
     PAIRWISE_RANKING_PROMPT,
     META_REVIEW_PROMPT,
     get_meta_analysis_prompt,
@@ -429,7 +430,7 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
         )
     else:
         # Use flexible template system
-        meta_prompt = get_meta_analysis_prompt(use_case, processed_state)
+        meta_prompt = get_meta_analysis_prompt(use_case, processed_state, config)
     
     # Generate research directions
     response = await model.ainvoke([HumanMessage(content=meta_prompt)])
@@ -655,13 +656,26 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     reflection_tasks = []
     reflection_domains = configuration.get_reflection_domains()
     
+    # Check if world state context is available for world-aware reflection
+    world_state_context = config.get("configurable", {}).get("world_state_context")
+    
     for scenario in scenario_population:
         for domain in reflection_domains:
-            task = generate_domain_critique(
-                scenario=scenario,
-                domain=domain,
-                config=config
-            )
+            # Use world-aware critique for narrative content when world state is available
+            if world_state_context and domain in ["world_integration", "narrative_structure", "character_development", "thematic_coherence", "linguistic_consistency"]:
+                task = generate_world_aware_critique(
+                    scenario=scenario,
+                    domain=domain,
+                    world_state_context=world_state_context,
+                    config=config
+                )
+            else:
+                # Use standard domain critique for scientific/technical analysis
+                task = generate_domain_critique(
+                    scenario=scenario,
+                    domain=domain,
+                    config=config
+                )
             reflection_tasks.append(task)
     
     # Execute all reflections in parallel
@@ -772,6 +786,66 @@ Use current research and scientific literature to support your analysis."""
         "research_query": research_query,
         "raw_research_result": str(research_result) if 'research_result' in locals() else "No research result",
         "severity_score": severity_score,
+        "timestamp": datetime.now().isoformat()
+    }
+
+async def generate_world_aware_critique(scenario: dict, domain: str, world_state_context: str, config: RunnableConfig) -> dict:
+    """Generate world integration analysis for narrative content."""
+    
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    
+    # Get scenario information with defaults for missing fields
+    scenario_id = scenario.get("scenario_id", f"missing_id_{uuid.uuid4().hex[:8]}")
+    research_direction = scenario.get("research_direction", "Unknown Direction")
+    scenario_content = scenario.get("scenario_content", "No scenario content available")
+    
+    # Determine content type based on use case
+    use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
+    content_type_map = {
+        "storyline_adjustment": "Revised Storyline",
+        "chapter_rewriting": "Chapter Content",
+        "storyline_creation": "Storyline",
+        "chapter_writing": "Chapter Content"
+    }
+    content_type = content_type_map.get(use_case, "Narrative Content")
+    
+    # Create world integration analysis prompt
+    analysis_prompt = WORLD_INTEGRATION_CRITIQUE_PROMPT.format(
+        scenario_id=scenario_id,
+        content_type=content_type,
+        scenario_content=scenario_content,
+        world_state_context=world_state_context,
+        critique_domain=domain
+    )
+    
+    # Use regular LLM for narrative analysis (not deep research)
+    model = configurable_model.with_config(
+        configurable={
+            "model": configuration.general_model,
+            "max_tokens": 4096,
+        }
+    )
+    
+    try:
+        response = await model.ainvoke([HumanMessage(content=analysis_prompt)])
+        critique_content = response.content
+        print(f"Successfully generated {domain} world integration analysis for {scenario_id}, content length: {len(critique_content)}")
+    except Exception as e:
+        print(f"Failed to generate {domain} world integration analysis for {scenario_id}: {e}")
+        critique_content = f"World integration analysis failed for {domain} analysis of content {scenario_id}. Error: {str(e)}"
+    
+    # Parse integration score from response
+    integration_score = extract_integration_score(critique_content)
+    
+    return {
+        "critique_id": str(uuid.uuid4()),
+        "target_scenario_id": scenario_id,
+        "critique_domain": domain,
+        "critique_content": critique_content,
+        "analysis_prompt": analysis_prompt,
+        "world_state_context": world_state_context,
+        "integration_score": integration_score,
+        "content_type": content_type,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -1175,8 +1249,8 @@ async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState
     critique_summary = ""
     competing_scenarios = ""
     
-    if strategy in ["feasibility", "synthesis"]:
-        critique_summary = get_critique_summary(scenario["scenario_id"], state["reflection_critiques"])
+    # ALWAYS get critiques for evolution - critical for improvement
+    critique_summary = get_critique_summary(scenario["scenario_id"], state["reflection_critiques"])
     
     if strategy in ["creativity", "synthesis"]:
         competing_scenarios = get_competing_scenarios(scenario, state["scenario_population"])
@@ -1212,26 +1286,27 @@ Research-Based Improvements:
 Generate an improved, more scientifically grounded version of the scenario."""
 
     elif strategy == "creativity":
-        research_query = f"""Conduct research to creatively enhance this sci-fi scenario with novel technological possibilities.
+        research_query = f"""Conduct research to creatively enhance this scenario with novel approaches while addressing expert critiques.
 
 Original Scenario: {scenario["scenario_content"]}
 Research Direction: {scenario["research_direction"]}
+Expert Critiques to Address: {critique_summary}
 Inspiration from Competing Approaches: {competing_scenarios}
 
 Research Tasks:
 1. Investigate emerging technologies and research frontiers in relevant fields
-2. Research novel approaches and paradigm shifts in the scientific domains
-3. Find interdisciplinary research that could inspire creative solutions
-4. Look up recent breakthroughs that open new technological possibilities
-5. Research unconventional applications of existing technologies
+2. Research novel approaches and paradigm shifts that address the identified critiques
+3. Find interdisciplinary research that could inspire creative solutions to critique issues
+4. Look up recent breakthroughs that open new possibilities while maintaining rigor
+5. Research unconventional applications that could enhance creativity without sacrificing quality
 
 Creative Enhancement Goals:
-- Discover emerging research that suggests new technological directions
-- Find novel interdisciplinary approaches that could enhance the scenario
-- Research cutting-edge developments that could inspire creative additions
-- Identify breakthrough technologies that could transform the narrative
+- Discover emerging research that suggests new directions while addressing critiques
+- Find novel interdisciplinary approaches that enhance the scenario and resolve issues
+- Research cutting-edge developments that inspire creative additions and improvements
+- Identify breakthrough technologies that could transform the narrative positively
 
-Generate a creatively enhanced version incorporating research-backed innovations."""
+Generate a creatively enhanced version that incorporates both innovative ideas and addresses expert feedback."""
 
     elif strategy == "synthesis":
         research_query = f"""Conduct comprehensive research to synthesize the best elements while addressing critiques.
@@ -1256,54 +1331,104 @@ Synthesis Goals:
 
 Generate a synthesized scenario that combines the best research-backed elements."""
 
+    # Handle narrative evolution strategies with appropriate prompts
+    elif strategy in ["narrative_enhancement", "world_integration", "character_consistency", "thematic_depth", 
+                      "character_depth", "narrative_flow", "prose_enhancement", "structural_improvement"]:
+        research_query = f"""Enhance this narrative content using the {strategy} approach while addressing expert critiques.
+
+Original Content: {scenario["scenario_content"]}
+Content Direction: {scenario["research_direction"]}
+Expert Critiques to Address: {critique_summary}
+
+Enhancement Focus: {strategy}
+
+Task: Apply {strategy} improvements while directly addressing the expert feedback provided. Focus on resolving identified issues and strengthening the content according to the critique guidance.
+
+Strategy-Specific Goals:
+- narrative_enhancement: Improve story flow, pacing, and narrative structure based on critique feedback
+- world_integration: Better integrate world-building elements and ensure consistency with established world state
+- character_consistency: Strengthen character development and ensure authentic behavior within world constraints
+- thematic_depth: Deepen thematic elements and ensure coherent thematic progression
+- character_depth: Develop more complex, authentic character psychology and relationships
+- narrative_flow: Improve pacing, transitions, and overall story progression
+- prose_enhancement: Strengthen writing quality, voice, and stylistic elements
+- structural_improvement: Optimize chapter structure, scene organization, and narrative architecture
+
+Generate an improved version that specifically addresses the expert critiques while enhancing the {strategy} aspects."""
+
     else:
-        # Default to detail enhancement with research
-        research_query = f"""Conduct research to add scientific depth and technical detail to this scenario.
+        # Default to detail enhancement with critique-informed research
+        research_query = f"""Conduct research to add depth and technical detail while addressing expert critiques.
 
 Original Scenario: {scenario["scenario_content"]}
 Research Direction: {scenario["research_direction"]}
+Expert Critiques to Address: {critique_summary}
 
 Research Tasks:
-1. Research specific technical details for the technologies mentioned
-2. Investigate current research on implementation challenges and solutions
-3. Find evidence for detailed technical specifications and capabilities
-4. Research infrastructure requirements and development pathways
-5. Look up recent technical developments that add realistic detail
+1. Research specific technical details that address identified critique issues
+2. Investigate current research on implementation challenges highlighted in critiques
+3. Find evidence for detailed specifications that resolve technical concerns
+4. Research infrastructure requirements and pathways that address feasibility issues
+5. Look up recent developments that add realistic detail and resolve critique points
 
 Enhancement Goals:
-- Add research-backed technical specifications and capabilities
-- Include realistic infrastructure and implementation details
-- Provide evidence-based performance parameters and limitations
-- Add scientific depth to technological explanations
+- Add research-backed technical specifications that address critique concerns
+- Include realistic infrastructure details that resolve identified issues
+- Provide evidence-based parameters that address feasibility critiques
+- Add scientific depth that directly responds to expert feedback
 
-Generate a more detailed and technically rich version of the scenario."""
+Generate a more detailed and technically rich version that addresses all expert critiques."""
 
-    # Use deep_researcher for evolution
-    research_config = config.copy()
+    # Use appropriate model for evolution based on strategy type
     co_config = CoScientistConfiguration.from_runnable_config(config)
-    research_config["configurable"].update({
-        "research_model": co_config.research_model,
-        "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
-        "summarization_model": co_config.general_model,
-        "compression_model": co_config.research_model,
-        "compression_model_max_tokens": 8000,
-        "final_report_model": co_config.research_model,
-        "final_report_model_max_tokens": 8000,
-        "allow_clarification": False,
-        "search_api": co_config.search_api
-    })
     
-    try:
-        research_result = await deep_researcher.ainvoke(
-            {"messages": [HumanMessage(content=research_query)]},
-            research_config
+    # Narrative evolution strategies use regular LLM for creative writing
+    if strategy in ["narrative_enhancement", "world_integration", "character_consistency", "thematic_depth", 
+                    "character_depth", "narrative_flow", "prose_enhancement", "structural_improvement"]:
+        
+        model = configurable_model.with_config(
+            configurable={
+                "model": co_config.general_model,
+                "max_tokens": 4096,
+            }
         )
-        evolved_content = research_result.get("final_report", "No evolution results available")
-        print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy, content length: {len(evolved_content)}")
-    except Exception as e:
-        print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy}: {e}")
-        # Fallback to basic evolution without research
-        evolved_content = f"Evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
+        
+        try:
+            response = await model.ainvoke([HumanMessage(content=research_query)])
+            evolved_content = response.content
+            print(f"Successfully evolved content {scenario['scenario_id']} using {strategy} narrative strategy, content length: {len(evolved_content)}")
+        except Exception as e:
+            print(f"Failed to evolve content {scenario['scenario_id']} with {strategy}: {e}")
+            evolved_content = f"Narrative evolution failed for {strategy} strategy on content {scenario['scenario_id']}. Error: {str(e)}"
+            
+        research_result = {"final_report": evolved_content}  # For consistency with deep_researcher format
+    
+    else:
+        # Research evolution strategies use deep_researcher for scientific analysis
+        research_config = config.copy()
+        research_config["configurable"].update({
+            "research_model": co_config.research_model,
+            "research_model_max_tokens": 8000,  # Stay under Claude's 8192 limit
+            "summarization_model": co_config.general_model,
+            "compression_model": co_config.research_model,
+            "compression_model_max_tokens": 8000,
+            "final_report_model": co_config.research_model,
+            "final_report_model_max_tokens": 8000,
+            "allow_clarification": False,
+            "search_api": co_config.search_api
+        })
+        
+        try:
+            research_result = await deep_researcher.ainvoke(
+                {"messages": [HumanMessage(content=research_query)]},
+                research_config
+            )
+            evolved_content = research_result.get("final_report", "No evolution results available")
+            print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} research strategy, content length: {len(evolved_content)}")
+        except Exception as e:
+            print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy}: {e}")
+            # Fallback to basic evolution without research
+            evolved_content = f"Research evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
     
     return {
         "evolution_id": str(uuid.uuid4()),
@@ -1587,8 +1712,25 @@ def extract_severity_score(content: str) -> int:
             # Convert realism score to severity score (invert the scale)
             severity_score = 11 - realism_score
             return max(severity_score, 1)  # Ensure minimum severity of 1
+
+def extract_integration_score(content: str) -> int:
+    """Extract integration score from world integration analysis content."""
+    import re
+    # Look for patterns like "integration score: 8" or "score: 8/10"
+    patterns = [
+        r"integration score[:\s]+(\d+)",
+        r"world integration[:\s]+(\d+)",
+        r"score[:\s]+(\d+)",
+        r"(\d+)/10"
+    ]
     
-    return 5  # Default moderate severity
+    for pattern in patterns:
+        match = re.search(pattern, content.lower())
+        if match:
+            score = min(int(match.group(1)), 10)
+            return max(score, 1)  # Ensure minimum score of 1
+    
+    return 5  # Default moderate integration score
 
 def get_critique_summary(scenario_id: str, critiques: list) -> str:
     """Get summary of critiques for a specific scenario."""
