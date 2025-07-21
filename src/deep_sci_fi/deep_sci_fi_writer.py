@@ -443,24 +443,18 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     
     print("--- Starting Co-Scientist Competition ---")
     
-    # Transform parent state to subgraph input state
-    if storyline:
-        # Use storyline-based scenario generation
-        co_scientist_input = {
-            "research_context": questions,
-            "storyline": storyline,
-            "target_year": target_year,
-            "baseline_world_state": state.get("baseline_world_state"),
-            "years_in_future": state.get("years_in_future")
-        }
-    else:
-        # Use research-based scenario generation (no storyline)
-        co_scientist_input = {
-            "context": questions,
-            "target_year": target_year,
-            "baseline_world_state": state.get("baseline_world_state"),
-            "years_in_future": state.get("years_in_future")
-        }
+    # Use co_scientist for competitive scenario generation
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        task_description=f"Analyze the provided story context and world-building questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures for {target_year}.",
+        context=questions,  # World-building questions
+        use_case=UseCase.SCENARIO_GENERATION,
+        reference_material=storyline,  # Story context
+        domain_context="Science fiction world-building with focus on technological development and scientific plausibility",
+        # Legacy fields for backward compatibility
+        target_year=target_year,
+        baseline_world_state=state.get("baseline_world_state"),
+        years_in_future=state.get("years_in_future")
+    )
     
     # Configure subgraph
     subgraph_config = config.copy()
@@ -1014,16 +1008,17 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
         domain_context="Science fiction narrative development with world-building integration and linguistic consistency"
     )
     
-    # Configure co_scientist for quick competition using regular LLM (not research)
+    # Configure co_scientist for full competition with world-aware reflection
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "use_case": "storyline_adjustment",
-        "process_depth": "quick",     # Fast iteration
-        "population_scale": "light",  # Quick processing
+        "process_depth": "standard",  # Include generate → reflect → evolve
+        "population_scale": "light",  # Keep processing reasonable
         "use_deep_researcher": False,  # Use regular LLM for creative writing
-        "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence"],
+        "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence", "world_integration"],
+        "world_state_context": f"Baseline World State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}",  # Pass world context for reflection
         "save_intermediate_results": True,
         "output_dir": output_dir
     })
@@ -1155,15 +1150,17 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
         domain_context=f"Hard science fiction chapter set in {target_year} with evolved linguistics and advanced world-building"
     )
     
-    # Configure co_scientist for quick competition using regular LLM (not research)
+    # Configure co_scientist for full competition with world-aware reflection
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "use_case": "chapter_rewriting",
-        "process_depth": "quick",     # Fast iteration
-        "population_scale": "light",  # Quick processing
+        "process_depth": "standard",  # Include generate → reflect → evolve
+        "population_scale": "light",  # Keep processing reasonable
         "use_deep_researcher": False,  # Use regular LLM for creative writing
+        "reflection_domains": ["narrative_structure", "world_building", "character_development", "prose_style", "world_integration", "linguistic_consistency"],
+        "world_state_context": f"Baseline World State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}\n\nRevised Storyline: {revised_storyline}",  # Pass world context for reflection
         "save_intermediate_results": True,
         "output_dir": output_dir
     })

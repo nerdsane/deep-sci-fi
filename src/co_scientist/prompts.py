@@ -16,17 +16,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict) -> str:
         "storyline_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
     }
     
-    # Special handling for scenario generation with storyline context
-    if use_case == "scenario_generation":
-        if state.get("research_context") and state.get("storyline"):
-            # Use storyline-based prompt (storyline always exists in current workflow)
-            return INITIAL_META_ANALYSIS_PROMPT.format(
-                storyline=state.get("storyline"),
-                research_context=state.get("research_context"),
-                target_year=state.get("target_year", "future")
-            )
-    
-    # Other use cases use flexible format
+    # Use flexible format for all use cases
     template = templates.get(use_case)
     if not template:
         raise ValueError(f"No template found for use_case: {use_case}")
@@ -78,24 +68,20 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
 
 # === Meta-Analysis Phase ===
 
-# Used in: get_meta_analysis_prompt() for "scenario_generation" use case when storyline is available
+# Used in: get_meta_analysis_prompt() for "scenario_generation" use case
 INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for scenario competition.
 
 <Task>
-Analyze the provided story context and research questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
+{task_description}
 </Task>
 
 <Story Context>
-{storyline}
+{reference_material}
 </Story Context>
 
 <World-Building Questions>
-{research_context}
+{context}
 </World-Building Questions>
-
-<Target Year>
-{target_year}
-</Target Year>
 
 <Requirements>
 - Each direction must be scientifically plausible but represent different development paths
@@ -466,7 +452,7 @@ Your storyline must include:
 """
 
 # Used in: get_generation_prompt() for "chapter_writing" use case
-CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging chapter.
+CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging opening chapter.
 
 <Narrative Approach>
 {direction_name}
