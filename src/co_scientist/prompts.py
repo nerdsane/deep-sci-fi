@@ -931,64 +931,404 @@ Provide:
 </Reminders>
 """
 
-# Used in: generate_world_aware_critique() function for evaluating world integration in narrative content
-WORLD_INTEGRATION_CRITIQUE_PROMPT = """You are a {critique_domain} expert providing detailed analysis of how well narrative content integrates with the established world-building.
+# === Unified Reflection Prompts ===
 
-<Content ID>
+# Used for: scenario_generation use case
+UNIFIED_SCIENTIFIC_REFLECTION_PROMPT = """You are a multidisciplinary scientific review panel evaluating a world-building scenario.
+
+<Scenario ID>
 {scenario_id}
-</Content ID>
+</Scenario ID>
 
-<Content Type>
-{content_type}
-</Content Type>
+<Research Direction>
+{research_direction}
+</Research Direction>
 
-<Content to Evaluate>
+<Scenario to Evaluate>
 {scenario_content}
-</Content to Evaluate>
+</Scenario to Evaluate>
 
-<Established World State>
-{world_state_context}
-</Established World State>
+<Expert Panel>
+You represent a collaborative team of experts in: Physics, Biology, Engineering, Social Science, Economics
+</Expert Panel>
 
-<Your Expertise>
-{critique_domain}
-</Your Expertise>
+<Comprehensive Evaluation>
+Assess this scenario across all scientific domains, evaluating:
 
-<Task>
-Evaluate how well the narrative content integrates with and reflects the established world-building, focusing on consistency, authenticity, and immersion.
-</Task>
+**Physics & Engineering:**
+- Energy conservation, thermodynamics, materials science constraints
+- Manufacturing feasibility, scalability, infrastructure requirements
+- Technological timeline plausibility and development pathways
 
-<Evaluation Criteria>
-- World consistency: Does the content align with established world rules and systems?
-- Authenticity: Do world elements feel natural and integrated rather than forced?
-- Detail integration: Are specific world-building details properly reflected?
-- Cultural consistency: Are social, linguistic, and cultural elements authentic to the world?
-- Immersion quality: Does the content successfully immerse readers in the established world?
-</Evaluation Criteria>
+**Biology & Life Sciences:**
+- Evolutionary timescales, biological constraints, medical/genetic plausibility
+- Environmental impacts, ecological considerations, biosafety
 
-<Process>
-1. Assess how accurately the content reflects the established world state
-2. Identify inconsistencies between the content and the world-building
-3. Evaluate whether the content uses world elements naturally and authentically
-4. Check if linguistic evolution and cultural elements are properly integrated
-5. Assess reader immersion and believability within the established world
-</Process>
+**Social Science & Economics:**
+- Human behavior patterns, social adoption curves, cultural factors
+- Market dynamics, resource allocation, economic incentives
+- Political and governance implications
 
-<Output Requirements>
-Provide:
-1. Overall assessment of world integration quality
-2. Specific consistency issues or missed opportunities
-3. Suggestions for better world integration
-4. Integration score (1-10) where 10 = perfect world integration
-5. Most effective world integration elements in the content
-</Output Requirements>
+**Cross-Domain Integration:**
+- How well do the different technological systems work together?
+- Are there systemic contradictions or synergies?
+- Overall coherence and internal consistency
+</Comprehensive Evaluation>
 
-<Reminders>
-- Focus on how well the content serves the established world
-- Look for both consistency and authentic integration of world elements
-- Consider the reader's immersive experience within the world
-</Reminders>
+<Quality Assessment>
+Rate the scenario on each dimension (1-100 scale):
+
+1. **Scientific Accuracy** (1-100): Adherence to established scientific principles
+2. **Technical Feasibility** (1-100): Realistic technology development and implementation  
+3. **Timeline Plausibility** (1-100): Appropriate timescales for proposed changes
+4. **Social Realism** (1-100): Believable human and societal responses
+5. **Economic Viability** (1-100): Sound economic foundations and incentives
+6. **Systemic Coherence** (1-100): How well all elements work together
+7. **Innovation Quality** (1-100): Originality and creative problem-solving
+8. **Narrative Potential** (1-100): Storytelling and world-building richness
+
+**Overall Quality Score** (1-100): Weighted average emphasizing scientific rigor
+</Quality Assessment>
+
+<Output Format>
+## Scientific Assessment
+
+**Strengths:**
+- [Key areas where scenario excels scientifically]
+
+**Areas for Improvement:**
+- [Specific scientific issues with explanations and suggestions]
+
+**Timeline Analysis:**
+- [Assessment of proposed timescales for key developments]
+
+## Quality Scores
+- Scientific Accuracy: X/100
+- Technical Feasibility: X/100  
+- Timeline Plausibility: X/100
+- Social Realism: X/100
+- Economic Viability: X/100
+- Systemic Coherence: X/100
+- Innovation Quality: X/100
+- Narrative Potential: X/100
+
+**Overall Quality Score: X/100**
+
+## Key Recommendations
+1. [Top priority scientific improvement]
+2. [Second priority improvement]
+3. [Third priority improvement]
+
+## Tournament Readiness
+**Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]
+</Output Format>
 """
+
+# Used for: storyline_creation use case  
+UNIFIED_NARRATIVE_REFLECTION_PROMPT = """You are a comprehensive narrative development panel evaluating a storyline.
+
+<Scenario ID>
+{scenario_id}
+</Scenario ID>
+
+<Research Direction>
+{research_direction}
+</Research Direction>
+
+<Storyline to Evaluate>
+{scenario_content}
+</Storyline to Evaluate>
+
+<Expert Panel>
+You represent a collaborative team of experts in: Plot Structure, Character Development, Thematic Coherence, Pacing, Narrative Arc
+</Expert Panel>
+
+<Comprehensive Evaluation>
+Assess this storyline across all narrative dimensions:
+
+**Plot Structure:**
+- Story architecture, three-act structure, conflict progression
+- Plot point effectiveness, story beats, climax buildup
+- Logical story progression and causality
+
+**Character Development:**
+- Character depth, motivation clarity, character arcs
+- Character consistency, growth trajectories
+- Dialogue authenticity and voice distinctiveness
+
+**Thematic Coherence:**
+- Central theme clarity and development
+- Thematic integration across plot elements
+- Message clarity and resonance
+
+**Pacing & Flow:**
+- Story rhythm, tension and release patterns
+- Scene transitions, momentum maintenance
+- Information disclosure timing
+
+**Narrative Innovation:**
+- Original elements, creative problem-solving
+- Genre convention handling
+- Unique storytelling approaches
+</Comprehensive Evaluation>
+
+<Quality Assessment>
+Rate the storyline on each dimension (1-100 scale):
+
+1. **Plot Structure** (1-100): Story architecture and progression quality
+2. **Character Depth** (1-100): Character development and authenticity
+3. **Thematic Strength** (1-100): Theme clarity and integration
+4. **Pacing Excellence** (1-100): Story rhythm and flow
+5. **Narrative Innovation** (1-100): Originality and creative elements
+6. **Dialogue Quality** (1-100): Conversation authenticity and effectiveness
+7. **Emotional Impact** (1-100): Reader engagement and emotional resonance
+8. **Genre Mastery** (1-100): Effective use of genre conventions
+
+**Overall Quality Score** (1-100): Weighted average emphasizing narrative craft
+</Quality Assessment>
+
+<Output Format>
+## Narrative Assessment
+
+**Strengths:**
+- [Key areas where storyline excels narratively]
+
+**Areas for Improvement:**
+- [Specific narrative issues with explanations and suggestions]
+
+**Character Analysis:**
+- [Assessment of character development and authenticity]
+
+## Quality Scores
+- Plot Structure: X/100
+- Character Depth: X/100
+- Thematic Strength: X/100
+- Pacing Excellence: X/100
+- Narrative Innovation: X/100
+- Dialogue Quality: X/100
+- Emotional Impact: X/100
+- Genre Mastery: X/100
+
+**Overall Quality Score: X/100**
+
+## Key Recommendations
+1. [Top priority narrative improvement]
+2. [Second priority improvement]  
+3. [Third priority improvement]
+
+## Tournament Readiness
+**Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]
+</Output Format>
+"""
+
+# Used for: chapter_writing use case
+UNIFIED_PROSE_REFLECTION_PROMPT = """You are a comprehensive prose evaluation panel reviewing a chapter.
+
+<Scenario ID>
+{scenario_id}
+</Scenario ID>
+
+<Research Direction>
+{research_direction}
+</Research Direction>
+
+<Chapter to Evaluate>
+{scenario_content}
+</Chapter to Evaluate>
+
+<Expert Panel>
+You represent a collaborative team of experts in: Prose Quality, Scene Development, Character Voice, Pacing, Atmosphere
+</Expert Panel>
+
+<Comprehensive Evaluation>
+Assess this chapter across all prose dimensions:
+
+**Prose Quality:**
+- Sentence structure variety, word choice precision
+- Style consistency, voice strength
+- Technical writing proficiency
+
+**Scene Development:**
+- Setting establishment, sensory details
+- Scene purpose and progression
+- Visual and atmospheric creation
+
+**Character Voice:**
+- Voice distinctiveness and consistency  
+- Dialogue naturalism and purpose
+- Internal voice authenticity
+
+**Pacing & Rhythm:**
+- Sentence rhythm variety, paragraph flow
+- Scene pacing, tension building
+- Information delivery timing
+
+**Atmospheric Mastery:**
+- Mood creation and maintenance
+- Immersive world-building details
+- Emotional tone consistency
+</Comprehensive Evaluation>
+
+<Quality Assessment>
+Rate the chapter on each dimension (1-100 scale):
+
+1. **Prose Craftsmanship** (1-100): Writing technique and style quality
+2. **Scene Immersion** (1-100): Setting and atmosphere creation
+3. **Character Voice** (1-100): Voice authenticity and distinctiveness
+4. **Pacing Mastery** (1-100): Rhythm and flow excellence
+5. **Atmospheric Creation** (1-100): Mood and tone effectiveness
+6. **Dialogue Excellence** (1-100): Conversation quality and purpose
+7. **Sensory Richness** (1-100): Vivid and engaging descriptions
+8. **Technical Proficiency** (1-100): Grammar, syntax, and style consistency
+
+**Overall Quality Score** (1-100): Weighted average emphasizing prose craft
+</Quality Assessment>
+
+<Output Format>
+## Prose Assessment
+
+**Strengths:**
+- [Key areas where chapter excels in prose quality]
+
+**Areas for Improvement:**
+- [Specific prose issues with explanations and suggestions]
+
+**Voice Analysis:**
+- [Assessment of character voice and style consistency]
+
+## Quality Scores
+- Prose Craftsmanship: X/100
+- Scene Immersion: X/100
+- Character Voice: X/100
+- Pacing Mastery: X/100
+- Atmospheric Creation: X/100
+- Dialogue Excellence: X/100
+- Sensory Richness: X/100
+- Technical Proficiency: X/100
+
+**Overall Quality Score: X/100**
+
+## Key Recommendations
+1. [Top priority prose improvement]
+2. [Second priority improvement]
+3. [Third priority improvement]
+
+## Tournament Readiness  
+**Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]
+</Output Format>
+"""
+
+# Used for: linguistic_evolution use case
+UNIFIED_RESEARCH_REFLECTION_PROMPT = """You are a comprehensive research evaluation panel reviewing a linguistic evolution analysis.
+
+<Scenario ID>
+{scenario_id}
+</Scenario ID>
+
+<Research Direction>
+{research_direction}
+</Research Direction>
+
+<Research Analysis to Evaluate>
+{scenario_content}
+</Research Analysis to Evaluate>
+
+<Expert Panel>
+You represent a collaborative team of experts in: Linguistics, Technology Integration, Sociology & Anthropology
+</Expert Panel>
+
+<Comprehensive Evaluation>
+Assess this research analysis across all academic dimensions:
+
+**Linguistic Scholarship:**
+- Theoretical foundation, methodology rigor
+- Citation quality, evidence integration
+- Academic writing standards
+
+**Technology Integration:**
+- Understanding of technological systems
+- Tech-language interaction analysis
+- Future technology assessment accuracy
+
+**Sociological & Anthropological Insight:**
+- Cultural pattern recognition
+- Social change analysis depth
+- Human behavior prediction realism
+
+**Research Methodology:**
+- Approach sophistication, data interpretation
+- Logical reasoning, conclusion validity
+- Academic contribution potential
+
+**Interdisciplinary Integration:**
+- Cross-field synthesis quality
+- Holistic understanding demonstration
+- Field boundary navigation
+</Comprehensive Evaluation>
+
+<Quality Assessment>
+Rate the research analysis on each dimension (1-100 scale):
+
+1. **Academic Rigor** (1-100): Scholarly methodology and standards
+2. **Theoretical Foundation** (1-100): Conceptual framework strength
+3. **Evidence Quality** (1-100): Supporting data and citations
+4. **Analytical Depth** (1-100): Insight sophistication and originality
+5. **Interdisciplinary Integration** (1-100): Cross-field synthesis effectiveness
+6. **Practical Application** (1-100): Real-world relevance and applicability
+7. **Innovation Factor** (1-100): Novel insights and perspectives
+8. **Communication Clarity** (1-100): Presentation and accessibility
+
+**Overall Quality Score** (1-100): Weighted average emphasizing academic excellence
+</Quality Assessment>
+
+<Output Format>
+## Research Assessment
+
+**Strengths:**
+- [Key areas where analysis excels academically]
+
+**Areas for Improvement:**
+- [Specific research issues with explanations and suggestions]
+
+**Methodology Analysis:**
+- [Assessment of research approach and evidence quality]
+
+## Quality Scores
+- Academic Rigor: X/100
+- Theoretical Foundation: X/100
+- Evidence Quality: X/100
+- Analytical Depth: X/100
+- Interdisciplinary Integration: X/100
+- Practical Application: X/100
+- Innovation Factor: X/100
+- Communication Clarity: X/100
+
+**Overall Quality Score: X/100**
+
+## Key Recommendations
+1. [Top priority research improvement]
+2. [Second priority improvement]
+3. [Third priority improvement]
+
+## Tournament Readiness
+**Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]
+</Output Format>
+"""
+
+# Function to get appropriate unified reflection prompt
+def get_unified_reflection_prompt(use_case: str) -> str:
+    """Get the appropriate unified reflection prompt based on use case."""
+    
+    prompt_mapping = {
+        "scenario_generation": UNIFIED_SCIENTIFIC_REFLECTION_PROMPT,
+        "storyline_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
+        "chapter_writing": UNIFIED_PROSE_REFLECTION_PROMPT,
+        "chapter_rewriting": UNIFIED_PROSE_REFLECTION_PROMPT,
+        "linguistic_evolution": UNIFIED_RESEARCH_REFLECTION_PROMPT,
+        "storyline_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT
+    }
+    
+    return prompt_mapping.get(use_case, UNIFIED_SCIENTIFIC_REFLECTION_PROMPT)
 
 # === Tournament Competition Phase ===
 
@@ -1051,6 +1391,158 @@ Then indicate the superior scenario by writing: "better scenario: 1" or "better 
 - Give clear reasoning for your final judgment
 </Reminders>
 """
+
+# Used for storyline creation and narrative development comparisons
+STORYLINE_PAIRWISE_PROMPT = """You are an expert in narrative analysis, evaluating two competing storyline approaches for their storytelling potential and creative merit.
+
+<Task>
+Determine which storyline approach offers superior narrative foundation for compelling science fiction storytelling.
+</Task>
+
+<Storyline 1>
+{scenario1_content}
+Narrative Approach: {direction1}
+</Storyline 1>
+
+<Storyline 2>
+{scenario2_content}
+Narrative Approach: {direction2}
+</Storyline 2>
+
+<Evaluation Criteria>
+- Narrative structure and plot coherence
+- Character development potential
+- Thematic depth and resonance
+- Originality and creative uniqueness
+- Emotional engagement and reader connection
+- Story momentum and pacing potential
+</Evaluation Criteria>
+
+<Process>
+Conduct a thorough comparative analysis:
+- Assess the core narrative hooks and their effectiveness
+- Evaluate character arcs and development opportunities
+- Compare thematic exploration and depth
+- Analyze plot structure and story progression
+- Consider audience engagement and emotional impact
+</Process>
+
+<Output Format>
+Provide detailed narrative analysis comparing both storylines, then conclude with your judgment.
+
+Indicate the superior storyline by writing: "better scenario: 1" or "better scenario: 2"
+</Output Format>
+
+<Focus>
+Prioritize storytelling excellence, narrative innovation, and emotional resonance over pure scientific accuracy.
+</Focus>
+"""
+
+# Used for chapter writing and prose-focused comparisons
+CHAPTER_PAIRWISE_PROMPT = """You are an expert in creative writing and prose analysis, evaluating two competing chapter approaches for their literary merit and storytelling effectiveness.
+
+<Task>
+Determine which chapter approach demonstrates superior writing craft and storytelling execution.
+</Task>
+
+<Chapter 1>
+{scenario1_content}
+Writing Approach: {direction1}
+</Chapter 1>
+
+<Chapter 2>
+{scenario2_content}
+Writing Approach: {direction2}
+</Chapter 2>
+
+<Evaluation Criteria>
+- Prose quality and literary style
+- Scene development and atmospheric creation
+- Character voice and dialogue authenticity
+- Pacing and narrative flow
+- Descriptive richness and immersion
+- Emotional impact and reader engagement
+</Evaluation Criteria>
+
+<Process>
+Analyze the writing craft in both chapters:
+- Evaluate prose clarity, elegance, and style
+- Assess scene construction and atmospheric development
+- Compare character voice consistency and dialogue quality
+- Analyze pacing and narrative rhythm
+- Consider reader engagement and emotional resonance
+</Process>
+
+<Output Format>
+Provide comprehensive literary analysis of both chapters, then make your determination.
+
+Indicate the superior chapter by writing: "better scenario: 1" or "better scenario: 2"
+</Output Format>
+
+<Focus>
+Emphasize writing craft, literary quality, and storytelling effectiveness over plot mechanics or scientific elements.
+</Focus>
+"""
+
+# Used for research and analytical content comparisons
+RESEARCH_PAIRWISE_PROMPT = """You are an expert academic reviewer evaluating two competing research approaches for their analytical rigor and scholarly contribution.
+
+<Task>
+Determine which research approach offers superior analytical depth and scholarly merit for academic investigation.
+</Task>
+
+<Research Approach 1>
+{scenario1_content}
+Methodology: {direction1}
+</Research Approach 1>
+
+<Research Approach 2>
+{scenario2_content}
+Methodology: {direction2}
+</Research Approach 2>
+
+<Evaluation Criteria>
+- Analytical rigor and methodological soundness
+- Evidence quality and source credibility
+- Theoretical grounding and conceptual clarity
+- Research scope and comprehensiveness
+- Innovation and scholarly contribution
+- Practical applicability of findings
+</Evaluation Criteria>
+
+<Process>
+Conduct scholarly peer review analysis:
+- Evaluate methodological approach and rigor
+- Assess evidence quality and supporting research
+- Compare theoretical frameworks and conceptual depth
+- Analyze scope, thoroughness, and completeness
+- Consider innovation and contribution to the field
+</Process>
+
+<Output Format>
+Provide detailed academic assessment of both approaches, then render your scholarly judgment.
+
+Indicate the superior research approach by writing: "better scenario: 1" or "better scenario: 2"
+</Output Format>
+
+<Focus>
+Prioritize academic rigor, methodological soundness, and scholarly contribution over creative or narrative elements.
+</Focus>
+"""
+
+def get_pairwise_prompt(use_case: str) -> str:
+    """Get the appropriate pairwise comparison prompt for the use case."""
+    prompts = {
+        "scenario_generation": PAIRWISE_RANKING_PROMPT,
+        "storyline_creation": STORYLINE_PAIRWISE_PROMPT,
+        "storyline_adjustment": STORYLINE_PAIRWISE_PROMPT,
+        "chapter_writing": CHAPTER_PAIRWISE_PROMPT,
+        "chapter_rewriting": CHAPTER_PAIRWISE_PROMPT,
+        "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
+        "plot_analysis": RESEARCH_PAIRWISE_PROMPT
+    }
+    
+    return prompts.get(use_case, PAIRWISE_RANKING_PROMPT)  # Default to scientific prompt
 
 # === Final Meta-Review Phase ===
 

@@ -31,7 +31,9 @@ from co_scientist.prompts import (
     PAIRWISE_RANKING_PROMPT,
     META_REVIEW_PROMPT,
     get_meta_analysis_prompt,
-    get_generation_prompt
+    get_generation_prompt,
+    get_pairwise_prompt,
+    get_unified_reflection_prompt
 )
 
 # Import deep_researcher for research tasks
@@ -267,14 +269,23 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
             content += f"### Round {round_num}\n\n"
             participants = round_data.get('participants', [])
             winners = round_data.get('winners', [])
+            bye_advancements = round_data.get('bye_advancements', [])
+            total_advancing = round_data.get('total_advancing', len(winners))
             
             content += f"**Participants:** {len(participants)}\n"
             for participant in participants:
                 content += f"- {participant.get('team_id', 'unknown')} ({participant.get('scenario_id', 'unknown')[:8]})\n"
             
-            content += f"\n**Winners advancing:** {len(winners)}\n"
+            content += f"\n**Comparison Winners:** {len(winners)}\n"
             for winner in winners:
                 content += f"- {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')[:8]})\n"
+                
+            if bye_advancements:
+                content += f"\n**Bye Advancements:** {len(bye_advancements)}\n"
+                for bye_participant in bye_advancements:
+                    content += f"- {bye_participant.get('team_id', 'unknown')} ({bye_participant.get('scenario_id', 'unknown')[:8]}) [bye]\n"
+            
+            content += f"\n**Total Advancing to Next Round:** {total_advancing}\n"
             content += "\n"
         
         content += "## Final Winner Details\n\n"
@@ -638,7 +649,7 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
     }
 
 async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Conduct parallel reflection/critique of all scenarios."""
+    """Conduct unified reflection/critique of all scenarios."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -651,40 +662,36 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
             "reflection_complete": True
         }
     
-    # Create reflection tasks
+    # Create unified reflection tasks - one per scenario instead of multiple per domain
     reflection_tasks = []
-    reflection_domains = configuration.get_reflection_domains()
     
-    # Check if world state context is available for world-aware reflection
-    world_state_context = config.get("configurable", {}).get("world_state_context")
+    print(f"Starting unified reflection for {len(scenario_population)} scenarios")
     
     for scenario in scenario_population:
-        for domain in reflection_domains:
-            # Use world-aware critique for narrative content when world state is available
-            if world_state_context and domain in ["world_integration", "narrative_structure", "character_development", "thematic_coherence", "linguistic_consistency"]:
-                task = generate_world_aware_critique(
-                    scenario=scenario,
-                    domain=domain,
-                    world_state_context=world_state_context,
-                    config=config
-                )
-            else:
-                # Use standard domain critique for scientific/technical analysis
-                task = generate_domain_critique(
-                    scenario=scenario,
-                    domain=domain,
-                    config=config
-                )
-            reflection_tasks.append(task)
+        # Create one comprehensive reflection task per scenario
+        task = generate_unified_reflection(
+            scenario=scenario,
+            config=config
+        )
+        reflection_tasks.append(task)
+    
+    print(f"Created {len(reflection_tasks)} unified reflection tasks")
     
     # Execute all reflections in parallel
     reflection_results = await asyncio.gather(*reflection_tasks, return_exceptions=True)
     
-    # Filter valid critiques
-    valid_critiques = [
-        critique for critique in reflection_results 
-        if not isinstance(critique, Exception)
-    ]
+    # Filter valid critiques and log results
+    valid_critiques = []
+    failed_critiques = []
+    
+    for i, critique in enumerate(reflection_results):
+        if isinstance(critique, Exception):
+            failed_critiques.append(f"Task {i}: {str(critique)}")
+            print(f"Unified reflection failed for task {i}: {critique}")
+        else:
+            valid_critiques.append(critique)
+    
+    print(f"Unified reflection complete: {len(valid_critiques)} successful, {len(failed_critiques)} failed")
     
     # Save reflection results
     if configuration.save_intermediate_results:
@@ -693,16 +700,127 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
         
         # Save raw JSON data for debugging
         manager = get_output_manager(configuration.output_dir)
-        manager.save_json("critiques_raw_data.json", {"critiques": valid_critiques}, "raw_data")
+        manager.save_json("unified_critiques_raw_data.json", {"critiques": valid_critiques}, "raw_data")
         
-        # Save summary
-        critique_content = format_reflection_critiques(valid_critiques)
-        save_co_scientist_output("reflection_critiques_summary.md", critique_content, configuration.output_dir)
+        # Save summary with quality scores
+        critique_content = format_unified_reflection_critiques(valid_critiques)
+        save_co_scientist_output("unified_reflection_summary.md", critique_content, configuration.output_dir)
     
     return {
         "reflection_critiques": valid_critiques,
         "reflection_complete": True
     }
+
+async def generate_unified_reflection(scenario: dict, config: RunnableConfig) -> dict:
+    """Generate unified comprehensive reflection with quality scoring."""
+    
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    
+    # Get scenario information with defaults for missing fields
+    scenario_id = scenario.get("scenario_id", f"missing_id_{uuid.uuid4().hex[:8]}")
+    research_direction = scenario.get("research_direction", "Unknown Direction")
+    scenario_content = scenario.get("scenario_content", "No scenario content available")
+    
+    # Get use case from configuration
+    use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
+    
+    # Get appropriate unified prompt for this use case
+    unified_prompt_template = get_unified_reflection_prompt(use_case)
+    
+    # Configure model for reflection
+    model = configurable_model.with_config(
+        configurable={
+            "model": configuration.general_model,
+            "max_tokens": 4096,
+        }
+    )
+    
+    # Format the unified reflection prompt
+    reflection_prompt = unified_prompt_template.format(
+        scenario_id=scenario_id,
+        research_direction=research_direction,
+        scenario_content=scenario_content
+    )
+    
+    try:
+        # Generate unified reflection
+        response = await model.ainvoke([HumanMessage(content=reflection_prompt)])
+        reflection_content = response.content
+        
+        # Parse quality scores from the reflection
+        quality_scores = parse_quality_scores(reflection_content)
+        overall_score = quality_scores.get("overall_quality_score", 50)
+        
+        # Parse advancement recommendation
+        advancement_recommendation = parse_advancement_recommendation(reflection_content)
+        
+        return {
+            "critique_id": f"unified_{uuid.uuid4().hex[:8]}",
+            "target_scenario_id": scenario_id,
+            "critique_domain": "unified_reflection",
+            "critique_content": reflection_content,
+            "quality_scores": quality_scores,
+            "overall_quality_score": overall_score,
+            "advancement_recommendation": advancement_recommendation,
+            "severity_score": max(1, 11 - (overall_score // 10))  # Convert 1-100 to 10-1 severity scale
+        }
+        
+    except Exception as e:
+        print(f"Error in unified reflection for scenario {scenario_id}: {e}")
+        return {
+            "critique_id": f"error_{uuid.uuid4().hex[:8]}",
+            "target_scenario_id": scenario_id,
+            "critique_domain": "unified_reflection",
+            "critique_content": f"Error generating reflection: {str(e)}",
+            "quality_scores": {},
+            "overall_quality_score": 25,  # Low default score for errors
+            "advancement_recommendation": "REVISE",
+            "severity_score": 8
+        }
+
+def parse_quality_scores(reflection_content: str) -> dict:
+    """Parse quality scores from unified reflection output."""
+    import re
+    
+    quality_scores = {}
+    
+    # Extract overall quality score
+    overall_match = re.search(r'\*\*Overall Quality Score:\s*(\d+)/100\*\*', reflection_content)
+    if overall_match:
+        quality_scores["overall_quality_score"] = int(overall_match.group(1))
+    
+    # Extract individual dimension scores (flexible patterns for different use cases)
+    score_patterns = [
+        r'- ([^:]+):\s*(\d+)/100',
+        r'\*\*([^:]+)\*\*\s*\(1-100\):\s*(\d+)',
+        r'(\w+(?:\s+\w+)*):\s*(\d+)/100'
+    ]
+    
+    for pattern in score_patterns:
+        matches = re.findall(pattern, reflection_content)
+        for match in matches:
+            dimension_name = match[0].strip().lower().replace(' ', '_')
+            score = int(match[1])
+            quality_scores[dimension_name] = score
+    
+    return quality_scores
+
+def parse_advancement_recommendation(reflection_content: str) -> str:
+    """Parse advancement recommendation from unified reflection output."""
+    import re
+    
+    # Look for advancement recommendation
+    advancement_match = re.search(r'\*\*Advancement Recommendation:\*\*\s*(\w+)', reflection_content)
+    if advancement_match:
+        return advancement_match.group(1).upper()
+    
+    # Fallback: look for ADVANCE/REVISE/REJECT anywhere in text
+    if 'ADVANCE' in reflection_content.upper():
+        return "ADVANCE"
+    elif 'REJECT' in reflection_content.upper():
+        return "REJECT"
+    else:
+        return "REVISE"
 
 async def generate_domain_critique(scenario: dict, domain: str, config: RunnableConfig) -> dict:
     """Generate scientific analysis from a domain expert using deep research."""
@@ -971,6 +1089,8 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
             "round": round_number,
             "participants": round_participants,
             "winners": round_winners,
+            "bye_advancements": [p for p in next_round if p not in round_winners] if len(current_round) % 2 == 1 else [],
+            "total_advancing": len(next_round),
             "comparisons_count": len([r for r in round_results if not isinstance(r, Exception)])
         })
         
@@ -1000,7 +1120,11 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
         }
     )
     
-    comparison_prompt = PAIRWISE_RANKING_PROMPT.format(
+    # Get the appropriate prompt for this use case
+    use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
+    pairwise_prompt_template = get_pairwise_prompt(use_case)
+    
+    comparison_prompt = pairwise_prompt_template.format(
         scenario1_content=scenario1["scenario_content"],
         direction1=scenario1["research_direction"],
         scenario2_content=scenario2["scenario_content"],
@@ -1648,7 +1772,7 @@ def parse_research_directions(content: str) -> list:
     
     Handles the format specified in the prompt:
     Direction 1: [Name]
-    Core Assumption: [Key narrative assumption]
+    Core Assumption: [Key narrative assumption] 
     Focus: [What this approach emphasizes]
     
     Also handles markdown formatting that LLMs often add.
@@ -2096,3 +2220,76 @@ co_scientist_builder.add_edge("meta_review", END)
 
 # Compile the co-scientist subgraph
 co_scientist = co_scientist_builder.compile() 
+
+def format_unified_reflection_critiques(critiques: list) -> str:
+    """Format unified reflection critiques for display including quality scores."""
+    
+    if not critiques:
+        return "No unified reflection critiques available."
+    
+    content = "# Unified Reflection Analysis Summary\n\n"
+    content += f"**Total Scenarios Evaluated:** {len(critiques)}\n\n"
+    
+    # Calculate summary statistics
+    quality_scores = [c.get("overall_quality_score", 0) for c in critiques]
+    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+    
+    advancement_counts = {}
+    for critique in critiques:
+        recommendation = critique.get("advancement_recommendation", "UNKNOWN")
+        advancement_counts[recommendation] = advancement_counts.get(recommendation, 0) + 1
+    
+    content += "## Summary Statistics\n\n"
+    content += f"**Average Quality Score:** {avg_quality:.1f}/100\n"
+    content += f"**Quality Range:** {min(quality_scores)}-{max(quality_scores)}/100\n\n"
+    
+    content += "**Advancement Recommendations:**\n"
+    for recommendation, count in advancement_counts.items():
+        content += f"- {recommendation}: {count} scenarios\n"
+    content += "\n"
+    
+    # Group critiques by quality tier
+    high_quality = [c for c in critiques if c.get("overall_quality_score", 0) >= 80]
+    medium_quality = [c for c in critiques if 60 <= c.get("overall_quality_score", 0) < 80]
+    low_quality = [c for c in critiques if c.get("overall_quality_score", 0) < 60]
+    
+    content += "## Quality Distribution\n\n"
+    content += f"**High Quality (80-100):** {len(high_quality)} scenarios\n"
+    content += f"**Medium Quality (60-79):** {len(medium_quality)} scenarios\n"
+    content += f"**Low Quality (0-59):** {len(low_quality)} scenarios\n\n"
+    
+    # Detailed critique analysis
+    content += "## Detailed Reflections\n\n"
+    
+    # Sort by quality score descending
+    sorted_critiques = sorted(critiques, key=lambda c: c.get("overall_quality_score", 0), reverse=True)
+    
+    for i, critique in enumerate(sorted_critiques, 1):
+        scenario_id = critique.get("target_scenario_id", "Unknown")
+        quality_score = critique.get("overall_quality_score", 0)
+        recommendation = critique.get("advancement_recommendation", "UNKNOWN")
+        
+        content += f"### {i}. Scenario {scenario_id}\n\n"
+        content += f"**Overall Quality Score:** {quality_score}/100\n"
+        content += f"**Advancement Recommendation:** {recommendation}\n\n"
+        
+        # Include individual dimension scores if available
+        quality_scores = critique.get("quality_scores", {})
+        if quality_scores and len(quality_scores) > 1:  # More than just overall score
+            content += "**Dimension Scores:**\n"
+            for dimension, score in quality_scores.items():
+                if dimension != "overall_quality_score":
+                    dimension_display = dimension.replace('_', ' ').title()
+                    content += f"- {dimension_display}: {score}/100\n"
+            content += "\n"
+        
+        # Include reflection content (truncated)
+        reflection_content = critique.get("critique_content", "No content available")
+        if len(reflection_content) > 500:
+            content += f"**Key Insights:** {reflection_content[:500]}...\n\n"
+        else:
+            content += f"**Full Analysis:** {reflection_content}\n\n"
+        
+        content += "---\n\n"
+    
+    return content
