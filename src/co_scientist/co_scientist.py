@@ -44,6 +44,165 @@ configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
 
+# === Elo Rating System ===
+
+class EloTracker:
+    """Elo rating system for scenario competitions."""
+    
+    def __init__(self, k_factor: int = 32):
+        """
+        Initialize Elo tracker.
+        
+        Args:
+            k_factor: Rating change sensitivity (16=conservative, 32=standard, 64=volatile)
+        """
+        self.ratings = {}  # scenario_id -> elo_rating
+        self.k_factor = k_factor
+        self.rating_history = {}  # scenario_id -> list of (timestamp, rating, reason)
+        self.default_rating = 1500  # Standard starting Elo rating
+    
+    def initialize_from_quality(self, scenarios: list, quality_weight: float = 0.6) -> None:
+        """
+        Initialize Elo ratings based on reflection quality scores.
+        
+        Args:
+            scenarios: List of scenarios with quality_score field
+            quality_weight: How much quality influences initial rating (0.0-1.0)
+        """
+        for scenario in scenarios:
+            scenario_id = scenario.get("scenario_id")
+            quality_score = scenario.get("quality_score", 50)  # Default neutral quality
+            
+            if scenario_id:
+                # Convert quality score (0-100) to Elo rating adjustment
+                # Quality 50 → no adjustment (1500)
+                # Quality 100 → +300 points (1800) 
+                # Quality 0 → -300 points (1200)
+                quality_adjustment = (quality_score - 50) * 6 * quality_weight  # Max ±180 at full weight
+                initial_rating = self.default_rating + quality_adjustment
+                
+                # Keep within reasonable bounds
+                initial_rating = max(1200, min(1800, initial_rating))
+                
+                self.ratings[scenario_id] = initial_rating
+                self._record_rating_change(scenario_id, initial_rating, f"Initial rating from quality score {quality_score}")
+    
+    def get_rating(self, scenario_id: str) -> float:
+        """Get current Elo rating for a scenario."""
+        return self.ratings.get(scenario_id, self.default_rating)
+    
+    def update_ratings(self, winner_id: str, loser_id: str, margin: float = 1.0) -> dict:
+        """
+        Update Elo ratings after a pairwise comparison.
+        
+        Args:
+            winner_id: Scenario ID of the winner
+            loser_id: Scenario ID of the loser  
+            margin: Victory margin multiplier (for future enhancements)
+            
+        Returns:
+            Dict with rating changes and new ratings
+        """
+        # Get current ratings
+        winner_rating = self.get_rating(winner_id)
+        loser_rating = self.get_rating(loser_id)
+        
+        # Calculate expected scores (probability of winning)
+        winner_expected = 1 / (1 + 10**((loser_rating - winner_rating) / 400))
+        loser_expected = 1 - winner_expected
+        
+        # Actual scores (1 for win, 0 for loss)
+        winner_actual = 1.0 * margin
+        loser_actual = 0.0
+        
+        # Calculate rating changes
+        winner_change = self.k_factor * (winner_actual - winner_expected)
+        loser_change = self.k_factor * (loser_actual - loser_expected)
+        
+        # Update ratings
+        new_winner_rating = winner_rating + winner_change
+        new_loser_rating = loser_rating + loser_change
+        
+        self.ratings[winner_id] = new_winner_rating
+        self.ratings[loser_id] = new_loser_rating
+        
+        # Record changes
+        self._record_rating_change(winner_id, new_winner_rating, f"Beat {loser_id} (+{winner_change:.1f})")
+        self._record_rating_change(loser_id, new_loser_rating, f"Lost to {winner_id} ({loser_change:.1f})")
+        
+        return {
+            "winner_id": winner_id,
+            "loser_id": loser_id,
+            "winner_rating_before": winner_rating,
+            "winner_rating_after": new_winner_rating,
+            "winner_change": winner_change,
+            "loser_rating_before": loser_rating,
+            "loser_rating_after": new_loser_rating,
+            "loser_change": loser_change,
+            "winner_expected": winner_expected,
+            "upset": winner_expected < 0.5  # Underdog victory
+        }
+    
+    def _record_rating_change(self, scenario_id: str, new_rating: float, reason: str) -> None:
+        """Record rating change in history."""
+        if scenario_id not in self.rating_history:
+            self.rating_history[scenario_id] = []
+        
+        self.rating_history[scenario_id].append({
+            "timestamp": datetime.now().isoformat(),
+            "rating": new_rating,
+            "reason": reason
+        })
+    
+    def get_rating_history(self, scenario_id: str) -> list:
+        """Get rating history for a scenario."""
+        return self.rating_history.get(scenario_id, [])
+    
+    def get_leaderboard(self, scenarios: list = None) -> list:
+        """
+        Get scenarios sorted by Elo rating.
+        
+        Args:
+            scenarios: Optional list to filter ratings by
+            
+        Returns:
+            List of (scenario_id, rating) tuples sorted by rating desc
+        """
+        if scenarios:
+            # Filter to only provided scenarios
+            relevant_ratings = {s.get("scenario_id"): self.get_rating(s.get("scenario_id")) 
+                              for s in scenarios if s.get("scenario_id")}
+        else:
+            relevant_ratings = self.ratings
+        
+        return sorted(relevant_ratings.items(), key=lambda x: x[1], reverse=True)
+    
+    def get_statistics(self) -> dict:
+        """Get Elo rating statistics."""
+        if not self.ratings:
+            return {"count": 0, "average": 0, "min": 0, "max": 0, "std_dev": 0}
+        
+        ratings = list(self.ratings.values())
+        count = len(ratings)
+        average = sum(ratings) / count
+        min_rating = min(ratings)
+        max_rating = max(ratings)
+        
+        # Calculate standard deviation
+        variance = sum((r - average) ** 2 for r in ratings) / count
+        std_dev = variance ** 0.5
+        
+        return {
+            "count": count,
+            "average": average,
+            "min": min_rating,
+            "max": max_rating,
+            "std_dev": std_dev,
+            "range": max_rating - min_rating
+        }
+
+# === Output Management ===
+
 class CoScientistOutputManager:
     """Manages detailed output for co-scientist runs with timestamped directories."""
     
@@ -248,7 +407,7 @@ def save_individual_evolution_attempts(evolutions: list, output_dir: str = "outp
         evolution_counter += 1
 
 def save_tournament_brackets(all_tournament_data: list, output_dir: str = "output"):
-    """Save detailed tournament bracket progression for each direction with quality metrics."""
+    """Save detailed tournament bracket progression for each direction with quality and Elo metrics."""
     manager = get_output_manager(output_dir)
     
     for i, tournament in enumerate(all_tournament_data, 1):
@@ -258,16 +417,29 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
         direction = tournament.get('direction', 'unknown')
         rounds = tournament.get('round_progression', [])
         winner = tournament.get('winner', {})
+        elo_tracker = tournament.get('elo_tracker')
         
         content = f"# Tournament Bracket {i}: {direction}\n\n"
         content += f"**Direction:** {direction}\n"
         content += f"**Total Rounds:** {len(rounds)}\n"
         content += f"**Final Winner:** {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')})\n"
         
-        # Add final winner quality info
+        # Add final winner quality and Elo info
         if winner.get('quality_score'):
             content += f"**Final Winner Quality:** {winner.get('quality_score', 0)}/100\n"
+        if winner.get('elo_rating'):
+            content += f"**Final Winner Elo:** {winner.get('elo_rating', 1500):.0f}\n"
         content += "\n"
+        
+        # Add Elo statistics if available
+        if elo_tracker:
+            elo_stats = elo_tracker.get_statistics()
+            content += f"## Elo Rating Statistics\n\n"
+            content += f"**Post-Tournament Elo Statistics:**\n"
+            content += f"- Average Rating: {elo_stats['average']:.0f}\n"
+            content += f"- Rating Range: {elo_stats['min']:.0f} - {elo_stats['max']:.0f}\n"
+            content += f"- Standard Deviation: {elo_stats['std_dev']:.0f}\n"
+            content += f"- Total Scenarios: {elo_stats['count']}\n\n"
         
         content += "## Bracket Progression\n\n"
         for round_num, round_data in enumerate(rounds, 1):
@@ -282,17 +454,19 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
                 team_id = participant.get('team_id', 'unknown')
                 scenario_id = participant.get('scenario_id', 'unknown')[:8]
                 quality_score = participant.get('quality_score', 0)
+                elo_rating = participant.get('elo_rating', 1500)
                 advancement_rec = participant.get('advancement_recommendation', 'N/A')
                 
-                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 | Rec: {advancement_rec}\n"
+                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 | Elo: {elo_rating:.0f} | Rec: {advancement_rec}\n"
             
             content += f"\n**Comparison Winners:** {len(winners)}\n"
             for winner_item in winners:
                 team_id = winner_item.get('team_id', 'unknown')
                 scenario_id = winner_item.get('scenario_id', 'unknown')[:8]
                 quality_score = winner_item.get('quality_score', 0)
+                elo_rating = winner_item.get('elo_rating', 1500)
                 
-                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100\n"
+                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 | Elo: {elo_rating:.0f}\n"
                 
             if bye_advancements:
                 content += f"\n**Bye Advancements:** {len(bye_advancements)}\n"
@@ -300,8 +474,9 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
                     team_id = bye_participant.get('team_id', 'unknown')
                     scenario_id = bye_participant.get('scenario_id', 'unknown')[:8]
                     quality_score = bye_participant.get('quality_score', 0)
+                    elo_rating = bye_participant.get('elo_rating', 1500)
                     
-                    content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 [bye]\n"
+                    content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 | Elo: {elo_rating:.0f} [bye]\n"
             
             content += f"\n**Total Advancing to Next Round:** {total_advancing}\n"
             content += "\n"
@@ -311,9 +486,11 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
         content += f"**Scenario ID:** {winner.get('scenario_id', 'unknown')}\n"
         content += f"**Research Direction:** {winner.get('research_direction', 'unknown')}\n"
         
-        # Add quality information for final winner
+        # Add quality and Elo information for final winner
         quality_score = winner.get('quality_score', 0)
+        elo_rating = winner.get('elo_rating', 1500)
         advancement_rec = winner.get('advancement_recommendation', 'N/A')
+        
         if quality_score > 0:
             content += f"**Quality Score:** {quality_score}/100\n"
             content += f"**Pre-Tournament Assessment:** {advancement_rec}\n"
@@ -326,6 +503,17 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
                     if dimension != "overall_quality_score":
                         dimension_display = dimension.replace('_', ' ').title()
                         content += f"  - {dimension_display}: {score}/100\n"
+        
+        if elo_rating:
+            content += f"**Final Elo Rating:** {elo_rating:.0f}\n"
+            
+            # Show Elo progression if available
+            if elo_tracker:
+                rating_history = elo_tracker.get_rating_history(winner.get('scenario_id', ''))
+                if len(rating_history) > 1:
+                    initial_rating = rating_history[0]['rating']
+                    rating_change = elo_rating - initial_rating
+                    content += f"**Elo Change:** {rating_change:+.0f} (from {initial_rating:.0f})\n"
         
         content += "\n**Winning Scenario Content:**\n\n"
         content += winner.get('scenario_content', 'No scenario content available')
@@ -1040,7 +1228,7 @@ def integrate_quality_scores(scenarios: list, reflection_critiques: list) -> lis
     return enhanced_scenarios
 
 async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Run tournament brackets for each research direction with quality-based seeding."""
+    """Run tournament brackets for each research direction with quality-based seeding and Elo ratings."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -1059,6 +1247,20 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
     
     print(f"Integrated quality scores for {len(scenarios_with_quality)} scenarios")
     
+    # Initialize Elo rating system
+    elo_tracker = EloTracker(k_factor=32)  # Standard K-factor
+    elo_tracker.initialize_from_quality(scenarios_with_quality, quality_weight=0.6)
+    
+    # Attach initial Elo ratings to scenarios
+    for scenario in scenarios_with_quality:
+        scenario_id = scenario.get("scenario_id")
+        if scenario_id:
+            scenario["elo_rating"] = elo_tracker.get_rating(scenario_id)
+    
+    print(f"Initialized Elo ratings for {len(elo_tracker.ratings)} scenarios")
+    elo_stats = elo_tracker.get_statistics()
+    print(f"Elo statistics: avg={elo_stats['average']:.0f}, range={elo_stats['min']:.0f}-{elo_stats['max']:.0f}")
+    
     # Group scenarios by research direction
     direction_groups = {}
     for scenario in scenarios_with_quality:
@@ -1067,21 +1269,26 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
             direction_groups[direction] = []
         direction_groups[direction].append(scenario)
     
-    # Apply quality-based seeding within each direction
+    # Apply quality-based seeding within each direction (Elo ratings will be used for bracket display)
     for direction, scenarios in direction_groups.items():
         # Sort by quality score (highest first) for better seeding
         scenarios.sort(key=lambda s: s.get("quality_score", 0), reverse=True)
         
         quality_scores = [s.get("quality_score", 0) for s in scenarios]
+        elo_ratings = [s.get("elo_rating", 1500) for s in scenarios]
         avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
-        print(f"Direction '{direction}': {len(scenarios)} scenarios, avg quality: {avg_quality:.1f}, range: {min(quality_scores)}-{max(quality_scores)}")
+        avg_elo = sum(elo_ratings) / len(elo_ratings) if elo_ratings else 1500
+        
+        print(f"Direction '{direction}': {len(scenarios)} scenarios")
+        print(f"  Quality: avg={avg_quality:.1f}, range={min(quality_scores)}-{max(quality_scores)}")
+        print(f"  Elo: avg={avg_elo:.0f}, range={min(elo_ratings):.0f}-{max(elo_ratings):.0f}")
         
         direction_groups[direction] = scenarios
     
-    # Run parallel tournaments for each direction with quality-seeded brackets
+    # Run parallel tournaments for each direction with Elo tracking
     tournament_tasks = []
     for direction, scenarios in direction_groups.items():
-        task = run_direction_tournament(direction, scenarios, config)
+        task = run_direction_tournament(direction, scenarios, config, elo_tracker)
         tournament_tasks.append(task)
     
     tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
@@ -1092,22 +1299,51 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         if not isinstance(result, Exception)
     ]
     
+    # Collect final Elo statistics
+    if direction_winners:
+        # Use the Elo tracker from the first tournament (they should all be the same instance)
+        final_elo_tracker = None
+        for winner in direction_winners:
+            if winner.get("elo_tracker"):
+                final_elo_tracker = winner["elo_tracker"]
+                break
+        
+        if final_elo_tracker:
+            final_elo_stats = final_elo_tracker.get_statistics()
+            print(f"Final Elo statistics: avg={final_elo_stats['average']:.0f}, range={final_elo_stats['min']:.0f}-{final_elo_stats['max']:.0f}")
+            
+            # Update all tournament winners with final Elo ratings
+            for tournament_result in direction_winners:
+                winner = tournament_result.get("winner")
+                if winner and winner.get("scenario_id"):
+                    winner["elo_rating"] = final_elo_tracker.get_rating(winner["scenario_id"])
+    
     # Save tournament results
     if configuration.save_intermediate_results:
-        # Save individual tournament comparisons with full reasoning
+        # Save individual tournament comparisons with full reasoning and Elo data
         save_individual_tournament_comparisons(direction_winners, configuration.output_dir)
         
-        # Save tournament bracket progressions
+        # Save tournament bracket progressions with Elo information
         save_tournament_brackets(direction_winners, configuration.output_dir)
         
         # Save individual tournament details (existing function)
         save_tournament_details(direction_winners, configuration.output_dir)
         
-        # Save raw JSON data for debugging
+        # Save raw JSON data for debugging (including Elo data)
         manager = get_output_manager(configuration.output_dir)
         manager.save_json("tournaments_raw_data.json", {"tournaments": direction_winners}, "raw_data")
         
-        # Save summary
+        # Save Elo rating data and statistics
+        if final_elo_tracker:
+            elo_export = {
+                "final_ratings": final_elo_tracker.ratings,
+                "rating_history": final_elo_tracker.rating_history,
+                "statistics": final_elo_tracker.get_statistics(),
+                "leaderboard": final_elo_tracker.get_leaderboard()
+            }
+            manager.save_json("elo_ratings.json", elo_export, "raw_data")
+        
+        # Save summary with Elo information
         tournament_content = format_tournament_results(direction_winners, tournament_results)
         save_co_scientist_output("tournament_results_summary.md", tournament_content, configuration.output_dir)
     
@@ -1115,11 +1351,12 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
     return {
         "tournament_rounds": tournament_results,
         "tournament_winners": direction_winners,
-        "tournament_complete": True
+        "tournament_complete": True,
+        "elo_tracker": final_elo_tracker  # Include final Elo tracker in state
     }
 
-async def run_direction_tournament(direction: str, scenarios: list, config: RunnableConfig) -> dict:
-    """Run tournament bracket for a single direction."""
+async def run_direction_tournament(direction: str, scenarios: list, config: RunnableConfig, elo_tracker: EloTracker) -> dict:
+    """Run tournament bracket for a single direction with Elo rating updates."""
     
     if len(scenarios) < 2:
         winner = scenarios[0] if scenarios else None
@@ -1128,7 +1365,8 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
             "winner": winner,
             "total_rounds": 0,
             "all_comparisons": [],
-            "round_progression": []
+            "round_progression": [],
+            "elo_tracker": elo_tracker  # Include Elo tracker in results
         }
     
     current_round = scenarios.copy()
@@ -1148,7 +1386,8 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
                     current_round[i], 
                     current_round[i + 1], 
                     round_number,
-                    config
+                    config,
+                    elo_tracker  # Pass Elo tracker to each comparison
                 )
                 comparison_tasks.append(task)
             else:
@@ -1168,6 +1407,11 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
             else:
                 winner = result.get("winner")
                 if winner:
+                    # Update winner with latest Elo rating
+                    winner_id = winner.get("scenario_id")
+                    if winner_id:
+                        winner["elo_rating"] = elo_tracker.get_rating(winner_id)
+                    
                     next_round.append(winner)
                     round_winners.append(winner)
                     all_comparisons.append(result)
@@ -1189,17 +1433,23 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
     
     final_winner = current_round[0] if current_round else None
     
+    # Update final winner with latest Elo rating
+    if final_winner:
+        winner_id = final_winner.get("scenario_id")
+        if winner_id:
+            final_winner["elo_rating"] = elo_tracker.get_rating(winner_id)
     
     return {
         "direction": direction,
         "winner": final_winner,
         "total_rounds": round_number - 1,
         "all_comparisons": all_comparisons,
-        "round_progression": round_progression
+        "round_progression": round_progression,
+        "elo_tracker": elo_tracker  # Include Elo tracker in results
     }
 
-async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: int, config: RunnableConfig) -> dict:
-    """Compare two scenarios head-to-head."""
+async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: int, config: RunnableConfig, elo_tracker: EloTracker) -> dict:
+    """Compare two scenarios head-to-head with Elo rating updates."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -1209,6 +1459,12 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
             "max_tokens": 3072,
         }
     )
+    
+    # Get pre-comparison Elo ratings
+    scenario1_id = scenario1["scenario_id"]
+    scenario2_id = scenario2["scenario_id"]
+    scenario1_elo_before = elo_tracker.get_rating(scenario1_id)
+    scenario2_elo_before = elo_tracker.get_rating(scenario2_id)
     
     # Get the appropriate prompt for this use case
     use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
@@ -1229,27 +1485,53 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     # Look for the decision pattern
     if "better scenario: 1" in response_text:
         winner = scenario1
+        loser = scenario2
         winner_number = 1
     elif "better scenario: 2" in response_text:
         winner = scenario2
+        loser = scenario1
         winner_number = 2
     else:
         # Fallback: look for any mention of scenario numbers at the end
         if "scenario 1" in response_text.split()[-20:]:  # Check last 20 words
             winner = scenario1
+            loser = scenario2
             winner_number = 1
         else:
             winner = scenario2
+            loser = scenario1
             winner_number = 2
     
+    # Update Elo ratings based on the outcome
+    winner_id = winner["scenario_id"]
+    loser_id = loser["scenario_id"]
+    elo_update = elo_tracker.update_ratings(winner_id, loser_id)
+    
+    # Update scenarios with new Elo ratings
+    winner["elo_rating"] = elo_update["winner_rating_after"]
+    loser["elo_rating"] = elo_update["loser_rating_after"]
     
     return {
         "round": round_number,
-        "scenario1_id": scenario1["scenario_id"],
-        "scenario2_id": scenario2["scenario_id"],
+        "scenario1_id": scenario1_id,
+        "scenario2_id": scenario2_id,
         "winner": winner,
+        "winner_number": winner_number,
         "reasoning": response.content,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        # Elo rating information
+        "elo_data": {
+            "scenario1_elo_before": scenario1_elo_before,
+            "scenario2_elo_before": scenario2_elo_before,
+            "winner_elo_before": elo_update["winner_rating_before"],
+            "winner_elo_after": elo_update["winner_rating_after"],
+            "winner_elo_change": elo_update["winner_change"],
+            "loser_elo_before": elo_update["loser_rating_before"],
+            "loser_elo_after": elo_update["loser_rating_after"],
+            "loser_elo_change": elo_update["loser_change"],
+            "winner_expected": elo_update["winner_expected"],
+            "upset": elo_update["upset"]
+        }
     }
 
 async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> dict:
@@ -2109,7 +2391,7 @@ def format_reflection_critiques(critiques: list) -> str:
     return content
 
 def format_tournament_results(winners: list, all_results: list) -> str:
-    """Format tournament results for markdown output with quality metrics."""
+    """Format tournament results for markdown output with quality and Elo metrics."""
     content = "# Co-Scientist Tournament Results\n\n"
     content += f"**Number of Tournaments:** {len(winners)}\n\n"
     
@@ -2117,19 +2399,45 @@ def format_tournament_results(winners: list, all_results: list) -> str:
         content += "No tournament winners - likely due to scenario generation failures.\n\n"
         return content
     
-    # Calculate overall quality statistics
+    # Calculate overall quality and Elo statistics
     all_quality_scores = []
+    all_elo_ratings = []
+    elo_tracker = None
+    
     for winner in winners:
         winning_scenario = winner.get("winner", {})
         if winning_scenario and isinstance(winning_scenario, dict):
             quality_score = winning_scenario.get("quality_score", 0)
+            elo_rating = winning_scenario.get("elo_rating", 0)
+            
             if quality_score > 0:
                 all_quality_scores.append(quality_score)
+            if elo_rating > 0:
+                all_elo_ratings.append(elo_rating)
+        
+        # Get Elo tracker from any tournament result
+        if not elo_tracker and winner.get("elo_tracker"):
+            elo_tracker = winner["elo_tracker"]
     
+    # Display summary statistics
     if all_quality_scores:
         avg_quality = sum(all_quality_scores) / len(all_quality_scores)
         content += f"**Average Winner Quality Score:** {avg_quality:.1f}/100\n"
-        content += f"**Quality Range:** {min(all_quality_scores)}-{max(all_quality_scores)}/100\n\n"
+        content += f"**Quality Range:** {min(all_quality_scores)}-{max(all_quality_scores)}/100\n"
+    
+    if all_elo_ratings:
+        avg_elo = sum(all_elo_ratings) / len(all_elo_ratings)
+        content += f"**Average Winner Elo Rating:** {avg_elo:.0f}\n"
+        content += f"**Elo Range:** {min(all_elo_ratings):.0f}-{max(all_elo_ratings):.0f}\n"
+    
+    if elo_tracker:
+        elo_stats = elo_tracker.get_statistics()
+        content += f"**Overall Elo Statistics (All Scenarios):**\n"
+        content += f"- Total Scenarios: {elo_stats['count']}\n"
+        content += f"- Average Rating: {elo_stats['average']:.0f}\n" 
+        content += f"- Standard Deviation: {elo_stats['std_dev']:.0f}\n"
+    
+    content += "\n"
     
     for i, winner in enumerate(winners, 1):
         if not winner:
@@ -2147,10 +2455,21 @@ def format_tournament_results(winners: list, all_results: list) -> str:
         if winning_scenario and isinstance(winning_scenario, dict):
             team_id = winning_scenario.get('team_id', 'Unknown')
             quality_score = winning_scenario.get("quality_score", 0)
+            elo_rating = winning_scenario.get("elo_rating", 1500)
             advancement_rec = winning_scenario.get("advancement_recommendation", "N/A")
             
             content += f"**Winner Team:** {team_id}\n"
             content += f"**Quality Score:** {quality_score}/100\n"
+            content += f"**Final Elo Rating:** {elo_rating:.0f}\n"
+            
+            # Show Elo progression
+            if elo_tracker:
+                rating_history = elo_tracker.get_rating_history(winning_scenario.get("scenario_id", ""))
+                if len(rating_history) > 1:
+                    initial_rating = rating_history[0]['rating']
+                    rating_change = elo_rating - initial_rating
+                    content += f"**Elo Change:** {rating_change:+.0f} (from {initial_rating:.0f})\n"
+            
             content += f"**Pre-Tournament Assessment:** {advancement_rec}\n"
             
             # Show individual dimension scores if available
@@ -2171,7 +2490,7 @@ def format_tournament_results(winners: list, all_results: list) -> str:
             
             # Show winner scenario content (truncated)
             scenario_content = winning_scenario.get('scenario_content', 'No content')
-            if len(scenario_content) > 600:  # Reduced to make room for quality info
+            if len(scenario_content) > 600:  # Reduced to make room for Elo info
                 content += f"**Winning Scenario:** {scenario_content[:600]}...\n\n"
             else:
                 content += f"**Winning Scenario:** {scenario_content}\n\n"
