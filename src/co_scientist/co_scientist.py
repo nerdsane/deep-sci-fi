@@ -2180,44 +2180,114 @@ def parse_research_directions(content: str) -> list:
     Core Assumption: [Key narrative assumption] 
     Focus: [What this approach emphasizes]
     
-    Also handles markdown formatting that LLMs often add.
+    Also handles markdown formatting that LLMs often add and multi-line content.
     """
     directions = []
     lines = content.split('\n')
     
     current_direction = {}
-    for line in lines:
+    current_field = None
+    current_content = []
+    
+    print(f"DEBUG: Parsing {len(lines)} lines of meta-analysis content...")
+    
+    for line_num, line in enumerate(lines):
         line = line.strip()
         
+        # Skip empty lines
+        if not line:
+            continue
+            
         # Remove markdown formatting
         clean_line = line.replace("###", "").replace("**", "").strip()
         
         # Look for Direction lines (e.g., "Direction 1: Name" or "### Direction 1: **Name**")
         if clean_line.lower().startswith("direction") and ":" in clean_line:
+            # Save previous field content if we have one
+            if current_field and current_content:
+                content_text = " ".join(current_content).strip()
+                if current_direction and content_text:
+                    current_direction[current_field] = content_text
+                current_content = []
+            
+            # Save previous direction if complete
             if current_direction:
+                print(f"  Adding direction: {current_direction.get('name', 'NO_NAME')}")
                 directions.append(current_direction)
-            # Extract name after the colon
+            
+            # Start new direction
             name_part = clean_line.split(":", 1)[1].strip()
             current_direction = {"name": name_part}
+            current_field = None
+            print(f"  Found direction: {name_part}")
         
         # Look for Core Assumption lines
         elif clean_line.lower().startswith("core assumption") and ":" in clean_line:
-            if current_direction:  # Only add if we have a current direction
-                current_direction["assumption"] = clean_line.split(":", 1)[1].strip()
+            # Save previous field content
+            if current_field and current_content:
+                content_text = " ".join(current_content).strip()
+                if current_direction and content_text:
+                    current_direction[current_field] = content_text
+                current_content = []
+            
+            # Start Core Assumption field
+            current_field = "assumption"
+            assumption_text = clean_line.split(":", 1)[1].strip()
+            current_content = [assumption_text] if assumption_text else []
+            print(f"    Found Core Assumption start")
         
         # Look for Focus lines  
         elif clean_line.lower().startswith("focus") and ":" in clean_line:
-            if current_direction:  # Only add if we have a current direction
-                current_direction["focus"] = clean_line.split(":", 1)[1].strip()
+            # Save previous field content
+            if current_field and current_content:
+                content_text = " ".join(current_content).strip()
+                if current_direction and content_text:
+                    current_direction[current_field] = content_text
+                current_content = []
+            
+            # Start Focus field
+            current_field = "focus"
+            focus_text = clean_line.split(":", 1)[1].strip()
+            current_content = [focus_text] if focus_text else []
+            print(f"    Found Focus start")
+        
+        # Look for Reasoning line (end of directions)
+        elif clean_line.lower().startswith("reasoning") and ":" in clean_line:
+            # Save current field content
+            if current_field and current_content:
+                content_text = " ".join(current_content).strip()
+                if current_direction and content_text:
+                    current_direction[current_field] = content_text
+            
+            # Save final direction
+            if current_direction:
+                print(f"  Adding final direction: {current_direction.get('name', 'NO_NAME')}")
+                directions.append(current_direction)
+            
+            # Stop parsing at reasoning
+            break
+        
+        # Otherwise, if we're in a field, accumulate content
+        elif current_field and clean_line:
+            current_content.append(clean_line)
     
-    # Add the last direction if it exists
-    if current_direction:
+    # Handle case where content doesn't end with "Reasoning:"
+    if current_field and current_content:
+        content_text = " ".join(current_content).strip()
+        if current_direction and content_text:
+            current_direction[current_field] = content_text
+    
+    # Add the last direction if it exists and wasn't added yet
+    if current_direction and current_direction not in directions:
+        print(f"  Adding last direction: {current_direction.get('name', 'NO_NAME')}")
         directions.append(current_direction)
     
     # Debug logging
-    print(f"DEBUG: Parsed directions from LLM response:")
+    print(f"DEBUG: Parsed {len(directions)} directions from LLM response:")
     for i, direction in enumerate(directions):
-        print(f"  Direction {i+1}: {direction}")
+        print(f"  Direction {i+1}: {direction.get('name', 'NO_NAME')}")
+        print(f"    Assumption: {direction.get('assumption', 'MISSING')[:50]}...")
+        print(f"    Focus: {direction.get('focus', 'MISSING')[:50]}...")
     
     return directions
 
