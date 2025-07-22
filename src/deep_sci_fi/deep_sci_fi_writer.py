@@ -90,8 +90,8 @@ class AgentState(TypedDict):
 # === Model Configuration ===
 model_config = {
     "research_model": "openai:o3-2025-04-16", # "anthropic:claude-3-5-sonnet-20241022",
-    "writing_model": "openai:claude-opus-4-20250514", # "anthropic:claude-3-7-sonnet-20250219", 
-    "general_model": "openai:claude-sonnet-4-20250514", # "anthropic:claude-3-7-sonnet-20250219",
+    "writing_model": "anthropic:claude-opus-4-20250514", # "anthropic:claude-3-7-sonnet-20250219", 
+    "general_model": "anthropic:claude-sonnet-4-20250514", # "anthropic:claude-3-7-sonnet-20250219",
     
     # Co-scientist configuration
     "save_intermediate_results": True,  # Enable intermediate file saving

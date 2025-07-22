@@ -27,7 +27,6 @@ from co_scientist.prompts import (
     INITIAL_SCENARIO_GENERATION_PROMPT,
     INCREMENTAL_SCENARIO_GENERATION_PROMPT,
     DOMAIN_CRITIQUE_PROMPT,
-    WORLD_INTEGRATION_CRITIQUE_PROMPT,
     PAIRWISE_RANKING_PROMPT,
     META_REVIEW_PROMPT,
     get_meta_analysis_prompt,
@@ -1126,66 +1125,6 @@ Use current research and scientific literature to support your analysis."""
         "research_query": research_query,
         "raw_research_result": str(research_result) if 'research_result' in locals() else "No research result",
         "severity_score": severity_score,
-        "timestamp": datetime.now().isoformat()
-    }
-
-async def generate_world_aware_critique(scenario: dict, domain: str, world_state_context: str, config: RunnableConfig) -> dict:
-    """Generate world integration analysis for narrative content."""
-    
-    configuration = CoScientistConfiguration.from_runnable_config(config)
-    
-    # Get scenario information with defaults for missing fields
-    scenario_id = scenario.get("scenario_id", f"missing_id_{uuid.uuid4().hex[:8]}")
-    research_direction = scenario.get("research_direction", "Unknown Direction")
-    scenario_content = scenario.get("scenario_content", "No scenario content available")
-    
-    # Determine content type based on use case
-    use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
-    content_type_map = {
-        "storyline_adjustment": "Revised Storyline",
-        "chapter_rewriting": "Chapter Content",
-        "storyline_creation": "Storyline",
-        "chapter_writing": "Chapter Content"
-    }
-    content_type = content_type_map.get(use_case, "Narrative Content")
-    
-    # Create world integration analysis prompt
-    analysis_prompt = WORLD_INTEGRATION_CRITIQUE_PROMPT.format(
-        scenario_id=scenario_id,
-        content_type=content_type,
-        scenario_content=scenario_content,
-        world_state_context=world_state_context,
-        critique_domain=domain
-    )
-    
-    # Use regular LLM for narrative analysis (not deep research)
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.general_model,
-            "max_tokens": 4096,
-        }
-    )
-    
-    try:
-        response = await model.ainvoke([HumanMessage(content=analysis_prompt)])
-        critique_content = response.content
-        print(f"Successfully generated {domain} world integration analysis for {scenario_id}, content length: {len(critique_content)}")
-    except Exception as e:
-        print(f"Failed to generate {domain} world integration analysis for {scenario_id}: {e}")
-        critique_content = f"World integration analysis failed for {domain} analysis of content {scenario_id}. Error: {str(e)}"
-    
-    # Parse integration score from response
-    integration_score = extract_integration_score(critique_content)
-    
-    return {
-        "critique_id": str(uuid.uuid4()),
-        "target_scenario_id": scenario_id,
-        "critique_domain": domain,
-        "critique_content": critique_content,
-        "analysis_prompt": analysis_prompt,
-        "world_state_context": world_state_context,
-        "integration_score": integration_score,
-        "content_type": content_type,
         "timestamp": datetime.now().isoformat()
     }
 
