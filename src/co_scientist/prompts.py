@@ -374,25 +374,20 @@ Create a compelling storyline for a novel.
 </Task>
 
 <Scope>
-Identify 2 fundamentally different narrative approaches for creating a compelling storyline.
+Identify 2 fundamentally different approaches for creating a compelling storyline.
 </Scope>
 
 <Story Concept>
 {story_concept}
 </Story Concept>
 
-<Requirements>
+<Variation examples>
+Depending on the story concept, explore (but do not be limited by) the following:
 - Character-driven vs Plot-driven approaches
 - Different structural frameworks (linear, non-linear, multiple POV, etc.)
 - Distinct thematic emphasis and emotional tone
 - Varied pacing and narrative tension strategies
 </Requirements>
-
-<Process>
-1. Analyze the story concept for key narrative possibilities
-2. Create 2 distinct storyline approaches with different structural frameworks
-3. Focus on character vs plot emphasis, pacing, and thematic direction
-</Process>
 
 <Output Format>
 Direction 1: [Name] 
@@ -407,9 +402,8 @@ Reasoning: [Why these approaches offer distinct storyline possibilities]
 </Output Format>
 
 <Reminders>
-- Focus on structural and thematic differentiation
-- One approach should emphasize character development, the other plot momentum
-- Consider pacing, POV, and narrative tension strategies
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
 </Reminders>
 """
 
@@ -421,7 +415,7 @@ Write an engaging opening chapter that hooks readers and establishes the story w
 </Task>
 
 <Scope>
-Identify 2 fundamentally different approaches for writing an engaging opening chapter.
+based on the storyline identify 2 fundamentally different approaches for writing an engaging opening chapter.
 </Scope>
 
 <Storyline>
@@ -436,18 +430,13 @@ Identify 2 fundamentally different approaches for writing an engaging opening ch
 The opening should immediately engage readers, establish the protagonist's voice, introduce the key conflict, and set up the story elements naturally.
 </Writing Instructions>
 
-<Requirements>
+<Variation examples>
+Depending on the story concept, explore (but do not be limited by) the following:
 - Action-driven vs Character-driven openings
 - Different narrative perspectives and voice styles
 - Varied pacing strategies (immediate action vs atmospheric buildup)
 - Distinct reader engagement tactics
-</Requirements>
-
-<Process>
-1. Analyze the storyline for key opening possibilities
-2. Create 2 approaches: one action-focused, one character/atmosphere-focused  
-3. Consider POV, voice, pacing, and hook strategies
-</Process>
+</Variation examples>
 
 <Output Format>
 Direction 1: [Name]
@@ -462,9 +451,12 @@ Reasoning: [Why these approaches create distinct chapter openings]
 </Output Format>
 
 <Reminders>
-- One approach should hook with immediate action/conflict
-- Other should hook with character voice/world atmosphere
-- Consider how each serves the overall storyline differently
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
 </Reminders>
 """
 
@@ -499,6 +491,11 @@ Create a complete storyline that follows your narrative approach and brings the 
 - Climactic resolution and conclusion
 
 Create a compelling, complete storyline that exemplifies your narrative approach.
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+</Reminders>
 """
 
 # Used in: get_generation_prompt() for "chapter_writing" use case  
@@ -517,7 +514,7 @@ CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an eng
 </Chapter Structure>
 
 <Writing Instructions>
-The opening should immediately engage readers, establish the protagonist's voice, introduce the key conflict, and set up the story elements naturally.
+The opening should immediately engage readers and set up the story elements naturally.
 </Writing Instructions>
 
 <Task>
@@ -540,6 +537,15 @@ Write a complete first chapter that hooks readers and launches the story using y
 - Authentic voice and engaging prose style
 
 Write a complete, compelling first chapter that exemplifies your chosen approach.
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+</Reminders>
 """
 
 # === Chapter Rewriting Templates ===
@@ -566,7 +572,6 @@ Completely rewrite the opening chapter to seamlessly incorporate all the world-b
 <World State Context>
 {world_state_context}
 </World State Context>
-
 
 <Requirements>
 - World Integration: weave world-building naturally into the narrative
@@ -605,6 +610,12 @@ Reasoning: [Why these approaches offer distinct methods for world-building integ
 - Focus on world-building integration strategies, not just narrative techniques  
 - Consider how linguistic evolution and cultural elements enhance the story
 - Each approach should create authentic immersion in the established world
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
 </Reminders>
 """
 
@@ -656,77 +667,45 @@ Completely rewrite the chapter to naturally integrate the established world-buil
 </Key Principles>
 
 Rewrite the complete chapter as a natural story within this established world.
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+</Reminders>
 """
-
-
 
 # === Research and Analysis Templates ===
 
 # Used in: get_meta_analysis_prompt() for "linguistic_evolution" use case
-LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist and sociolinguist from this advanced technological world identifying distinct approaches for researching how language has evolved in our society.
+LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist exploring how language has evolved in this advanced technological society.
 
-<Task>
-Analyze linguistic evolution and communication changes by {target_year} (projecting {years_in_future} years forward).
-</Task>
+Your task: Examine linguistic evolution by {target_year} (projecting {years_in_future} years forward) and propose research approaches for understanding language development.
 
-<Scope>
-Identify 2 fundamentally different research approaches for understanding how language naturally evolved within our established technological world.
-</Scope>
-
-<Research Context>
-Research how language, communication methods, cultural expression, and social linguistics evolve given the technological and societal changes described in the world state. Focus on projecting linguistic evolution through technological and social developments.
-</Research Context>
-
-<World State Foundation>
+<world_context>
 {source_content}
-</World State Foundation>
+</world_context>
 
-<Previous Linguistic Research>
+<previous_findings>
 {world_state_context}
-</Previous Linguistic Research>
+</previous_findings>
 
-<Requirements>
-- Technology Integration Patterns: How our integrated technological systems naturally shaped communication
-- Cultural-Social Evolution: How our society's structures and cultural developments influenced language
-- Communication Efficiency: How our established communication methods affected linguistic patterns
-- Generational Inheritance: How different generations naturally adapted to and shaped linguistic changes
-- Cultural Identity Preservation: How our global technological framework affected local linguistic identity
-</Requirements>
+Investigate how language, communication, and social linguistics have evolved in this context. Consider any factors that may have influenced linguistic development - technological, social, cultural, generational, or other patterns you discover.
 
-<Key Constraints>
-- Build upon previous linguistic research cycles from our ongoing studies
-- Document cumulative effects of our technological and social development
-- Account for our specific timeline and technological development trajectory
-- Work within our established world systems and social structures
-</Key Constraints>
+Build upon previous research while exploring new directions. Focus on what's actually observable in this documented world.
 
-<Process>
-1. Analyze our world's technological and social factors that influenced language evolution
-2. Identify which linguistic domains experienced natural evolution in our society
-3. Create 2 distinct research approaches focusing on different aspects of our linguistic development
-4. Extend previous research with refined understanding of our linguistic evolution
-</Process>
+Propose research approaches that would provide meaningful insights. Structure your response however makes most sense - you might suggest 2-4 different approaches, methodologies, or investigative directions.
 
-<Output Format>
-Direction 1: [Name]
-Core Assumption: [Technology-focused or Culture-focused approach]
-Focus: [Specific linguistic domains and research methodology]
+For each approach, explain:
+- What it would investigate
+- How you'd conduct the research  
+- Why it would be valuable
+- How it builds on or extends previous work
 
-Direction 2: [Name] 
-Core Assumption: [Technology-focused or Culture-focused approach]
-Focus: [Specific linguistic domains and research methodology]
-
-Reasoning: [Why these approaches provide comprehensive linguistic evolution analysis]
-</Output Format>
-
-<Reminders>
-- This is research into our world's linguistic evolution, not theoretical analysis
-- Focus on how language naturally evolved within our established technological society
-- Document both gradual evolution and disruption as natural processes in our world
-- Build upon previous research from our ongoing linguistic studies
-- Work within our specific timeline and documented evolutionary periods
-</Reminders>
-"""
+Let your analysis emerge naturally from the evidence rather than forcing predetermined categories. Consider unexpected factors and propose approaches that feel authentic to this specific world context."""
 
 # Used in: get_generation_prompt() for "linguistic_evolution" use case
 LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team from this advanced technological world analyzing how language has evolved using the {direction_name} approach.
@@ -803,17 +782,16 @@ Adjust the original storyline to incorporate the detailed world-building and lin
 {world_state_context}
 </Developed World State>
 
-
 <Requirements>
 - World Integration: How to weave developed world-building naturally into the narrative structure
 - Character Consistency: How to maintain character authenticity within the evolved world context
 - Plot Coherence: How to adjust plot elements to align with established world systems
 - Thematic Enhancement: How to strengthen themes through world-building integration
-- Narrative Flow: How to maintain story momentum while incorporating developed elements
+- Narrative Flow: How to maintain story momentum while incorporating developed world elements
 </Requirements>
 
 <Key Constraints>
-- Preserve original storyline's core narrative appeal and character essence
+- Preserve original storyline's core narrative appeal and essence
 - Seamlessly integrate world developments without disrupting story flow
 - Ensure characters and plot elements are authentic to the developed world
 - Maintain reader engagement while incorporating complex world-building
@@ -842,6 +820,8 @@ Reasoning: [Why these approaches offer distinct methods for world-building integ
 - Focus on world-building integration strategies, not just narrative techniques
 - Consider how our linguistic evolution and cultural elements enhance the story
 - Each approach should create authentic integration with our established world
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
 </Reminders>
 """
 
@@ -869,8 +849,7 @@ Revise the original storyline to seamlessly integrate our developed world state,
 </Task>
 
 <World Integration Requirements>
-- Seamlessly weave developed world-building into narrative structure and character actions
-- Integrate our evolved linguistic and cultural elements naturally into dialogue and description
+- Seamlessly weave developed world-building and linguistic evolution into narrative structure and character actions
 - Ensure characters think and act authentically within our established world systems
 - Adjust plot elements to align with our technological and social realities
 - Preserve storyline's core appeal while enhancing it with our world developments
@@ -890,6 +869,9 @@ Revise the original storyline to seamlessly integrate our developed world state,
 - YES authentic character behavior within our established world systems
 - YES natural integration of our linguistic and cultural evolution
 - YES seamless enhancement where world-building serves story development
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
 </Key Principles>
 
 Revise the complete storyline as a natural story enhanced by our developed world elements.
@@ -923,9 +905,8 @@ Evaluate this scenario specifically from your domain expertise and provide rigor
 <Evaluation Criteria>
 - Scientific accuracy and plausibility
 - Realistic timelines for technological development
-- Consideration of fundamental physical/biological/engineering constraints
+- Consideration of fundamental constraints within your domain
 - Internal consistency within your domain
-- Integration with other technological systems
 </Evaluation Criteria>
 
 <Process>
@@ -944,7 +925,7 @@ Provide:
 </Output Requirements>
 
 <Reminders>
-- Focus specifically on your domain expertise
+- Focus specifically on your domain expertise: {critique_domain}
 - Provide constructive, evidence-based feedback
 - Consider both current limitations and realistic future developments
 </Reminders>
@@ -1037,9 +1018,7 @@ Research Direction: {direction2}
 - Internal consistency across all systems  
 - Realistic technological timelines
 - Consideration of second-order effects
-- Narrative potential and story opportunities
-- Originality and creative insight
-- Detail richness and implementability
+- Detail richness
 </Evaluation Criteria>
 
 <Process>
@@ -1050,7 +1029,6 @@ Subsequent turns:
 - Critically evaluate each scenario against the stated criteria
 - Compare scientific rigor and evidence grounding
 - Assess internal consistency and logical coherence
-- Evaluate narrative potential and creative merit
 - Identify specific strengths and weaknesses
 </Process>
 
@@ -1059,7 +1037,6 @@ Subsequent turns:
 - Practical applicability and implementation feasibility
 - Sufficiency of detail and specificity
 - Novelty and originality
-- Desirability for story development
 </Evaluation Aspects>
 
 <Output Format>
@@ -1070,7 +1047,7 @@ Then indicate the superior scenario by writing: "better scenario: 1" or "better 
 
 <Reminders>
 - Provide thorough comparative analysis before making a decision
-- Consider both scientific rigor and narrative potential
+- Focus on scientific rigor
 - Give clear reasoning for your final judgment
 </Reminders>
 """

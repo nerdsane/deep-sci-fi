@@ -14,6 +14,15 @@ Based on the provided storyline, write a detailed chapter-by-chapter story arc f
 <Instructions>
 - The output should be a breakdown of what happens in each chapter.
 </Instructions>
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+</Reminders>
 """
 
 # === Initial World Building (First Pass) ===
@@ -40,11 +49,11 @@ Your primary goal is to avoid bias and assumptions about the future. Frame your 
 - "If not money, what creates pressure?" (Assumes money is no longer a primary motivator).
 
 **INSTEAD, ask open-ended questions like:**
-- "What role, if any, does professional consulting or similar advisory work play in the economy of {target_year}? What forms does it take?"
-- "What is the significance of physical co-location in major urban centers like NYC in {target_year}, considering advancements in remote collaboration?"
-- "What are the primary economic and social drivers for individuals in {target_year}? How has the concept of wealth and societal pressure evolved?"
+- "What role, if any, does professional consulting or similar advisory work play in the economy in {target_year}? What forms does it take? Does it still exist at all?"
+- "What is the significance of physical co-location in major urban centers like NYC in {target_year}? Is there still a need for it? Does work or NYC even exist at all?"
+- "What are the primary economic and social drivers for individuals in {target_year}? How has the concept of wealth and societal pressure evolved? Do they still exist or matter?"
 
-Based on the provided storyline, chapter arcs, and first chapter, generate a list of 5-10 such unbiased, open-ended questions about the world of {target_year}. These questions should cover technology, society, economy, and daily life as relevant to the story.
+Based on the provided storyline, chapter arcs, and first chapter, generate a list of 10 such unbiased, open-ended questions about the world of {target_year}. These questions should cover technology, society, economy, and daily life as relevant to the story.
 </Instructions>
 """
 
@@ -72,6 +81,15 @@ ADJUST_CHAPTER_ARCS_PROMPT = """You are a story editor. Your task is to revise a
 <Instructions>
 Revise the chapter-by-chapter arcs to be consistent with the new storyline and the final world state. Ensure that the events and character progression in each chapter reflect the updated plot, the detailed world, and its unique language. Your output should be the complete, revised list of chapter arcs.
 </Instructions>
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality. 
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+</Reminders>
 """
 
 # === Author-Facing Companion Documents ===
@@ -122,14 +140,6 @@ Create a comprehensive glossary of unique terms, evolved language, and cultural 
 - Ground definitions in our established world state and linguistic evolution
 </Glossary Requirements>
 
-<Key Principles>
-- NO explaining concepts as if to readers from the past
-- NO treating our advanced systems as foreign terms requiring basic definition
-- YES authentic definitions rooted in our world's natural development
-- YES usage notes that reflect how language naturally evolved in our society
-- YES origins that connect to our established technological and cultural context
-</Key Principles>
-
 Create an alphabetical glossary with comprehensive definitions grounded in our world's reality.
 """
 
@@ -160,6 +170,20 @@ Your job is to formulate unbiased, open-ended research questions about how this 
 - Question should be open-ended and not assume any specific answer.
 - Questions should aim to explore aspects of the world that are pertinent to the story.
 - Your questions will guide research into the next phase of this world's history.
+- Provide 10 questions.
 </Instructions>
+
+<Reminders>
+**AVOID biased questions like:**
+- "What does 'consulting' mean in {years_to_project} years?" (Assumes consulting exists in a recognizable form).
+- "Why does physical presence in NYC still matter?" (Assumes it still matters).
+- "If not money, what creates pressure?" (Assumes money is no longer a primary motivator).
+
+**INSTEAD, ask open-ended questions like:**
+- "What role, if any, does professional consulting or similar advisory work play in the economy in {years_to_project} years? What forms does it take? Does it still exist at all?"
+- "What is the significance of physical co-location in major urban centers like NYC in {years_to_project} years? Is there still a need for it? Does work or NYC even exist at all?"
+- "What are the primary economic and social drivers for individuals in {years_to_project} years? How has the concept of wealth and societal pressure evolved? Do they still exist or matter?"
+
+</Reminders>
 """
 
