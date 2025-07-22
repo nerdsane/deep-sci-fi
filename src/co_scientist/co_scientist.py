@@ -248,7 +248,7 @@ def save_individual_evolution_attempts(evolutions: list, output_dir: str = "outp
         evolution_counter += 1
 
 def save_tournament_brackets(all_tournament_data: list, output_dir: str = "output"):
-    """Save detailed tournament bracket progression for each direction."""
+    """Save detailed tournament bracket progression for each direction with quality metrics."""
     manager = get_output_manager(output_dir)
     
     for i, tournament in enumerate(all_tournament_data, 1):
@@ -262,7 +262,12 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
         content = f"# Tournament Bracket {i}: {direction}\n\n"
         content += f"**Direction:** {direction}\n"
         content += f"**Total Rounds:** {len(rounds)}\n"
-        content += f"**Final Winner:** {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')})\n\n"
+        content += f"**Final Winner:** {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')})\n"
+        
+        # Add final winner quality info
+        if winner.get('quality_score'):
+            content += f"**Final Winner Quality:** {winner.get('quality_score', 0)}/100\n"
+        content += "\n"
         
         content += "## Bracket Progression\n\n"
         for round_num, round_data in enumerate(rounds, 1):
@@ -274,16 +279,29 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
             
             content += f"**Participants:** {len(participants)}\n"
             for participant in participants:
-                content += f"- {participant.get('team_id', 'unknown')} ({participant.get('scenario_id', 'unknown')[:8]})\n"
+                team_id = participant.get('team_id', 'unknown')
+                scenario_id = participant.get('scenario_id', 'unknown')[:8]
+                quality_score = participant.get('quality_score', 0)
+                advancement_rec = participant.get('advancement_recommendation', 'N/A')
+                
+                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 | Rec: {advancement_rec}\n"
             
             content += f"\n**Comparison Winners:** {len(winners)}\n"
-            for winner in winners:
-                content += f"- {winner.get('team_id', 'unknown')} ({winner.get('scenario_id', 'unknown')[:8]})\n"
+            for winner_item in winners:
+                team_id = winner_item.get('team_id', 'unknown')
+                scenario_id = winner_item.get('scenario_id', 'unknown')[:8]
+                quality_score = winner_item.get('quality_score', 0)
+                
+                content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100\n"
                 
             if bye_advancements:
                 content += f"\n**Bye Advancements:** {len(bye_advancements)}\n"
                 for bye_participant in bye_advancements:
-                    content += f"- {bye_participant.get('team_id', 'unknown')} ({bye_participant.get('scenario_id', 'unknown')[:8]}) [bye]\n"
+                    team_id = bye_participant.get('team_id', 'unknown')
+                    scenario_id = bye_participant.get('scenario_id', 'unknown')[:8]
+                    quality_score = bye_participant.get('quality_score', 0)
+                    
+                    content += f"- {team_id} ({scenario_id}) | Quality: {quality_score}/100 [bye]\n"
             
             content += f"\n**Total Advancing to Next Round:** {total_advancing}\n"
             content += "\n"
@@ -291,8 +309,25 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
         content += "## Final Winner Details\n\n"
         content += f"**Team ID:** {winner.get('team_id', 'unknown')}\n"
         content += f"**Scenario ID:** {winner.get('scenario_id', 'unknown')}\n"
-        content += f"**Research Direction:** {winner.get('research_direction', 'unknown')}\n\n"
-        content += "**Winning Scenario Content:**\n\n"
+        content += f"**Research Direction:** {winner.get('research_direction', 'unknown')}\n"
+        
+        # Add quality information for final winner
+        quality_score = winner.get('quality_score', 0)
+        advancement_rec = winner.get('advancement_recommendation', 'N/A')
+        if quality_score > 0:
+            content += f"**Quality Score:** {quality_score}/100\n"
+            content += f"**Pre-Tournament Assessment:** {advancement_rec}\n"
+            
+            # Show dimension breakdown if available
+            quality_scores = winner.get('quality_scores', {})
+            if quality_scores and len(quality_scores) > 1:
+                content += f"**Quality Breakdown:**\n"
+                for dimension, score in quality_scores.items():
+                    if dimension != "overall_quality_score":
+                        dimension_display = dimension.replace('_', ' ').title()
+                        content += f"  - {dimension_display}: {score}/100\n"
+        
+        content += "\n**Winning Scenario Content:**\n\n"
         content += winner.get('scenario_content', 'No scenario content available')
         
         filename = f"bracket_{i:02d}_{direction.replace(' ', '_')}.md"
@@ -966,8 +1001,46 @@ async def generate_world_aware_critique(scenario: dict, domain: str, world_state
         "timestamp": datetime.now().isoformat()
     }
 
+def integrate_quality_scores(scenarios: list, reflection_critiques: list) -> list:
+    """Integrate quality scores from reflection critiques into scenario data."""
+    
+    # Create a mapping from scenario_id to quality data
+    quality_mapping = {}
+    for critique in reflection_critiques:
+        scenario_id = critique.get("target_scenario_id")
+        if scenario_id:
+            quality_mapping[scenario_id] = {
+                "quality_score": critique.get("overall_quality_score", 50),
+                "quality_scores": critique.get("quality_scores", {}),
+                "advancement_recommendation": critique.get("advancement_recommendation", "REVISE"),
+                "critique_summary": critique.get("critique_content", "")[:200] + "..." if len(critique.get("critique_content", "")) > 200 else critique.get("critique_content", "")
+            }
+    
+    # Attach quality data to scenarios
+    enhanced_scenarios = []
+    for scenario in scenarios:
+        scenario_id = scenario.get("scenario_id")
+        enhanced_scenario = scenario.copy()
+        
+        if scenario_id in quality_mapping:
+            # Attach quality data from reflection
+            quality_data = quality_mapping[scenario_id]
+            enhanced_scenario.update(quality_data)
+        else:
+            # Default quality data for scenarios without reflection
+            enhanced_scenario.update({
+                "quality_score": 50,  # Default neutral score
+                "quality_scores": {},
+                "advancement_recommendation": "REVISE",
+                "critique_summary": "No reflection critique available"
+            })
+        
+        enhanced_scenarios.append(enhanced_scenario)
+    
+    return enhanced_scenarios
+
 async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Run tournament brackets for each research direction."""
+    """Run tournament brackets for each research direction with quality-based seeding."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -980,15 +1053,32 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
             "tournament_complete": True
         }
     
+    # Integrate quality scores from reflection critiques into scenarios
+    reflection_critiques = state.get("reflection_critiques", [])
+    scenarios_with_quality = integrate_quality_scores(scenario_population, reflection_critiques)
+    
+    print(f"Integrated quality scores for {len(scenarios_with_quality)} scenarios")
+    
     # Group scenarios by research direction
     direction_groups = {}
-    for scenario in scenario_population:
+    for scenario in scenarios_with_quality:
         direction = scenario["research_direction"]
         if direction not in direction_groups:
             direction_groups[direction] = []
         direction_groups[direction].append(scenario)
     
-    # Run parallel tournaments for each direction
+    # Apply quality-based seeding within each direction
+    for direction, scenarios in direction_groups.items():
+        # Sort by quality score (highest first) for better seeding
+        scenarios.sort(key=lambda s: s.get("quality_score", 0), reverse=True)
+        
+        quality_scores = [s.get("quality_score", 0) for s in scenarios]
+        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+        print(f"Direction '{direction}': {len(scenarios)} scenarios, avg quality: {avg_quality:.1f}, range: {min(quality_scores)}-{max(quality_scores)}")
+        
+        direction_groups[direction] = scenarios
+    
+    # Run parallel tournaments for each direction with quality-seeded brackets
     tournament_tasks = []
     for direction, scenarios in direction_groups.items():
         task = run_direction_tournament(direction, scenarios, config)
@@ -1587,6 +1677,9 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
                 "scenario_content": winner.get("scenario_content", ""),
                 "core_assumption": winner.get("core_assumption", ""),
                 "team_id": winner.get("team_id", ""),
+                "quality_score": winner.get("quality_score", 0),
+                "quality_scores": winner.get("quality_scores", {}),
+                "advancement_recommendation": winner.get("advancement_recommendation", "N/A"),
                 "competition_rank": i + 1,
                 "selection_reasoning": f"Tournament winner from {winner.get('research_direction', 'unknown')} direction"
             })
@@ -1613,13 +1706,33 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     
     # Format direction winners summary dynamically
     direction_winners_summary = ""
+    quality_scores = []
+    
     for i, winner in enumerate(direction_winners, 1):
         direction_winners_summary += f"Direction {i} Winner: {winner.get('research_direction', 'Unknown')}\n"
         direction_winners_summary += f"  - Core Assumption: {winner.get('core_assumption', 'N/A')}\n"
-        direction_winners_summary += f"  - Team: {winner.get('team_id', 'Unknown')}\n\n"
+        direction_winners_summary += f"  - Team: {winner.get('team_id', 'Unknown')}\n"
+        
+        # Add quality metrics
+        quality_score = winner.get('quality_score', 0)
+        advancement_rec = winner.get('advancement_recommendation', 'N/A')
+        if quality_score > 0:
+            direction_winners_summary += f"  - Quality Score: {quality_score}/100\n"
+            direction_winners_summary += f"  - Pre-Tournament Assessment: {advancement_rec}\n"
+            quality_scores.append(quality_score)
+        
+        direction_winners_summary += "\n"
     
     if not direction_winners_summary:
         direction_winners_summary = "No direction winners available.\n"
+    else:
+        # Add overall quality statistics
+        if quality_scores:
+            avg_quality = sum(quality_scores) / len(quality_scores)
+            direction_winners_summary += f"Overall Quality Statistics:\n"
+            direction_winners_summary += f"  - Average Winner Quality: {avg_quality:.1f}/100\n"
+            direction_winners_summary += f"  - Quality Range: {min(quality_scores)}-{max(quality_scores)}/100\n"
+            direction_winners_summary += f"  - Total Winners with Quality Data: {len(quality_scores)}\n\n"
 
     # Use the new process-focused meta review prompt
     meta_review_prompt = META_REVIEW_PROMPT.format(
@@ -1996,13 +2109,27 @@ def format_reflection_critiques(critiques: list) -> str:
     return content
 
 def format_tournament_results(winners: list, all_results: list) -> str:
-    """Format tournament results for markdown output."""
+    """Format tournament results for markdown output with quality metrics."""
     content = "# Co-Scientist Tournament Results\n\n"
     content += f"**Number of Tournaments:** {len(winners)}\n\n"
     
     if not winners:
         content += "No tournament winners - likely due to scenario generation failures.\n\n"
         return content
+    
+    # Calculate overall quality statistics
+    all_quality_scores = []
+    for winner in winners:
+        winning_scenario = winner.get("winner", {})
+        if winning_scenario and isinstance(winning_scenario, dict):
+            quality_score = winning_scenario.get("quality_score", 0)
+            if quality_score > 0:
+                all_quality_scores.append(quality_score)
+    
+    if all_quality_scores:
+        avg_quality = sum(all_quality_scores) / len(all_quality_scores)
+        content += f"**Average Winner Quality Score:** {avg_quality:.1f}/100\n"
+        content += f"**Quality Range:** {min(all_quality_scores)}-{max(all_quality_scores)}/100\n\n"
     
     for i, winner in enumerate(winners, 1):
         if not winner:
@@ -2018,14 +2145,36 @@ def format_tournament_results(winners: list, all_results: list) -> str:
         content += f"**Rounds Completed:** {rounds}\n"
         
         if winning_scenario and isinstance(winning_scenario, dict):
-            content += f"**Winner Team:** {winning_scenario.get('team_id', 'Unknown')}\n\n"
+            team_id = winning_scenario.get('team_id', 'Unknown')
+            quality_score = winning_scenario.get("quality_score", 0)
+            advancement_rec = winning_scenario.get("advancement_recommendation", "N/A")
+            
+            content += f"**Winner Team:** {team_id}\n"
+            content += f"**Quality Score:** {quality_score}/100\n"
+            content += f"**Pre-Tournament Assessment:** {advancement_rec}\n"
+            
+            # Show individual dimension scores if available
+            quality_scores = winning_scenario.get("quality_scores", {})
+            if quality_scores and len(quality_scores) > 1:  # More than just overall score
+                content += f"**Quality Breakdown:**\n"
+                for dimension, score in quality_scores.items():
+                    if dimension != "overall_quality_score":
+                        dimension_display = dimension.replace('_', ' ').title()
+                        content += f"  - {dimension_display}: {score}/100\n"
+            
+            # Show reflection summary if available
+            critique_summary = winning_scenario.get("critique_summary", "")
+            if critique_summary and critique_summary != "No reflection critique available":
+                content += f"**Reflection Summary:** {critique_summary}\n"
+            
+            content += "\n"
             
             # Show winner scenario content (truncated)
             scenario_content = winning_scenario.get('scenario_content', 'No content')
-            if len(scenario_content) > 800:
-                content += scenario_content[:800] + "...\n\n"
+            if len(scenario_content) > 600:  # Reduced to make room for quality info
+                content += f"**Winning Scenario:** {scenario_content[:600]}...\n\n"
             else:
-                content += scenario_content + "\n\n"
+                content += f"**Winning Scenario:** {scenario_content}\n\n"
         else:
             content += "**Winner Team:** No valid winner\n\n"
             content += "No winning scenario content available.\n\n"
