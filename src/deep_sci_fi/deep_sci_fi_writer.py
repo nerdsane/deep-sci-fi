@@ -116,12 +116,10 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
     output_dir = os.path.join("output", run_timestamp)
     starting_year = datetime.now().year
     
-    # Use co_scientist for competitive storyline creation (generic, not sci-fi specific)
+    # Use co_scientist for competitive storyline creation
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description="Create a compelling storyline for a novel",
-        context=f"User's idea for the novel: {state['input']}",
         use_case=UseCase.STORYLINE_CREATION,
-        domain_context="General fiction writing with emphasis on strong narrative structure and character development"
+        context=f"User's idea for the novel: {state['input']}"
     )
     
     # Configure co_scientist for quick competition using regular LLM (not research)
@@ -268,13 +266,11 @@ async def write_first_chapter(state: AgentState, config: RunnableConfig):
     
     print("--- Writing First Chapter with Co-Scientist Competition ---")
     
-    # Use co_scientist for competitive chapter writing (generic, not sci-fi specific)
+    # Use co_scientist for competitive chapter writing
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description="Write an engaging opening chapter that hooks readers and establishes the story world",
-        context=f"Write the first chapter based on this storyline and chapter structure. The opening should immediately engage readers, establish the protagonist's voice, introduce the key conflict, and set up the story elements naturally.\n\nStoryline: {storyline}\n\nChapter Structure: {chapter_arcs}",
-        use_case=UseCase.CHAPTER_WRITING,  # Use chapter writing template
-        reference_material=f"Storyline: {storyline}\n\nChapter Arcs: {chapter_arcs}",
-        domain_context="Fiction writing with strong character introduction and world-building"
+        use_case=UseCase.CHAPTER_WRITING,
+        storyline=storyline,
+        chapter_arcs=chapter_arcs
     )
     
     # Configure co_scientist for quick competition using regular LLM (not research)
@@ -445,12 +441,9 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     
     # Use co_scientist for competitive scenario generation
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description=f"Analyze the provided story context and world-building questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures for {target_year}.",
-        context=questions,  # World-building questions
         use_case=UseCase.SCENARIO_GENERATION,
+        context=questions,  # World-building questions
         reference_material=storyline,  # Story context
-        domain_context="Science fiction world-building with focus on technological development and scientific plausibility",
-        # Legacy fields for backward compatibility
         target_year=target_year,
         baseline_world_state=state.get("baseline_world_state"),
         years_in_future=state.get("years_in_future")
@@ -859,21 +852,13 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         
     print("--- Conducting Co-Scientist Competition on Linguistic Evolution ---")
 
-    # Prepare research context based on loop iteration
-    if state.get("loop_count", 0) > 0:
-        task_description = f"Analyze and project linguistic evolution from baseline world state through {years_in_future} additional years"
-        context = f"Building on the established world state, project how language, communication, and cultural expression will evolve over the next {years_in_future} years given technological and social developments.\n\nBaseline World: {baseline_world_state}\n\nStory Context: {storyline}\n\nChapter Structure: {chapter_arcs}\n\nFirst Chapter: {first_chapter}\n\nTarget Year: {target_year}"
-    else:
-        task_description = f"Analyze linguistic evolution and communication changes by {target_year}"
-        context = f"Research how language, communication methods, cultural expression, and social linguistics will evolve given the technological and societal changes described in the world state.\n\nWorld State: {baseline_world_state}\n\nTarget Year: {target_year}"
-
     # Use co_scientist for competitive linguistic analysis with research
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description=task_description,
-        context=context,
         use_case=UseCase.LINGUISTIC_EVOLUTION,
         reference_material=f"World State: {baseline_world_state}\n\nStoryline: {storyline}",
-        domain_context="Linguistics, sociolinguistics, communication technology, cultural evolution, and anthropology"
+        target_year=target_year,
+        years_in_future=years_in_future,
+        baseline_world_state=baseline_world_state
     )
     
     # Configure co_scientist for quick competition with deep research
@@ -1014,11 +999,11 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
     
     # Use co_scientist for competitive storyline adjustment
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description="Revise and enhance the storyline to integrate world-building developments and linguistic evolution",
-        context=f"Adjust the original storyline to incorporate the detailed world-building and linguistic evolution that has been developed. The revised storyline should seamlessly integrate new technological, social, and cultural developments while maintaining narrative coherence and character consistency.\n\nOriginal Storyline: {storyline}\n\nWorld Developments: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}",
         use_case=UseCase.STORYLINE_ADJUSTMENT,
         reference_material=f"Original Storyline: {storyline}",
-        domain_context="Science fiction narrative development with world-building integration and linguistic consistency"
+        storyline=storyline,
+        baseline_world_state=baseline_world_state,
+        linguistic_evolution=linguistic_evolution
     )
     
     # Configure co_scientist for full competition with world-aware reflection
@@ -1156,11 +1141,13 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
     
     # Use co_scientist for competitive chapter rewriting
     co_scientist_input = CoScientistConfiguration.create_input_state(
-        task_description="Rewrite the first chapter to fully integrate the developed world-building, linguistic evolution, and narrative revisions",
-        context=f"Completely rewrite the opening chapter to seamlessly incorporate all the world-building, linguistic evolution, and storyline developments. The rewritten chapter should feel natural and immersive, using the evolved language and cultural elements while maintaining strong narrative pacing and character development.\n\nRevised Storyline: {revised_storyline}\n\nRevised Chapter Structure: {revised_chapter_arcs}\n\nWorld State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}\n\nTarget Year: {target_year}",
         use_case=UseCase.CHAPTER_REWRITING,
         reference_material=f"Original Chapter: {first_chapter}",
-        domain_context=f"Hard science fiction chapter set in {target_year} with evolved linguistics and advanced world-building"
+        revised_storyline=revised_storyline,
+        revised_chapter_arcs=revised_chapter_arcs,
+        baseline_world_state=baseline_world_state,
+        linguistic_evolution=linguistic_evolution,
+        target_year=target_year
     )
     
     # Configure co_scientist for full competition with world-aware reflection

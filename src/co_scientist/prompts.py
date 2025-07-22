@@ -26,13 +26,37 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
     if config and config.get("configurable"):
         world_state_context = config["configurable"].get("world_state_context", "")
         
-    return template.format(
-        task_description=state.get("task_description", ""),
-        context=state.get("context", ""),
-        reference_material=state.get("reference_material", ""),
-        domain_context=state.get("domain_context", ""),
-        world_state_context=world_state_context
-    )
+    # Create base parameters
+    params = {
+        "world_state_context": world_state_context
+    }
+    
+    # Add use-case specific context parameters
+    context_value = state.get("context", "")
+    if use_case == "scenario_generation":
+        params["world_building_questions"] = context_value
+        params["storyline"] = state.get("reference_material", "")
+        params["target_year"] = state.get("target_year", "future")
+    elif use_case == "chapter_writing":
+        params["storyline"] = state.get("storyline", "")
+        params["chapter_arcs"] = state.get("chapter_arcs", "")
+    elif use_case == "storyline_creation":
+        params["story_concept"] = context_value
+        params["source_content"] = state.get("reference_material", "")
+    elif use_case == "linguistic_evolution":
+        params["source_content"] = state.get("reference_material", "")
+        params["target_year"] = state.get("target_year", "future")
+        params["years_in_future"] = state.get("years_in_future", "many")
+    elif use_case == "storyline_adjustment":
+        params["source_content"] = state.get("reference_material", "")
+    elif use_case == "chapter_rewriting":
+        params["source_content"] = state.get("reference_material", "")
+    else:
+        # For other use cases, keep generic context
+        params["context"] = context_value
+        params["source_content"] = state.get("reference_material", "")
+    
+    return template.format(**params)
 
 def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str, config: dict = None) -> str:
     """Get the appropriate generation prompt for the use case."""
@@ -66,17 +90,33 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
             target_year=state.get("target_year", "future")
         )
     
-    # New flexible format
-    return template.format(
-        direction_name=direction.get("name", ""),
-        direction_assumption=direction.get("assumption", ""),
-        team_id=team_id,
-        task_description=state.get("task_description", ""),
-        context=state.get("context", ""),
-        reference_material=state.get("reference_material", ""),
-        domain_context=state.get("domain_context", ""),
-        world_state_context=world_state_context
-    )
+    # Create base parameters for flexible format
+    params = {
+        "direction_name": direction.get("name", ""),
+        "direction_assumption": direction.get("assumption", ""),
+        "team_id": team_id,
+        "source_content": state.get("reference_material", ""),
+        "world_state_context": world_state_context
+    }
+    
+    # Add use-case specific context parameters
+    context_value = state.get("context", "")
+    if use_case == "chapter_writing":
+        params["storyline"] = state.get("storyline", "")
+        params["chapter_arcs"] = state.get("chapter_arcs", "")
+    elif use_case == "storyline_creation":
+        params["story_concept"] = context_value
+    elif use_case == "linguistic_evolution":
+        params["research_context"] = context_value
+    elif use_case == "storyline_adjustment":
+        pass  # No context needed, instructions are embedded in prompt
+    elif use_case == "chapter_rewriting":
+        pass  # No context needed, instructions are embedded in prompt
+    else:
+        # For other use cases, keep generic context
+        params["context"] = context_value
+    
+    return template.format(**params)
 
 # === Meta-Analysis Phase ===
 
@@ -84,23 +124,19 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
 INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for scenario competition.
 
 <Task>
-{task_description}
+Analyze the provided story context and world-building questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures for {target_year}.
 </Task>
 
-<Reference Material>
-{reference_material}
-</Reference Material>
+<Storyline>
+{storyline}
+</Storyline>
 
-<Context>
-{context}
-</Context>
-
-<Domain Context>
-{domain_context}
-</Domain Context>
+<World-Building Questions>
+{world_building_questions}
+</World-Building Questions>
 
 <Scope>
-Analyze the provided context to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures.
+Analyze the provided world-building questions to identify 3 fundamentally different technological/scientific assumption sets that would lead to meaningfully different futures for this science fiction world-building scenario.
 </Scope>
 
 <Requirements>
@@ -126,16 +162,6 @@ Analyze the provided context to identify 3 fundamentally different technological
 5. Validate that directions are scientifically plausible but meaningfully different
 </Process>
 
-<Domain Focus Areas>
-technological_development: Core assumptions about which technologies will dominate
-scientific_trajectories: Different paths for scientific advancement and discovery
-societal_systems: Implications for governance, economics, and social structures
-energy_paradigms: Different approaches to energy generation and distribution
-communication_evolution: How information exchange and connectivity develop
-transportation_futures: Different models for mobility and logistics
-environmental_interaction: Relationship between technology and ecological systems
-</Domain Focus Areas>
-
 <Output Format>
 Direction 1: [Name]
 Core Assumption: [Key technological assumption]
@@ -160,8 +186,6 @@ Reasoning: [Explain why these 3 directions provide meaningful variety while rema
 </Reminders>
 """
 
-
-
 # Used in: meta_analysis_phase() for scenario generation with baseline world state
 INCREMENTAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for evolutionary scenario competition.
 
@@ -174,7 +198,7 @@ Analyze the current world state and identify 3 fundamentally different evolution
 </Story Context>
 
 <World-Building Questions>
-{research_context}
+{world_building_questions}
 </World-Building Questions>
 
 <Current Baseline World State>
@@ -195,7 +219,6 @@ Analyze the current world state and identify 3 fundamentally different evolution
 Requirements for good evolutionary research directions:
 - Different core assumptions about how current systems will evolve
 - Different but equally plausible evolutionary trajectories  
-- Different implications for how society, energy, transport, communication, etc. will develop
 - Meaningful variety for storytelling purposes while maintaining baseline consistency
 
 Format your response as:
@@ -264,15 +287,7 @@ Develop a complete scenario that addresses ALL the world-building questions whil
 </Process>
 
 <Scope>
-Your scenario must address:
-- Energy systems and distribution
-- Transportation networks and technology
-- Communication and information systems
-- Social structures and governance
-- Economic systems and resource allocation
-- Scientific/technological capabilities
-- Environmental conditions and sustainability
-- Human enhancement and medical technology
+Your scenario must address the world-building questions provided in the context.
 </Scope>
 
 <Research Methodology>
@@ -331,15 +346,7 @@ Project evolutionary changes that build logically on the established baseline wh
 3. Ground every technological claim in current research or plausible extrapolation
 4. Maintain consistency with the established world while showing realistic progression
 
-Your scenario must show evolution in:
-- Energy systems and distribution
-- Transportation networks and technology
-- Communication and information systems
-- Social structures and governance
-- Economic systems and resource allocation
-- Scientific/technological capabilities
-- Environmental conditions and sustainability
-- Human enhancement and medical technology
+Your scenario must show evolution in regards to the world-building questions provided in the context.
 
 Research Methodology:
 - Start with the baseline world state as your foundation
@@ -363,7 +370,7 @@ Generate a comprehensive evolutionary scenario that is:
 STORYLINE_META_ANALYSIS_PROMPT = """You are a master storyteller tasked with identifying distinct storyline approaches.
 
 <Task>
-{task_description}
+Create a compelling storyline for a novel.
 </Task>
 
 <Scope>
@@ -371,12 +378,8 @@ Identify 2 fundamentally different narrative approaches for creating a compellin
 </Scope>
 
 <Story Concept>
-{context}
+{story_concept}
 </Story Concept>
-
-<Domain Context>
-{domain_context}
-</Domain Context>
 
 <Requirements>
 - Character-driven vs Plot-driven approaches
@@ -414,7 +417,7 @@ Reasoning: [Why these approaches offer distinct storyline possibilities]
 CHAPTER_WRITING_META_ANALYSIS_PROMPT = """You are an expert chapter editor tasked with identifying distinct writing approaches.
 
 <Task>
-{task_description}
+Write an engaging opening chapter that hooks readers and establishes the story world.
 </Task>
 
 <Scope>
@@ -422,16 +425,16 @@ Identify 2 fundamentally different approaches for writing an engaging opening ch
 </Scope>
 
 <Storyline>
-{reference_material}
+{storyline}
 </Storyline>
 
-<Context>
-{context}
-</Context>
+<Chapter Structure>
+{chapter_arcs}
+</Chapter Structure>
 
-<Domain Context>
-{domain_context}
-</Domain Context>
+<Writing Instructions>
+The opening should immediately engage readers, establish the protagonist's voice, introduce the key conflict, and set up the story elements naturally.
+</Writing Instructions>
 
 <Requirements>
 - Action-driven vs Character-driven openings
@@ -473,7 +476,7 @@ STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a compell
 </Approach>
 
 <Story Concept>
-{context}
+{story_concept}
 </Story Concept>
 
 <Task>
@@ -506,12 +509,16 @@ CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an eng
 </Approach>
 
 <Storyline>
-{reference_material}
+{storyline}
 </Storyline>
 
-<Chapter Requirements>
-{context}
-</Chapter Requirements>
+<Chapter Structure>
+{chapter_arcs}
+</Chapter Structure>
+
+<Writing Instructions>
+The opening should immediately engage readers, establish the protagonist's voice, introduce the key conflict, and set up the story elements naturally.
+</Writing Instructions>
 
 <Task>
 Write a complete first chapter that hooks readers and launches the story using your chosen approach.
@@ -541,7 +548,7 @@ Write a complete, compelling first chapter that exemplifies your chosen approach
 CHAPTER_META_ANALYSIS_PROMPT = """You are an expert literary analyst tasked with identifying distinct approaches for rewriting a chapter to fully integrate developed world-building.
 
 <Task>
-{task_description}
+Rewrite the first chapter to fully integrate the developed world-building, linguistic evolution, and narrative revisions.
 </Task>
 
 <Scope>
@@ -549,26 +556,23 @@ Identify 2 fundamentally different approaches for rewriting the chapter to seaml
 </Scope>
 
 <Current Chapter>
-{reference_material}
+{source_content}
 </Current Chapter>
 
 <Chapter Rewriting Requirements>
-{context}
+Completely rewrite the opening chapter to seamlessly incorporate all the world-building, linguistic evolution, and storyline developments. The rewritten chapter should feel natural and immersive, using the evolved language and cultural elements while maintaining strong narrative pacing and character development.
 </Chapter Rewriting Requirements>
 
 <World State Context>
 {world_state_context}
 </World State Context>
 
-<Domain Context>
-{domain_context}
-</Domain Context>
 
 <Requirements>
-- World Integration: How to weave world-building naturally into the narrative
-- Linguistic Consistency: How to incorporate evolved language and cultural elements
-- Character Authenticity: How characters behave within the established world constraints
-- Immersion Strategy: How to immerse readers in the developed world without exposition dumps
+- World Integration: weave world-building naturally into the narrative
+- Linguistic Consistency: incorporate evolved language and cultural elements
+- Character Authenticity: characters behave within the established world constraints
+- Immersion Strategy: immerse readers in the developed world without exposition dumps
 </Requirements>
 
 <Key Constraints>
@@ -612,11 +616,11 @@ CHAPTER_GENERATION_PROMPT = """You are a skilled science fiction writer rewritin
 </Integration Approach>
 
 <Original Chapter>
-{reference_material}
+{source_content}
 </Original Chapter>
 
 <Rewriting Requirements>
-{context}
+Completely rewrite the opening chapter to seamlessly incorporate all the world-building, linguistic evolution, and storyline developments. The rewritten chapter should feel natural and immersive, using the evolved language and cultural elements while maintaining strong narrative pacing and character development.
 </Rewriting Requirements>
 
 <Developed World State>
@@ -662,7 +666,7 @@ Rewrite the complete chapter as a natural story within this established world.
 LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist and sociolinguist from this advanced technological world identifying distinct approaches for researching how language has evolved in our society.
 
 <Task>
-{task_description}
+Analyze linguistic evolution and communication changes by {target_year} (projecting {years_in_future} years forward).
 </Task>
 
 <Scope>
@@ -670,20 +674,16 @@ Identify 2 fundamentally different research approaches for understanding how lan
 </Scope>
 
 <Research Context>
-{context}
+Research how language, communication methods, cultural expression, and social linguistics evolve given the technological and societal changes described in the world state. Focus on projecting linguistic evolution through technological and social developments.
 </Research Context>
 
 <World State Foundation>
-{reference_material}
+{source_content}
 </World State Foundation>
 
 <Previous Linguistic Research>
 {world_state_context}
 </Previous Linguistic Research>
-
-<Domain Focus>
-{domain_context}
-</Domain Focus>
 
 <Requirements>
 - Technology Integration Patterns: How our integrated technological systems naturally shaped communication
@@ -706,15 +706,6 @@ Identify 2 fundamentally different research approaches for understanding how lan
 3. Create 2 distinct research approaches focusing on different aspects of our linguistic development
 4. Extend previous research with refined understanding of our linguistic evolution
 </Process>
-
-<Domain Focus Areas>
-technological_linguistics: How our integrated technology naturally shaped language structure and usage
-sociolinguistics: How our social and cultural development drove natural linguistic evolution
-communication_systems: How our communication methods naturally evolved with linguistic impact
-cultural_preservation: How our society balanced linguistic change with cultural identity maintenance
-generational_dynamics: How different generations in our world naturally adapted to linguistic changes
-semantic_evolution: How meanings and concepts naturally evolved with our technological advancement
-</Domain Focus Areas>
 
 <Output Format>
 Direction 1: [Name]
@@ -745,11 +736,11 @@ LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team f
 </Research Approach>
 
 <Current World State>
-{reference_material}
+{source_content}
 </Current World State>
 
 <Research Requirements>
-{context}
+Research how language, communication methods, cultural expression, and social linguistics evolve given the technological and societal changes described in the world state. Focus on projecting linguistic evolution through technological and social developments.
 </Research Requirements>
 
 <Previous Linguistic Research>
@@ -793,7 +784,7 @@ Research how language naturally evolved in our technological society with specif
 STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT = """You are an expert narrative analyst from this advanced world identifying distinct approaches for adjusting storylines to integrate developed world-building.
 
 <Task>
-{task_description}
+Revise and enhance the storyline to integrate world-building developments and linguistic evolution.
 </Task>
 
 <Scope>
@@ -801,20 +792,17 @@ Identify 2 fundamentally different approaches for revising the storyline to seam
 </Scope>
 
 <Original Storyline>
-{reference_material}
+{source_content}
 </Original Storyline>
 
 <Storyline Adjustment Requirements>
-{context}
+Adjust the original storyline to incorporate the detailed world-building and linguistic evolution that has been developed. The revised storyline should seamlessly integrate new technological, social, and cultural developments while maintaining narrative coherence and character consistency.
 </Storyline Adjustment Requirements>
 
 <Developed World State>
 {world_state_context}
 </Developed World State>
 
-<Domain Context>
-{domain_context}
-</Domain Context>
 
 <Requirements>
 - World Integration: How to weave developed world-building naturally into the narrative structure
@@ -865,11 +853,11 @@ STORYLINE_ADJUSTMENT_GENERATION_PROMPT = """You are a narrative development team
 </Integration Approach>
 
 <Original Storyline>
-{reference_material}
+{source_content}
 </Original Storyline>
 
 <Adjustment Requirements>
-{context}
+Adjust the original storyline to incorporate the detailed world-building and linguistic evolution that has been developed. The revised storyline should seamlessly integrate new technological, social, and cultural developments while maintaining narrative coherence and character consistency.
 </Adjustment Requirements>
 
 <Developed World State>
@@ -947,14 +935,6 @@ Evaluate this scenario specifically from your domain expertise and provide rigor
 4. Suggest specific improvements to make the scenario more scientifically sound
 </Process>
 
-<Domain Focus Areas>
-Physics: Energy conservation, thermodynamics, materials science limits, fundamental physical constraints
-Biology: Evolutionary timescales, biological constraints, medical/genetic plausibility, ecosystem impacts
-Engineering: Manufacturing feasibility, scalability, infrastructure requirements, implementation challenges
-Social Science: Human behavior patterns, social system evolution, adoption curves, cultural factors
-Economics: Market dynamics, resource allocation, economic incentives, cost-benefit analysis
-</Domain Focus Areas>
-
 <Output Requirements>
 Provide:
 1. Overall assessment of scientific rigor in your domain
@@ -1012,16 +992,6 @@ Evaluate how well the narrative content integrates with and reflects the establi
 4. Check if linguistic evolution and cultural elements are properly integrated
 5. Assess reader immersion and believability within the established world
 </Process>
-
-<Domain Focus Areas>
-narrative_structure: Plot coherence with world rules, story pacing that reflects world constraints
-world_building: Consistency with established systems, authentic use of world elements
-character_development: Characters behaving authentically within world constraints
-thematic_coherence: Themes that emerge naturally from the world state
-world_integration: Seamless integration of world elements into narrative
-linguistic_consistency: Proper use of evolved language and cultural expressions
-prose_style: Writing style that reflects the world's tone and atmosphere
-</Domain Focus Areas>
 
 <Output Requirements>
 Provide:

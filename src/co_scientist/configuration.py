@@ -398,37 +398,38 @@ class CoScientistConfiguration(BaseModel):
 
     @classmethod
     def create_input_state(cls, 
-                          task_description: str,
-                          context: str,
                           use_case: UseCase = UseCase.SCENARIO_GENERATION,
-                          reference_material: str = None,
-                          domain_context: str = None,
+                          context: str = None,
+                          storyline: str = None,
+                          chapter_arcs: str = None,
                           **legacy_fields) -> dict:
         """Create a properly formatted input state for co_scientist.
         
         Args:
-            task_description: What the competitive process should accomplish
-            context: Background information, requirements, constraints
             use_case: Which template to use
-            reference_material: Existing content to work with (for rewriting tasks)
-            domain_context: Genre/domain-specific context
+            context: Background information, requirements, constraints (optional)
+            storyline: The storyline for chapter writing (optional)
+            chapter_arcs: The chapter arcs for chapter writing (optional)
             **legacy_fields: Backward compatibility fields like storyline, target_year, etc.
         
         Returns:
             Dictionary formatted for CoScientistInputState
         """
         input_state = {
-            "task_description": task_description,
-            "context": context,
             "use_case": use_case.value if hasattr(use_case, 'value') else use_case
         }
         
-        if reference_material:
-            input_state["reference_material"] = reference_material
-        if domain_context:
-            input_state["domain_context"] = domain_context
+        if context:
+            input_state["context"] = context
+        if storyline:
+            input_state["storyline"] = storyline
+        if chapter_arcs:
+            input_state["chapter_arcs"] = chapter_arcs
             
-        # Add any legacy fields for backward compatibility
+        # For backward compatibility and other use cases
+        if "reference_material" in legacy_fields:
+            input_state["reference_material"] = legacy_fields["reference_material"]
+            
         input_state.update(legacy_fields)
         
         return input_state

@@ -423,7 +423,7 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
         # Use incremental prompt for scenario generation with baseline
         meta_prompt = INCREMENTAL_META_ANALYSIS_PROMPT.format(
             storyline=processed_state.get("storyline", ""),
-            research_context=processed_state.get("context", processed_state.get("research_context", "")),
+            world_building_questions=processed_state.get("context", processed_state.get("research_context", "")),
             baseline_world_state=processed_state["baseline_world_state"],
             years_in_future=processed_state["years_in_future"]
         )
