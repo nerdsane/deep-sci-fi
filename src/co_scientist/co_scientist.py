@@ -205,9 +205,10 @@ class EloTracker:
 class CoScientistOutputManager:
     """Manages detailed output for co-scientist runs with timestamped directories."""
     
-    def __init__(self, base_output_dir: str = "output"):
+    def __init__(self, base_output_dir: str = "output", phase: str = None):
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = Path(base_output_dir) / f"{self.timestamp}_coscientist"
+        phase_suffix = f"_{phase}" if phase else ""
+        self.run_dir = Path(base_output_dir) / f"{self.timestamp}_coscientist{phase_suffix}"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.file_counter = 0
         
@@ -245,49 +246,47 @@ class CoScientistOutputManager:
 # Global output manager instance
 _output_manager = None
 
-def get_output_manager(output_dir: str = "output") -> CoScientistOutputManager:
+def get_output_manager(output_dir: str = "output", phase: str = None) -> CoScientistOutputManager:
     """Get or create the output manager for this run."""
     global _output_manager
     if _output_manager is None:
-        _output_manager = CoScientistOutputManager(output_dir)
+        _output_manager = CoScientistOutputManager(output_dir, phase)
     return _output_manager
 
-def save_co_scientist_output(filename: str, content: str, output_dir: str = "output"):
+def save_co_scientist_output(filename: str, content: str, output_dir: str = "output", phase: str = None):
     """Save co_scientist intermediate results to markdown files."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     numbered_filename = manager.get_next_filename(filename)
     manager.save_file(numbered_filename, content)
 
-def save_individual_scenarios(scenarios: list, output_dir: str = "output"):
-    """Save each scenario individually with full content."""
-    manager = get_output_manager(output_dir)
+def save_individual_scenarios(scenarios: list, output_dir: str = "output", phase: str = None):
+    """Save detailed individual scenario files for debugging and analysis."""
+    manager = get_output_manager(output_dir, phase)
     
-    for i, scenario in enumerate(scenarios, 1):
-        scenario_id = scenario.get('scenario_id', f'scenario_{i}')
-        team_id = scenario.get('team_id', 'unknown_team')
-        direction = scenario.get('research_direction', 'unknown_direction')
+    for scenario in scenarios:
+        scenario_id = scenario.get("scenario_id", "unknown")
+        direction = scenario.get("research_direction", "Unknown")
+        team_id = scenario.get("team_id", "unknown")
         
-        # Full scenario content
-        content = f"# Scenario {scenario_id}\n\n"
-        content += f"**Team ID:** {team_id}\n"
-        content += f"**Research Direction:** {direction}\n"
-        content += f"**Generated:** {datetime.now().isoformat()}\n\n"
-        content += "## Full Scenario Content\n\n"
-        content += scenario.get('scenario_content', 'No content available')
+        content = f"# Scenario: {scenario_id}\n\n"
+        content += f"**Direction:** {direction}\n"
+        content += f"**Team:** {team_id}\n"
+        content += f"**Generated:** {scenario.get('generation_timestamp', 'Unknown')}\n\n"
+        content += "## Content\n\n"
+        content += scenario.get("scenario_content", "No content available")
         
-        # Include research query and raw results if available
-        if 'research_query' in scenario:
-            content += f"\n\n## Research Query\n\n{scenario['research_query']}"
-            
-        if 'raw_research_result' in scenario:
-            content += f"\n\n## Raw Research Output\n\n{scenario['raw_research_result']}"
+        # Add quality information if available
+        if scenario.get("quality_score"):
+            content += f"\n\n## Quality Information\n\n"
+            content += f"**Quality Score:** {scenario.get('quality_score', 0)}/100\n"
+            content += f"**Advancement Recommendation:** {scenario.get('advancement_recommendation', 'N/A')}\n"
         
-        filename = f"scenario_{i:02d}_{team_id}_{scenario_id[:8]}.md"
+        filename = f"scenario_{scenario_id}_{team_id}.md"
         manager.save_file(filename, content, "scenarios")
 
-def save_individual_critiques(critiques: list, output_dir: str = "output"):
-    """Save each critique individually."""
-    manager = get_output_manager(output_dir)
+def save_individual_critiques(critiques: list, output_dir: str = "output", phase: str = None):
+    """Save detailed individual critique files for debugging and analysis."""
+    manager = get_output_manager(output_dir, phase)
     
     # Group by domain for organization
     by_domain = {}
@@ -327,9 +326,9 @@ def save_individual_critiques(critiques: list, output_dir: str = "output"):
             manager.save_file(filename, content, "critiques")
             critique_counter += 1
 
-def save_individual_tournament_comparisons(all_tournament_data: list, output_dir: str = "output"):
+def save_individual_tournament_comparisons(all_tournament_data: list, output_dir: str = "output", phase: str = None):
     """Save each tournament comparison individually with full reasoning."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     comparison_counter = 1
     for tournament in all_tournament_data:
@@ -360,9 +359,9 @@ def save_individual_tournament_comparisons(all_tournament_data: list, output_dir
             manager.save_file(filename, content, "tournament_comparisons")
             comparison_counter += 1
 
-def save_individual_evolution_attempts(evolutions: list, output_dir: str = "output"):
+def save_individual_evolution_attempts(evolutions: list, output_dir: str = "output", phase: str = None):
     """Save each evolution attempt individually with full prompts and reasoning."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     evolution_counter = 1
     for evolution in evolutions:
@@ -405,9 +404,9 @@ def save_individual_evolution_attempts(evolutions: list, output_dir: str = "outp
         manager.save_file(filename, content, "evolution_attempts")
         evolution_counter += 1
 
-def save_tournament_brackets(all_tournament_data: list, output_dir: str = "output"):
+def save_tournament_brackets(all_tournament_data: list, output_dir: str = "output", phase: str = None):
     """Save detailed tournament bracket progression for each direction with quality and Elo metrics."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     for i, tournament in enumerate(all_tournament_data, 1):
         if not tournament or isinstance(tournament, Exception):
@@ -520,9 +519,9 @@ def save_tournament_brackets(all_tournament_data: list, output_dir: str = "outpu
         filename = f"bracket_{i:02d}_{direction.replace(' ', '_')}.md"
         manager.save_file(filename, content, "tournament_brackets")
 
-def save_evolution_tournament_details(evolution_tournaments: list, output_dir: str = "output"):
+def save_evolution_tournament_details(evolution_tournaments: list, output_dir: str = "output", phase: str = None):
     """Save detailed evolution tournament comparisons."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     tournament_counter = 1
     for tournament in evolution_tournaments:
@@ -562,9 +561,9 @@ def save_evolution_tournament_details(evolution_tournaments: list, output_dir: s
         manager.save_file(filename, content, "evolution_tournaments")
         tournament_counter += 1
 
-def save_tournament_details(tournaments: list, output_dir: str = "output"):
+def save_tournament_details(tournaments: list, output_dir: str = "output", phase: str = None):
     """Save detailed tournament results."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     for i, tournament in enumerate(tournaments, 1):
         direction = tournament.get('direction', 'unknown')
@@ -591,9 +590,9 @@ def save_tournament_details(tournaments: list, output_dir: str = "output"):
         filename = f"tournament_{i:02d}_{direction.replace(' ', '_')}.md"
         manager.save_file(filename, content, "tournaments")
 
-def save_evolution_details(evolutions: list, output_dir: str = "output"):
+def save_evolution_details(evolutions: list, output_dir: str = "output", phase: str = None):
     """Save detailed evolution results."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     evolution_counter = 1
     for evolution in evolutions:
@@ -677,7 +676,7 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
     
     # Save meta-analysis results
     if configuration.save_intermediate_results:
-        save_co_scientist_output("meta_analysis.md", response.content, configuration.output_dir)
+        save_co_scientist_output("meta_analysis.md", response.content, configuration.output_dir, configuration.phase)
     
     return {
         "research_directions": research_directions,
@@ -750,7 +749,7 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
     # Save scenario generation results
     if configuration.save_intermediate_results:
         # Save individual scenarios with full content
-        save_individual_scenarios(valid_scenarios, configuration.output_dir)
+        save_individual_scenarios(valid_scenarios, configuration.output_dir, configuration.phase)
         
         # Save raw JSON data for debugging
         manager = get_output_manager(configuration.output_dir)
@@ -758,7 +757,7 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
         
         # Save summary
         scenario_content = format_scenario_population(valid_scenarios)
-        save_co_scientist_output("scenario_population_summary.md", scenario_content, configuration.output_dir)
+        save_co_scientist_output("scenario_population_summary.md", scenario_content, configuration.output_dir, configuration.phase)
     
     return {
         "scenario_population": valid_scenarios,
@@ -918,15 +917,15 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     # Save reflection results
     if configuration.save_intermediate_results:
         # Save individual critiques with full content
-        save_individual_critiques(valid_critiques, configuration.output_dir)
+        save_individual_critiques(valid_critiques, configuration.output_dir, configuration.phase)
         
         # Save raw JSON data for debugging
-        manager = get_output_manager(configuration.output_dir)
+        manager = get_output_manager(configuration.output_dir, configuration.phase)
         manager.save_json("unified_critiques_raw_data.json", {"critiques": valid_critiques}, "raw_data")
         
         # Save summary with quality scores
         critique_content = format_unified_reflection_critiques(valid_critiques)
-        save_co_scientist_output("unified_reflection_summary.md", critique_content, configuration.output_dir)
+        save_co_scientist_output("unified_reflection_summary.md", critique_content, configuration.output_dir, configuration.phase)
     
     return {
         "reflection_critiques": valid_critiques,
@@ -1260,16 +1259,16 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
     # Save tournament results
     if configuration.save_intermediate_results:
         # Save individual tournament comparisons with full reasoning and Elo data
-        save_individual_tournament_comparisons(direction_winners, configuration.output_dir)
+        save_individual_tournament_comparisons(direction_winners, configuration.output_dir, configuration.phase)
         
         # Save tournament bracket progressions with Elo information
-        save_tournament_brackets(direction_winners, configuration.output_dir)
+        save_tournament_brackets(direction_winners, configuration.output_dir, configuration.phase)
         
         # Save individual tournament details (existing function)
-        save_tournament_details(direction_winners, configuration.output_dir)
+        save_tournament_details(direction_winners, configuration.output_dir, configuration.phase)
         
         # Save raw JSON data for debugging (including Elo data)
-        manager = get_output_manager(configuration.output_dir)
+        manager = get_output_manager(configuration.output_dir, configuration.phase)
         manager.save_json("tournaments_raw_data.json", {"tournaments": direction_winners}, "raw_data")
         
         # Save Elo rating data and statistics
@@ -1284,7 +1283,7 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         
         # Save summary with Elo information
         tournament_content = format_tournament_results(direction_winners, tournament_results)
-        save_co_scientist_output("tournament_results_summary.md", tournament_content, configuration.output_dir)
+        save_co_scientist_output("tournament_results_summary.md", tournament_content, configuration.output_dir, configuration.phase)
     
     
     return {
@@ -1511,18 +1510,18 @@ async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> di
     # Save evolution results
     if configuration.save_intermediate_results:
         # Save individual evolution attempts with full prompts and reasoning
-        save_individual_evolution_attempts(evolved_scenarios, configuration.output_dir)
+        save_individual_evolution_attempts(evolved_scenarios, configuration.output_dir, configuration.phase)
         
         # Save individual evolution details (existing function)
-        save_evolution_details(evolved_scenarios, configuration.output_dir)
+        save_evolution_details(evolved_scenarios, configuration.output_dir, configuration.phase)
         
         # Save raw JSON data for debugging
-        manager = get_output_manager(configuration.output_dir)
+        manager = get_output_manager(configuration.output_dir, configuration.phase)
         manager.save_json("evolutions_raw_data.json", {"evolutions": evolved_scenarios}, "raw_data")
         
         # Save summary
         evolution_content = format_evolution_results(evolved_scenarios)
-        save_co_scientist_output("evolution_results_summary.md", evolution_content, configuration.output_dir)
+        save_co_scientist_output("evolution_results_summary.md", evolution_content, configuration.output_dir, configuration.phase)
     
     return {
         "evolved_scenarios": evolved_scenarios,
@@ -1658,15 +1657,15 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
     # Save evolution tournament results
     if configuration.save_intermediate_results:
         # Save detailed evolution tournament comparisons
-        save_evolution_tournament_details(evolution_results, configuration.output_dir)
+        save_evolution_tournament_details(evolution_results, configuration.output_dir, configuration.phase)
         
         # Save raw JSON data for debugging
-        manager = get_output_manager(configuration.output_dir)
+        manager = get_output_manager(configuration.output_dir, configuration.phase)
         manager.save_json("evolution_tournaments_raw_data.json", {"evolution_tournaments": evolution_results}, "raw_data")
         
         # Save summary
         tournament_content = format_evolution_tournament_results(final_representatives)
-        save_co_scientist_output("evolution_tournaments_summary.md", tournament_content, configuration.output_dir)
+        save_co_scientist_output("evolution_tournaments_summary.md", tournament_content, configuration.output_dir, configuration.phase)
     
     return {
         "evolution_tournament_results": evolution_results,
@@ -1972,8 +1971,8 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     
     # Save meta-review results
     if configuration.save_intermediate_results:
-        save_co_scientist_output("meta_review_process_analysis.md", process_analysis, configuration.output_dir)
-        save_co_scientist_output("competition_summary.md", competition_summary, configuration.output_dir)
+        save_co_scientist_output("meta_review_process_analysis.md", process_analysis, configuration.output_dir, configuration.phase)
+        save_co_scientist_output("competition_summary.md", competition_summary, configuration.output_dir, configuration.phase)
     
     
     return {
@@ -2039,9 +2038,9 @@ def generate_user_competition_summary(state: dict, direction_winners: list) -> s
     
     return summary
 
-def save_final_winners(top_scenarios: list, state: dict, output_dir: str = "output"):
+def save_final_winners(top_scenarios: list, state: dict, output_dir: str = "output", phase: str = None):
     """Save the final winning scenarios as complete standalone files."""
-    manager = get_output_manager(output_dir)
+    manager = get_output_manager(output_dir, phase)
     
     if not top_scenarios:
         print("No final winning scenarios to save")

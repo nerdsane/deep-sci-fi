@@ -132,7 +132,8 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
         "population_scale": "light",      # Quick processing
         "use_deep_researcher": False,     # Use regular LLM for creative writing
         "save_intermediate_results": True,
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "storyline_creation"
     })
     
     # Run co_scientist competition
@@ -283,7 +284,8 @@ async def write_first_chapter(state: AgentState, config: RunnableConfig):
         "population_scale": "light",      # Quick processing
         "use_deep_researcher": False,     # Use regular LLM for creative writing
         "save_intermediate_results": True,
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "chapter_writing"
     })
     
     # Run co_scientist competition
@@ -455,7 +457,8 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "search_api": "tavily",
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "world_scenario_research"
     })
 
     # Invoke the co_scientist subgraph
@@ -885,7 +888,8 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         "reflection_domains": ["linguistics", "technology", "sociology and anthropology"],
         "world_state_context": world_state_context,  # Pass comprehensive world state and previous research
         "save_intermediate_results": True,
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "linguistic_evolution"
     })
     
     # Run co_scientist competition
@@ -1018,7 +1022,8 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
         "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence", "world_integration"],
         "world_state_context": f"Baseline World State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}",  # Pass world context for reflection
         "save_intermediate_results": True,
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "storyline_adjustment"
     })
     
     # Run co_scientist competition
@@ -1162,7 +1167,8 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
         "reflection_domains": ["narrative_structure", "world_building", "character_development", "prose_style", "world_integration", "linguistic_consistency"],
         "world_state_context": f"Baseline World State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}\n\nRevised Storyline: {revised_storyline}",  # Pass world context for reflection
         "save_intermediate_results": True,
-        "output_dir": output_dir
+        "output_dir": output_dir,
+        "phase": "chapter_rewriting"
     })
     
     # Run co_scientist competition

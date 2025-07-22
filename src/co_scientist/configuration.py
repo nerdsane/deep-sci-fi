@@ -333,6 +333,17 @@ class CoScientistConfiguration(BaseModel):
         }
     )
     
+    phase: Optional[str] = Field(
+        default=None,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "string",
+                "default": None,
+                "description": "Current phase/node name from deep-sci-fi graph (for output folder naming)"
+            }
+        }
+    )
+    
     # Helper methods
     def get_scenarios_per_direction(self) -> int:
         """Get scenarios per direction based on population scale."""
