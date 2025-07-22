@@ -895,6 +895,14 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     # Run co_scientist competition
     co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
     
+    # Debug logging - capture actual result structure
+    print(f"Co-scientist result keys: {list(co_scientist_result.keys()) if co_scientist_result else 'None'}")
+    print(f"Direction winners type: {type(co_scientist_result.get('direction_winners', 'missing'))}")
+    print(f"Direction winners value: {co_scientist_result.get('direction_winners', 'missing')}")
+    print(f"Tournament complete: {co_scientist_result.get('tournament_complete', 'missing')}")
+    print(f"Scenario population count: {len(co_scientist_result.get('scenario_population', []))}")
+    print(f"Tournament winners count: {len(co_scientist_result.get('tournament_winners', []))}")
+    
     # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
         # Save competition summary
@@ -904,6 +912,11 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
         save_output(output_dir, f"{state['loop_count']:02d}_08b_linguistic_competition_details.md", detailed_results)
+        
+        # Save raw co_scientist_result for debugging
+        import json
+        save_output(output_dir, f"{state['loop_count']:02d}_08_DEBUG_coscientist_raw_result.json", 
+                   json.dumps(co_scientist_result, indent=2, default=str))
         
         # Save all direction winners
         direction_winners = co_scientist_result.get("direction_winners", [])
@@ -931,8 +944,21 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
         
         return {"linguistic_evolution_options": linguistic_options, "linguistic_evolution": None}  # No auto-selection
     else:
+        # Enhanced error with full diagnostic information
+        error_details = {
+            "co_scientist_result_keys": list(co_scientist_result.keys()) if co_scientist_result else [],
+            "direction_winners": co_scientist_result.get("direction_winners", "missing"),
+            "tournament_complete": co_scientist_result.get("tournament_complete", "missing"),
+            "scenario_population_count": len(co_scientist_result.get("scenario_population", [])),
+            "tournament_winners_count": len(co_scientist_result.get("tournament_winners", [])),
+            "generation_complete": co_scientist_result.get("generation_complete", "missing"),
+            "reflection_complete": co_scientist_result.get("reflection_complete", "missing"),
+            "evolution_complete": co_scientist_result.get("evolution_complete", "missing"),
+            "competition_summary": co_scientist_result.get("competition_summary", "missing")[:200] if co_scientist_result.get("competition_summary") else "missing"
+        }
+        
         # Co-scientist failed to produce direction winners - this is a system failure
-        raise RuntimeError("Co-scientist linguistic evolution competition failed to produce direction winners. Check competition configuration and model availability.")
+        raise RuntimeError(f"Co-scientist linguistic evolution competition failed to produce direction winners. Debug info: {json.dumps(error_details, indent=2, default=str)}")
 
 def select_linguistic_evolution(state: AgentState):
     """User selection node - presents linguistic evolution options and waits for user choice."""

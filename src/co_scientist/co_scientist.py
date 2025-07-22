@@ -711,40 +711,53 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
     
     print(f"Starting {output_name} generation: {len(state['research_directions'])} directions, {scenarios_per_direction} items per direction")
     
-    for direction_idx, direction in enumerate(state["research_directions"]):
-        print(f"Processing direction {direction_idx}: {direction.get('name', 'Unknown')}")
-        # Create multiple research teams per direction
-        for team_idx in range(scenarios_per_direction):
-            team_id = f"direction_{direction_idx}_team_{team_idx}"
-            
-            task = generate_single_scenario(
-                direction=direction,
-                team_id=team_id,
-                state=state,
-                config=config
-            )
-            generation_tasks.append(task)
-    
-    print(f"Created {len(generation_tasks)} scenario generation tasks")
-    
-    # Execute all scenario generation in parallel
-    generated_scenarios = await asyncio.gather(*generation_tasks, return_exceptions=True)
-    
-    # Filter out exceptions and collect valid scenarios
-    valid_scenarios = []
-    failed_scenarios = []
-    
-    for i, scenario in enumerate(generated_scenarios):
-        if isinstance(scenario, Exception):
-            failed_scenarios.append(f"Task {i}: {str(scenario)}")
-            print(f"Scenario generation failed for task {i}: {scenario}")
-        else:
-            valid_scenarios.append(scenario)
-    
-    # Log results
-    print(f"Scenario generation complete: {len(valid_scenarios)} successful, {len(failed_scenarios)} failed")
-    if failed_scenarios:
-        print("Failed scenarios:", failed_scenarios)
+    try:
+        for direction_idx, direction in enumerate(state["research_directions"]):
+            print(f"Processing direction {direction_idx}: {direction.get('name', 'Unknown')}")
+            # Create multiple research teams per direction
+            for team_idx in range(scenarios_per_direction):
+                team_id = f"direction_{direction_idx}_team_{team_idx}"
+                
+                task = generate_single_scenario(
+                    direction=direction,
+                    team_id=team_id,
+                    state=state,
+                    config=config
+                )
+                generation_tasks.append(task)
+        
+        print(f"Created {len(generation_tasks)} scenario generation tasks")
+        
+        # Execute all scenario generation in parallel
+        generated_scenarios = await asyncio.gather(*generation_tasks, return_exceptions=True)
+        
+        # Filter out exceptions and collect valid scenarios
+        valid_scenarios = []
+        failed_scenarios = []
+        
+        for i, scenario in enumerate(generated_scenarios):
+            if isinstance(scenario, Exception):
+                failed_scenarios.append(f"Task {i}: {str(scenario)}")
+                print(f"Scenario generation failed for task {i}: {scenario}")
+                # Log the full exception details
+                import traceback
+                print(f"Full exception traceback for task {i}:")
+                print(traceback.format_exception(type(scenario), scenario, scenario.__traceback__))
+            else:
+                valid_scenarios.append(scenario)
+        
+        # Log results
+        print(f"Scenario generation complete: {len(valid_scenarios)} successful, {len(failed_scenarios)} failed")
+        if failed_scenarios:
+            print("Failed scenarios:", failed_scenarios)
+        
+    except Exception as e:
+        print(f"Critical error in parallel_scenario_generation: {e}")
+        import traceback
+        print(f"Full traceback:")
+        print(traceback.format_exc())
+        # Return minimal valid state to prevent total failure
+        valid_scenarios = []
     
     # Save scenario generation results
     if configuration.save_intermediate_results:
@@ -773,41 +786,74 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
     
     print(f"Generating {output_name.rstrip('s')} for {team_id} in direction: {direction.get('name', 'Unknown')}")
     
-    # Handle backward compatibility - convert old format to new format
-    processed_state = {}
-    if state.get("research_context"):
-        # Legacy scenario generation format
-        processed_state.update({
-            "task_description": f"Generate scenarios for {state.get('target_year', 'future')}",
-            "context": state["research_context"],
-            "storyline": state.get("storyline", ""),
-            "target_year": state.get("target_year"),
-            "baseline_world_state": state.get("baseline_world_state"),
-            "years_in_future": state.get("years_in_future"),
-            "use_case": "scenario_generation"
-        })
-    else:
-        # New flexible format
-        processed_state.update(state)
-    
-    # Get use case from state or configuration
-    use_case = processed_state.get("use_case", configuration.use_case.value)
-    
-    # Choose appropriate generation prompt
-    if use_case == "scenario_generation" and processed_state.get("baseline_world_state") and processed_state.get("years_in_future"):
-        # Use incremental prompt for scenario generation with baseline
-        research_query = INCREMENTAL_SCENARIO_GENERATION_PROMPT.format(
-            research_direction=direction.get("name", ""),
-            core_assumption=direction.get("assumption", ""),
-            team_id=team_id,
-            research_context=processed_state.get("context", processed_state.get("research_context", "")),
-            storyline=processed_state.get("storyline", ""),
-            baseline_world_state=processed_state["baseline_world_state"],
-            years_in_future=processed_state["years_in_future"]
-        )
-    else:
-        # Use flexible template system
-        research_query = get_generation_prompt(use_case, processed_state, direction, team_id, config)
+    try:
+        # Handle backward compatibility - convert old format to new format
+        processed_state = {}
+        if state.get("research_context"):
+            # Legacy scenario generation format
+            processed_state.update({
+                "task_description": f"Generate scenarios for {state.get('target_year', 'future')}",
+                "context": state["research_context"],
+                "storyline": state.get("storyline", ""),
+                "target_year": state.get("target_year"),
+                "baseline_world_state": state.get("baseline_world_state"),
+                "years_in_future": state.get("years_in_future"),
+                "use_case": "scenario_generation"
+            })
+        else:
+            # New flexible format
+            processed_state.update(state)
+        
+        # Get use case from state or configuration
+        use_case = processed_state.get("use_case", configuration.use_case.value)
+        
+        print(f"Debug - generate_single_scenario for {team_id}:")
+        print(f"  use_case: {use_case}")
+        print(f"  direction keys: {list(direction.keys()) if direction else 'None'}")
+        print(f"  direction name: {direction.get('name', 'MISSING')}")
+        print(f"  direction assumption: {direction.get('assumption', 'MISSING')}")
+        print(f"  processed_state keys: {list(processed_state.keys())}")
+        
+        # Choose appropriate generation prompt
+        if use_case == "scenario_generation" and processed_state.get("baseline_world_state") and processed_state.get("years_in_future"):
+            # Use incremental prompt for scenario generation with baseline
+            try:
+                research_query = INCREMENTAL_SCENARIO_GENERATION_PROMPT.format(
+                    research_direction=direction.get("name", ""),
+                    core_assumption=direction.get("assumption", ""),
+                    team_id=team_id,
+                    research_context=processed_state.get("context", processed_state.get("research_context", "")),
+                    storyline=processed_state.get("storyline", ""),
+                    baseline_world_state=processed_state["baseline_world_state"],
+                    years_in_future=processed_state["years_in_future"]
+                )
+                print(f"Successfully formatted incremental prompt for {team_id}")
+            except KeyError as e:
+                print(f"KeyError in incremental prompt formatting for {team_id}: {e}")
+                print(f"Available keys in processed_state: {list(processed_state.keys())}")
+                raise e
+            except Exception as e:
+                print(f"Error formatting incremental prompt for {team_id}: {e}")
+                raise e
+        else:
+            # Use flexible template system
+            try:
+                research_query = get_generation_prompt(use_case, processed_state, direction, team_id, config)
+                print(f"Successfully got generation prompt for {team_id} using flexible system")
+            except Exception as e:
+                print(f"Error getting generation prompt for {team_id}: {e}")
+                print(f"  use_case: {use_case}")
+                print(f"  processed_state keys: {list(processed_state.keys())}")
+                print(f"  direction: {direction}")
+                print(f"  config type: {type(config)}")
+                raise e
+        
+    except Exception as e:
+        print(f"Error in prompt preparation for {team_id}: {e}")
+        import traceback
+        print(f"Full traceback:")
+        print(traceback.format_exc())
+        raise e
     
     # Use either deep_researcher or regular LLM based on configuration
     co_config = CoScientistConfiguration.from_runnable_config(config)
@@ -837,6 +883,9 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
             print(f"Successfully generated content for {team_id} using deep_researcher, length: {len(scenario_content)}")
         except Exception as e:
             print(f"Failed to generate content for {team_id} using deep_researcher: {e}")
+            import traceback
+            print(f"Deep researcher failure traceback:")
+            print(traceback.format_exc())
             raise e
     else:
         # Use regular LLM for creative generation
@@ -854,6 +903,9 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
             print(f"Successfully generated content for {team_id} using direct LLM, length: {len(scenario_content)}")
         except Exception as e:
             print(f"Failed to generate content for {team_id} using direct LLM: {e}")
+            import traceback
+            print(f"Direct LLM failure traceback:")
+            print(traceback.format_exc())
             raise e
     
     return {
@@ -1229,13 +1281,33 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         task = run_direction_tournament(direction, scenarios, config, elo_tracker)
         tournament_tasks.append(task)
     
-    tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
-    
-    # Collect winners from each direction
-    direction_winners = [
-        result for result in tournament_results 
-        if not isinstance(result, Exception)
-    ]
+    try:
+        tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
+        
+        print(f"Tournament results gathered: {len(tournament_results)} results")
+        for i, result in enumerate(tournament_results):
+            if isinstance(result, Exception):
+                print(f"Tournament {i} failed with exception: {result}")
+                import traceback
+                print(f"Tournament {i} traceback:")
+                print(traceback.format_exception(type(result), result, result.__traceback__))
+            else:
+                print(f"Tournament {i} succeeded: direction={result.get('direction', 'unknown')}, winner={result.get('winner', {}).get('scenario_id', 'none')}")
+        
+        # Collect winners from each direction
+        direction_winners = [
+            result for result in tournament_results 
+            if not isinstance(result, Exception)
+        ]
+        
+        print(f"Successfully collected {len(direction_winners)} direction winners from {len(tournament_results)} tournaments")
+        
+    except Exception as e:
+        print(f"Critical error in tournament execution: {e}")
+        import traceback
+        print(f"Tournament execution traceback:")
+        print(traceback.format_exc())
+        direction_winners = []
     
     # Collect final Elo statistics
     if direction_winners:
@@ -2699,3 +2771,4 @@ def format_unified_reflection_critiques(critiques: list) -> str:
         content += "---\n\n"
     
     return content
+

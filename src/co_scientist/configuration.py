@@ -448,5 +448,40 @@ class CoScientistConfiguration(BaseModel):
     @classmethod
     def from_runnable_config(cls, config: RunnableConfig) -> "CoScientistConfiguration":
         """Create configuration from a RunnableConfig."""
-        configurable = config.get("configurable", {})
-        return cls(**configurable) 
+        try:
+            configurable = config.get("configurable", {})
+            
+            # Debug logging for configuration
+            print(f"Debug - CoScientistConfiguration.from_runnable_config:")
+            print(f"  config keys: {list(config.keys()) if config else 'None'}")
+            print(f"  configurable keys: {list(configurable.keys()) if configurable else 'None'}")
+            
+            # Check for phase parameter specifically
+            phase = configurable.get("phase")
+            print(f"  phase parameter: {phase}")
+            print(f"  use_case: {configurable.get('use_case', 'missing')}")
+            print(f"  research_model: {configurable.get('research_model', 'missing')}")
+            print(f"  general_model: {configurable.get('general_model', 'missing')}")
+            
+            return cls(
+                research_model=configurable.get("research_model", "gpt-4"),
+                general_model=configurable.get("general_model", "gpt-3.5-turbo"), 
+                use_case=UseCase(configurable.get("use_case", "scenario_generation")),
+                process_depth=configurable.get("process_depth", "standard"),
+                population_scale=configurable.get("population_scale", "medium"),
+                use_deep_researcher=configurable.get("use_deep_researcher", False),
+                search_api=configurable.get("search_api", "tavily"),
+                reflection_domains=configurable.get("reflection_domains", ["physics", "biology", "engineering", "social_science", "economics"]),
+                world_state_context=configurable.get("world_state_context", ""),
+                save_intermediate_results=configurable.get("save_intermediate_results", True),
+                output_dir=configurable.get("output_dir", "output"),
+                phase=configurable.get("phase")
+            )
+            
+        except Exception as e:
+            print(f"Error in CoScientistConfiguration.from_runnable_config: {e}")
+            import traceback
+            print(f"Configuration parsing traceback:")
+            print(traceback.format_exc())
+            # Return a default configuration to prevent total failure
+            return cls() 

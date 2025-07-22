@@ -681,31 +681,65 @@ Rewrite the complete chapter as a natural story within this established world.
 # === Research and Analysis Templates ===
 
 # Used in: get_meta_analysis_prompt() for "linguistic_evolution" use case
-LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert linguist exploring how language has evolved in this advanced technological society.
+LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT = """You are an expert meta-analyst tasked with identifying distinct research directions for linguistic evolution competition.
 
-Your task: Examine linguistic evolution by {target_year} (projecting {years_in_future} years forward) and propose research approaches for understanding language development.
+<Task>
+Analyze the provided world context to identify 3 fundamentally different approaches to understanding linguistic evolution in this technological society by {target_year} (projecting {years_in_future} years forward).
+</Task>
 
-<world_context>
+<World Context>
 {source_content}
-</world_context>
+</World Context>
 
-<previous_findings>
+<Previous Research Context>
 {world_state_context}
-</previous_findings>
+</Previous Research Context>
 
-Investigate how language, communication, and social linguistics have evolved in this context. Consider any factors that may have influenced linguistic development - technological, social, cultural, generational, or other patterns you discover.
+<Scope>
+Identify 3 competing approaches to linguistic evolution research that would lead to meaningfully different insights about how language has developed in this technological context.
+</Scope>
 
-Build upon previous research while exploring new directions. Focus on what's actually observable in this documented world.
+<Requirements>
+- Linguistic plausibility: All directions must be grounded in real linguistic principles
+- Comprehensive coverage: Each direction must address language evolution broadly, not focus on just one aspect
+- Meaningful differentiation: Different core assumptions about how technology influences language
+- Equal viability: Different but equally valid linguistic research approaches
+- Technological implications: Consider impacts of AI, interfaces, social networks, automation, etc.
+</Requirements>
 
-Propose research approaches that would provide meaningful insights. Structure your response however makes most sense - you might suggest 2-4 different approaches, methodologies, or investigative directions.
+<Key Constraints>
+- Maintain linguistic rigor while exploring different possibilities
+- Ensure each direction provides unique research opportunities
+- Balance innovation with established sociolinguistic theory
+- Create directions that are genuinely distinct, not variations of the same theme
+</Key Constraints>
 
-For each approach, explain:
-- What it would investigate
-- How you'd conduct the research  
-- Why it would be valuable
-- How it builds on or extends previous work
+<Process>
+1. Analyze the world context to identify key technological factors affecting language
+2. Determine which linguistic processes could be influenced in fundamentally different ways
+3. Create 3 distinct research directions based on different core assumptions about language change
+4. Ensure each direction comprehensively addresses linguistic evolution in this context
+5. Validate that directions are linguistically sound but meaningfully different
+</Process>
 
-Let your analysis emerge naturally from the evidence rather than forcing predetermined categories. Consider unexpected factors and propose approaches that feel authentic to this specific world context."""
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key assumption about how technology affects language]
+Focus: [What this approach emphasizes about linguistic evolution]
+
+Direction 2: [Name] 
+Core Assumption: [Key assumption about how technology affects language]
+Focus: [What this approach emphasizes about linguistic evolution]
+
+Direction 3: [Name]
+Core Assumption: [Key assumption about how technology affects language] 
+Focus: [What this approach emphasizes about linguistic evolution]
+
+Reasoning: [Explain why these 3 directions provide meaningful variety while remaining linguistically grounded]
+</Output Format>
+
+Remember: Generate research DIRECTIONS, not detailed methodologies. Teams will develop specific approaches later.
+"""
 
 # Used in: get_generation_prompt() for "linguistic_evolution" use case
 LINGUISTIC_EVOLUTION_GENERATION_PROMPT = """You are a linguistic research team from this advanced technological world analyzing how language has evolved using the {direction_name} approach.
