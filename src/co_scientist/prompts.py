@@ -1331,12 +1331,15 @@ Research Direction: {direction1}
 Research Direction: {direction2}
 </Scenario 2>
 
+
+
 <Evaluation Criteria>
 - Scientific plausibility and evidence grounding
 - Internal consistency across all systems  
-- Realistic technological timelines
-- Consideration of second-order effects
-- Detail richness
+- Realistic technological timelines for {years_in_future}-year projection
+- Consideration of second-order effects over the timeframe
+- Detail richness and logical progression from baseline
+- Feasibility of proposed changes within the projection period
 </Evaluation Criteria>
 
 <Process>
@@ -1347,25 +1350,33 @@ Subsequent turns:
 - Critically evaluate each scenario against the stated criteria
 - Compare scientific rigor and evidence grounding
 - Assess internal consistency and logical coherence
-- Identify specific strengths and weaknesses
+- **Evaluate projection realism**: How reasonable is each evolution from the baseline over {years_in_future} years?
+- Identify specific strengths and weaknesses in the projection logic
 </Process>
 
 <Evaluation Aspects>
-- Potential for scientific correctness/validity
+- **Projection Quality**: How scientifically grounded is the {years_in_future}-year evolution from baseline?
+- Timeline feasibility: Are the proposed changes realistic for the timeframe?
+- Baseline consistency: Does the scenario logically build on the established world state?
+- Scientific correctness and validity of the projection
 - Practical applicability and implementation feasibility
 - Sufficiency of detail and specificity
-- Novelty and originality
+- Novelty and originality within realistic constraints
 </Evaluation Aspects>
 
 <Output Format>
 Conduct the structured discussion analysis, then provide a conclusive judgment with clear rationale.
+
+Focus particularly on: **Which scenario presents a more scientifically reasonable and feasible projection from the baseline world state over {years_in_future} years?**
 
 Then indicate the superior scenario by writing: "better scenario: 1" or "better scenario: 2"
 </Output Format>
 
 <Reminders>
 - Provide thorough comparative analysis before making a decision
-- Focus on scientific rigor
+- **Focus especially on projection realism and timeline feasibility**
+- Evaluate how well each scenario builds logically on the baseline world state
+- Consider whether the proposed changes are achievable within {years_in_future} years
 - Give clear reasoning for your final judgment
 </Reminders>
 """
@@ -1508,7 +1519,7 @@ Prioritize academic rigor, methodological soundness, and scholarly contribution 
 </Focus>
 """
 
-def get_pairwise_prompt(use_case: str) -> str:
+def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_in_future: int = None) -> str:
     """Get the appropriate pairwise comparison prompt for the use case."""
     prompts = {
         "scenario_generation": PAIRWISE_RANKING_PROMPT,
@@ -1519,7 +1530,55 @@ def get_pairwise_prompt(use_case: str) -> str:
         "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
     }
     
-    return prompts.get(use_case, PAIRWISE_RANKING_PROMPT)  # Default to scientific prompt
+    base_prompt = prompts.get(use_case, PAIRWISE_RANKING_PROMPT)
+    
+    # Add projection context for evolutionary scenarios
+    if baseline_world_state and years_in_future and use_case == "scenario_generation":
+        projection_context = f"""
+<Projection Context>
+<Baseline World State>
+{baseline_world_state}
+</Baseline World State>
+
+<Projection Timeframe>
+{years_in_future} years forward
+</Projection Timeframe>
+</Projection Context>
+
+"""
+        # Insert projection context after the scenario descriptions
+        base_prompt = base_prompt.replace(
+            "</Scenario 2>\n\n",
+            f"</Scenario 2>\n\n{projection_context}"
+        )
+        
+        # Update evaluation criteria to emphasize projection assessment
+        base_prompt = base_prompt.replace(
+            "- Realistic technological timelines for {years_in_future}-year projection",
+            f"- Realistic technological timelines for {years_in_future}-year projection"
+        )
+        base_prompt = base_prompt.replace(
+            "- Consideration of second-order effects over the timeframe",
+            f"- Consideration of second-order effects over the {years_in_future}-year timeframe"
+        )
+        base_prompt = base_prompt.replace(
+            "**Evaluate projection realism**: How reasonable is each evolution from the baseline over {years_in_future} years?",
+            f"**Evaluate projection realism**: How reasonable is each evolution from the baseline over {years_in_future} years?"
+        )
+        base_prompt = base_prompt.replace(
+            "**Projection Quality**: How scientifically grounded is the {years_in_future}-year evolution from baseline?",
+            f"**Projection Quality**: How scientifically grounded is the {years_in_future}-year evolution from baseline?"
+        )
+        base_prompt = base_prompt.replace(
+            "**Which scenario presents a more scientifically reasonable and feasible projection from the baseline world state over {years_in_future} years?**",
+            f"**Which scenario presents a more scientifically reasonable and feasible projection from the baseline world state over {years_in_future} years?**"
+        )
+        base_prompt = base_prompt.replace(
+            "- Consider whether the proposed changes are achievable within {years_in_future} years",
+            f"- Consider whether the proposed changes are achievable within {years_in_future} years"
+        )
+    
+    return base_prompt
 
 # === Final Meta-Review Phase ===
 

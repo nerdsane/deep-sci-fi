@@ -1193,7 +1193,7 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
     # Run parallel tournaments for each direction with Elo tracking
     tournament_tasks = []
     for direction, scenarios in direction_groups.items():
-        task = run_direction_tournament(direction, scenarios, config, elo_tracker)
+        task = run_direction_tournament(direction, scenarios, config, elo_tracker, state)
         tournament_tasks.append(task)
     
     try:
@@ -1280,7 +1280,7 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         "elo_tracker": final_elo_tracker  # Include final Elo tracker in state
     }
 
-async def run_direction_tournament(direction: str, scenarios: list, config: RunnableConfig, elo_tracker: EloTracker) -> dict:
+async def run_direction_tournament(direction: str, scenarios: list, config: RunnableConfig, elo_tracker: EloTracker, state: CoScientistState = None) -> dict:
     """Run tournament bracket for a single direction with Elo rating updates."""
     
     if len(scenarios) < 2:
@@ -1312,7 +1312,8 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
                     current_round[i + 1], 
                     round_number,
                     config,
-                    elo_tracker  # Pass Elo tracker to each comparison
+                    elo_tracker,  # Pass Elo tracker to each comparison
+                    state  # Pass state for projection context
                 )
                 comparison_tasks.append(task)
             else:
@@ -1373,7 +1374,7 @@ async def run_direction_tournament(direction: str, scenarios: list, config: Runn
         "elo_tracker": elo_tracker  # Include Elo tracker in results
     }
 
-async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: int, config: RunnableConfig, elo_tracker: EloTracker) -> dict:
+async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: int, config: RunnableConfig, elo_tracker: EloTracker, state: CoScientistState = None) -> dict:
     """Compare two scenarios head-to-head with Elo rating updates."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
@@ -1393,14 +1394,36 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     
     # Get the appropriate prompt for this use case
     use_case = configuration.use_case.value if hasattr(configuration.use_case, 'value') else str(configuration.use_case)
-    pairwise_prompt_template = get_pairwise_prompt(use_case)
     
-    comparison_prompt = pairwise_prompt_template.format(
-        scenario1_content=scenario1["scenario_content"],
-        direction1=scenario1["research_direction"],
-        scenario2_content=scenario2["scenario_content"],
-        direction2=scenario2["research_direction"]
-    )
+    # Extract projection context if available
+    baseline_world_state = None
+    years_in_future = None
+    if state:
+        baseline_world_state = state.get("baseline_world_state")
+        years_in_future = state.get("years_in_future")
+    
+    pairwise_prompt_template = get_pairwise_prompt(use_case, baseline_world_state, years_in_future)
+    
+    # Prepare prompt parameters with baseline context if available
+    prompt_params = {
+        "scenario1_content": scenario1["scenario_content"],
+        "direction1": scenario1["research_direction"],
+        "scenario2_content": scenario2["scenario_content"],
+        "direction2": scenario2["research_direction"]
+    }
+    
+    # Add projection context for evolutionary scenarios
+    if state:
+        baseline_world_state = state.get("baseline_world_state")
+        years_in_future = state.get("years_in_future")
+        
+        if baseline_world_state and years_in_future:
+            prompt_params.update({
+                "baseline_world_state": baseline_world_state,
+                "years_in_future": years_in_future
+            })
+    
+    comparison_prompt = pairwise_prompt_template.format(**prompt_params)
     
     response = await model.ainvoke([HumanMessage(content=comparison_prompt)])
     
@@ -1515,11 +1538,11 @@ async def evolution_phase(state: CoScientistState, config: RunnableConfig) -> di
         "evolution_complete": True
     }
 
-async def run_evolution_tournament_with_metadata(direction: str, original_winner: dict, competitors: list, config: RunnableConfig) -> dict:
+async def run_evolution_tournament_with_metadata(direction: str, original_winner: dict, competitors: list, config: RunnableConfig, state: CoScientistState = None) -> dict:
     """Run evolution tournament and add metadata about original vs evolved scenarios."""
     
     # Run the tournament
-    tournament_result = await run_direction_tournament(f"Evolution_{direction}", competitors, config)
+    tournament_result = await run_direction_tournament(f"Evolution_{direction}", competitors, config, None, state)
     
     if isinstance(tournament_result, Exception) or not tournament_result:
         return {
@@ -1629,7 +1652,7 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
             competitors.append(evolved_scenario)
         
         # Run tournament for this direction (original + evolved)
-        task = run_evolution_tournament_with_metadata(direction, original_winner, competitors, config)
+        task = run_evolution_tournament_with_metadata(direction, original_winner, competitors, config, state)
         evolution_tournament_tasks.append(task)
     
     # Execute all evolution tournaments in parallel
