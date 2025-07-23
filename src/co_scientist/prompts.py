@@ -11,7 +11,6 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
         "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
-
         "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
     }
@@ -65,7 +64,6 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "storyline_creation": STORYLINE_GENERATION_PROMPT,
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
-
         "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
     }
@@ -911,60 +909,6 @@ Revise the original storyline to seamlessly integrate our developed world state,
 Revise the complete storyline as a natural story enhanced by our developed world elements.
 """
 
-# === Expert Reflection Phase ===
-
-# Used in: generate_domain_critique() function for scientific analysis of scenarios
-DOMAIN_CRITIQUE_PROMPT = """You are a {critique_domain} expert providing rigorous scientific critique of a world-building scenario.
-
-<Scenario ID>
-{scenario_id}
-</Scenario ID>
-
-<Research Direction>
-{research_direction}
-</Research Direction>
-
-<Scenario to Critique>
-{scenario_content}
-</Scenario to Critique>
-
-<Your Expertise>
-{critique_domain}
-</Your Expertise>
-
-<Task>
-Evaluate this scenario specifically from your domain expertise and provide rigorous scientific critique.
-</Task>
-
-<Evaluation Criteria>
-- Scientific accuracy and plausibility
-- Realistic timelines for technological development
-- Consideration of fundamental constraints within your domain
-- Internal consistency within your domain
-</Evaluation Criteria>
-
-<Process>
-1. Identify scientific inaccuracies, implausible claims, or logical inconsistencies
-2. Assess whether the technological timelines are realistic
-3. Consider if the scenario accounts for known constraints in your field
-4. Suggest specific improvements to make the scenario more scientifically sound
-</Process>
-
-<Output Requirements>
-Provide:
-1. Overall assessment of scientific rigor in your domain
-2. Specific issues identified with detailed explanations
-3. Suggestions for improvement
-4. Severity score (1-10) where 10 = major scientific problems that invalidate the scenario
-</Output Requirements>
-
-<Reminders>
-- Focus specifically on your domain expertise: {critique_domain}
-- Provide constructive, evidence-based feedback
-- Consider both current limitations and realistic future developments
-</Reminders>
-"""
-
 # === Unified Reflection Prompts ===
 
 # Used for: scenario_generation use case
@@ -1573,7 +1517,6 @@ def get_pairwise_prompt(use_case: str) -> str:
         "chapter_writing": CHAPTER_PAIRWISE_PROMPT,
         "chapter_rewriting": CHAPTER_PAIRWISE_PROMPT,
         "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
-        "plot_analysis": RESEARCH_PAIRWISE_PROMPT
     }
     
     return prompts.get(use_case, PAIRWISE_RANKING_PROMPT)  # Default to scientific prompt

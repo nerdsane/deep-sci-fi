@@ -73,9 +73,9 @@ Access the Deep Sci-Fi Writer through LangGraph Studio:
 ### Configuration
 
 Key model settings (in `src/deep_sci_fi/deep_sci_fi_writer.py`):
-- **Research Model**: `openai:gpt-4.1-nano` - Powers research integration
-- **Writing Model**: `openai:gpt-4.1-nano` - Handles narrative generation  
-- **General Model**: `openai:gpt-4.1-nano` - Manages workflow coordination
+- **Research Model**: Powers research integration
+- **Writing Model**: Handles narrative generation  
+- **General Model**: Manages workflow coordination
 
 ## 🧬 Co-Scientist
 
@@ -106,4 +106,65 @@ A competitive multi-agent system that generates and evolves ideas through tourna
 
 ### Configuration Options
 
-- **Process Depth**: `quick`, `standard`, `
+- **Process Depth**: `quick`, `standard`, `thorough`
+- **Domain Focus**: Scientific, narrative, or hybrid analysis modes
+- **Tournament Size**: Number of competing concepts per direction
+- **Evolution Rounds**: Iterations of refinement and improvement
+- **Critique Depth**: Depth of domain expert analysis
+
+### Advanced Features
+
+- **Elo Rating System**: Dynamic quality assessment across competitions
+- **Quality Integration**: Scores influence tournament seeding and advancement
+- **Persistent Intelligence**: Ratings carry between sessions for learning
+- **Phase-Based Output**: Organized results by graph execution phase
+
+## 🔬 Open Deep Research
+
+Automated research assistant that conducts comprehensive investigations using multiple search engines and synthesis techniques.
+
+### Features
+
+- **Multi-Source Research**: Integrates Tavily, DuckDuckGo, and custom search APIs
+- **Intelligent Synthesis**: Combines findings from multiple sources
+- **Citation Management**: Tracks and formats source attribution
+- **Quality Filtering**: Ranks and validates research findings
+- **Report Generation**: Creates structured research documents
+
+### Use Cases
+
+- **Scientific Background**: Research real science behind sci-fi concepts
+- **World Building**: Investigate plausible future technologies and societies
+- **Fact Checking**: Verify scientific accuracy of story elements
+- **Trend Analysis**: Identify emerging scientific developments
+
+### How It Works
+
+1. **Query Planning**: Breaks complex research into focused sub-queries
+2. **Multi-Search Execution**: Parallel searches across multiple sources
+3. **Source Processing**: Summarizes and validates research findings
+4. **Synthesis**: Combines information into coherent analysis
+5. **Report Creation**: Generates structured research documents
+
+### Configuration
+
+- **Search APIs**: Configure Tavily, DuckDuckGo, or custom sources
+- **Processing Mode**: Summarization vs. split-and-rerank approaches
+- **Depth Settings**: Quick overview vs. comprehensive investigation
+- **Citation Style**: Academic, journalistic, or custom formatting
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Related Work
+
+Inspired by [DeepMind's AI co-scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/) tournament-based hypothesis evaluation system.

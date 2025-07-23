@@ -15,14 +15,12 @@ class PopulationScale(str, Enum):
     MEDIUM = "medium"        # 3 directions × 6 contestants = 18 total
     HEAVY = "heavy"          # 3 directions × 12 contestants = 36 total
 
-class UseCase(str, Enum):
+class UseCase(Enum):
     """Pre-configured use case templates."""
     SCENARIO_GENERATION = "scenario_generation"
     STORYLINE_CREATION = "storyline_creation"
     CHAPTER_WRITING = "chapter_writing"
-    CHAPTER_REWRITING = "chapter_rewriting" 
-
-    PLOT_ANALYSIS = "plot_analysis"
+    CHAPTER_REWRITING = "chapter_rewriting"
     LINGUISTIC_EVOLUTION = "linguistic_evolution"
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
 
@@ -91,7 +89,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "plot_analysis", "linguistic_evolution", "storyline_adjustment"],
+                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment"],
                 "default": "scenario_generation",
                 "description": "Pre-configured use case template"
             }
