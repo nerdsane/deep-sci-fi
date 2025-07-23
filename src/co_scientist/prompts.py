@@ -1331,7 +1331,9 @@ Research Direction: {direction1}
 Research Direction: {direction2}
 </Scenario 2>
 
-
+<Baseline World State>
+{baseline_world_state}
+</Baseline World State>
 
 <Evaluation Criteria>
 - Scientific plausibility and evidence grounding
@@ -1343,15 +1345,27 @@ Research Direction: {direction2}
 </Evaluation Criteria>
 
 <Process>
-The discussion will unfold in 3-5 structured turns:
+Conduct a structured evaluation by answering these key questions:
 
-Turn 1: Begin with a concise summary of both scenarios and their core approaches
-Subsequent turns:
-- Critically evaluate each scenario against the stated criteria
-- Compare scientific rigor and evidence grounding
-- Assess internal consistency and logical coherence
-- **Evaluate projection realism**: How reasonable is each evolution from the baseline over {years_in_future} years?
-- Identify specific strengths and weaknesses in the projection logic
+1. **World-Building Coherence**: Which story has more coherent world-building? Scenario 1 or Scenario 2?
+   - Evaluate logical consistency of systems and technologies
+   - Assess how well different elements work together
+   - Consider completeness and depth of world details
+
+2. **Internal Consistency**: Which maintains better internal consistency?
+   - Check for contradictions within each scenario
+   - Evaluate logical flow of cause and effect
+   - Assess consistency with established baseline world state
+
+3. **Scientific Grounding**: Which feels more scientifically grounded?
+   - Evaluate plausibility of technological developments
+   - Assess evidence basis for projections
+   - Consider feasibility within {years_in_future}-year timeframe
+
+4. **Baseline Evolution**: How reasonable is each evolution from the baseline over {years_in_future} years?
+   - Compare how each builds logically from the established baseline
+   - Evaluate timeline feasibility for proposed changes
+   - Consider second-order effects and implementation challenges
 </Process>
 
 <Evaluation Aspects>
@@ -1365,11 +1379,16 @@ Subsequent turns:
 </Evaluation Aspects>
 
 <Output Format>
-Conduct the structured discussion analysis, then provide a conclusive judgment with clear rationale.
+Answer each of the four evaluation questions systematically:
 
-Focus particularly on: **Which scenario presents a more scientifically reasonable and feasible projection from the baseline world state over {years_in_future} years?**
+1. World-Building Coherence: [Answer which scenario has better coherence and why]
+2. Internal Consistency: [Answer which maintains better consistency and why]  
+3. Scientific Grounding: [Answer which feels more scientifically grounded and why]
+4. Baseline Evolution: [Answer which presents more reasonable evolution from baseline and why]
 
-Then indicate the superior scenario by writing: "better scenario: 1" or "better scenario: 2"
+Then provide a conclusive judgment: **Which scenario presents a more scientifically reasonable and feasible projection from the baseline world state over {years_in_future} years?**
+
+Finally, indicate the superior scenario by writing: "better scenario: 1" or "better scenario: 2"
 </Output Format>
 
 <Reminders>
@@ -1398,6 +1417,10 @@ Narrative Approach: {direction1}
 Narrative Approach: {direction2}
 </Storyline 2>
 
+<Baseline World State>
+{baseline_world_state}
+</Baseline World State>
+
 <Evaluation Criteria>
 - Narrative structure and plot coherence
 - Character development potential
@@ -1408,18 +1431,40 @@ Narrative Approach: {direction2}
 </Evaluation Criteria>
 
 <Process>
-Conduct a thorough comparative analysis:
-- Assess the core narrative hooks and their effectiveness
-- Evaluate character arcs and development opportunities
-- Compare thematic exploration and depth
-- Analyze plot structure and story progression
-- Consider audience engagement and emotional impact
+Conduct a structured evaluation by answering these key questions:
+
+1. **World-Building Coherence**: Which story has more coherent world-building? Storyline 1 or Storyline 2?
+   - Evaluate logical consistency of world systems and narrative elements
+   - Assess how well different story components work together
+   - Consider how the storyline builds on the established baseline world
+
+2. **Internal Consistency**: Which maintains better internal consistency?
+   - Check for narrative contradictions within each storyline
+   - Evaluate logical flow of plot and character development
+   - Assess consistency with established baseline world state
+
+3. **Scientific Grounding**: Which feels more scientifically grounded?
+   - Evaluate plausibility of narrative elements within the sci-fi context
+   - Assess believability of world-building foundations
+   - Consider how well science fiction elements are integrated
+
+4. **Narrative Foundation**: Which provides a stronger foundation for compelling storytelling?
+   - Compare narrative hooks and storytelling potential
+   - Evaluate character development opportunities
+   - Consider emotional engagement and thematic depth
 </Process>
 
 <Output Format>
-Provide detailed narrative analysis comparing both storylines, then conclude with your judgment.
+Answer each of the four evaluation questions systematically:
 
-Indicate the superior storyline by writing: "better scenario: 1" or "better scenario: 2"
+1. World-Building Coherence: [Answer which storyline has better coherence and why]
+2. Internal Consistency: [Answer which maintains better consistency and why]  
+3. Scientific Grounding: [Answer which feels more scientifically grounded and why]
+4. Narrative Foundation: [Answer which provides stronger storytelling foundation and why]
+
+Then provide a conclusive judgment: **Which storyline offers superior narrative foundation for compelling science fiction storytelling based on the established baseline world?**
+
+Finally, indicate the superior storyline by writing: "better scenario: 1" or "better scenario: 2"
 </Output Format>
 
 <Focus>
@@ -1444,6 +1489,18 @@ Writing Approach: {direction1}
 Writing Approach: {direction2}
 </Chapter 2>
 
+<Baseline World State>
+{baseline_world_state}
+</Baseline World State>
+
+<Storyline Context>
+{storyline}
+</Storyline Context>
+
+<Chapter-by-Chapter Arc>
+{chapter_arc}
+</Chapter-by-Chapter Arc>
+
 <Evaluation Criteria>
 - Prose quality and literary style
 - Scene development and atmospheric creation
@@ -1454,18 +1511,59 @@ Writing Approach: {direction2}
 </Evaluation Criteria>
 
 <Process>
-Analyze the writing craft in both chapters:
-- Evaluate prose clarity, elegance, and style
-- Assess scene construction and atmospheric development
-- Compare character voice consistency and dialogue quality
-- Analyze pacing and narrative rhythm
-- Consider reader engagement and emotional resonance
+Conduct a structured evaluation by answering these key questions:
+
+1. **World-Building Coherence**: Which story has more coherent world-building? Chapter 1 or Chapter 2?
+   - Evaluate logical consistency with established baseline world state
+   - Assess how well chapter elements integrate with overall storyline
+   - Consider consistency with chapter-by-chapter arc progression
+
+2. **Internal Consistency**: Which maintains better internal consistency?
+   - Check for narrative contradictions within each chapter
+   - Evaluate character behavior consistency across the storyline
+   - Assess consistency with established world rules and timeline
+
+3. **Scientific Grounding**: Which feels more scientifically grounded?
+   - Evaluate technology rule violations and adherence to established systems
+   - Assess timeline contradictions and logical progression
+   - Consider plausibility within the established world framework
+
+4. **Tournament vs Direct Generation Analysis**:
+   - **Character Behavior Consistency**: Which chapter better maintains character consistency with established personalities?
+   - **Technology Rule Violations**: Which chapter better adheres to established technological constraints?
+   - **Timeline Contradictions**: Which chapter better maintains chronological consistency?
+
+5. **Complexity Metrics**:
+   - **Unique World Elements**: Count distinct technologies, cultures, languages introduced in each chapter
+   - **Interconnection Density**: How many world elements reference each other within the chapter?
+   - **Narrative Depth**: Average scene layers (action + subtext + world-building) in each chapter
+
+6. **Literary Craft**: Which demonstrates superior writing craft and storytelling execution?
+   - Compare prose quality and literary style
+   - Evaluate scene development and atmospheric creation
+   - Assess character voice and dialogue authenticity
+   - Analyze pacing and narrative flow within story context
 </Process>
 
 <Output Format>
-Provide comprehensive literary analysis of both chapters, then make your determination.
+Answer each evaluation question systematically:
 
-Indicate the superior chapter by writing: "better scenario: 1" or "better scenario: 2"
+1. World-Building Coherence: [Answer which chapter has better coherence and why]
+2. Internal Consistency: [Answer which maintains better consistency and why]  
+3. Scientific Grounding: [Answer which feels more scientifically grounded and why]
+4. Tournament vs Direct Generation Analysis:
+   - Character Behavior Consistency: [Analysis and comparison]
+   - Technology Rule Violations: [Analysis and comparison]
+   - Timeline Contradictions: [Analysis and comparison]
+5. Complexity Metrics:
+   - Unique World Elements: [Count and compare for each chapter]
+   - Interconnection Density: [Analysis of world element connections]
+   - Narrative Depth: [Assessment of scene layering in each chapter]
+6. Literary Craft: [Answer which demonstrates superior writing craft and why]
+
+Then provide a conclusive judgment: **Which chapter demonstrates superior writing craft and storytelling execution within the context of the established storyline and world?**
+
+Finally, indicate the superior chapter by writing: "better scenario: 1" or "better scenario: 2"
 </Output Format>
 
 <Focus>
@@ -1473,53 +1571,80 @@ Emphasize writing craft, literary quality, and storytelling effectiveness over p
 </Focus>
 """
 
-# Used for research and analytical content comparisons
-RESEARCH_PAIRWISE_PROMPT = """You are an expert academic reviewer evaluating two competing research approaches for their analytical rigor and scholarly contribution.
+# Used for linguistic evolution and research content comparisons
+RESEARCH_PAIRWISE_PROMPT = """You are an expert linguist and academic reviewer evaluating two competing linguistic evolution approaches for their scholarly rigor and evolutionary plausibility.
 
 <Task>
-Determine which research approach offers superior analytical depth and scholarly merit for academic investigation.
+Determine which linguistic evolution approach demonstrates superior academic depth and realistic language change over the specified timeframe.
 </Task>
 
-<Research Approach 1>
+<Linguistic Evolution Approach 1>
 {scenario1_content}
 Methodology: {direction1}
-</Research Approach 1>
+</Linguistic Evolution Approach 1>
 
-<Research Approach 2>
+<Linguistic Evolution Approach 2>
 {scenario2_content}
 Methodology: {direction2}
-</Research Approach 2>
+</Linguistic Evolution Approach 2>
+
+<Previous Linguistic State>
+{baseline_world_state}
+</Previous Linguistic State>
 
 <Evaluation Criteria>
-- Analytical rigor and methodological soundness
-- Evidence quality and source credibility
-- Theoretical grounding and conceptual clarity
-- Research scope and comprehensiveness
-- Innovation and scholarly contribution
-- Practical applicability of findings
+- Linguistic evolution plausibility and evidence grounding
+- Methodological soundness in language change analysis
+- Consistency with established linguistic principles
+- Realistic timeline for {years_in_future}-year language evolution
+- Internal consistency across phonological, morphological, and syntactic changes
+- Cultural and social factors driving linguistic change
 </Evaluation Criteria>
 
 <Process>
-Conduct scholarly peer review analysis:
-- Evaluate methodological approach and rigor
-- Assess evidence quality and supporting research
-- Compare theoretical frameworks and conceptual depth
-- Analyze scope, thoroughness, and completeness
-- Consider innovation and contribution to the field
+Conduct a structured evaluation by answering these key questions:
+
+1. **Linguistic Coherence**: Which approach has more coherent linguistic evolution? Approach 1 or Approach 2?
+   - Evaluate logical consistency of phonological, morphological, and syntactic changes
+   - Assess how well different linguistic elements evolve together
+   - Consider completeness and depth of linguistic analysis
+
+2. **Internal Consistency**: Which maintains better internal linguistic consistency?
+   - Check for contradictions within each linguistic evolution approach
+   - Evaluate logical flow of language change processes
+   - Assess consistency with the established previous linguistic state
+
+3. **Scientific Grounding**: Which feels more linguistically grounded?
+   - Evaluate plausibility of proposed language changes
+   - Assess evidence basis for linguistic evolution patterns
+   - Consider feasibility within {years_in_future}-year timeframe
+
+4. **Evolution Realism**: How reasonable is each linguistic evolution from the previous state over {years_in_future} years?
+   - Compare how each builds logically from the established previous linguistic state
+   - Evaluate timeline feasibility for proposed linguistic changes
+   - Consider natural language change patterns and rates
+   - Assess cultural, social, and technological factors influencing change
 </Process>
 
 <Output Format>
-Provide detailed academic assessment of both approaches, then render your scholarly judgment.
+Answer each evaluation question systematically:
 
-Indicate the superior research approach by writing: "better scenario: 1" or "better scenario: 2"
+1. Linguistic Coherence: [Answer which approach has better coherence and why]
+2. Internal Consistency: [Answer which maintains better consistency and why]  
+3. Scientific Grounding: [Answer which feels more linguistically grounded and why]
+4. Evolution Realism: [Answer which presents more reasonable evolution from previous state and why]
+
+Then provide a conclusive judgment: **Which linguistic evolution approach presents a more scientifically reasonable and feasible development from the previous linguistic state over {years_in_future} years?**
+
+Finally, indicate the superior approach by writing: "better scenario: 1" or "better scenario: 2"
 </Output Format>
 
 <Focus>
-Prioritize academic rigor, methodological soundness, and scholarly contribution over creative or narrative elements.
+Prioritize linguistic accuracy, evolutionary plausibility, and academic rigor in language change analysis.
 </Focus>
 """
 
-def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_in_future: int = None) -> str:
+def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_in_future: int = None, storyline: str = None, chapter_arc: str = None) -> str:
     """Get the appropriate pairwise comparison prompt for the use case."""
     prompts = {
         "scenario_generation": PAIRWISE_RANKING_PROMPT,
@@ -1534,7 +1659,7 @@ def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_i
     
     # Add projection context for evolutionary scenarios
     if baseline_world_state and years_in_future and use_case == "scenario_generation":
-        projection_context = f"""
+        projection_context = """
 <Projection Context>
 <Baseline World State>
 {baseline_world_state}

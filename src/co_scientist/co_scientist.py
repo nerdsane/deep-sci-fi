@@ -1398,30 +1398,27 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     # Extract projection context if available
     baseline_world_state = None
     years_in_future = None
+    storyline = None
+    chapter_arc = None
     if state:
         baseline_world_state = state.get("baseline_world_state")
         years_in_future = state.get("years_in_future")
+        storyline = state.get("storyline")
+        chapter_arc = state.get("chapter_arc")
     
-    pairwise_prompt_template = get_pairwise_prompt(use_case, baseline_world_state, years_in_future)
+    pairwise_prompt_template = get_pairwise_prompt(use_case, baseline_world_state, years_in_future, storyline, chapter_arc)
     
     # Prepare prompt parameters with baseline context if available
     prompt_params = {
         "scenario1_content": scenario1["scenario_content"],
         "direction1": scenario1["research_direction"],
         "scenario2_content": scenario2["scenario_content"],
-        "direction2": scenario2["research_direction"]
+        "direction2": scenario2["research_direction"],
+        "baseline_world_state": baseline_world_state or "No baseline world state provided",
+        "years_in_future": years_in_future or "unspecified timeframe",
+        "storyline": storyline or "No storyline context provided",
+        "chapter_arc": chapter_arc or "No chapter arc provided"
     }
-    
-    # Add projection context for evolutionary scenarios
-    if state:
-        baseline_world_state = state.get("baseline_world_state")
-        years_in_future = state.get("years_in_future")
-        
-        if baseline_world_state and years_in_future:
-            prompt_params.update({
-                "baseline_world_state": baseline_world_state,
-                "years_in_future": years_in_future
-            })
     
     comparison_prompt = pairwise_prompt_template.format(**prompt_params)
     
