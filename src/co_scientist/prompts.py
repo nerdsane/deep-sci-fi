@@ -2196,3 +2196,1616 @@ DO NOT select winners - that is for user choice. Focus on process synthesis.
 </Reminders>
 """
 
+# === Debate Phase Prompts ===
+
+def get_debate_prompt(use_case: str, **kwargs) -> str:
+    """Get the debate prompt for a specific use case."""
+    
+    prompts = {
+        "scenario_generation": SCENARIO_DEBATE_PROMPT,
+        "storyline_creation": STORYLINE_DEBATE_PROMPT,
+        "storyline_adjustment": STORYLINE_DEBATE_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_DEBATE_PROMPT,
+        "chapter_rewriting": CHAPTER_WRITING_DEBATE_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_DEBATE_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_DEBATE_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_DEBATE_PROMPT
+    }
+    
+    template = prompts.get(use_case, SCENARIO_DEBATE_PROMPT)
+    return template.format(**kwargs)
+
+# Used for scenario generation debate
+SCENARIO_DEBATE_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts
+engaged in a structured discussion to evaluate two competing sci-fi scenarios.
+The objective is to rigorously determine which scenario is superior based on
+a predefined set of attributes and criteria.
+The experts possess no pre-existing biases toward either scenario and are solely
+focused on identifying the optimal choice, given that only one can be implemented.
+
+Goal: {goal}
+
+Criteria for scenario superiority:
+{preferences}
+
+Scenario 1:
+{hypothesis_1}
+
+Scenario 2:
+{hypothesis_2}
+
+Initial review of scenario 1:
+{review_1}
+
+Initial review of scenario 2:
+{review_2}
+
+Debate procedure:
+The discussion will unfold in a series of turns, typically ranging from 3 to 5, with a maximum of 10.
+
+Turn 1: begin with a concise summary of both scenarios and their respective initial reviews.
+
+Subsequent turns:
+* Pose clarifying questions to address any ambiguities or uncertainties.
+* Critically evaluate each scenario in relation to the stated Goal and Criteria.
+This evaluation should consider aspects such as:
+- Scientific feasibility and technological plausibility
+- Internal consistency and logical coherence
+- Specificity and implementation detail
+- Innovation and originality within scientific constraints
+- Narrative potential and world-building strength
+
+* Identify and articulate any weaknesses, limitations, or potential flaws in either scenario.
+
+Additional notes:
+{notes}
+
+Termination and judgment:
+Once the discussion has reached a point of sufficient depth (typically 3-5 turns, up to 10 turns)
+and all relevant questions and concerns have been thoroughly addressed, provide a conclusive judgment.
+This judgment should succinctly state the rationale for the selection.
+
+Then, indicate the superior scenario by writing the phrase "better idea: ",
+followed by "1" (for scenario 1) or "2" (for scenario 2)."""
+
+# Used for storyline creation and adjustment debate
+STORYLINE_DEBATE_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts
+engaged in a structured discussion to evaluate two competing storylines.
+The objective is to rigorously determine which storyline is superior based on
+a predefined set of attributes and criteria.
+The experts possess no pre-existing biases toward either storyline and are solely
+focused on identifying the optimal choice, given that only one can be implemented.
+
+Goal: {goal}
+
+Criteria for storyline superiority:
+{preferences}
+
+Storyline 1:
+{hypothesis_1}
+
+Storyline 2:
+{hypothesis_2}
+
+Initial review of storyline 1:
+{review_1}
+
+Initial review of storyline 2:
+{review_2}
+
+Debate procedure:
+The discussion will unfold in a series of turns, typically ranging from 3 to 5, with a maximum of 10.
+
+Turn 1: begin with a concise summary of both storylines and their respective initial reviews.
+
+Subsequent turns:
+* Pose clarifying questions to address any ambiguities or uncertainties.
+* Critically evaluate each storyline in relation to the stated Goal and Criteria.
+This evaluation should consider aspects such as:
+- Narrative strength and character development quality
+- Plot coherence and thematic depth
+- Reader engagement and emotional impact
+- Originality and creative uniqueness
+- Practical storytelling potential
+
+* Identify and articulate any weaknesses, limitations, or potential flaws in either storyline.
+
+Additional notes:
+{notes}
+
+Termination and judgment:
+Once the discussion has reached a point of sufficient depth (typically 3-5 turns, up to 10 turns)
+and all relevant questions and concerns have been thoroughly addressed, provide a conclusive judgment.
+This judgment should succinctly state the rationale for the selection.
+
+Then, indicate the superior storyline by writing the phrase "better idea: ",
+followed by "1" (for storyline 1) or "2" (for storyline 2)."""
+
+# Used for chapter writing and rewriting debate
+CHAPTER_WRITING_DEBATE_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts
+engaged in a structured discussion to evaluate two competing chapter approaches.
+The objective is to rigorously determine which chapter is superior based on
+a predefined set of attributes and criteria.
+The experts possess no pre-existing biases toward either chapter and are solely
+focused on identifying the optimal choice, given that only one can be implemented.
+
+Goal: {goal}
+
+Criteria for chapter superiority:
+{preferences}
+
+Chapter 1:
+{hypothesis_1}
+
+Chapter 2:
+{hypothesis_2}
+
+Initial review of chapter 1:
+{review_1}
+
+Initial review of chapter 2:
+{review_2}
+
+Debate procedure:
+The discussion will unfold in a series of turns, typically ranging from 3 to 5, with a maximum of 10.
+
+Turn 1: begin with a concise summary of both chapters and their respective initial reviews.
+
+Subsequent turns:
+* Pose clarifying questions to address any ambiguities or uncertainties.
+* Critically evaluate each chapter in relation to the stated Goal and Criteria.
+This evaluation should consider aspects such as:
+- Prose quality and literary craftsmanship
+- World integration and immersion effectiveness
+- Character authenticity and voice consistency
+- Pacing and narrative flow
+- Reader engagement and atmospheric creation
+
+* Identify and articulate any weaknesses, limitations, or potential flaws in either chapter.
+
+Additional notes:
+{notes}
+
+Termination and judgment:
+Once the discussion has reached a point of sufficient depth (typically 3-5 turns, up to 10 turns)
+and all relevant questions and concerns have been thoroughly addressed, provide a conclusive judgment.
+This judgment should succinctly state the rationale for the selection.
+
+Then, indicate the superior chapter by writing the phrase "better idea: ",
+followed by "1" (for chapter 1) or "2" (for chapter 2)."""
+
+# Used for chapter arcs creation and adjustment debate
+CHAPTER_ARCS_DEBATE_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts
+engaged in a structured discussion to evaluate two competing chapter arc structures.
+The objective is to rigorously determine which structure is superior based on
+a predefined set of attributes and criteria.
+The experts possess no pre-existing biases toward either structure and are solely
+focused on identifying the optimal choice, given that only one can be implemented.
+
+Goal: {goal}
+
+Criteria for chapter arc superiority:
+{preferences}
+
+Chapter Arc Structure 1:
+{hypothesis_1}
+
+Chapter Arc Structure 2:
+{hypothesis_2}
+
+Initial review of structure 1:
+{review_1}
+
+Initial review of structure 2:
+{review_2}
+
+Debate procedure:
+The discussion will unfold in a series of turns, typically ranging from 3 to 5, with a maximum of 10.
+
+Turn 1: begin with a concise summary of both structures and their respective initial reviews.
+
+Subsequent turns:
+* Pose clarifying questions to address any ambiguities or uncertainties.
+* Critically evaluate each structure in relation to the stated Goal and Criteria.
+This evaluation should consider aspects such as:
+- Narrative architecture and pacing strategy
+- Character development progression across chapters
+- Plot advancement and thematic coherence
+- Reader engagement and momentum maintenance
+- Structural innovation and practical implementation
+
+* Identify and articulate any weaknesses, limitations, or potential flaws in either structure.
+
+Additional notes:
+{notes}
+
+Termination and judgment:
+Once the discussion has reached a point of sufficient depth (typically 3-5 turns, up to 10 turns)
+and all relevant questions and concerns have been thoroughly addressed, provide a conclusive judgment.
+This judgment should succinctly state the rationale for the selection.
+
+Then, indicate the superior structure by writing the phrase "better idea: ",
+followed by "1" (for structure 1) or "2" (for structure 2)."""
+
+# Used for linguistic evolution debate
+LINGUISTIC_EVOLUTION_DEBATE_PROMPT = """You are an expert in comparative analysis, simulating a panel of domain experts
+engaged in a structured discussion to evaluate two competing linguistic evolution analyses.
+The objective is to rigorously determine which analysis is superior based on
+a predefined set of attributes and criteria.
+The experts possess no pre-existing biases toward either analysis and are solely
+focused on identifying the optimal choice, given that only one can be implemented.
+
+Goal: {goal}
+
+Criteria for linguistic analysis superiority:
+{preferences}
+
+Linguistic Analysis 1:
+{hypothesis_1}
+
+Linguistic Analysis 2:
+{hypothesis_2}
+
+Initial review of analysis 1:
+{review_1}
+
+Initial review of analysis 2:
+{review_2}
+
+Debate procedure:
+The discussion will unfold in a series of turns, typically ranging from 3 to 5, with a maximum of 10.
+
+Turn 1: begin with a concise summary of both analyses and their respective initial reviews.
+
+Subsequent turns:
+* Pose clarifying questions to address any ambiguities or uncertainties.
+* Critically evaluate each analysis in relation to the stated Goal and Criteria.
+This evaluation should consider aspects such as:
+- Linguistic accuracy and evolutionary plausibility
+- Methodological soundness and research grounding
+- Cultural integration and authenticity
+- Natural progression and adaptation realism
+- Academic rigor and practical applicability
+
+* Identify and articulate any weaknesses, limitations, or potential flaws in either analysis.
+
+Additional notes:
+{notes}
+
+Termination and judgment:
+Once the discussion has reached a point of sufficient depth (typically 3-5 turns, up to 10 turns)
+and all relevant questions and concerns have been thoroughly addressed, provide a conclusive judgment.
+This judgment should succinctly state the rationale for the selection.
+
+Then, indicate the superior analysis by writing the phrase "better idea: ",
+followed by "1" (for analysis 1) or "2" (for analysis 2)."""
+
+# === Meta-Analysis Debate Prompts ===
+
+def get_meta_analysis_debate_prompt(use_case: str, **kwargs) -> str:
+    """Get the debate prompt for meta-analysis direction generation."""
+    
+    prompts = {
+        "scenario_generation": SCENARIO_META_ANALYSIS_DEBATE_PROMPT,
+        "storyline_creation": STORYLINE_META_ANALYSIS_DEBATE_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_DEBATE_PROMPT,
+        "chapter_rewriting": CHAPTER_REWRITING_META_ANALYSIS_DEBATE_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_META_ANALYSIS_DEBATE_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_META_ANALYSIS_DEBATE_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_DEBATE_PROMPT,
+        "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_DEBATE_PROMPT
+    }
+    
+    template = prompts.get(use_case, SCENARIO_META_ANALYSIS_DEBATE_PROMPT)
+    return template.format(**kwargs)
+
+# Direction proposal prompt - used to generate initial candidate directions
+def get_direction_proposal_prompt(use_case: str, **kwargs) -> str:
+    """Get the prompt for proposing initial research directions."""
+    
+    prompts = {
+        "scenario_generation": SCENARIO_DIRECTION_PROPOSAL_PROMPT,
+        "storyline_creation": STORYLINE_DIRECTION_PROPOSAL_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_DIRECTION_PROPOSAL_PROMPT,
+        "chapter_rewriting": CHAPTER_REWRITING_DIRECTION_PROPOSAL_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_DIRECTION_PROPOSAL_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_DIRECTION_PROPOSAL_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_DIRECTION_PROPOSAL_PROMPT,
+        "storyline_adjustment": STORYLINE_ADJUSTMENT_DIRECTION_PROPOSAL_PROMPT
+    }
+    
+    template = prompts.get(use_case, SCENARIO_DIRECTION_PROPOSAL_PROMPT)
+    return template.format(**kwargs)
+
+# Scenario generation meta-analysis debate prompts
+SCENARIO_DIRECTION_PROPOSAL_PROMPT = """You are a domain expert in {expert_domain} tasked with proposing research directions for scenario competition.
+
+<Task>
+Propose 2 distinct research directions from your domain expertise that would lead to meaningfully different technological/scientific futures for {target_year}.
+</Task>
+
+<Storyline Context>
+{storyline}
+</Storyline Context>
+
+<World-Building Questions>
+{world_building_questions}
+</World-Building Questions>
+
+<Your Expertise Domain>
+{expert_domain}
+</Your Expertise Domain>
+
+<Requirements>
+- Scientific plausibility grounded in your domain expertise
+- Each direction must address ALL questions in the context
+- Meaningful differentiation based on different core assumptions
+- Focus on your domain while considering broader implications
+- Provide unique storytelling opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key technological/scientific assumption from your domain]
+Focus: [What this direction emphasizes]
+Domain Rationale: [Why this is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key technological/scientific assumption from your domain]
+Focus: [What this direction emphasizes]
+Domain Rationale: [Why this is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose directions that others might miss."""
+
+SCENARIO_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best research directions for scenario competition.
+
+<Task>
+Moderate a structured discussion between domain experts to evaluate and select the 3 most promising research directions from the proposed candidates.
+</Task>
+
+<Storyline Context>
+{storyline}
+</Storyline Context>
+
+<World-Building Questions>
+{world_building_questions}
+</World-Building Questions>
+
+<Proposed Research Directions>
+{proposed_directions}
+</Proposed Research Directions>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Scientific plausibility and grounding
+- Comprehensive coverage of all world-building questions
+- Meaningful differentiation between directions
+- Equal viability and plausibility
+- Storytelling potential and narrative opportunities
+- Innovation balanced with feasibility
+</Evaluation Criteria>
+
+<Debate Procedure>
+The discussion will unfold in 3-5 turns:
+
+Turn 1: Begin with expert assessment of each proposed direction's strengths and weaknesses.
+
+Subsequent turns:
+* Compare directions for scientific rigor and plausibility
+* Evaluate coverage of world-building questions
+* Assess differentiation and uniqueness
+* Consider storytelling and narrative potential
+* Identify any gaps or overlaps between directions
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed direction]
+
+**Physics/Engineering Expert**: [Analysis of technological feasibility]
+**Biology/Life Sciences Expert**: [Analysis of biological and ecological implications]
+**Social Sciences Expert**: [Analysis of societal and governance implications]
+**Technology/AI Expert**: [Analysis of computational and technological systems]
+
+[Continue debate until consensus on top 3 directions]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key assumption]
+Focus: [Emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key assumption]
+Focus: [Emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key assumption]
+Focus: [Emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Reasoning: [Explain why these 3 directions provide the best combination of scientific rigor, differentiation, and storytelling potential]
+</Final Selection>"""
+
+# Storyline creation meta-analysis debate prompts
+STORYLINE_DIRECTION_PROPOSAL_PROMPT = """You are a narrative expert in {expert_domain} tasked with proposing storytelling directions for storyline competition.
+
+<Task>
+Propose 2 distinct narrative directions from your expertise that would lead to meaningfully different storytelling approaches.
+</Task>
+
+<Story Concept>
+{story_concept}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Your Narrative Expertise>
+{expert_domain}
+</Your Narrative Expertise>
+
+<Requirements>
+- Strong narrative foundation grounded in your expertise
+- Each direction must address the core story concept comprehensively
+- Meaningful differentiation in storytelling approach
+- Focus on your specialty while considering broader narrative impact
+- Provide unique reader engagement opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key narrative assumption from your expertise]
+Focus: [What storytelling approach this emphasizes]
+Narrative Rationale: [Why this is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key narrative assumption from your expertise]
+Focus: [What storytelling approach this emphasizes]
+Narrative Rationale: [Why this is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose directions that create distinctive storytelling experiences."""
+
+STORYLINE_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best narrative directions for storyline competition.
+
+<Task>
+Moderate a structured discussion between narrative experts to evaluate and select the 3 most promising storytelling directions from the proposed candidates.
+</Task>
+
+<Story Concept>
+{story_concept}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Proposed Narrative Directions>
+{proposed_directions}
+</Proposed Narrative Directions>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Narrative strength and character development potential
+- Comprehensive story concept coverage
+- Meaningful differentiation in storytelling approach
+- Reader engagement and emotional impact
+- Thematic depth and resonance
+- Originality balanced with accessibility
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed direction]
+
+**Character Development Expert**: [Analysis of character potential and growth arcs]
+**Plot Structure Expert**: [Analysis of narrative architecture and pacing]
+**Genre Specialist**: [Analysis of genre conventions and innovations]
+**Reader Psychology Expert**: [Analysis of engagement and emotional impact]
+
+[Continue debate until consensus on top 3 directions]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [Storytelling emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [Storytelling emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key narrative assumption]
+Focus: [Storytelling emphasis]
+Panel Consensus: [Why this direction was selected]
+
+Reasoning: [Explain why these 3 directions provide the best combination of narrative strength, differentiation, and reader engagement]
+</Final Selection>"""
+
+# Chapter writing meta-analysis debate prompts
+CHAPTER_WRITING_DIRECTION_PROPOSAL_PROMPT = """You are a writing craft expert in {expert_domain} tasked with proposing chapter approaches for writing competition.
+
+<Task>
+Propose 2 distinct writing approaches from your expertise that would lead to meaningfully different chapter execution styles.
+</Task>
+
+<Storyline>
+{storyline}
+</Storyline>
+
+<Chapter Arcs>
+{chapter_arcs}
+</Chapter Arcs>
+
+<Your Writing Expertise>
+{expert_domain}
+</Your Writing Expertise>
+
+<Requirements>
+- Strong prose foundation grounded in your writing expertise
+- Each approach must serve the storyline and chapter arcs effectively
+- Meaningful differentiation in writing style and technique
+- Focus on your specialty while considering overall narrative impact
+- Provide unique reader immersion opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key writing assumption from your expertise]
+Focus: [What writing approach this emphasizes]
+Craft Rationale: [Why this approach is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key writing assumption from your expertise]
+Focus: [What writing approach this emphasizes]
+Craft Rationale: [Why this approach is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose approaches that create distinctive prose experiences."""
+
+CHAPTER_WRITING_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best writing approaches for chapter competition.
+
+<Task>
+Moderate a structured discussion between writing experts to evaluate and select the 3 most promising chapter approaches from the proposed candidates.
+</Task>
+
+<Storyline>
+{storyline}
+</Storyline>
+
+<Chapter Arcs>
+{chapter_arcs}
+</Chapter Arcs>
+
+<Proposed Writing Approaches>
+{proposed_directions}
+</Proposed Writing Approaches>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Prose quality and literary craftsmanship
+- Storyline integration and chapter arc service
+- Meaningful differentiation in writing technique
+- Reader immersion and engagement
+- Voice consistency and authenticity
+- Innovation balanced with readability
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed approach]
+
+**Prose Style Expert**: [Analysis of writing technique and voice]
+**World Integration Expert**: [Analysis of world-building integration]
+**Character Voice Expert**: [Analysis of character authenticity and dialogue]
+**Reader Experience Expert**: [Analysis of immersion and engagement]
+
+[Continue debate until consensus on top 3 approaches]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key writing assumption]
+Focus: [Writing technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key writing assumption]
+Focus: [Writing technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key writing assumption]
+Focus: [Writing technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Reasoning: [Explain why these 3 approaches provide the best combination of prose quality, differentiation, and reader experience]
+</Final Selection>"""
+
+# Chapter rewriting meta-analysis debate prompts
+CHAPTER_REWRITING_DIRECTION_PROPOSAL_PROMPT = """You are a writing revision expert in {expert_domain} tasked with proposing rewriting approaches for chapter improvement competition.
+
+<Task>
+Propose 2 distinct revision approaches from your expertise that would lead to meaningfully different chapter enhancement strategies.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Your Revision Expertise>
+{expert_domain}
+</Your Revision Expertise>
+
+<Requirements>
+- Strong revision foundation grounded in your writing expertise
+- Each approach must improve the source content effectively
+- Meaningful differentiation in revision strategy and technique
+- Focus on your specialty while considering overall narrative enhancement
+- Provide unique improvement opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key revision assumption from your expertise]
+Focus: [What revision approach this emphasizes]
+Revision Rationale: [Why this approach is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key revision assumption from your expertise]
+Focus: [What revision approach this emphasizes]
+Revision Rationale: [Why this approach is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose approaches that create distinctive chapter improvements."""
+
+CHAPTER_REWRITING_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best revision approaches for chapter rewriting competition.
+
+<Task>
+Moderate a structured discussion between revision experts to evaluate and select the 3 most promising rewriting approaches from the proposed candidates.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Proposed Revision Approaches>
+{proposed_directions}
+</Proposed Revision Approaches>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Revision effectiveness and improvement potential
+- Source content enhancement and preservation of strengths
+- Meaningful differentiation in revision technique
+- Prose quality improvement
+- Narrative flow and coherence enhancement
+- Innovation balanced with content integrity
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed approach]
+
+**Structural Revision Expert**: [Analysis of narrative architecture improvements]
+**Prose Enhancement Expert**: [Analysis of language and style improvements]
+**Character Development Expert**: [Analysis of character voice and development improvements]
+**Content Integration Expert**: [Analysis of world-building and thematic integration]
+
+[Continue debate until consensus on top 3 approaches]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key revision assumption]
+Focus: [Revision technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key revision assumption]
+Focus: [Revision technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key revision assumption]
+Focus: [Revision technique emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Reasoning: [Explain why these 3 approaches provide the best combination of revision effectiveness, differentiation, and content enhancement]
+</Final Selection>"""
+
+# Chapter arcs meta-analysis debate prompts
+CHAPTER_ARCS_DIRECTION_PROPOSAL_PROMPT = """You are a narrative structure expert in {expert_domain} tasked with proposing chapter arc approaches for narrative architecture competition.
+
+<Task>
+Propose 2 distinct structural approaches from your expertise that would lead to meaningfully different chapter organization strategies.
+</Task>
+
+<Story Concept>
+{story_concept}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Your Structural Expertise>
+{expert_domain}
+</Your Structural Expertise>
+
+<Requirements>
+- Strong narrative foundation grounded in your structural expertise
+- Each approach must organize the story concept effectively
+- Meaningful differentiation in chapter organization strategy
+- Focus on your specialty while considering overall reader experience
+- Provide unique pacing and development opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key structural assumption from your expertise]
+Focus: [What organizational approach this emphasizes]
+Structure Rationale: [Why this approach is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key structural assumption from your expertise]
+Focus: [What organizational approach this emphasizes]
+Structure Rationale: [Why this approach is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose approaches that create distinctive narrative architectures."""
+
+CHAPTER_ARCS_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best structural approaches for chapter arc competition.
+
+<Task>
+Moderate a structured discussion between narrative experts to evaluate and select the 3 most promising chapter organization approaches from the proposed candidates.
+</Task>
+
+<Story Concept>
+{story_concept}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Proposed Structural Approaches>
+{proposed_directions}
+</Proposed Structural Approaches>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Narrative architecture effectiveness and flow
+- Story concept service and enhancement
+- Meaningful differentiation in organization strategy
+- Reader engagement and pacing optimization
+- Character development progression support
+- Innovation balanced with narrative coherence
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed approach]
+
+**Pacing Strategy Expert**: [Analysis of chapter rhythm and momentum]
+**Character Arc Expert**: [Analysis of character development progression]
+**Plot Structure Expert**: [Analysis of narrative progression and climax building]
+**Reader Experience Expert**: [Analysis of engagement and satisfaction]
+
+[Continue debate until consensus on top 3 approaches]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key structural assumption]
+Focus: [Organization strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key structural assumption]
+Focus: [Organization strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key structural assumption]
+Focus: [Organization strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Reasoning: [Explain why these 3 approaches provide the best combination of structural effectiveness, differentiation, and reader experience]
+</Final Selection>"""
+
+# Linguistic evolution meta-analysis debate prompts
+LINGUISTIC_EVOLUTION_DIRECTION_PROPOSAL_PROMPT = """You are a linguistic research expert in {expert_domain} tasked with proposing language evolution approaches for linguistic analysis competition.
+
+<Task>
+Propose 2 distinct evolutionary approaches from your expertise that would lead to meaningfully different linguistic development patterns for {target_year}.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Years to Project Forward>
+{years_in_future}
+</Years to Project Forward>
+
+<Your Linguistic Expertise>
+{expert_domain}
+</Your Linguistic Expertise>
+
+<Requirements>
+- Strong linguistic foundation grounded in your research expertise
+- Each approach must project realistic language evolution patterns
+- Meaningful differentiation in evolutionary assumptions
+- Focus on your specialty while considering broader linguistic implications
+- Provide unique cultural and communicative opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key linguistic assumption from your expertise]
+Focus: [What evolutionary pattern this emphasizes]
+Research Rationale: [Why this approach is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key linguistic assumption from your expertise]
+Focus: [What evolutionary pattern this emphasizes]
+Research Rationale: [Why this approach is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose approaches that others might miss in linguistic evolution analysis."""
+
+LINGUISTIC_EVOLUTION_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best linguistic evolution approaches for language analysis competition.
+
+<Task>
+Moderate a structured discussion between linguistic experts to evaluate and select the 3 most promising evolution approaches from the proposed candidates.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Years to Project Forward>
+{years_in_future}
+</Years to Project Forward>
+
+<Proposed Evolution Approaches>
+{proposed_directions}
+</Proposed Evolution Approaches>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Linguistic accuracy and evolutionary plausibility
+- Research methodology soundness
+- Meaningful differentiation in evolution patterns
+- Cultural integration and authenticity
+- Academic rigor and evidence grounding
+- Innovation balanced with linguistic principles
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed approach]
+
+**Historical Linguistics Expert**: [Analysis of evolutionary precedents and patterns]
+**Sociolinguistics Expert**: [Analysis of social and cultural language factors]
+**Computational Linguistics Expert**: [Analysis of technology impact on language]
+**Cognitive Linguistics Expert**: [Analysis of psychological and cognitive factors]
+
+[Continue debate until consensus on top 3 approaches]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key linguistic assumption]
+Focus: [Evolution pattern emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key linguistic assumption]
+Focus: [Evolution pattern emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key linguistic assumption]
+Focus: [Evolution pattern emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Reasoning: [Explain why these 3 approaches provide the best combination of linguistic rigor, differentiation, and cultural authenticity]
+</Final Selection>"""
+
+# Storyline adjustment meta-analysis debate prompts
+STORYLINE_ADJUSTMENT_DIRECTION_PROPOSAL_PROMPT = """You are a narrative adaptation expert in {expert_domain} tasked with proposing storyline adjustment approaches for narrative refinement competition.
+
+<Task>
+Propose 2 distinct adjustment approaches from your expertise that would lead to meaningfully different storyline enhancement strategies.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Your Adaptation Expertise>
+{expert_domain}
+</Your Adaptation Expertise>
+
+<Requirements>
+- Strong adaptation foundation grounded in your narrative expertise
+- Each approach must enhance the source storyline effectively
+- Meaningful differentiation in adjustment strategy
+- Focus on your specialty while considering overall narrative improvement
+- Provide unique storytelling enhancement opportunities
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Key adaptation assumption from your expertise]
+Focus: [What adjustment approach this emphasizes]
+Adaptation Rationale: [Why this approach is compelling from your expertise perspective]
+
+Direction 2: [Name] 
+Core Assumption: [Key adaptation assumption from your expertise]
+Focus: [What adjustment approach this emphasizes]
+Adaptation Rationale: [Why this approach is compelling from your expertise perspective]
+</Output Format>
+
+Focus on leveraging your {expert_domain} expertise to propose approaches that create distinctive storyline improvements."""
+
+STORYLINE_ADJUSTMENT_META_ANALYSIS_DEBATE_PROMPT = """You are facilitating an expert panel debate to select the best adjustment approaches for storyline refinement competition.
+
+<Task>
+Moderate a structured discussion between adaptation experts to evaluate and select the 3 most promising storyline adjustment approaches from the proposed candidates.
+</Task>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<Proposed Adjustment Approaches>
+{proposed_directions}
+</Proposed Adjustment Approaches>
+
+<Expert Panel Members>
+{expert_domains}
+</Expert Panel Members>
+
+<Evaluation Criteria>
+- Narrative enhancement effectiveness and improvement
+- Source content respect and preservation of strengths
+- Meaningful differentiation in adjustment strategy
+- Character development and plot coherence improvement
+- Reader engagement and thematic depth enhancement
+- Innovation balanced with storyline integrity
+</Evaluation Criteria>
+
+<Panel Discussion>
+[Simulate expert panel debate discussing each proposed approach]
+
+**Plot Enhancement Expert**: [Analysis of storyline structure improvements]
+**Character Development Expert**: [Analysis of character arc enhancements]
+**Thematic Integration Expert**: [Analysis of theme and meaning deepening]
+**Reader Experience Expert**: [Analysis of engagement and satisfaction improvements]
+
+[Continue debate until consensus on top 3 approaches]
+</Panel Discussion>
+
+<Final Selection>
+Direction 1: [Name]
+Core Assumption: [Key adaptation assumption]
+Focus: [Adjustment strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 2: [Name]
+Core Assumption: [Key adaptation assumption]
+Focus: [Adjustment strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Direction 3: [Name]
+Core Assumption: [Key adaptation assumption]
+Focus: [Adjustment strategy emphasis]
+Panel Consensus: [Why this approach was selected]
+
+Reasoning: [Explain why these 3 approaches provide the best combination of narrative enhancement, differentiation, and storyline integrity]
+</Final Selection>"""
+
+# === LLM vs LLM Debate System ===
+
+def get_debate_participant_prompt(use_case: str, role: str, **kwargs) -> str:
+    """Get debate prompt for LLM A or LLM B participant in actual debate conversation."""
+    
+    prompts = {
+        "scenario_generation": SCENARIO_DEBATER_PROMPT,
+        "storyline_creation": STORYLINE_DEBATER_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_DEBATER_PROMPT,
+        "chapter_rewriting": CHAPTER_REWRITING_DEBATER_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_DEBATER_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_DEBATER_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_DEBATER_PROMPT,
+        "storyline_adjustment": STORYLINE_ADJUSTMENT_DEBATER_PROMPT
+    }
+    
+    template = prompts.get(use_case, prompts["scenario_generation"])
+    
+    # Add role-specific parameters
+    role_params = get_meta_analysis_role_params(use_case, role, **kwargs)
+    kwargs.update(role_params)
+    
+    return template.format(**kwargs)
+
+def get_tournament_debate_participant_prompt(use_case: str, role: str, **kwargs) -> str:
+    """Get tournament debate prompt for LLM A or LLM B in winner selection."""
+    
+    prompts = {
+        "scenario_generation": TOURNAMENT_SCENARIO_DEBATER_PROMPT,
+        "storyline_creation": TOURNAMENT_STORYLINE_DEBATER_PROMPT,
+        "chapter_writing": TOURNAMENT_CHAPTER_WRITING_DEBATER_PROMPT,
+        "chapter_rewriting": TOURNAMENT_CHAPTER_REWRITING_DEBATER_PROMPT,
+        "chapter_arcs_creation": TOURNAMENT_CHAPTER_ARCS_DEBATER_PROMPT,
+        "chapter_arcs_adjustment": TOURNAMENT_CHAPTER_ARCS_DEBATER_PROMPT,
+        "linguistic_evolution": TOURNAMENT_LINGUISTIC_EVOLUTION_DEBATER_PROMPT,
+        "storyline_adjustment": TOURNAMENT_STORYLINE_ADJUSTMENT_DEBATER_PROMPT
+    }
+    
+    template = prompts.get(use_case, prompts["scenario_generation"])
+    
+    # Add role-specific parameters
+    role_params = get_tournament_role_params(use_case, role, **kwargs)
+    kwargs.update(role_params)
+    
+    return template.format(**kwargs)
+
+def get_meta_analysis_role_params(use_case: str, role: str, **kwargs) -> dict:
+    """Get role-specific parameters for collaborative meta-analysis consultation."""
+    
+    # Define specialist roles for each use case
+    specialist_definitions = {
+        "scenario_generation": {
+            "A": ("Theory-Driven Expert", "Scientific principles, theoretical frameworks, fundamental research"),
+            "B": ("Application-Driven Expert", "Practical implementations, real-world utility, applied research")
+        },
+        "storyline_creation": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "chapter_writing": {
+            "A": ("Craft Specialist", "Prose techniques, style, literary quality"),
+            "B": ("Flow and Engagement Specialist", "Pacing, transitions, reader engagement")
+        },
+        "chapter_rewriting": {
+            "A": ("Content Analyst", "Ideas, themes, conceptual clarity, coherence with storyline and world"),
+            "B": ("Presentation Analyst", "Delivery, style, reader experience")
+        },
+        "chapter_arcs_creation": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "chapter_arcs_adjustment": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "linguistic_evolution": {
+            "A": ("Pattern Analyst", "Historical language change patterns, trends"),
+            "B": ("Context Analyst", "Cultural factors, technological influences, social dynamics")
+        },
+        "storyline_adjustment": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        }
+    }
+    
+    specialist_title, specialist_focus = specialist_definitions.get(use_case, specialist_definitions["scenario_generation"])[role]
+    partner_title, partner_focus = specialist_definitions.get(use_case, specialist_definitions["scenario_generation"])["B" if role == "A" else "A"]
+    
+    if role == "A":
+        role_description = f"You are a {specialist_title} collaborating with a {partner_title} to develop optimal research directions."
+        your_expertise = specialist_focus
+        partner_expertise = partner_focus
+        
+        collaboration_approach = f"""Your expertise: {your_expertise}
+Partner's expertise: {partner_expertise}
+
+**Collaborative Process:**
+1. Present your initial {kwargs.get('num_directions', 3)} research directions from your specialty perspective
+2. Your partner will enhance these with their expertise and suggest additional considerations
+3. Together, refine the directions to be comprehensive and well-rounded
+4. Each direction should have: Name, Core Focus, Research Approach"""
+        
+        current_turn = "Turn 1 - Present your initial research directions"
+        action_instruction = f"Present your {kwargs.get('num_directions', 3)} research directions from your {specialist_title.lower()} perspective."
+        
+    else:  # role == "B"
+        role_description = f"You are a {specialist_title} collaborating with a {partner_title} to enhance and refine research directions."
+        your_expertise = specialist_focus
+        partner_expertise = partner_focus
+        
+        collaboration_approach = f"""Your expertise: {your_expertise}
+Partner's expertise: {partner_expertise}
+
+**Your Role:** The {partner_title} has presented initial directions. Now:
+1. Review their proposals from your specialty perspective
+2. Suggest enhancements and additional considerations from your expertise
+3. Propose refinements that integrate both perspectives
+4. Work toward comprehensive, well-rounded final directions"""
+        
+        current_turn = f"Turn 2 - Enhance the {partner_title.lower()}'s proposals with your expertise"
+        action_instruction = f"""Review the proposed directions and enhance them with your {specialist_title.lower()} insights:
+
+1. Acknowledge the strengths of the initial directions
+2. Add your specialized perspective and considerations
+3. Suggest refinements that integrate both expertise areas
+4. Propose any additional directions that emerge from this collaboration
+
+Work toward consensus on the strongest {kwargs.get('num_directions', 3)} directions."""
+    
+    return {
+        "role": role,
+        "role_description": role_description,
+        "your_expertise": your_expertise,
+        "partner_expertise": partner_expertise,
+        "collaboration_approach": collaboration_approach,
+        "current_turn": current_turn,
+        "specialist_title": specialist_title,
+        "partner_title": partner_title,
+        "action_instruction": action_instruction
+    }
+
+def get_tournament_role_params(use_case: str, role: str, **kwargs) -> dict:
+    """Get role-specific parameters for collaborative tournament evaluation."""
+    
+    # Use same specialist definitions as meta-analysis
+    specialist_definitions = {
+        "scenario_generation": {
+            "A": ("Theory-Driven Expert", "Scientific principles, theoretical frameworks, fundamental research"),
+            "B": ("Application-Driven Expert", "Practical implementations, real-world utility, applied research")
+        },
+        "storyline_creation": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "chapter_writing": {
+            "A": ("Craft Specialist", "Prose techniques, style, literary quality"),
+            "B": ("Flow and Engagement Specialist", "Pacing, transitions, reader engagement")
+        },
+        "chapter_rewriting": {
+            "A": ("Content Analyst", "Ideas, themes, conceptual clarity, coherence with storyline and world"),
+            "B": ("Presentation Analyst", "Delivery, style, reader experience")
+        },
+        "chapter_arcs_creation": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "chapter_arcs_adjustment": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        },
+        "linguistic_evolution": {
+            "A": ("Pattern Analyst", "Historical language change patterns, trends"),
+            "B": ("Context Analyst", "Cultural factors, technological influences, social dynamics")
+        },
+        "storyline_adjustment": {
+            "A": ("Structure Specialist", "Narrative architecture, pacing, plot development"),
+            "B": ("Character Specialist", "Character arcs, relationships, psychological depth")
+        }
+    }
+    
+    specialist_title, specialist_focus = specialist_definitions.get(use_case, specialist_definitions["scenario_generation"])[role]
+    partner_title, partner_focus = specialist_definitions.get(use_case, specialist_definitions["scenario_generation"])["B" if role == "A" else "A"]
+    
+    if role == "A":
+        role_description = f"You are a {specialist_title} collaborating with a {partner_title} to determine which option is superior."
+        your_expertise = specialist_focus
+        partner_expertise = partner_focus
+        
+        scenario_details = f"""**OPTION 1:**
+{kwargs.get('scenario_1_content', '')}
+
+**Initial Review of Option 1**:
+{kwargs.get('scenario_1_review', '')}
+
+**OPTION 2:**
+{kwargs.get('scenario_2_content', '')}
+
+**Initial Review of Option 2**:
+{kwargs.get('scenario_2_review', '')}"""
+        
+        collaboration_approach = f"""Your expertise: {your_expertise}
+Partner's expertise: {partner_expertise}
+
+**Collaborative Process:**
+1. Evaluate both options from your specialty perspective
+2. Your partner will add their specialized assessment
+3. Together, reach consensus on which option is superior
+4. Focus on objective evaluation based on stated criteria"""
+        
+        current_turn = "Turn 1 - Evaluate both options from your specialty perspective"
+        action_instruction = f"Assess both options from your {specialist_title.lower()} perspective, considering: {kwargs.get('criteria', 'the evaluation criteria')}"
+        
+    else:  # role == "B"
+        role_description = f"You are a {specialist_title} collaborating with a {partner_title} to reach consensus on the superior option."
+        your_expertise = specialist_focus
+        partner_expertise = partner_focus
+        
+        scenario_details = f"""**{partner_title}'s Assessment:**
+{kwargs.get('debater_a_argument', 'Partner assessment will be provided')}
+
+**OPTION 1:**
+{kwargs.get('scenario_1_content', '')}
+
+**OPTION 2:**
+{kwargs.get('scenario_2_content', '')}"""
+        
+        collaboration_approach = f"""Your expertise: {your_expertise}
+Partner's expertise: {partner_expertise}
+
+**Your Role:** The {partner_title} has provided their assessment. Now:
+1. Add your specialized perspective to the evaluation
+2. Consider how your expertise complements their analysis
+3. Work together toward consensus on the superior option
+4. Integrate both perspectives for a comprehensive conclusion"""
+        
+        current_turn = f"Turn 2 - Add your {specialist_title.lower()} assessment and work toward consensus"
+        action_instruction = f"""Review the {partner_title.lower()}'s assessment and add your {specialist_title.lower()} perspective:
+
+1. Acknowledge insights from the {partner_title.lower()}'s evaluation
+2. Assess both options from your specialized expertise
+3. Consider how both perspectives together inform the decision
+4. Work toward consensus on which option is superior
+
+Conclude with: BETTER OPTION: 1 or 2"""
+    
+    return {
+        "role": role,
+        "role_description": role_description,
+        "your_expertise": your_expertise,
+        "partner_expertise": partner_expertise,
+        "scenario_details": scenario_details,
+        "collaboration_approach": collaboration_approach,
+        "current_turn": current_turn,
+        "specialist_title": specialist_title,
+        "partner_title": partner_title,
+        "action_instruction": action_instruction
+    }
+
+# === Meta-Analysis Debate Prompts (LLM A vs LLM B) ===
+
+SCENARIO_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal research directions for scenario generation.
+
+**Your Role**: {role_description}
+
+**Context**:
+Storyline: {storyline}
+World-Building Questions: {world_building_questions}
+Target: {target_year}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for research directions**:
+Direction 1: [Name]
+Core Focus: [Primary research focus]
+Research Approach: [How to investigate this]
+
+Direction 2: [Name]
+Core Focus: [Primary research focus]
+Research Approach: [How to investigate this]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest research directions that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament storyline collaboration
+TOURNAMENT_STORYLINE_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior storyline from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament chapter writing collaboration
+TOURNAMENT_CHAPTER_WRITING_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior chapter from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament chapter rewriting collaboration
+TOURNAMENT_CHAPTER_REWRITING_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior revised chapter from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament chapter arcs collaboration
+TOURNAMENT_CHAPTER_ARCS_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior chapter arc structure from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament linguistic evolution collaboration
+TOURNAMENT_LINGUISTIC_EVOLUTION_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior linguistic evolution analysis from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Tournament storyline adjustment collaboration
+TOURNAMENT_STORYLINE_ADJUSTMENT_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior storyline adjustment from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Storyline creation meta-analysis collaboration
+STORYLINE_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal narrative directions for storyline creation.
+
+**Your Role**: {role_description}
+
+**Context**:
+Story Concept: {story_concept}
+Source Content: {source_content}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for narrative directions**:
+Direction 1: [Name]
+Core Focus: [Primary narrative focus]
+Research Approach: [How to develop this aspect]
+
+Direction 2: [Name]
+Core Focus: [Primary narrative focus]
+Research Approach: [How to develop this aspect]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest narrative directions that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Chapter writing meta-analysis collaboration
+CHAPTER_WRITING_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal writing approaches for chapter creation.
+
+**Your Role**: {role_description}
+
+**Context**:
+Storyline: {storyline}
+Chapter Arcs: {chapter_arcs}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for writing approaches**:
+Direction 1: [Name]
+Core Focus: [Primary writing focus]
+Research Approach: [How to develop this technique]
+
+Direction 2: [Name]
+Core Focus: [Primary writing focus]
+Research Approach: [How to develop this technique]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest writing approaches that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Chapter rewriting meta-analysis collaboration
+CHAPTER_REWRITING_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal revision approaches for chapter improvement.
+
+**Your Role**: {role_description}
+
+**Context**:
+Source Content: {source_content}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for revision approaches**:
+Direction 1: [Name]
+Core Focus: [Primary revision focus]
+Research Approach: [How to apply this technique]
+
+Direction 2: [Name]
+Core Focus: [Primary revision focus]
+Research Approach: [How to apply this technique]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest revision approaches that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Chapter arcs meta-analysis collaboration
+CHAPTER_ARCS_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal structural approaches for chapter organization.
+
+**Your Role**: {role_description}
+
+**Context**:
+Story Concept: {story_concept}
+Source Content: {source_content}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for structural approaches**:
+Direction 1: [Name]
+Core Focus: [Primary structural focus]
+Research Approach: [How to develop this organization]
+
+Direction 2: [Name]
+Core Focus: [Primary structural focus]
+Research Approach: [How to develop this organization]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest structural approaches that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Linguistic evolution meta-analysis collaboration
+LINGUISTIC_EVOLUTION_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal linguistic evolution approaches for language analysis.
+
+**Your Role**: {role_description}
+
+**Context**:
+Source Content: {source_content}
+Target Year: {target_year}
+Years to Project Forward: {years_in_future}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for linguistic approaches**:
+Direction 1: [Name]
+Core Focus: [Primary linguistic focus]
+Research Approach: [How to analyze this evolution]
+
+Direction 2: [Name]
+Core Focus: [Primary linguistic focus]
+Research Approach: [How to analyze this evolution]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest linguistic approaches that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# Storyline adjustment meta-analysis collaboration
+STORYLINE_ADJUSTMENT_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to develop optimal adjustment approaches for storyline refinement.
+
+**Your Role**: {role_description}
+
+**Context**:
+Source Content: {source_content}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Format for adjustment approaches**:
+Direction 1: [Name]
+Core Focus: [Primary adjustment focus]
+Research Approach: [How to implement this refinement]
+
+Direction 2: [Name]
+Core Focus: [Primary adjustment focus]
+Research Approach: [How to implement this refinement]
+
+[Continue for {num_directions} directions]
+
+**Final Goal**: Work together to identify the {num_directions} strongest adjustment approaches that combine both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+
+# === Tournament Winner Debate Prompts (LLM A vs LLM B) ===
+
+TOURNAMENT_SCENARIO_DEBATER_PROMPT = """You are a {specialist_title} collaborating with a {partner_title} to determine the superior scenario from the tournament finalists.
+
+**Your Role**: {role_description}
+
+**Goal**: {goal}
+**Evaluation Criteria**: {criteria}
+
+{scenario_details}
+
+{collaboration_approach}
+
+**Current Turn**: {current_turn}
+
+**Final Goal**: Work together to reach consensus on which option better serves the stated goal, integrating both {your_expertise} and {partner_expertise} perspectives.
+
+{action_instruction}"""
+

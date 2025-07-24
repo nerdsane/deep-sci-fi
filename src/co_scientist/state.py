@@ -102,11 +102,19 @@ class CoScientistInputState(TypedDict):
 class CoScientistState(CoScientistInputState):
     """Complete state for the co-scientist competition process."""
     
-    # Meta-analysis outputs
-    research_directions: List[Dict[str, str]]
+    # Meta-analysis phase
+    research_directions: Annotated[List[Dict[str, Any]], override_reducer]
     meta_analysis_reasoning: str
     
-    # Population generation
+    # Meta-analysis debate phase (when using LLM vs LLM debate)
+    llm_debate_conversation: Optional[str]  # Full LLM vs LLM conversation transcript
+    debate_conclusion: Optional[str]  # Final conclusion from LLM debate
+    
+    # Legacy fields (kept for backward compatibility)
+    expert_proposals: Optional[List[Dict[str, Any]]]  # Individual expert domain proposals  
+    debate_transcript: Optional[str]  # Debate transcript (now stores LLM conversation)
+    
+    # Generation phase
     scenario_population: Annotated[List[Dict[str, Any]], override_reducer]
     generation_complete: bool
     
@@ -122,6 +130,13 @@ class CoScientistState(CoScientistInputState):
     # Ranking phase
     leaderboard_data: Dict[str, Any]  # Comprehensive Elo-based leaderboard and analytics
     ranking_complete: bool
+    
+    # Debate phase  
+    debate_winner: Optional[Dict[str, Any]]  # Winner of final debate between top 2
+    debate_transcript: Optional[str]  # Full debate transcript
+    debate_participants: Optional[List[Dict[str, Any]]]  # Top 2 scenarios that debated
+    debate_summary_for_evolution: Optional[str]  # Debate outcome summary for evolution phase
+    debate_complete: bool
     
     # Evolution phase
     evolved_scenarios: Annotated[List[Dict[str, Any]], override_reducer]

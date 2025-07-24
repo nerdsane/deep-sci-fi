@@ -141,13 +141,24 @@ class CoScientistConfiguration(BaseModel):
     )
     
     enabled_phases: List[str] = Field(
-        default=["meta_analysis", "scenario_generation", "reflection", "tournament", "evolution", "evolution_tournament", "meta_review"],
+        default=["meta_analysis", "scenario_generation", "reflection", "tournament", "ranking", "debate", "evolution", "evolution_tournament", "meta_review"],
         metadata={
             "x_oap_ui_config": {
                 "type": "array",
                 "items": {"type": "string"},
-                "default": ["meta_analysis", "scenario_generation", "reflection", "tournament", "evolution", "evolution_tournament", "meta_review"],
+                "default": ["meta_analysis", "scenario_generation", "reflection", "tournament", "ranking", "debate", "evolution", "evolution_tournament", "meta_review"],
                 "description": "Which phases to enable (for custom control)"
+            }
+        }
+    )
+    
+    use_meta_analysis_debate: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Use expert panel debate for meta-analysis instead of single LLM"
             }
         }
     )
@@ -405,12 +416,12 @@ class CoScientistConfiguration(BaseModel):
     
     def get_enabled_phases_for_depth(self) -> List[str]:
         """Get enabled phases based on process depth."""
-        all_phases = ["meta_analysis", "scenario_generation", "reflection", "tournament", "evolution", "evolution_tournament", "meta_review"]
+        all_phases = ["meta_analysis", "scenario_generation", "reflection", "tournament", "ranking", "debate", "evolution", "evolution_tournament", "meta_review"]
         
         if self.process_depth == ProcessDepth.QUICK:
-            return ["meta_analysis", "scenario_generation", "tournament", "meta_review"]
+            return ["meta_analysis", "scenario_generation", "tournament", "ranking", "debate", "meta_review"]
         elif self.process_depth == ProcessDepth.STANDARD:
-            return ["meta_analysis", "scenario_generation", "reflection", "tournament", "evolution", "meta_review"]
+            return ["meta_analysis", "scenario_generation", "reflection", "tournament", "ranking", "debate", "evolution", "meta_review"]
         elif self.process_depth == ProcessDepth.COMPREHENSIVE:
             return all_phases
         else:
