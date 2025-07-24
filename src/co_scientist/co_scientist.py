@@ -71,14 +71,20 @@ def create_isolated_model_instance(model_name: str, max_tokens: int = 8000, temp
     unique_seed = hash(f"{model_name}_{max_tokens}_{time.time()}_{random.random()}")
     
     # Create completely fresh model instance
-    isolated_model = init_chat_model(
-        model=model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        seed=abs(unique_seed) % (2**31 - 1),  # Ensure positive 32-bit int
+    # Note: Anthropic models don't support seed parameter, only OpenAI models do
+    model_params = {
+        "model": model_name,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         # Force new instance by adding unique metadata
-        metadata={"isolation_id": str(uuid.uuid4()), "created_at": time.time()}
-    )
+        "metadata": {"isolation_id": str(uuid.uuid4()), "created_at": time.time()}
+    }
+    
+    # Only add seed for OpenAI models (Anthropic doesn't support it)
+    if not model_name.startswith("anthropic:"):
+        model_params["seed"] = abs(unique_seed) % (2**31 - 1)  # Ensure positive 32-bit int
+    
+    isolated_model = init_chat_model(**model_params)
     
     return isolated_model
 
