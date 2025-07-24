@@ -111,7 +111,7 @@ class CoScientistState(CoScientistInputState):
     debate_conclusion: Optional[str]  # Final conclusion from LLM debate
     
     # Legacy fields (kept for backward compatibility)
-    expert_proposals: Optional[List[Dict[str, Any]]]  # Individual expert domain proposals  
+  
     debate_transcript: Optional[str]  # Debate transcript (now stores LLM conversation)
     
     # Generation phase
