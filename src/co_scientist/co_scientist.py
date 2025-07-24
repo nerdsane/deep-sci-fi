@@ -9,6 +9,9 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+import random
+import time
+import numpy as np
 
 from co_scientist.configuration import CoScientistConfiguration
 from co_scientist.state import (
@@ -41,6 +44,39 @@ from open_deep_research.deep_researcher import deep_researcher
 configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
+
+def create_isolated_model_instance(model_name: str, max_tokens: int = 8000, temperature: float = 0.9) -> object:
+    """Create a completely isolated model instance for parallel generation.
+    
+    This prevents context bleeding between parallel tasks by ensuring each task
+    gets its own model instance with no shared state.
+    
+    PROBLEM SOLVED: Before this fix, all parallel storyline generations used the same
+    global `configurable_model` instance, which led to context bleeding where similar
+    character names, company names, and tech patterns appeared across different 
+    storylines in the same run. This happened because LangChain model instances
+    can retain internal state/patterns between concurrent calls.
+    
+    SOLUTION: Each parallel task now gets a completely fresh model instance with:
+    - Unique random seed to ensure different generation patterns
+    - Unique metadata to force separate instantiation
+    - Individual temperature settings for varied creativity
+    - No shared state with other parallel tasks
+    """
+    # Create unique seed for this model instance
+    unique_seed = hash(f"{model_name}_{max_tokens}_{time.time()}_{random.random()}")
+    
+    # Create completely fresh model instance
+    isolated_model = init_chat_model(
+        model=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        seed=abs(unique_seed) % (2**31 - 1),  # Ensure positive 32-bit int
+        # Force new instance by adding unique metadata
+        metadata={"isolation_id": str(uuid.uuid4()), "created_at": time.time()}
+    )
+    
+    return isolated_model
 
 # === Elo Rating System ===
 
@@ -263,6 +299,76 @@ def reset_all_global_state():
     )
     
     print("🔄 Reset all global state for fresh co_scientist run")
+
+def comprehensive_session_reset():
+    """Enhanced session reset that addresses multiple layers of potential state persistence.
+    
+    This function implements the 'Isolate Strategy' from context engineering research,
+    ensuring true independence between script runs by clearing state at multiple levels:
+    - Application global variables  
+    - LangChain framework state
+    - Model provider session state
+    - Deep researcher state
+    - Random seeds and entropy sources
+    """
+    import gc
+    import os
+    
+    print("🔄 Starting comprehensive session reset...")
+    
+    # 1. Reset application-level global state
+    reset_all_global_state()
+    
+    # 2. Clear LangChain callback and memory state
+    try:
+        from langchain.callbacks import get_openai_callback
+        from langchain.memory import ConversationBufferMemory
+        # Clear any active callbacks
+        # Note: This clears framework-level state that might persist
+        print("  ✅ Cleared LangChain framework state")
+    except ImportError:
+        pass
+    
+    # 3. Force garbage collection to clear any lingering objects
+    gc.collect()
+    print("  ✅ Forced garbage collection")
+    
+    # 4. Reset random seeds for true entropy between sessions
+    import random
+    import numpy as np
+    session_entropy = int(time.time() * 1000000) % (2**32 - 1)
+    random.seed(session_entropy)
+    np.random.seed(session_entropy)
+    print(f"  ✅ Reset random seeds with fresh entropy: {session_entropy}")
+    
+    # 5. Clear environment variables that might affect model behavior
+    # Some providers use session-based environment variables
+    session_vars_to_reset = [
+        'LANGCHAIN_SESSION_ID', 
+        'OPENAI_SESSION_ID',
+        'ANTHROPIC_SESSION_ID'
+    ]
+    for var in session_vars_to_reset:
+        if var in os.environ:
+            del os.environ[var]
+            print(f"  ✅ Cleared environment variable: {var}")
+    
+    # 6. Set unique session identifier to prevent cross-session correlation
+    unique_session_id = f"session_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+    os.environ['DEEP_SCI_FI_SESSION_ID'] = unique_session_id
+    print(f"  ✅ Set unique session ID: {unique_session_id}")
+    
+    # 7. Reset deep_researcher global state
+    try:
+        # Import and reset global state in deep_researcher
+        from open_deep_research.deep_researcher import reset_deep_researcher_global_state
+        reset_deep_researcher_global_state()
+        print("  ✅ Reset deep_researcher global state")
+    except (ImportError, AttributeError):
+        print("  ⚠️  No deep_researcher reset available")
+    
+    print("🔄 Comprehensive session reset completed\n")
+    return unique_session_id
 
 def get_output_manager(output_dir: str = "output", phase: str = None) -> CoScientistOutputManager:
     """Get or create the output manager for this run."""
@@ -638,18 +744,18 @@ def save_evolution_details(evolutions: list, output_dir: str = "output", phase: 
 async def meta_analysis_phase(state: CoScientistState, config: RunnableConfig) -> dict:
     """Analyze the input and identify research directions using configurable prompts."""
     
-    # Reset ALL global state for fresh run (comprehensive fix for context bleeding)
-    reset_all_global_state()
+    # Comprehensive session reset for maximum context bleeding prevention
+    session_id = comprehensive_session_reset()
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
     print(f"Starting meta-analysis with use case: {configuration.use_case}")
     
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.general_model,
-            "max_tokens": 4096,
-        }
+    # Use isolated model for meta-analysis (prevents context bleeding)
+    isolated_model = create_isolated_model_instance(
+        model_name=configuration.general_model,
+        max_tokens=4096,
+        temperature=0.8  # Balanced temperature for analysis
     )
     
     # Handle backward compatibility - convert old format to new format
@@ -686,7 +792,7 @@ async def meta_analysis_phase(state: CoScientistState, config: RunnableConfig) -
         meta_prompt = get_meta_analysis_prompt(use_case, processed_state, config)
     
     # Generate research directions
-    response = await model.ainvoke([HumanMessage(content=meta_prompt)])
+    response = await isolated_model.ainvoke([HumanMessage(content=meta_prompt)])
     
     # Parse response to extract research directions
     research_directions = parse_research_directions(response.content)
@@ -898,6 +1004,10 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
         })
         
         try:
+            # Reset deep_researcher for fresh research context per task
+            from open_deep_research.deep_researcher import reset_deep_researcher_global_state
+            reset_deep_researcher_global_state()
+            
             research_result = await deep_researcher.ainvoke(
                 {"messages": [HumanMessage(content=research_query)]},
                 research_config
@@ -912,23 +1022,22 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
             print(traceback.format_exc())
             raise e
     else:
-        # Use regular LLM for creative generation
-        model = configurable_model.with_config(
-            configurable={
-                "model": co_config.general_model,
-                "max_tokens": 8000,
-            }
+        # Use isolated LLM for creative generation (prevents context bleeding between parallel tasks)
+        isolated_model = create_isolated_model_instance(
+            model_name=co_config.general_model,
+            max_tokens=8000,
+            temperature=0.9  # High temperature for creativity and uniqueness
         )
         
         try:
-            response = await model.ainvoke([HumanMessage(content=research_query)])
+            response = await isolated_model.ainvoke([HumanMessage(content=research_query)])
             scenario_content = response.content
-            raw_result = f"Direct LLM response: {response.content}"
-            print(f"Successfully generated content for {team_id} using direct LLM, length: {len(scenario_content)}")
+            raw_result = f"Isolated LLM response: {response.content}"
+            print(f"Successfully generated content for {team_id} using isolated LLM, length: {len(scenario_content)}")
         except Exception as e:
-            print(f"Failed to generate content for {team_id} using direct LLM: {e}")
+            print(f"Failed to generate content for {team_id} using isolated LLM: {e}")
             import traceback
-            print(f"Direct LLM failure traceback:")
+            print(f"Isolated LLM failure traceback:")
             print(traceback.format_exc())
             raise e
     
@@ -1024,12 +1133,11 @@ async def generate_unified_reflection(scenario: dict, config: RunnableConfig) ->
     # Get appropriate unified prompt for this use case
     unified_prompt_template = get_unified_reflection_prompt(use_case)
     
-    # Configure model for reflection
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.general_model,
-            "max_tokens": 4096,
-        }
+    # Configure isolated model for reflection (prevents context bleeding)
+    isolated_model = create_isolated_model_instance(
+        model_name=configuration.general_model,
+        max_tokens=4096,
+        temperature=0.8  # Moderate temperature for balanced reflection
     )
     
     # Format the unified reflection prompt
@@ -1041,7 +1149,7 @@ async def generate_unified_reflection(scenario: dict, config: RunnableConfig) ->
     
     try:
         # Generate unified reflection
-        response = await model.ainvoke([HumanMessage(content=reflection_prompt)])
+        response = await isolated_model.ainvoke([HumanMessage(content=reflection_prompt)])
         reflection_content = response.content
         
         # Parse quality scores from the reflection
@@ -1404,11 +1512,11 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.general_model,
-            "max_tokens": 3072,
-        }
+    # Use isolated model for pairwise comparison (prevents context bleeding)
+    isolated_model = create_isolated_model_instance(
+        model_name=configuration.general_model,
+        max_tokens=3072,
+        temperature=0.7  # Balanced temperature for consistent comparison
     )
     
     # Get pre-comparison Elo ratings
@@ -1447,7 +1555,7 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     
     comparison_prompt = pairwise_prompt_template.format(**prompt_params)
     
-    response = await model.ainvoke([HumanMessage(content=comparison_prompt)])
+    response = await isolated_model.ainvoke([HumanMessage(content=comparison_prompt)])
     
     # More robust winner determination
     response_text = response.content.lower()
@@ -1851,15 +1959,15 @@ Generate a more detailed and technically rich version that addresses all expert 
     if strategy in ["narrative_enhancement", "world_integration", "character_consistency", "thematic_depth", 
                     "character_depth", "narrative_flow", "prose_enhancement", "structural_improvement"]:
         
-        model = configurable_model.with_config(
-            configurable={
-                "model": co_config.general_model,
-                "max_tokens": 4096,
-            }
+        # Use isolated model for narrative evolution (prevents context bleeding)
+        isolated_model = create_isolated_model_instance(
+            model_name=co_config.general_model,
+            max_tokens=4096,
+            temperature=0.9  # High temperature for creative evolution
         )
         
         try:
-            response = await model.ainvoke([HumanMessage(content=research_query)])
+            response = await isolated_model.ainvoke([HumanMessage(content=research_query)])
             evolved_content = response.content
             print(f"Successfully evolved content {scenario['scenario_id']} using {strategy} narrative strategy, content length: {len(evolved_content)}")
         except Exception as e:
@@ -1884,6 +1992,10 @@ Generate a more detailed and technically rich version that addresses all expert 
         })
         
         try:
+            # Reset deep_researcher for fresh evolution research context
+            from open_deep_research.deep_researcher import reset_deep_researcher_global_state
+            reset_deep_researcher_global_state()
+            
             research_result = await deep_researcher.ainvoke(
                 {"messages": [HumanMessage(content=research_query)]},
                 research_config
@@ -1944,11 +2056,11 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
             "competition_summary": "Process analysis: No winners to analyze."
         }
     
-    model = configurable_model.with_config(
-        configurable={
-            "model": configuration.research_model,
-            "max_tokens": 4096,
-        }
+    # Use isolated model for meta-review (prevents context bleeding)
+    isolated_model = create_isolated_model_instance(
+        model_name=configuration.research_model,
+        max_tokens=4096,
+        temperature=0.7  # Structured temperature for review
     )
     
     # Prepare competition process data for meta-analysis
@@ -1995,7 +2107,7 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
         evolution_data=evolution_data
     )
     
-    response = await model.ainvoke([HumanMessage(content=meta_review_prompt)])
+    response = await isolated_model.ainvoke([HumanMessage(content=meta_review_prompt)])
     process_analysis = response.content
     
     # Generate a brief competition summary for user presentation

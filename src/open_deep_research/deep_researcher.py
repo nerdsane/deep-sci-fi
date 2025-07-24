@@ -45,6 +45,41 @@ configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
 
+def reset_deep_researcher_global_state():
+    """Reset deep_researcher global state for fresh context per co_scientist invocation.
+    
+    Based on NVIDIA research on KV cache security, shared model instances can create
+    timing side-channels and context bleeding between different research tasks.
+    
+    This function ensures that:
+    - Each co_scientist invocation of deep_researcher gets fresh model context
+    - Within a single deep_researcher run, sub-agents can reuse context efficiently  
+    - No research topic contamination occurs between different storyline generations
+    
+    Reference: https://developer.nvidia.com/blog/structuring-applications-to-secure-the-kv-cache/
+    """
+    global configurable_model
+    import gc
+    import time
+    import uuid
+    
+    print("🔄 Resetting deep_researcher global state for fresh research context...")
+    
+    # Clear the global model instance
+    configurable_model = init_chat_model(
+        configurable_fields=("model", "max_tokens", "api_key"),
+    )
+    
+    # Force garbage collection to clear any lingering state
+    gc.collect()
+    
+    # Generate unique session identifier for this research run
+    research_session_id = f"research_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+    
+    print(f"  ✅ Fresh deep_researcher session: {research_session_id}")
+    
+    return research_session_id
+
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
     configurable = Configuration.from_runnable_config(config)
     if not configurable.allow_clarification:

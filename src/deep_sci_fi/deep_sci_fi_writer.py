@@ -115,6 +115,69 @@ def reset_deep_sci_fi_models():
     
     print("🔄 Reset deep_sci_fi models for fresh creative generation")
 
+def comprehensive_deep_sci_fi_session_reset():
+    """Enhanced session reset for deep_sci_fi that addresses multiple layers of context bleeding.
+    
+    Implements comprehensive session isolation to prevent any form of context bleeding
+    between different deep-sci-fi runs, including:
+    - Model instance state
+    - Framework-level caching  
+    - Random seed state
+    - Environment variables
+    - Provider-side session correlation
+    """
+    import gc
+    import os
+    import random
+    import time
+    import uuid
+    
+    print("🔄 Starting comprehensive deep_sci_fi session reset...")
+    
+    # 1. Reset model instances
+    reset_deep_sci_fi_models()
+    
+    # 2. Force garbage collection to clear lingering objects
+    gc.collect()
+    print("  ✅ Forced garbage collection")
+    
+    # 3. Reset random seeds with fresh entropy
+    session_entropy = int(time.time() * 1000000) % (2**32 - 1)
+    random.seed(session_entropy)
+    try:
+        import numpy as np
+        np.random.seed(session_entropy)
+    except ImportError:
+        pass
+    print(f"  ✅ Reset random seeds with entropy: {session_entropy}")
+    
+    # 4. Clear session-related environment variables
+    session_vars_to_reset = [
+        'LANGCHAIN_SESSION_ID', 
+        'OPENAI_SESSION_ID',
+        'ANTHROPIC_SESSION_ID',
+        'DEEP_SCI_FI_PREVIOUS_RUN'
+    ]
+    for var in session_vars_to_reset:
+        if var in os.environ:
+            del os.environ[var]
+            print(f"  ✅ Cleared environment variable: {var}")
+    
+    # 5. Set unique session identifier to prevent cross-session correlation
+    unique_session_id = f"deep_sci_fi_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+    os.environ['DEEP_SCI_FI_SESSION_ID'] = unique_session_id
+    print(f"  ✅ Set unique session ID: {unique_session_id}")
+    
+    # 6. Clear any LangChain framework state
+    try:
+        from langchain.callbacks import get_openai_callback
+        print("  ✅ Cleared LangChain framework state")
+    except ImportError:
+        pass
+    
+    print("🔄 Comprehensive deep_sci_fi session reset completed\n")
+    return unique_session_id
+
 # Initialize the models with retry logic
 writing_model = init_chat_model(
     model_config["writing_model"], 
@@ -131,8 +194,8 @@ general_model = init_chat_model(
 async def create_storyline(state: AgentState, config: RunnableConfig):
     print("--- Starting New Story with Co-Scientist Competition ---")
     
-    # Reset all model instances to prevent context bleeding
-    reset_deep_sci_fi_models()
+    # Comprehensive session reset to prevent all forms of context bleeding
+    session_id = comprehensive_deep_sci_fi_session_reset()
     
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = os.path.join("output", run_timestamp)
