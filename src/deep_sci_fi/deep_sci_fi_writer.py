@@ -25,11 +25,11 @@ async def _run_deep_researcher(research_query: str, config: RunnableConfig) -> s
     """Helper to run the deep_researcher subgraph and correctly parse its final output."""
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "summarization_model": model_config["research_model"],
-        "compression_model": model_config["research_model"],
+        "research_model": ModelConfig.get_model_string("world_research"),
+        "summarization_model": ModelConfig.get_model_string("world_research"),
+        "compression_model": ModelConfig.get_model_string("world_research"),
         "compression_model_max_tokens": 8000,
-        "final_report_model": model_config["research_model"],
+        "final_report_model": ModelConfig.get_model_string("world_research"),
         "allow_clarification": False,
         "search_api": "tavily",
     })
@@ -87,34 +87,147 @@ class AgentState(TypedDict):
     scientific_explanations: Optional[str]
     glossary: Optional[str]
 
-# === Model Configuration ===
+# === Flexible Model Configuration System ===
+
+class ModelProvider:
+    """Model provider configuration with thinking mode support."""
+    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+    GOOGLE = "google_vertexai"
+    
+class ModelConfig:
+    """Centralized model configuration with thinking mode and provider flexibility."""
+    
+    # === Provider-Specific Model Mappings ===
+    MODELS = {
+        ModelProvider.ANTHROPIC: {
+            # Claude models with thinking capabilities
+            "sonnet_4": "anthropic:claude-sonnet-4-20250514",
+            "opus_4": "anthropic:claude-opus-4-20250514", 
+            "sonnet_3_5": "anthropic:claude-3-5-sonnet-20241022",
+            "haiku_3_5": "anthropic:claude-3-5-haiku-20241022"
+        },
+        ModelProvider.OPENAI: {
+            # OpenAI models (o3 supports thinking, o1 has built-in reasoning)
+            "o3": "openai:o3-2025-04-16",
+            "o3_mini": "openai:o3-mini-2025-04-16", 
+            "o1": "openai:o1-2024-12-17",
+            "gpt4": "openai:gpt-4o-2024-11-20",
+            "gpt4_mini": "openai:gpt-4o-mini-2024-07-18"
+        },
+        ModelProvider.GOOGLE: {
+            # Google models
+            "gemini_2_flash": "google_vertexai:gemini-2.0-flash",
+            "gemini_2_pro": "google_vertexai:gemini-2.0-pro"
+        }
+    }
+    
+    # === Use Case Model Assignments ===
+    # Format: {"provider": "model_key", "thinking": True/False}
+    USE_CASE_MODELS = {
+        # Creative narrative tasks - Claude Sonnet 4 with thinking
+        "general_creative": {
+            "provider": ModelProvider.ANTHROPIC,
+            "model": "sonnet_4", 
+            "thinking": True,
+            "temperature": 0.9,
+            "max_tokens": 8000
+        },
+        
+        # Chapter writing/rewriting - Claude Opus 4 with thinking for highest quality prose
+        "chapter_writing": {
+            "provider": ModelProvider.ANTHROPIC,
+            "model": "opus_4",
+            "thinking": True, 
+            "temperature": 0.9,
+            "max_tokens": 8000
+        },
+        
+        # World research - OpenAI O3 for advanced reasoning
+        "world_research": {
+            "provider": ModelProvider.OPENAI,
+            "model": "o3",
+            "thinking": False,  # O3 has internal reasoning, doesn't need explicit thinking
+            "temperature": 0.7,
+            "max_tokens": 8000
+        },
+        
+        # Linguistic research - Claude Sonnet 4 with thinking + Deep Researcher
+        "linguistic_research": {
+            "provider": ModelProvider.ANTHROPIC, 
+            "model": "sonnet_4",
+            "thinking": True,
+            "temperature": 0.8,
+            "max_tokens": 8000
+        }
+    }
+    
+    @classmethod
+    def get_model_string(cls, use_case: str) -> str:
+        """Get the full model string for a use case."""
+        config = cls.USE_CASE_MODELS.get(use_case)
+        if not config:
+            # Fallback to general creative
+            config = cls.USE_CASE_MODELS["general_creative"]
+            
+        provider = config["provider"]
+        model_key = config["model"]
+        return cls.MODELS[provider][model_key]
+    
+    @classmethod
+    def get_model_params(cls, use_case: str) -> dict:
+        """Get model parameters for a use case."""
+        config = cls.USE_CASE_MODELS.get(use_case, cls.USE_CASE_MODELS["general_creative"])
+        return {
+            "temperature": config.get("temperature", 0.8),
+            "max_tokens": config.get("max_tokens", 8000)
+        }
+    
+    @classmethod
+    def supports_thinking(cls, use_case: str) -> bool:
+        """Check if a use case should use thinking mode."""
+        config = cls.USE_CASE_MODELS.get(use_case, cls.USE_CASE_MODELS["general_creative"])
+        return config.get("thinking", False)
+    
+    @classmethod
+    def create_model_instance(cls, use_case: str, **override_params):
+        """Create a model instance for a specific use case with optional parameter overrides."""
+        model_string = cls.get_model_string(use_case)
+        params = cls.get_model_params(use_case)
+        
+        # Apply any parameter overrides
+        params.update(override_params)
+        
+        # Add thinking mode support for Anthropic models if enabled
+        if cls.supports_thinking(use_case) and model_string.startswith("anthropic:"):
+            # Enable thinking mode for Anthropic models
+            # Reference: https://python.langchain.com/docs/integrations/chat/anthropic/
+            params["extra_headers"] = {"anthropic-beta": "thinking-2025-01-21"}
+            
+        return init_chat_model(model_string, **params).with_retry()
+
+# === Legacy Model Configuration (for backward compatibility) ===
 model_config = {
-    # Use Claude Sonnet 4 as the default "thinking" model for creative tasks
-    "research_model": "anthropic:claude-sonnet-4-20250514",
-    "writing_model": "anthropic:claude-opus-4-20250514", 
-    "general_model": "anthropic:claude-sonnet-4-20250514",
+    # Map to new flexible system
+    "research_model": ModelConfig.get_model_string("world_research"),
+    "writing_model": ModelConfig.get_model_string("chapter_writing"), 
+    "general_model": ModelConfig.get_model_string("general_creative"),
     
     # Co-scientist configuration
-    "save_intermediate_results": True,  # Enable intermediate file saving
+    "save_intermediate_results": True,
 }
 
 def reset_deep_sci_fi_models():
     """Reset model instances to prevent context bleeding between runs."""
     global writing_model, general_model
     
-    # Reinitialize models with higher temperature for more creativity
-    writing_model = init_chat_model(
-        model_config["writing_model"], 
-        temperature=0.9,  # Higher temperature for maximum creativity
-        max_tokens=8000 
-    ).with_retry()
-
-    general_model = init_chat_model(
-        model_config["general_model"], 
-        temperature=0.9  # Higher temperature for maximum creativity  
-    ).with_retry()
+    # Use new flexible model system with thinking mode
+    writing_model = ModelConfig.create_model_instance("chapter_writing")
+    general_model = ModelConfig.create_model_instance("general_creative")
     
     print("🔄 Reset deep_sci_fi models for fresh creative generation")
+    print(f"  📝 Writing model: {ModelConfig.get_model_string('chapter_writing')} (thinking: {ModelConfig.supports_thinking('chapter_writing')})")
+    print(f"  🎯 General model: {ModelConfig.get_model_string('general_creative')} (thinking: {ModelConfig.supports_thinking('general_creative')})")
 
 def comprehensive_deep_sci_fi_session_reset():
     """Enhanced session reset for deep_sci_fi that addresses multiple layers of context bleeding.
@@ -135,7 +248,7 @@ def comprehensive_deep_sci_fi_session_reset():
     
     print("🔄 Starting comprehensive deep_sci_fi session reset...")
     
-    # 1. Reset model instances
+    # 1. Reset model instances using new flexible system
     reset_deep_sci_fi_models()
     
     # 2. Force garbage collection to clear lingering objects
@@ -176,20 +289,12 @@ def comprehensive_deep_sci_fi_session_reset():
     except ImportError:
         pass
     
-    print("🔄 Comprehensive deep_sci_fi session reset completed\n")
+    print(f"🎉 Session reset complete with session ID: {unique_session_id}")
     return unique_session_id
 
-# Initialize the models with retry logic
-writing_model = init_chat_model(
-    model_config["writing_model"], 
-    temperature=0.8,  # Increased from 0.7 for more creativity in character names
-    max_tokens=8000 
-).with_retry()
-
-general_model = init_chat_model(
-    model_config["general_model"], 
-    temperature=0.8  # Increased from 0.7 for more creativity in character names
-).with_retry()
+# Initialize the models with new flexible system
+writing_model = ModelConfig.create_model_instance("chapter_writing")
+general_model = ModelConfig.create_model_instance("general_creative")
 
 
 async def create_storyline(state: AgentState, config: RunnableConfig):
@@ -211,8 +316,8 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full creative competition
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("general_creative"),
+        "general_model": ModelConfig.get_model_string("general_creative"),
         "use_case": "storyline_creation",
         "process_depth": "standard",      # Full creative process with reflection and evolution
         "population_scale": "light",      # Keep processing reasonable for creative tasks
@@ -352,8 +457,8 @@ async def create_chapter_arcs(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full creative competition
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("general_creative"),
+        "general_model": ModelConfig.get_model_string("general_creative"),
         "use_case": "chapter_arcs_creation",
         "process_depth": "standard",      # Full creative process with reflection and evolution
         "population_scale": "light",      # Keep processing reasonable for creative tasks
@@ -408,8 +513,8 @@ async def write_first_chapter(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full creative competition
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("chapter_writing"),
+        "general_model": ModelConfig.get_model_string("chapter_writing"),
         "use_case": "chapter_writing",
         "process_depth": "standard",      # Full creative process with reflection and evolution
         "population_scale": "light",      # Keep processing reasonable for creative tasks
@@ -585,8 +690,8 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     # Configure subgraph
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": "openai:o3-2025-04-16", # Use OpenAI O3 for all world research tasks
-        "general_model": "openai:o3-2025-04-16",  # Use OpenAI O3 for all world research tasks
+        "research_model": ModelConfig.get_model_string("world_research"), # Use OpenAI O3 for all world research tasks
+        "general_model": ModelConfig.get_model_string("world_research"),  # Use OpenAI O3 for all world research tasks
         "search_api": "tavily",
         "output_dir": output_dir,
         "phase": "world_scenario_research"
@@ -1034,8 +1139,8 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     world_state_context = "\n\n".join(world_context_parts)
     
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],    # Sonnet 4 for thinking
-        "general_model": model_config["general_model"],     # Sonnet 4 for thinking
+        "research_model": ModelConfig.get_model_string("linguistic_research"),    # Sonnet 4 for thinking
+        "general_model": ModelConfig.get_model_string("linguistic_research"),     # Sonnet 4 for thinking
         "use_case": "linguistic_evolution",
         "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
@@ -1193,8 +1298,8 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full competition with world-aware reflection
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("general_creative"),
+        "general_model": ModelConfig.get_model_string("general_creative"),
         "use_case": "storyline_adjustment",
         "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
@@ -1327,8 +1432,8 @@ async def adjust_chapter_arcs(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full creative competition with world-aware reflection
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("general_creative"),
+        "general_model": ModelConfig.get_model_string("general_creative"),
         "use_case": "chapter_arcs_adjustment",
         "process_depth": "standard",      # Full creative process with reflection and evolution
         "population_scale": "light",      # Keep processing reasonable
@@ -1388,8 +1493,8 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
     # Configure co_scientist for full competition with world-aware reflection
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": ModelConfig.get_model_string("chapter_writing"),
+        "general_model": ModelConfig.get_model_string("chapter_writing"),
         "use_case": "chapter_rewriting",
         "process_depth": "standard",  # Include generate → reflect → evolve
         "population_scale": "light",  # Keep processing reasonable

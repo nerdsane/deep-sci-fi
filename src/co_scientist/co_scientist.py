@@ -1079,7 +1079,7 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
                     scenario=scenario,
                     config=config
                 )
-            reflection_tasks.append(task)
+        reflection_tasks.append(task)
     
     print(f"Created {len(reflection_tasks)} unified reflection tasks")
     
@@ -1330,7 +1330,7 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         tournament_tasks.append(task)
     
     try:
-    tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
+        tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
     
         print(f"Tournament results gathered: {len(tournament_results)} results")
         for i, result in enumerate(tournament_results):
@@ -1342,11 +1342,11 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
             else:
                 print(f"Tournament {i} succeeded: direction={result.get('direction', 'unknown')}, winner={result.get('winner', {}).get('scenario_id', 'none')}")
     
-    # Collect winners from each direction
-    direction_winners = [
-        result for result in tournament_results 
-        if not isinstance(result, Exception)
-    ]
+        # Collect winners from each direction
+        direction_winners = [
+            result for result in tournament_results 
+            if not isinstance(result, Exception)
+        ]
         
         print(f"Successfully collected {len(direction_winners)} direction winners from {len(tournament_results)} tournaments")
         
@@ -2332,7 +2332,7 @@ def parse_research_directions(content: str) -> list:
                     current_direction[current_field] = content_text
             
             # Save final direction
-    if current_direction:
+            if current_direction:
                 print(f"  Adding final direction: {current_direction.get('name', 'NO_NAME')}")
                 directions.append(current_direction)
             
