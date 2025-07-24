@@ -119,6 +119,10 @@ class CoScientistState(CoScientistInputState):
     tournament_winners: List[Dict[str, Any]]
     tournament_complete: bool
     
+    # Ranking phase
+    leaderboard_data: Dict[str, Any]  # Comprehensive Elo-based leaderboard and analytics
+    ranking_complete: bool
+    
     # Evolution phase
     evolved_scenarios: Annotated[List[Dict[str, Any]], override_reducer]
     evolution_complete: bool

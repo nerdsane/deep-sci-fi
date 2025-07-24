@@ -97,21 +97,43 @@ model_config = {
     "save_intermediate_results": True,  # Enable intermediate file saving
 }
 
+def reset_deep_sci_fi_models():
+    """Reset model instances to prevent context bleeding between runs."""
+    global writing_model, general_model
+    
+    # Reinitialize models with higher temperature for more creativity
+    writing_model = init_chat_model(
+        model_config["writing_model"], 
+        temperature=0.9,  # Higher temperature for maximum creativity
+        max_tokens=8000 
+    ).with_retry()
+
+    general_model = init_chat_model(
+        model_config["general_model"], 
+        temperature=0.9  # Higher temperature for maximum creativity  
+    ).with_retry()
+    
+    print("🔄 Reset deep_sci_fi models for fresh creative generation")
+
 # Initialize the models with retry logic
 writing_model = init_chat_model(
     model_config["writing_model"], 
-    temperature=0.7,
+    temperature=0.8,  # Increased from 0.7 for more creativity in character names
     max_tokens=8000 
 ).with_retry()
 
 general_model = init_chat_model(
     model_config["general_model"], 
-    temperature=0.7
+    temperature=0.8  # Increased from 0.7 for more creativity in character names
 ).with_retry()
 
 
 async def create_storyline(state: AgentState, config: RunnableConfig):
     print("--- Starting New Story with Co-Scientist Competition ---")
+    
+    # Reset all model instances to prevent context bleeding
+    reset_deep_sci_fi_models()
+    
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = os.path.join("output", run_timestamp)
     starting_year = datetime.now().year

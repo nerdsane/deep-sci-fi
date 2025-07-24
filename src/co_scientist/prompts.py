@@ -2,6 +2,15 @@
 # Following the methodology from Google's AI co-scientist paper
 # Enhanced with templates for different use cases
 
+import uuid
+from datetime import datetime
+
+def get_uniqueness_seed() -> str:
+    """Generate a unique seed to ensure fresh content generation."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]
+    return f"FRESH_RUN_{timestamp}_{unique_id}"
+
 # === Template Management Functions ===
 
 def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) -> str:
@@ -94,7 +103,8 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "direction_assumption": direction.get("assumption", ""),
         "team_id": team_id,
         "source_content": state.get("reference_material", ""),
-        "world_state_context": world_state_context
+        "world_state_context": world_state_context,
+        "uniqueness_seed": get_uniqueness_seed()  # Inject uniqueness to prevent repetition
     }
     
     # Add use-case specific context parameters
@@ -459,7 +469,12 @@ Reasoning: [Why these approaches create distinct chapter openings]
 """
 
 # Used in: get_generation_prompt() for "storyline_creation" use case
-STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a compelling storyline using the {direction_name} approach.
+STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a completely fresh, original storyline using the {direction_name} approach.
+
+<Uniqueness Context>
+Session: {uniqueness_seed}
+This is a completely fresh creative session - ignore any previous storylines or characters.
+</Uniqueness Context>
 
 <Approach>
 {direction_assumption}
@@ -490,14 +505,26 @@ Create a complete storyline that follows your narrative approach and brings the 
 
 Create a compelling, complete storyline that exemplifies your narrative approach.
 
+<Critical Constraints>
+- This is a FRESH storyline - avoid any references to previous stories or characters
+</Critical Constraints>
+
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
-- Story should feel real, resonant and have personality. 
+- Story should feel real, resonant and have personality.
+- Use creative, original character names - avoid common or repetitive names.
+- Each character should have a distinct, memorable name that fits the story world.
+- Create completely original company/organization names - never reuse previous names.
 </Reminders>
 """
 
 # Used in: get_generation_prompt() for "chapter_writing" use case  
-CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing an engaging first chapter using the {direction_name} approach.
+CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing a completely fresh, original first chapter using the {direction_name} approach.
+
+<Uniqueness Context>
+Session: {uniqueness_seed}
+This is a completely fresh creative session - ignore any previous chapters or characters.
+</Uniqueness Context>
 
 <Approach>
 {direction_assumption}
@@ -536,6 +563,14 @@ Write a complete first chapter that hooks readers and launches the story using y
 
 Write a complete, compelling first chapter that exemplifies your chosen approach.
 
+<Critical Constraints>
+- This is a FRESH chapter - avoid any references to previous stories or characters  
+- Technology level must exactly match the story's time period
+- NO anachronistic technology (quantum computing, neural interfaces, advanced AI) unless story is set in future
+- NO repeated company names like "Meridian Labs" or similar from any previous context
+- Each organization, character, and technology must be completely original and unique
+</Critical Constraints>
+
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
 - Story should feel real, resonant and have personality. 
@@ -543,6 +578,9 @@ Write a complete, compelling first chapter that exemplifies your chosen approach
 - Avoid over-explaining.
 - Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
 - Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+- Use creative, original character names - avoid common or repetitive names.
+- Each character should have a distinct, memorable name that fits the story world.
+- Create completely original company/organization names - never reuse previous names.
 </Reminders>
 """
 

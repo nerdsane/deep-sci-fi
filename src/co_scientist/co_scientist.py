@@ -245,6 +245,25 @@ class CoScientistOutputManager:
 # Global output manager instance
 _output_manager = None
 
+def reset_output_manager():
+    """Reset the global output manager for a fresh run."""
+    global _output_manager
+    _output_manager = None
+
+def reset_all_global_state():
+    """Comprehensive reset of all global state and model instances."""
+    global _output_manager, configurable_model
+    
+    # Reset output manager
+    _output_manager = None
+    
+    # Reinitialize configurable model to clear any cached state
+    configurable_model = init_chat_model(
+        configurable_fields=("model", "max_tokens", "api_key"),
+    )
+    
+    print("🔄 Reset all global state for fresh co_scientist run")
+
 def get_output_manager(output_dir: str = "output", phase: str = None) -> CoScientistOutputManager:
     """Get or create the output manager for this run."""
     global _output_manager
@@ -616,15 +635,19 @@ def save_evolution_details(evolutions: list, output_dir: str = "output", phase: 
         manager.save_file(filename, content, "evolutions")
         evolution_counter += 1
 
-async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConfig) -> dict:
-    """Meta-analysis to identify distinct approaches for competition."""
+async def meta_analysis_phase(state: CoScientistState, config: RunnableConfig) -> dict:
+    """Analyze the input and identify research directions using configurable prompts."""
+    
+    # Reset ALL global state for fresh run (comprehensive fix for context bleeding)
+    reset_all_global_state()
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
-    # Configure model for meta-analysis
+    print(f"Starting meta-analysis with use case: {configuration.use_case}")
+    
     model = configurable_model.with_config(
         configurable={
-            "model": configuration.research_model,
+            "model": configuration.general_model,
             "max_tokens": 4096,
         }
     )
@@ -683,12 +706,14 @@ async def meta_analysis_phase(state: CoScientistInputState, config: RunnableConf
         "generation_complete": False,
         "reflection_complete": False,
         "tournament_complete": False,
+        "ranking_complete": False,
         "evolution_complete": False,
         "evolution_tournament_complete": False,
         "scenario_population": [],
         "reflection_critiques": [],
         "tournament_rounds": [],
         "tournament_winners": [],
+        "leaderboard_data": {},
         "evolved_scenarios": [],
         "evolution_tournament_results": [],
         "final_representatives": [],
@@ -2616,6 +2641,354 @@ def format_research_directions(directions: list) -> str:
     
     return formatted
 
+async def ranking_phase(state: CoScientistState, config: RunnableConfig) -> dict:
+    """Compile comprehensive Elo-based leaderboard for all tournament participants."""
+    
+    configuration = CoScientistConfiguration.from_runnable_config(config)
+    
+    # Get tournament data and Elo tracker
+    tournament_winners = state.get("tournament_winners", [])
+    scenario_population = state.get("scenario_population", [])
+    elo_tracker = state.get("elo_tracker")
+    
+    if not elo_tracker:
+        print("No Elo tracker available for ranking - returning empty results")
+        return {
+            "leaderboard_data": {},
+            "ranking_complete": True
+        }
+    
+    print(f"Compiling Elo leaderboard for {len(elo_tracker.ratings)} scenarios")
+    
+    # Get comprehensive leaderboard from Elo tracker
+    leaderboard = elo_tracker.get_leaderboard()
+    elo_stats = elo_tracker.get_statistics()
+    
+    # Build detailed leaderboard with enhanced metrics
+    detailed_leaderboard = []
+    
+    for rank, (scenario_id, final_rating) in enumerate(leaderboard, 1):
+        # Find the original scenario data
+        scenario_data = None
+        for scenario in scenario_population:
+            if scenario.get("scenario_id") == scenario_id:
+                scenario_data = scenario
+                break
+        
+        if not scenario_data:
+            continue
+            
+        # Get rating history for this scenario
+        rating_history = elo_tracker.get_rating_history(scenario_id)
+        initial_rating = rating_history[0]['rating'] if rating_history else 1500
+        rating_change = final_rating - initial_rating
+        
+        # Calculate performance metrics from rating history
+        total_matches = len(rating_history) - 1  # Subtract initial rating
+        wins = sum(1 for entry in rating_history[1:] if "Beat" in entry.get('reason', ''))
+        losses = total_matches - wins
+        win_rate = (wins / total_matches * 100) if total_matches > 0 else 0
+        
+        # Find biggest single rating change
+        biggest_gain = 0
+        biggest_loss = 0
+        if len(rating_history) > 1:
+            for i in range(1, len(rating_history)):
+                change = rating_history[i]['rating'] - rating_history[i-1]['rating']
+                if change > biggest_gain:
+                    biggest_gain = change
+                if change < biggest_loss:
+                    biggest_loss = change
+        
+        # Check if this scenario won its direction tournament
+        direction_winner = False
+        tournament_placement = "Eliminated"
+        for tournament in tournament_winners:
+            winner = tournament.get("winner", {})
+            if winner.get("scenario_id") == scenario_id:
+                direction_winner = True
+                tournament_placement = f"Winner - {winner.get('research_direction', 'Unknown')}"
+                break
+        
+        # Compile detailed entry
+        leaderboard_entry = {
+            "rank": rank,
+            "scenario_id": scenario_id,
+            "team_id": scenario_data.get("team_id", "Unknown"),
+            "research_direction": scenario_data.get("research_direction", "Unknown"),
+            "core_assumption": scenario_data.get("core_assumption", ""),
+            
+            # Elo metrics
+            "final_elo_rating": round(final_rating, 1),
+            "initial_elo_rating": round(initial_rating, 1),
+            "elo_change": round(rating_change, 1),
+            "elo_change_percentage": round((rating_change / initial_rating * 100), 1) if initial_rating > 0 else 0,
+            
+            # Performance metrics
+            "total_matches": total_matches,
+            "wins": wins,
+            "losses": losses,
+            "win_rate": round(win_rate, 1),
+            "biggest_gain": round(biggest_gain, 1),
+            "biggest_loss": round(biggest_loss, 1),
+            
+            # Quality and tournament data
+            "quality_score": scenario_data.get("quality_score", 0),
+            "tournament_placement": tournament_placement,
+            "direction_winner": direction_winner,
+            
+            # Performance categories
+            "performance_tier": _categorize_performance(rank, len(leaderboard)),
+            "rating_volatility": round(abs(biggest_gain) + abs(biggest_loss), 1),
+            "upset_potential": initial_rating > final_rating and direction_winner  # Low seed winner
+        }
+        
+        detailed_leaderboard.append(leaderboard_entry)
+    
+    # Calculate additional analytics
+    leaderboard_analytics = _calculate_leaderboard_analytics(detailed_leaderboard, elo_stats)
+    
+    # Compile comprehensive leaderboard data
+    leaderboard_data = {
+        "rankings": detailed_leaderboard,
+        "analytics": leaderboard_analytics,
+        "elo_statistics": elo_stats,
+        "total_participants": len(detailed_leaderboard),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Save leaderboard outputs
+    if configuration.save_intermediate_results:
+        save_elo_leaderboard(leaderboard_data, configuration.output_dir, configuration.phase)
+    
+    print(f"Ranking complete: {len(detailed_leaderboard)} scenarios ranked")
+    print(f"Top performer: {detailed_leaderboard[0]['team_id'] if detailed_leaderboard else 'None'} "
+          f"({detailed_leaderboard[0]['final_elo_rating']:.0f} Elo)" if detailed_leaderboard else "")
+    
+    return {
+        "leaderboard_data": leaderboard_data,
+        "ranking_complete": True
+    }
+
+def _categorize_performance(rank: int, total: int) -> str:
+    """Categorize performance tier based on ranking position."""
+    percentile = (rank - 1) / total if total > 0 else 0
+    
+    if percentile <= 0.1:
+        return "Elite"
+    elif percentile <= 0.25:
+        return "High Performer"
+    elif percentile <= 0.5:
+        return "Above Average"
+    elif percentile <= 0.75:
+        return "Average"
+    else:
+        return "Below Average"
+
+def _calculate_leaderboard_analytics(leaderboard: list, elo_stats: dict) -> dict:
+    """Calculate comprehensive analytics from the leaderboard."""
+    if not leaderboard:
+        return {}
+    
+    # Direction performance analysis
+    direction_performance = {}
+    for entry in leaderboard:
+        direction = entry["research_direction"]
+        if direction not in direction_performance:
+            direction_performance[direction] = {
+                "participants": 0,
+                "total_elo": 0,
+                "winner_rank": None,
+                "best_rank": float('inf'),
+                "worst_rank": 0
+            }
+        
+        direction_stats = direction_performance[direction]
+        direction_stats["participants"] += 1
+        direction_stats["total_elo"] += entry["final_elo_rating"]
+        direction_stats["best_rank"] = min(direction_stats["best_rank"], entry["rank"])
+        direction_stats["worst_rank"] = max(direction_stats["worst_rank"], entry["rank"])
+        
+        if entry["direction_winner"]:
+            direction_stats["winner_rank"] = entry["rank"]
+    
+    # Calculate direction averages
+    for direction, stats in direction_performance.items():
+        if stats["participants"] > 0:
+            stats["average_elo"] = round(stats["total_elo"] / stats["participants"], 1)
+    
+    # Upset analysis
+    upsets = [entry for entry in leaderboard if entry["upset_potential"]]
+    biggest_upsets = sorted(leaderboard, key=lambda x: x["elo_change"], reverse=True)[:3]
+    biggest_falls = sorted(leaderboard, key=lambda x: x["elo_change"])[:3]
+    
+    # Performance distribution
+    elite_count = len([e for e in leaderboard if e["performance_tier"] == "Elite"])
+    high_performer_count = len([e for e in leaderboard if e["performance_tier"] == "High Performer"])
+    
+    # Win rate analysis
+    win_rates = [e["win_rate"] for e in leaderboard if e["total_matches"] > 0]
+    avg_win_rate = sum(win_rates) / len(win_rates) if win_rates else 0
+    
+    return {
+        "direction_performance": direction_performance,
+        "upset_analysis": {
+            "total_upsets": len(upsets),
+            "biggest_rating_gains": [
+                {
+                    "team": entry["team_id"],
+                    "direction": entry["research_direction"],
+                    "gain": entry["elo_change"],
+                    "final_rank": entry["rank"]
+                }
+                for entry in biggest_upsets
+            ],
+            "biggest_rating_falls": [
+                {
+                    "team": entry["team_id"],
+                    "direction": entry["research_direction"],
+                    "loss": entry["elo_change"],
+                    "final_rank": entry["rank"]
+                }
+                for entry in biggest_falls
+            ]
+        },
+        "performance_distribution": {
+            "elite": elite_count,
+            "high_performer": high_performer_count,
+            "above_average": len([e for e in leaderboard if e["performance_tier"] == "Above Average"]),
+            "average": len([e for e in leaderboard if e["performance_tier"] == "Average"]),
+            "below_average": len([e for e in leaderboard if e["performance_tier"] == "Below Average"])
+        },
+        "competition_metrics": {
+            "average_win_rate": round(avg_win_rate, 1),
+            "total_matches_played": sum(e["total_matches"] for e in leaderboard),
+            "most_active_participant": max(leaderboard, key=lambda x: x["total_matches"])["team_id"] if leaderboard else None,
+            "highest_volatility": max(leaderboard, key=lambda x: x["rating_volatility"])["team_id"] if leaderboard else None
+        }
+    }
+
+def save_elo_leaderboard(leaderboard_data: dict, output_dir: str = "output", phase: str = None):
+    """Save comprehensive Elo leaderboard and analytics."""
+    manager = get_output_manager(output_dir, phase)
+    
+    # Save raw JSON data
+    manager.save_json("elo_leaderboard.json", leaderboard_data, "rankings")
+    
+    # Generate formatted markdown leaderboard
+    content = generate_leaderboard_markdown(leaderboard_data)
+    manager.save_file("elo_leaderboard.md", content, "rankings")
+    
+    # Generate analytics report
+    analytics_content = generate_analytics_markdown(leaderboard_data)
+    manager.save_file("tournament_analytics.md", analytics_content, "rankings")
+
+def generate_leaderboard_markdown(leaderboard_data: dict) -> str:
+    """Generate formatted markdown leaderboard."""
+    rankings = leaderboard_data.get("rankings", [])
+    elo_stats = leaderboard_data.get("elo_statistics", {})
+    
+    content = "# 🏆 Co-Scientist Tournament Elo Leaderboard\n\n"
+    content += f"**Total Participants:** {leaderboard_data.get('total_participants', 0)}\n"
+    content += f"**Generated:** {leaderboard_data.get('timestamp', 'Unknown')}\n\n"
+    
+    # Elo statistics overview
+    content += "## 📊 Competition Statistics\n\n"
+    content += f"**Average Elo Rating:** {elo_stats.get('average', 0):.0f}\n"
+    content += f"**Rating Range:** {elo_stats.get('min', 0):.0f} - {elo_stats.get('max', 0):.0f}\n"
+    content += f"**Standard Deviation:** {elo_stats.get('std_dev', 0):.0f}\n"
+    content += f"**Total Rating Spread:** {elo_stats.get('range', 0):.0f} points\n\n"
+    
+    # Top 10 leaderboard
+    content += "## 🥇 Top 10 Rankings\n\n"
+    content += "| Rank | Team | Direction | Final Elo | Change | W-L | Win% | Status |\n"
+    content += "|------|------|-----------|-----------|--------|-----|------|--------|\n"
+    
+    for entry in rankings[:10]:
+        status_emoji = "👑" if entry["direction_winner"] else "🏅" if entry["rank"] <= 3 else ""
+        content += f"| {entry['rank']} | {entry['team_id']} | {entry['research_direction'][:20]}... | "
+        content += f"{entry['final_elo_rating']:.0f} | {entry['elo_change']:+.0f} | "
+        content += f"{entry['wins']}-{entry['losses']} | {entry['win_rate']:.1f}% | "
+        content += f"{entry['tournament_placement']} {status_emoji} |\n"
+    
+    # Performance tiers
+    analytics = leaderboard_data.get("analytics", {})
+    perf_dist = analytics.get("performance_distribution", {})
+    
+    content += "\n## 🎯 Performance Distribution\n\n"
+    content += f"- **Elite (Top 10%):** {perf_dist.get('elite', 0)} participants\n"
+    content += f"- **High Performer (Top 25%):** {perf_dist.get('high_performer', 0)} participants\n"
+    content += f"- **Above Average (25-50%):** {perf_dist.get('above_average', 0)} participants\n"
+    content += f"- **Average (50-75%):** {perf_dist.get('average', 0)} participants\n"
+    content += f"- **Below Average (Bottom 25%):** {perf_dist.get('below_average', 0)} participants\n\n"
+    
+    # Direction winners
+    content += "## 🏅 Direction Winners\n\n"
+    direction_winners = [entry for entry in rankings if entry["direction_winner"]]
+    
+    for winner in direction_winners:
+        content += f"### {winner['research_direction']}\n"
+        content += f"**Winner:** {winner['team_id']} (Rank #{winner['rank']})\n"
+        content += f"**Final Elo:** {winner['final_elo_rating']:.0f} ({winner['elo_change']:+.0f})\n"
+        content += f"**Tournament Record:** {winner['wins']}-{winner['losses']} ({winner['win_rate']:.1f}% win rate)\n"
+        content += f"**Quality Score:** {winner['quality_score']}/100\n\n"
+    
+    # Complete rankings table
+    content += "## 📋 Complete Rankings\n\n"
+    content += "| Rank | Team | Direction | Elo | Δ | Record | Quality | Tier |\n"
+    content += "|------|------|-----------|-----|---|--------|---------|------|\n"
+    
+    for entry in rankings:
+        content += f"| {entry['rank']} | {entry['team_id']} | {entry['research_direction'][:15]}... | "
+        content += f"{entry['final_elo_rating']:.0f} | {entry['elo_change']:+.0f} | "
+        content += f"{entry['wins']}-{entry['losses']} | {entry['quality_score']}/100 | "
+        content += f"{entry['performance_tier']} |\n"
+    
+    return content
+
+def generate_analytics_markdown(leaderboard_data: dict) -> str:
+    """Generate tournament analytics markdown report."""
+    analytics = leaderboard_data.get("analytics", {})
+    
+    content = "# 📈 Tournament Analytics Report\n\n"
+    content += f"**Analysis Generated:** {leaderboard_data.get('timestamp', 'Unknown')}\n\n"
+    
+    # Direction performance analysis
+    direction_perf = analytics.get("direction_performance", {})
+    content += "## 🎯 Research Direction Performance\n\n"
+    
+    for direction, stats in direction_perf.items():
+        content += f"### {direction}\n"
+        content += f"- **Participants:** {stats['participants']}\n"
+        content += f"- **Average Elo:** {stats.get('average_elo', 0):.0f}\n"
+        content += f"- **Best Rank:** #{stats['best_rank']}\n"
+        content += f"- **Worst Rank:** #{stats['worst_rank']}\n"
+        if stats.get('winner_rank'):
+            content += f"- **Direction Winner Rank:** #{stats['winner_rank']}\n"
+        content += "\n"
+    
+    # Upset analysis
+    upset_analysis = analytics.get("upset_analysis", {})
+    content += "## 🎲 Upset Analysis\n\n"
+    
+    content += "### Biggest Rating Gains\n"
+    for gain in upset_analysis.get("biggest_rating_gains", []):
+        content += f"- **{gain['team']}** ({gain['direction'][:20]}): +{gain['gain']:.0f} Elo → Rank #{gain['final_rank']}\n"
+    
+    content += "\n### Biggest Rating Falls\n"
+    for fall in upset_analysis.get("biggest_rating_falls", []):
+        content += f"- **{fall['team']}** ({fall['direction'][:20]}): {fall['loss']:.0f} Elo → Rank #{fall['final_rank']}\n"
+    
+    # Competition metrics
+    comp_metrics = analytics.get("competition_metrics", {})
+    content += "\n## 🏁 Competition Metrics\n\n"
+    content += f"- **Total Matches Played:** {comp_metrics.get('total_matches_played', 0)}\n"
+    content += f"- **Average Win Rate:** {comp_metrics.get('average_win_rate', 0):.1f}%\n"
+    content += f"- **Most Active Participant:** {comp_metrics.get('most_active_participant', 'Unknown')}\n"
+    content += f"- **Highest Volatility:** {comp_metrics.get('highest_volatility', 'Unknown')}\n\n"
+    
+    return content
+
 # Build the co-scientist workflow
 # Routing functions for dynamic phase control
 def route_after_generation(state: CoScientistState, config: RunnableConfig) -> Literal["reflection", "tournament", "meta_review"]:
@@ -2640,8 +3013,12 @@ def route_after_reflection(state: CoScientistState, config: RunnableConfig) -> L
     else:
         return "meta_review"
 
-def route_after_tournament(state: CoScientistState, config: RunnableConfig) -> Literal["evolution", "meta_review"]:
-    """Route after tournament based on process depth."""
+def route_after_tournament(state: CoScientistState, config: RunnableConfig) -> Literal["ranking", "meta_review"]:
+    """Route after tournament to ranking phase."""
+    return "ranking"
+
+def route_after_ranking(state: CoScientistState, config: RunnableConfig) -> Literal["evolution", "meta_review"]:
+    """Route after ranking based on process depth."""
     configuration = CoScientistConfiguration.from_runnable_config(config)
     enabled_phases = configuration.get_enabled_phases_for_depth()
     
@@ -2667,6 +3044,7 @@ co_scientist_builder.add_node("meta_analysis", meta_analysis_phase)
 co_scientist_builder.add_node("scenario_generation", parallel_scenario_generation)
 co_scientist_builder.add_node("reflection", reflection_phase)
 co_scientist_builder.add_node("tournament", tournament_phase)
+co_scientist_builder.add_node("ranking", ranking_phase)
 co_scientist_builder.add_node("evolution", evolution_phase)
 co_scientist_builder.add_node("evolution_tournament", evolution_tournament_phase)
 co_scientist_builder.add_node("meta_review", final_meta_review_phase)
@@ -2677,6 +3055,7 @@ co_scientist_builder.add_edge("meta_analysis", "scenario_generation")
 co_scientist_builder.add_conditional_edges("scenario_generation", route_after_generation)
 co_scientist_builder.add_conditional_edges("reflection", route_after_reflection)
 co_scientist_builder.add_conditional_edges("tournament", route_after_tournament)
+co_scientist_builder.add_conditional_edges("ranking", route_after_ranking)
 co_scientist_builder.add_conditional_edges("evolution", route_after_evolution)
 co_scientist_builder.add_edge("evolution_tournament", "meta_review")
 co_scientist_builder.add_edge("meta_review", END)
@@ -2756,4 +3135,3 @@ def format_unified_reflection_critiques(critiques: list) -> str:
         content += "---\n\n"
     
     return content
-
