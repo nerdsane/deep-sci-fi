@@ -3486,8 +3486,34 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
     if debate_type == "meta_analysis":
         # Meta-analysis debate: Generate research directions
         
+        # Map state parameters to template parameters for each use case
+        template_kwargs = kwargs.copy()
+        context_value = kwargs.get("context", "")
+        
+        if use_case == "scenario_generation":
+            template_kwargs["storyline"] = kwargs.get("reference_material", "")
+            template_kwargs["world_building_questions"] = context_value
+            template_kwargs["target_year"] = kwargs.get("target_year", "future")
+        elif use_case == "storyline_creation":
+            template_kwargs["story_concept"] = context_value
+            template_kwargs["source_content"] = kwargs.get("reference_material", "")
+        elif use_case == "chapter_writing":
+            template_kwargs["storyline"] = kwargs.get("storyline", "")
+            template_kwargs["chapter_arcs"] = kwargs.get("chapter_arcs", "")
+        elif use_case == "linguistic_evolution":
+            template_kwargs["source_content"] = kwargs.get("reference_material", "")
+            template_kwargs["target_year"] = kwargs.get("target_year", "future")
+            template_kwargs["years_in_future"] = kwargs.get("years_in_future", "many")
+        elif use_case == "storyline_adjustment":
+            template_kwargs["source_content"] = kwargs.get("reference_material", "")
+        elif use_case == "chapter_rewriting":
+            template_kwargs["source_content"] = kwargs.get("reference_material", "")
+        elif use_case in ["chapter_arcs_creation", "chapter_arcs_adjustment"]:
+            template_kwargs["story_concept"] = context_value
+            template_kwargs["source_content"] = kwargs.get("reference_material", "")
+        
         # LLM A makes opening proposal
-        prompt_a = get_debate_participant_prompt(use_case, "A", num_directions=num_directions, **kwargs)
+        prompt_a = get_debate_participant_prompt(use_case, "A", num_directions=num_directions, **template_kwargs)
         print("🤖 LLM A: Making opening proposals...")
         
         response_a = await llm_a.ainvoke([HumanMessage(content=prompt_a)])
@@ -3500,7 +3526,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         prompt_b = get_debate_participant_prompt(use_case, "B", 
                                                 num_directions=num_directions, 
                                                 debater_a_proposals=proposals_a,
-                                                **kwargs)
+                                                **template_kwargs)
         print("🤖 LLM B: Making counter-proposals and critique...")
         
         response_b = await llm_b.ainvoke([HumanMessage(content=prompt_b)])
