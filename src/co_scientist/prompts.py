@@ -20,6 +20,8 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
         "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
         "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
+        "chapter_arcs_creation": NARRATIVE_META_ANALYSIS_PROMPT,
+        "chapter_arcs_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
     }
@@ -59,6 +61,9 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["source_content"] = state.get("reference_material", "")
     elif use_case == "chapter_rewriting":
         params["source_content"] = state.get("reference_material", "")
+    elif use_case in ["chapter_arcs_creation", "chapter_arcs_adjustment"]:
+        params["story_concept"] = context_value
+        params["source_content"] = state.get("reference_material", "")
     else:
         # For other use cases, keep generic context
         params["context"] = context_value
@@ -73,6 +78,8 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "storyline_creation": STORYLINE_GENERATION_PROMPT,
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
+        "chapter_arcs_creation": NARRATIVE_GENERATION_PROMPT,
+        "chapter_arcs_adjustment": NARRATIVE_GENERATION_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
     }
@@ -511,7 +518,7 @@ Create a compelling, complete storyline that exemplifies your narrative approach
 
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
-- Story should feel real, resonant and have personality.
+- Story should feel real, resonant and have personality. 
 - Use creative, original character names - avoid common or repetitive names.
 - Each character should have a distinct, memorable name that fits the story world.
 - Create completely original company/organization names - never reuse previous names.
@@ -711,6 +718,137 @@ Rewrite the complete chapter as a natural story within this established world.
 - Avoid over-explaining.
 - Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
 - Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+</Reminders>
+"""
+
+# === Research and Analysis Templates ===
+
+# === Narrative Structure Templates ===
+
+# Used in: get_meta_analysis_prompt() for "chapter_arcs_creation" and "chapter_arcs_adjustment" use cases
+NARRATIVE_META_ANALYSIS_PROMPT = """You are an expert narrative architect tasked with identifying distinct chapter structure approaches.
+
+<Task>
+Create a compelling chapter-by-chapter arc structure for a novel.
+</Task>
+
+<Scope>
+Identify 2 fundamentally different approaches for structuring chapter arcs that create compelling narrative progression.
+</Scope>
+
+<Story Concept>
+{story_concept}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<World State Context>
+{world_state_context}
+</World State Context>
+
+<Variation Examples>
+Depending on the story concept, explore (but do not be limited by) the following:
+- Sequential vs Non-linear chapter progression
+- Character-focused vs Plot-driven arc structures
+- Different pacing strategies (accelerating tension vs steady buildup)
+- Varied chapter purposes (action, reflection, world-building, character development)
+- Distinct narrative momentum patterns
+</Variation Examples>
+
+<Requirements>
+- Each approach must create a complete chapter structure
+- Focus on how chapters build narrative momentum
+- Consider character development across chapters
+- Ensure thematic coherence throughout the structure
+- Balance plot progression with character growth
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [Sequential/Non-linear/Character-focused/Plot-driven approach]
+Focus: [How this approach structures chapter progression and narrative flow]
+
+Direction 2: [Name] 
+Core Assumption: [Sequential/Non-linear/Character-focused/Plot-driven approach]
+Focus: [How this approach structures chapter progression and narrative flow]
+
+Reasoning: [Why these approaches offer distinct chapter structuring possibilities]
+</Output Format>
+
+<Reminders>
+- Focus on chapter-level structure, not scene-level details
+- Consider how each chapter serves the overall narrative arc
+- Think about reader engagement and pacing across chapters
+- Avoid cliches, create unique structural approaches
+- Each approach should feel natural and purposeful
+</Reminders>
+"""
+
+# Used in: get_generation_prompt() for "chapter_arcs_creation" and "chapter_arcs_adjustment" use cases
+NARRATIVE_GENERATION_PROMPT = """You are a master narrative architect creating a complete chapter-by-chapter structure using the {direction_name} approach.
+
+<Uniqueness Context>
+Session: {uniqueness_seed}
+This is a completely fresh creative session - ignore any previous chapter structures.
+</Uniqueness Context>
+
+<Approach>
+{direction_assumption}
+</Approach>
+
+<Story Concept>
+{context}
+</Story Concept>
+
+<Source Content>
+{source_content}
+</Source Content>
+
+<World State Context>
+{world_state_context}
+</World State Context>
+
+<Task>
+Create a detailed chapter-by-chapter arc structure that follows your narrative approach and serves the story concept.
+</Task>
+
+<Requirements>
+- Complete chapter progression from beginning to end
+- Clear purpose and focus for each chapter
+- Logical narrative flow and pacing
+- Character development milestones across chapters
+- Plot progression that builds to climax
+- Thematic consistency throughout structure
+</Requirements>
+
+<Chapter Arc Must Include>
+- Chapter-by-chapter breakdown with clear purposes
+- Key plot points and turning moments placement
+- Character development beats across chapters
+- Pacing strategy and tension/release patterns
+- Thematic elements woven throughout structure
+- Climactic buildup and resolution placement
+
+Create a compelling, complete chapter arc structure that exemplifies your narrative approach.
+
+<Critical Constraints>
+- This is a FRESH chapter structure - avoid any references to previous structures
+- Focus on chapter-level organization, not scene-by-scene details
+- Ensure each chapter serves a clear narrative purpose
+- Balance plot advancement with character development
+- Consider reader engagement and page-turning momentum
+</Critical Constraints>
+
+<Reminders>
+- Think about the reader's journey through the chapters
+- Each chapter should end with appropriate hooks or resolution
+- Consider the overall rhythm of the narrative
+- Avoid repetitive chapter purposes or pacing
+- Create unique and memorable chapter progression
+- Story should feel real, resonant and have personality
+- Use creative, original structural approaches
 </Reminders>
 """
 
@@ -1340,6 +1478,8 @@ def get_unified_reflection_prompt(use_case: str) -> str:
         "storyline_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
         "chapter_writing": UNIFIED_PROSE_REFLECTION_PROMPT,
         "chapter_rewriting": UNIFIED_PROSE_REFLECTION_PROMPT,
+        "chapter_arcs_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
+        "chapter_arcs_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
         "linguistic_evolution": UNIFIED_RESEARCH_REFLECTION_PROMPT,
         "storyline_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT
     }
@@ -1690,6 +1830,8 @@ def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_i
         "storyline_adjustment": STORYLINE_PAIRWISE_PROMPT,
         "chapter_writing": CHAPTER_PAIRWISE_PROMPT,
         "chapter_rewriting": CHAPTER_PAIRWISE_PROMPT,
+        "chapter_arcs_creation": STORYLINE_PAIRWISE_PROMPT,
+        "chapter_arcs_adjustment": STORYLINE_PAIRWISE_PROMPT,
         "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
     }
     

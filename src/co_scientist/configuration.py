@@ -21,6 +21,8 @@ class UseCase(Enum):
     STORYLINE_CREATION = "storyline_creation"
     CHAPTER_WRITING = "chapter_writing"
     CHAPTER_REWRITING = "chapter_rewriting"
+    CHAPTER_ARCS_CREATION = "chapter_arcs_creation"
+    CHAPTER_ARCS_ADJUSTMENT = "chapter_arcs_adjustment"
     LINGUISTIC_EVOLUTION = "linguistic_evolution"
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
 
@@ -61,6 +63,24 @@ USE_CASE_CONFIGS = {
         "output_name": "chapter_versions",
         "meta_prompt_key": "chapter_meta",
         "generation_prompt_key": "chapter_generation"
+    },
+    "chapter_arcs_creation": {
+        "direction_type": "narrative approaches",
+        "task_type": "chapter arcs creation",
+        "reflection_domains": ["narrative_structure", "story_pacing", "character_development", "plot_progression", "thematic_coherence"],
+        "evolution_strategies": ["structural_enhancement", "pacing_improvement", "character_arc_development", "thematic_strengthening"],
+        "output_name": "chapter_arcs",
+        "meta_prompt_key": "narrative_meta",
+        "generation_prompt_key": "narrative_generation"
+    },
+    "chapter_arcs_adjustment": {
+        "direction_type": "narrative approaches",
+        "task_type": "chapter arcs adjustment",
+        "reflection_domains": ["narrative_structure", "world_integration", "character_development", "plot_consistency", "thematic_alignment"],
+        "evolution_strategies": ["narrative_enhancement", "world_integration", "character_consistency", "plot_refinement"],
+        "output_name": "adjusted_chapter_arcs",
+        "meta_prompt_key": "narrative_meta",
+        "generation_prompt_key": "narrative_generation"
     },
     "linguistic_evolution": {
         "direction_type": "research approaches",

@@ -855,7 +855,7 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
                     config=config
                 )
                 generation_tasks.append(task)
-        
+    
         print(f"Created {len(generation_tasks)} scenario generation tasks")
         
         # Execute all scenario generation in parallel
@@ -880,7 +880,7 @@ async def parallel_scenario_generation(state: CoScientistState, config: Runnable
         print(f"Scenario generation complete: {len(valid_scenarios)} successful, {len(failed_scenarios)} failed")
         if failed_scenarios:
             print("Failed scenarios:", failed_scenarios)
-        
+            
     except Exception as e:
         print(f"Critical error in parallel_scenario_generation: {e}")
         import traceback
@@ -936,7 +936,7 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
         
         # Get use case from state or configuration
         use_case = processed_state.get("use_case", configuration.use_case.value)
-        
+            
         print(f"Debug - generate_single_scenario for {team_id}:")
         print(f"  use_case: {use_case}")
         print(f"  direction keys: {list(direction.keys()) if direction else 'None'}")
@@ -977,7 +977,7 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
                 print(f"  direction: {direction}")
                 print(f"  config type: {type(config)}")
                 raise e
-        
+                
     except Exception as e:
         print(f"Error in prompt preparation for {team_id}: {e}")
         import traceback
@@ -1076,10 +1076,10 @@ async def reflection_phase(state: CoScientistState, config: RunnableConfig) -> d
     for scenario in scenario_population:
         # Create one comprehensive reflection task per scenario
         task = generate_unified_reflection(
-            scenario=scenario,
-            config=config
-        )
-        reflection_tasks.append(task)
+                    scenario=scenario,
+                    config=config
+                )
+            reflection_tasks.append(task)
     
     print(f"Created {len(reflection_tasks)} unified reflection tasks")
     
@@ -1172,9 +1172,9 @@ async def generate_unified_reflection(scenario: dict, config: RunnableConfig) ->
         
     except Exception as e:
         print(f"Error in unified reflection for scenario {scenario_id}: {e}")
-        return {
+    return {
             "critique_id": f"error_{uuid.uuid4().hex[:8]}",
-            "target_scenario_id": scenario_id,
+        "target_scenario_id": scenario_id,
             "critique_domain": "unified_reflection",
             "critique_content": f"Error generating reflection: {str(e)}",
             "quality_scores": {},
@@ -1330,8 +1330,8 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
         tournament_tasks.append(task)
     
     try:
-        tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
-        
+    tournament_results = await asyncio.gather(*tournament_tasks, return_exceptions=True)
+    
         print(f"Tournament results gathered: {len(tournament_results)} results")
         for i, result in enumerate(tournament_results):
             if isinstance(result, Exception):
@@ -1341,12 +1341,12 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> d
                 print(traceback.format_exception(type(result), result, result.__traceback__))
             else:
                 print(f"Tournament {i} succeeded: direction={result.get('direction', 'unknown')}, winner={result.get('winner', {}).get('scenario_id', 'none')}")
-        
-        # Collect winners from each direction
-        direction_winners = [
-            result for result in tournament_results 
-            if not isinstance(result, Exception)
-        ]
+    
+    # Collect winners from each direction
+    direction_winners = [
+        result for result in tournament_results 
+        if not isinstance(result, Exception)
+    ]
         
         print(f"Successfully collected {len(direction_winners)} direction winners from {len(tournament_results)} tournaments")
         
@@ -2249,7 +2249,7 @@ def parse_research_directions(content: str) -> list:
     
     Handles the format specified in the prompt:
     Direction 1: [Name]
-    Core Assumption: [Key narrative assumption] 
+    Core Assumption: [Key narrative assumption]
     Focus: [What this approach emphasizes]
     
     Also handles markdown formatting that LLMs often add and multi-line content.
@@ -2269,7 +2269,7 @@ def parse_research_directions(content: str) -> list:
         # Skip empty lines
         if not line:
             continue
-            
+        
         # Remove markdown formatting
         clean_line = line.replace("###", "").replace("**", "").strip()
         
@@ -2332,7 +2332,7 @@ def parse_research_directions(content: str) -> list:
                     current_direction[current_field] = content_text
             
             # Save final direction
-            if current_direction:
+    if current_direction:
                 print(f"  Adding final direction: {current_direction.get('name', 'NO_NAME')}")
                 directions.append(current_direction)
             

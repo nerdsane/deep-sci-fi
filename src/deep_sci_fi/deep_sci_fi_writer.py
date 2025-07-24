@@ -89,9 +89,10 @@ class AgentState(TypedDict):
 
 # === Model Configuration ===
 model_config = {
-    "research_model": "openai:o3-2025-04-16", # "anthropic:claude-3-5-sonnet-20241022",
-    "writing_model": "anthropic:claude-opus-4-20250514", # "anthropic:claude-3-7-sonnet-20250219", 
-    "general_model": "anthropic:claude-sonnet-4-20250514", # "anthropic:claude-3-7-sonnet-20250219",
+    # Use Claude Sonnet 4 as the default "thinking" model for creative tasks
+    "research_model": "anthropic:claude-sonnet-4-20250514",
+    "writing_model": "anthropic:claude-opus-4-20250514", 
+    "general_model": "anthropic:claude-sonnet-4-20250514",
     
     # Co-scientist configuration
     "save_intermediate_results": True,  # Enable intermediate file saving
@@ -207,14 +208,14 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
         context=f"User's idea for the novel: {state['input']}"
     )
     
-    # Configure co_scientist for quick competition using regular LLM (not research)
+    # Configure co_scientist for full creative competition
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "use_case": "storyline_creation",
-        "process_depth": "quick",         # Fast iteration
-        "population_scale": "light",      # Quick processing
+        "process_depth": "standard",      # Full creative process with reflection and evolution
+        "population_scale": "light",      # Keep processing reasonable for creative tasks
         "use_deep_researcher": False,     # Use regular LLM for creative writing
         "save_intermediate_results": True,
         "output_dir": output_dir,
@@ -336,15 +337,60 @@ def process_storyline_selection(state: AgentState):
         "selected_scenario": selected_option.get('research_direction', 'Unknown')
     }
 
-def create_chapter_arcs(state: AgentState):
+async def create_chapter_arcs(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (storyline := state.get("storyline")):
         raise ValueError("Required state 'output_dir' or 'storyline' is missing.")
-    prompt = ChatPromptTemplate.from_template(CREATE_CHAPTER_ARCS_PROMPT)
-    response = writing_model.invoke(prompt.format(storyline=storyline))
-    content = response.content
-    save_output(output_dir, "00_02_chapter_arcs.md", content)
+    
+    print("--- Creating Chapter Arcs with Co-Scientist Competition ---")
+    
+    # Use co_scientist for competitive chapter arcs creation
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_ARCS_CREATION,
+        storyline=storyline
+    )
+    
+    # Configure co_scientist for full creative competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": model_config["research_model"],
+        "general_model": model_config["general_model"],
+        "use_case": "chapter_arcs_creation",
+        "process_depth": "standard",      # Full creative process with reflection and evolution
+        "population_scale": "light",      # Keep processing reasonable for creative tasks
+        "use_deep_researcher": False,     # Use regular LLM for creative writing
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": "chapter_arcs_creation"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save detailed competition results
+    if model_config.get("save_intermediate_results", True):
+        # Save competition summary
+        competition_summary = co_scientist_result.get("competition_summary", "")
+        save_output(output_dir, "00_02_chapter_arcs_competition_summary.md", competition_summary)
+        
+        # Save detailed results
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, "00_02_chapter_arcs_competition_details.md", detailed_results)
+        
+        # Save winning chapter arcs options
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners[:3]):  # Limit to top 3
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_arcs_option_{i}")
+            save_output(output_dir, f"00_02_chapter_arcs_option_{i+1}.md", winner_details)
+    
+    # Format options for user selection
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    formatted_options = format_chapter_arcs_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
+    
     print("--- Chapter Arcs Created ---")
-    return {"chapter_arcs": content}
+    return {
+        "chapter_arcs_options": formatted_options,
+        "chapter_arcs": direction_winners[0]["scenario_content"] if direction_winners else "No chapter arcs generated."
+    }
 
 async def write_first_chapter(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")):
@@ -359,14 +405,14 @@ async def write_first_chapter(state: AgentState, config: RunnableConfig):
         chapter_arcs=chapter_arcs
     )
     
-    # Configure co_scientist for quick competition using regular LLM (not research)
+    # Configure co_scientist for full creative competition
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "use_case": "chapter_writing",
-        "process_depth": "quick",         # Fast iteration
-        "population_scale": "light",      # Quick processing
+        "process_depth": "standard",      # Full creative process with reflection and evolution
+        "population_scale": "light",      # Keep processing reasonable for creative tasks
         "use_deep_researcher": False,     # Use regular LLM for creative writing
         "save_intermediate_results": True,
         "output_dir": output_dir,
@@ -539,8 +585,8 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     # Configure subgraph
     subgraph_config = config.copy()
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": "openai:o3-2025-04-16", # Use OpenAI O3 for all world research tasks
+        "general_model": "openai:o3-2025-04-16",  # Use OpenAI O3 for all world research tasks
         "search_api": "tavily",
         "output_dir": output_dir,
         "phase": "world_scenario_research"
@@ -734,6 +780,30 @@ def format_chapter_rewrite_options_for_selection(direction_winners: list, compet
     content += "Please review both chapter rewrite options above and choose your preferred approach. "
     content += "You can select one option as-is, or modify elements from both approaches.\n\n"
     content += "To continue, provide your chosen rewritten chapter (or modified version) in the workflow.\n"
+    
+    return content
+
+def format_chapter_arcs_options_for_selection(direction_winners: list, competition_summary: str) -> str:
+    """Format chapter arcs options for user selection."""
+    
+    content = "# Chapter Arcs Options from Co-Scientist Competition\n\n"
+    content += "Multiple narrative structuring approaches competed and are now available for your selection.\n\n"
+    
+    content += "## Competition Overview\n"
+    content += competition_summary + "\n\n"
+    
+    for i, winner in enumerate(direction_winners, 1):
+        content += f"## Option {i}: {winner.get('research_direction', 'Unknown Approach')}\n\n"
+        content += f"**Core Approach:** {winner.get('core_assumption', 'No assumption available')}\n\n"
+        content += f"**Selection Reasoning:** {winner.get('selection_reasoning', 'Tournament winner')}\n\n"
+        content += "### Chapter Arcs Structure:\n\n"
+        content += f"{winner.get('scenario_content', 'No content available')}\n\n"
+        content += "---\n\n"
+    
+    content += "## Selection Instructions\n"
+    content += "Please review the chapter arcs options above and choose your preferred narrative structure. "
+    content += "You can select one option as-is, or modify elements from multiple approaches.\n\n"
+    content += "To continue, provide your chosen chapter arcs structure (or modified version) in the workflow.\n"
     
     return content
 
@@ -964,14 +1034,13 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     world_state_context = "\n\n".join(world_context_parts)
     
     subgraph_config["configurable"].update({
-        "research_model": model_config["research_model"],
-        "general_model": model_config["general_model"],
+        "research_model": model_config["research_model"],    # Sonnet 4 for thinking
+        "general_model": model_config["general_model"],     # Sonnet 4 for thinking
         "use_case": "linguistic_evolution",
-        "process_depth": "quick",     # Fast iteration
-        "population_scale": "light",  # Quick processing
-        "use_deep_researcher": True,  # Use deep research for linguistic analysis
-        "reflection_domains": ["linguistics", "technology", "sociology and anthropology"],
-        "world_state_context": world_state_context,  # Pass comprehensive world state and previous research
+        "process_depth": "standard",  # Full creative process with reflection and evolution
+        "population_scale": "light",  # Keep processing reasonable
+        "use_deep_researcher": True,  # Research-backed analysis with Sonnet 4
+        "world_state_context": world_state_context, # Pass world context for research
         "save_intermediate_results": True,
         "output_dir": output_dir,
         "phase": "linguistic_evolution"
@@ -1127,7 +1196,7 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
         "research_model": model_config["research_model"],
         "general_model": model_config["general_model"],
         "use_case": "storyline_adjustment",
-        "process_depth": "standard",  # Include generate → reflect → evolve
+        "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
         "use_deep_researcher": False,  # Use regular LLM for creative writing
         "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence", "world_integration"],
@@ -1240,14 +1309,64 @@ def process_storyline_adjustment_selection(state: AgentState):
         "revised_storyline": selected_adjustment
     }
 
-def adjust_chapter_arcs(state: AgentState):
+async def adjust_chapter_arcs(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_storyline := state.get("revised_storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (chapter_arcs := state.get("chapter_arcs")) or not (linguistic_evolution := state.get("linguistic_evolution")):
         raise ValueError("Required state for adjusting chapter arcs is missing.")
-    prompt = ChatPromptTemplate.from_template(ADJUST_CHAPTER_ARCS_PROMPT)
-    response = writing_model.invoke(prompt.format(revised_storyline=revised_storyline, baseline_world_state=baseline_world_state, chapter_arcs=chapter_arcs, linguistic_evolution=linguistic_evolution))
-    content = response.content
-    save_output(output_dir, f"{state['loop_count']:02d}_10_revised_chapter_arcs.md", content)
-    return {"revised_chapter_arcs": content}
+    
+    print("--- Adjusting Chapter Arcs with Co-Scientist Competition ---")
+    
+    # Use co_scientist for competitive chapter arcs adjustment
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_ARCS_ADJUSTMENT,
+        reference_material=f"Original Chapter Arcs: {chapter_arcs}",
+        storyline=revised_storyline,
+        baseline_world_state=baseline_world_state,
+        linguistic_evolution=linguistic_evolution
+    )
+    
+    # Configure co_scientist for full creative competition with world-aware reflection
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": model_config["research_model"],
+        "general_model": model_config["general_model"],
+        "use_case": "chapter_arcs_adjustment",
+        "process_depth": "standard",      # Full creative process with reflection and evolution
+        "population_scale": "light",      # Keep processing reasonable
+        "use_deep_researcher": False,     # Use regular LLM for creative writing
+        "reflection_domains": ["narrative_structure", "world_integration", "character_development", "plot_consistency", "thematic_alignment"],
+        "world_state_context": f"Baseline World State: {baseline_world_state}\n\nLinguistic Evolution: {linguistic_evolution}\n\nRevised Storyline: {revised_storyline}",
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": "chapter_arcs_adjustment"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save detailed competition results
+    if model_config.get("save_intermediate_results", True):
+        # Save competition summary
+        competition_summary = co_scientist_result.get("competition_summary", "")
+        save_output(output_dir, f"{state['loop_count']:02d}_10_revised_chapter_arcs_competition_summary.md", competition_summary)
+        
+        # Save detailed results
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, f"{state['loop_count']:02d}_10_revised_chapter_arcs_competition_details.md", detailed_results)
+        
+        # Save winning options
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners[:3]):  # Limit to top 3
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_arcs_adjustment_option_{i+1}")
+            save_output(output_dir, f"{state['loop_count']:02d}_10_revised_chapter_arcs_option_{i+1}.md", winner_details)
+    
+    # Format options for user selection
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    formatted_options = format_chapter_arcs_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
+    
+    return {
+        "revised_chapter_arcs_options": formatted_options,
+        "revised_chapter_arcs": direction_winners[0]["scenario_content"] if direction_winners else "No chapter arcs adjustments generated."
+    }
 
 async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (revised_storyline := state.get("revised_storyline")) or not (revised_chapter_arcs := state.get("revised_chapter_arcs")) or not (baseline_world_state := state.get("baseline_world_state")) or not (first_chapter := state.get("first_chapter")) or not (linguistic_evolution := state.get("linguistic_evolution")):
