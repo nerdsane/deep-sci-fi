@@ -133,6 +133,248 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
     
     return template.format(**params)
 
+# === Evolution Phase Prompts ===
+
+def get_evolution_prompt(use_case: str, **kwargs) -> str:
+    """Get the evolution prompt for a specific use case."""
+    
+    prompts = {
+        "scenario_generation": SCENARIO_EVOLUTION_PROMPT,
+        "storyline_creation": STORYLINE_EVOLUTION_PROMPT,
+        "storyline_adjustment": STORYLINE_EVOLUTION_PROMPT,
+        "chapter_writing": CHAPTER_WRITING_EVOLUTION_PROMPT,
+        "chapter_rewriting": CHAPTER_WRITING_EVOLUTION_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_EVOLUTION_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_EVOLUTION_PROMPT,
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_EVOLUTION_PROMPT
+    }
+    
+    template = prompts.get(use_case, SCENARIO_EVOLUTION_PROMPT)
+    return template.format(**kwargs)
+
+# Used for scenario generation evolution
+SCENARIO_EVOLUTION_PROMPT = """You are an expert in scientific research and technological feasibility analysis.
+Your task is to refine the provided conceptual scenario, enhancing its practical implementability
+by leveraging contemporary technological capabilities. Ensure the revised scenario retains
+its novelty, logical coherence, and specific articulation.
+
+Goal: Enhance the scientific feasibility and technological viability of this sci-fi scenario while addressing expert critiques.
+
+Guidelines:
+1. Begin with an introductory overview of the relevant scientific domain.
+2. Provide a concise synopsis of recent pertinent research findings and related investigations,
+highlighting successful methodologies and established precedents.
+3. Articulate a reasoned argument for how current technological advancements can facilitate
+the realization of the proposed scenario.
+4. CORE CONTRIBUTION: Develop a detailed, innovative, and technologically viable alternative
+to achieve the objective, emphasizing simplicity and practicality.
+
+Evaluation Criteria:
+- Scientifically grounded in current research
+- Internally consistent across all systems
+- Specific enough for narrative development
+- Realistic about technological timelines
+- Aware of social and economic implications
+
+Original Scenario:
+{original_content}
+
+Research Direction:
+{research_direction}
+
+Expert Critiques to Address:
+{critique_summary}
+
+Key Constraints:
+- Ground every technological claim in current research or plausible extrapolation
+- Maintain internal consistency across all aspects of the world
+- Consider realistic implementation timelines and pathways
+- Address potential obstacles with research-backed solutions
+
+Generate an improved, more scientifically grounded version of the scenario that directly addresses the expert critiques while maintaining the core novelty and appeal of the original concept."""
+
+# Used for storyline creation and adjustment evolution
+STORYLINE_EVOLUTION_PROMPT = """You are an expert in narrative structure and storytelling craft.
+Your task is to refine the provided storyline, enhancing its narrative strength and character development
+by leveraging proven storytelling techniques. Ensure the revised storyline retains
+its originality, thematic depth, and reader engagement.
+
+Goal: Enhance the narrative quality, character development, and thematic coherence of this storyline while addressing expert critiques.
+
+Guidelines:
+1. Begin with an introductory overview of the relevant narrative domain and storytelling principles.
+2. Provide a concise synopsis of effective narrative techniques and character development approaches,
+highlighting successful methodologies and established precedents.
+3. Articulate a reasoned argument for how proven storytelling techniques can enhance
+the narrative impact and reader engagement.
+4. CORE CONTRIBUTION: Develop a detailed, innovative, and narratively compelling alternative
+to achieve the storytelling objective, emphasizing clarity and emotional resonance.
+
+Evaluation Criteria:
+- Complete narrative arc with beginning, middle, end
+- Compelling protagonist and supporting characters
+- Central conflict and meaningful resolution
+- Appropriate pacing and thematic foundation
+- Reader engagement and emotional impact
+
+Original Storyline:
+{original_content}
+
+Narrative Direction:
+{research_direction}
+
+Expert Critiques to Address:
+{critique_summary}
+
+Key Constraints:
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality.
+- Use creative, original character names - avoid common or repetitive names.
+- Create completely original company/organization names - never reuse previous names.
+- Maintain narrative coherence while enhancing character depth and plot development.
+
+Generate an improved, more narratively compelling version of the storyline that directly addresses the expert critiques while maintaining the originality and thematic appeal of the original concept."""
+
+# Used for chapter writing and rewriting evolution
+CHAPTER_WRITING_EVOLUTION_PROMPT = """You are an expert in prose writing and world-building integration.
+Your task is to refine the provided chapter, enhancing its immersive quality and narrative flow
+by leveraging sophisticated writing techniques. Ensure the revised chapter retains
+its authenticity, world integration, and reader engagement.
+
+Goal: Enhance the prose quality, world integration, and character authenticity of this chapter while addressing expert critiques.
+
+Guidelines:
+1. Begin with an introductory overview of the relevant prose writing domain and world-building techniques.
+2. Provide a concise synopsis of effective writing approaches and immersion strategies,
+highlighting successful methodologies and established precedents.
+3. Articulate a reasoned argument for how proven prose techniques can enhance
+the chapter's impact and reader immersion.
+4. CORE CONTRIBUTION: Develop a detailed, innovative, and literarily compelling alternative
+to achieve the chapter objective, emphasizing natural flow and authentic integration.
+
+Evaluation Criteria:
+- World Integration: weave world-building naturally into the narrative
+- Linguistic Consistency: incorporate evolved language and cultural elements
+- Character Authenticity: characters behave within the established world constraints
+- Immersion Strategy: immerse readers in the world without exposition dumps
+- Prose Quality: crisp, clear, engaging language with unique voice
+
+Original Chapter:
+{original_content}
+
+Writing Direction:
+{research_direction}
+
+Expert Critiques to Address:
+{critique_summary}
+
+World State Context:
+{world_state_context}
+
+Key Constraints:
+- Language should be crisp, clear, engaging.
+- Avoid over-explaining or exposition dumps.
+- Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
+- Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+- Characters think, speak, and act as natives of this developed world.
+- Technology and systems are background reality, not novelties to explain.
+
+Generate an improved, more immersive version of the chapter that directly addresses the expert critiques while maintaining the authentic voice and world integration of the original."""
+
+# Used for chapter arcs creation and adjustment evolution
+CHAPTER_ARCS_EVOLUTION_PROMPT = """You are an expert in narrative architecture and chapter structure.
+Your task is to refine the provided chapter arc structure, enhancing its pacing and character development
+by leveraging proven structural techniques. Ensure the revised structure retains
+its narrative momentum, thematic coherence, and reader engagement.
+
+Goal: Enhance the chapter structure, pacing strategy, and character development progression while addressing expert critiques.
+
+Guidelines:
+1. Begin with an introductory overview of the relevant narrative structure domain and pacing principles.
+2. Provide a concise synopsis of effective chapter organization techniques and development approaches,
+highlighting successful methodologies and established precedents.
+3. Articulate a reasoned argument for how proven structural techniques can enhance
+the narrative flow and character progression.
+4. CORE CONTRIBUTION: Develop a detailed, innovative, and structurally sound alternative
+to achieve the arc objective, emphasizing natural progression and thematic unity.
+
+Evaluation Criteria:
+- Complete chapter progression from beginning to end
+- Clear purpose and focus for each chapter
+- Logical narrative flow and pacing
+- Character development milestones across chapters
+- Plot progression that builds to climax
+- Thematic consistency throughout structure
+
+Original Chapter Arcs:
+{original_content}
+
+Structure Direction:
+{research_direction}
+
+Expert Critiques to Address:
+{critique_summary}
+
+World State Context:
+{world_state_context}
+
+Key Constraints:
+- Focus on chapter-level organization, not scene-by-scene details.
+- Ensure each chapter serves a clear narrative purpose.
+- Balance plot advancement with character development.
+- Consider reader engagement and page-turning momentum.
+- Think about the reader's journey through the chapters.
+- Each chapter should end with appropriate hooks or resolution.
+- Avoid repetitive chapter purposes or pacing.
+
+Generate an improved, more structurally compelling chapter arc that directly addresses the expert critiques while maintaining the narrative momentum and thematic coherence of the original structure."""
+
+# Used for linguistic evolution evolution
+LINGUISTIC_EVOLUTION_EVOLUTION_PROMPT = """You are an expert in linguistic research and language evolution analysis.
+Your task is to refine the provided linguistic evolution analysis, enhancing its academic rigor and evolutionary plausibility
+by leveraging contemporary linguistic research. Ensure the revised analysis retains
+its innovation, methodological soundness, and cultural authenticity.
+
+Goal: Enhance the linguistic accuracy, evolutionary plausibility, and cultural integration of this analysis while addressing expert critiques.
+
+Guidelines:
+1. Begin with an introductory overview of the relevant linguistic evolution domain and research methodologies.
+2. Provide a concise synopsis of recent linguistic research findings and language change patterns,
+highlighting successful methodologies and established precedents.
+3. Articulate a reasoned argument for how current linguistic research can support
+the proposed evolutionary patterns and cultural developments.
+4. CORE CONTRIBUTION: Develop a detailed, innovative, and linguistically sound alternative
+to achieve the evolution objective, emphasizing natural progression and cultural authenticity.
+
+Evaluation Criteria:
+- Linguistic evolution plausibility and evidence grounding
+- Methodological soundness in language change analysis
+- Consistency with established linguistic principles
+- Cultural and social factors driving linguistic change
+- Natural language adaptation to technological systems
+
+Original Linguistic Analysis:
+{original_content}
+
+Research Direction:
+{research_direction}
+
+Expert Critiques to Address:
+{critique_summary}
+
+Previous Linguistic Research:
+{world_state_context}
+
+Key Constraints:
+- Document natural linguistic evolution within established world systems.
+- Build upon previous linguistic research as cumulative understanding.
+- Present evolution as natural adaptation, not revolutionary change.
+- Natural language adaptation to integrated technological systems.
+- Communication efficiency patterns within established social structures.
+- Consider both gradual evolution and disruption as natural processes.
+
+Generate an improved, more linguistically grounded analysis that directly addresses the expert critiques while maintaining the methodological rigor and cultural authenticity of the original research."""
+
 # === Meta-Analysis Phase ===
 
 # Used in: get_meta_analysis_prompt() for "scenario_generation" use case

@@ -32,7 +32,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "research directions",
         "task_type": "scenario development",
         "reflection_domains": ["physics", "biology", "engineering", "social_science", "economics"],
-        "evolution_strategies": ["feasibility", "creativity", "synthesis", "detail_enhancement"],
+        "evolution_strategies": ["feasibility_enhancement"],  # Single evolution strategy
         "output_name": "scenarios",
         "meta_prompt_key": "scenario_meta",
         "generation_prompt_key": "scenario_generation"
@@ -41,7 +41,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches",
         "task_type": "storyline development",
         "reflection_domains": ["plot_structure", "character_development", "thematic_coherence", "pacing", "narrative_arc"],
-        "evolution_strategies": ["plot_enhancement", "character_depth", "thematic_strengthening", "structural_improvement"],
+        "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
         "output_name": "storylines",
         "meta_prompt_key": "storyline_meta",
         "generation_prompt_key": "storyline_generation"
@@ -50,7 +50,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches",
         "task_type": "chapter writing",
         "reflection_domains": ["prose_quality", "scene_development", "character_voice", "pacing", "atmosphere"],
-        "evolution_strategies": ["prose_enhancement", "scene_depth", "voice_consistency", "atmospheric_improvement"],
+        "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
         "output_name": "chapters",
         "meta_prompt_key": "chapter_meta",
         "generation_prompt_key": "chapter_generation"
@@ -59,7 +59,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches", 
         "task_type": "chapter rewriting",
         "reflection_domains": ["narrative_structure", "character_development", "prose_style", "pacing", "dialogue"],
-        "evolution_strategies": ["character_depth", "narrative_flow", "prose_enhancement", "structural_improvement"],
+        "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
         "output_name": "chapter_versions",
         "meta_prompt_key": "chapter_meta",
         "generation_prompt_key": "chapter_generation"
@@ -68,7 +68,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches",
         "task_type": "chapter arcs creation",
         "reflection_domains": ["narrative_structure", "story_pacing", "character_development", "plot_progression", "thematic_coherence"],
-        "evolution_strategies": ["structural_enhancement", "pacing_improvement", "character_arc_development", "thematic_strengthening"],
+        "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
         "output_name": "chapter_arcs",
         "meta_prompt_key": "narrative_meta",
         "generation_prompt_key": "narrative_generation"
@@ -77,7 +77,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches",
         "task_type": "chapter arcs adjustment",
         "reflection_domains": ["narrative_structure", "world_integration", "character_development", "plot_consistency", "thematic_alignment"],
-        "evolution_strategies": ["narrative_enhancement", "world_integration", "character_consistency", "plot_refinement"],
+        "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
         "output_name": "adjusted_chapter_arcs",
         "meta_prompt_key": "narrative_meta",
         "generation_prompt_key": "narrative_generation"
@@ -86,7 +86,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "research approaches",
         "task_type": "linguistic evolution analysis",
         "reflection_domains": ["linguistics", "technology", "sociology_and_anthropology"],
-        "evolution_strategies": ["research_depth", "cultural_insight", "technological_integration", "social_impact"],
+        "evolution_strategies": ["linguistic_enhancement"],  # Single evolution strategy
         "output_name": "linguistic_analyses",
         "meta_prompt_key": "research_meta",
         "generation_prompt_key": "research_generation"
@@ -95,7 +95,7 @@ USE_CASE_CONFIGS = {
         "direction_type": "narrative approaches",
         "task_type": "storyline revision",
         "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence"],
-        "evolution_strategies": ["narrative_enhancement", "world_integration", "character_consistency", "thematic_depth"],
+        "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
         "output_name": "revised_storylines",
         "meta_prompt_key": "narrative_meta",
         "generation_prompt_key": "narrative_generation"
