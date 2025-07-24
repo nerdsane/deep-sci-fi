@@ -879,12 +879,14 @@ async def meta_analysis_debate_phase(state: CoScientistState, config: RunnableCo
     num_directions = 3  # Can be made configurable later
     
     # Run actual LLM vs LLM debate conversation
+    # Extract use_case from processed_state to avoid duplicate keyword argument
+    state_kwargs = {k: v for k, v in processed_state.items() if k != "use_case"}
     debate_result = await conduct_llm_vs_llm_debate(
-        use_case=use_case,
-        debate_type="meta_analysis",
-        configuration=configuration,
+        use_case,
+        "meta_analysis",
+        configuration,
         num_directions=num_directions,
-        **processed_state
+        **state_kwargs
     )
     
     # Parse research directions from the debate
@@ -3178,9 +3180,9 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
     
     # Conduct LLM vs LLM debate
     debate_result = await conduct_llm_vs_llm_debate(
-        use_case=use_case,
-        debate_type="tournament",
-        configuration=configuration,
+        use_case,
+        "tournament",
+        configuration,
         goal=goal,
         criteria=preferences,
         scenario_1_content=scenario_1_content,
