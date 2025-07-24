@@ -2482,40 +2482,7 @@ followed by "1" (for analysis 1) or "2" (for analysis 2)."""
 
 # === Meta-Analysis Debate Prompts ===
 
-def get_meta_analysis_debate_prompt(use_case: str, **kwargs) -> str:
-    """Get the debate prompt for meta-analysis direction generation."""
-    
-    prompts = {
-        "scenario_generation": SCENARIO_META_ANALYSIS_DEBATE_PROMPT,
-        "storyline_creation": STORYLINE_META_ANALYSIS_DEBATE_PROMPT,
-        "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_DEBATE_PROMPT,
-        "chapter_rewriting": CHAPTER_REWRITING_META_ANALYSIS_DEBATE_PROMPT,
-        "chapter_arcs_creation": CHAPTER_ARCS_META_ANALYSIS_DEBATE_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_ARCS_META_ANALYSIS_DEBATE_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_DEBATE_PROMPT,
-        "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_DEBATE_PROMPT
-    }
-    
-    template = prompts.get(use_case, SCENARIO_META_ANALYSIS_DEBATE_PROMPT)
-    return template.format(**kwargs)
 
-# Direction proposal prompt - used to generate initial candidate directions
-def get_direction_proposal_prompt(use_case: str, **kwargs) -> str:
-    """Get the prompt for proposing initial research directions."""
-    
-    prompts = {
-        "scenario_generation": SCENARIO_DIRECTION_PROPOSAL_PROMPT,
-        "storyline_creation": STORYLINE_DIRECTION_PROPOSAL_PROMPT,
-        "chapter_writing": CHAPTER_WRITING_DIRECTION_PROPOSAL_PROMPT,
-        "chapter_rewriting": CHAPTER_REWRITING_DIRECTION_PROPOSAL_PROMPT,
-        "chapter_arcs_creation": CHAPTER_ARCS_DIRECTION_PROPOSAL_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_ARCS_DIRECTION_PROPOSAL_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_DIRECTION_PROPOSAL_PROMPT,
-        "storyline_adjustment": STORYLINE_ADJUSTMENT_DIRECTION_PROPOSAL_PROMPT
-    }
-    
-    template = prompts.get(use_case, SCENARIO_DIRECTION_PROPOSAL_PROMPT)
-    return template.format(**kwargs)
 
 # Scenario generation meta-analysis debate prompts
 SCENARIO_DIRECTION_PROPOSAL_PROMPT = """You are a domain expert in {expert_domain} tasked with proposing research directions for scenario competition.

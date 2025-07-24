@@ -2377,9 +2377,9 @@ def get_comprehensive_feedback_summary(scenario_id: str, critiques: list, debate
     debate_feedback = ""
     if debate_summary and debate_winner_id:
         if scenario_id == debate_winner_id:
-            debate_feedback = f"\n\nDEBATE VICTORY ANALYSIS:\nThis scenario won the final expert panel debate, indicating strong foundational elements.\n{debate_summary}\n"
+            debate_feedback = f"\n\nCOLLABORATIVE ANALYSIS VICTORY:\nThis scenario won the final collaborative evaluation, indicating strong foundational elements.\n{debate_summary}\n"
         else:
-            debate_feedback = f"\n\nDEBATE PERFORMANCE ANALYSIS:\nThis scenario participated in but did not win the final expert panel debate.\n{debate_summary}\n"
+            debate_feedback = f"\n\nCOLLABORATIVE ANALYSIS PARTICIPATION:\nThis scenario participated in but did not win the final collaborative evaluation.\n{debate_summary}\n"
     elif debate_summary:
         # If we have debate summary but no specific winner info, include general context
         debate_feedback = f"\n\nDEBATE CONTEXT:\n{debate_summary}\n"
@@ -3098,7 +3098,7 @@ def route_after_generation(state: CoScientistState, config: RunnableConfig) -> L
         return "meta_review"
 
 async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
-    """Conduct LLM vs LLM debate between top 2 scenarios to determine final winner."""
+    """Conduct collaborative evaluation between top 2 scenarios to determine final winner."""
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
@@ -3193,23 +3193,28 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
         print("🤖 Conducting LLM vs LLM debate...")
         debate_transcript = debate_result["full_conversation"]
         
-        # Parse debate result
+        # Parse collaborative consultation result
         debate_winner_id = None
         final_conclusion = debate_result["final_conclusion"]
         
-        if "CONSENSUS WINNER: SCENARIO 1" in final_conclusion or "WINNER: SCENARIO 1" in final_conclusion:
+        # Support multiple winner declaration formats for robustness
+        if ("BETTER OPTION: 1" in final_conclusion or 
+            "CONSENSUS WINNER: SCENARIO 1" in final_conclusion or 
+            "WINNER: SCENARIO 1" in final_conclusion):
             debate_winner = scenario_1
             debate_winner_id = scenario_1["scenario_id"]
-            print(f"🏆 Debate winner: #{1} {scenario_1['team_id']}")
-        elif "CONSENSUS WINNER: SCENARIO 2" in final_conclusion or "WINNER: SCENARIO 2" in final_conclusion:
+            print(f"🏆 Collaborative winner: #{1} {scenario_1['team_id']}")
+        elif ("BETTER OPTION: 2" in final_conclusion or
+              "CONSENSUS WINNER: SCENARIO 2" in final_conclusion or 
+              "WINNER: SCENARIO 2" in final_conclusion):
             debate_winner = scenario_2  
             debate_winner_id = scenario_2["scenario_id"]
-            print(f"🏆 Debate winner: #{2} {scenario_2['team_id']}")
+            print(f"🏆 Collaborative winner: #{2} {scenario_2['team_id']}")
         else:
             # Fallback to #1 ranked if parsing fails
             debate_winner = scenario_1
             debate_winner_id = scenario_1["scenario_id"]
-            print(f"⚠️ Debate result unclear - defaulting to #1 ranked: {scenario_1['team_id']}")
+            print(f"⚠️ Collaborative result unclear - defaulting to #1 ranked: {scenario_1['team_id']}")
         
         print(f"📝 LLM debate conversation length: {len(debate_transcript)} characters")
         print(f"🔄 Debate rounds completed: {debate_result['conversation_rounds']}")
@@ -3241,7 +3246,7 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
 
 **Criteria:** {preferences}
 
-**Decision:** The expert panel concluded that {"Scenario 1" if debate_winner_id == scenario_1["scenario_id"] else "Scenario 2"} provides the superior solution based on the established criteria.
+**Decision:** The collaborative analysis concluded that {"Scenario 1" if debate_winner_id == scenario_1["scenario_id"] else "Scenario 2"} provides the superior solution based on the established criteria.
 """
         manager.save_file("debate_summary.md", debate_summary, "debate")
         
@@ -3253,9 +3258,9 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
             "losing_scenario_rank": scenario_2["rank"] if debate_winner_id == scenario_1["scenario_id"] else scenario_1["rank"],
             "goal": goal,
             "criteria": preferences,
-            "key_strengths": f"Expert panel identified superior performance in: {preferences}",
+            "key_strengths": f"Collaborative analysis identified superior performance in: {preferences}",
             "comparative_analysis": f"Debate winner demonstrated stronger performance compared to the #{'2' if debate_winner_id == scenario_1['scenario_id'] else '1'} ranked scenario through structured expert analysis.",
-            "evolution_guidance": f"Future evolution should focus on maintaining the winning elements while addressing any weaknesses identified in the expert discussion.",
+            "evolution_guidance": f"Future evolution should focus on maintaining the winning elements while addressing any weaknesses identified in the collaborative evaluation.",
             "transcript_excerpt": debate_transcript[:500] + "..." if len(debate_transcript) > 500 else debate_transcript
         }
         manager.save_json("debate_outcome.json", debate_outcome, "debate")
@@ -3266,17 +3271,17 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
 Winner: {debate_winner['team_id']} (Originally ranked #{debate_winner['rank']})
 Defeated: {"#2" if debate_winner_id == scenario_1["scenario_id"] else "#1"} ranked scenario
 
-Expert Panel Decision Criteria:
+Collaborative Analysis Decision Criteria:
 {preferences}
 
 Key Decision Factors:
 - The winning scenario demonstrated superior performance across the established criteria
-- Expert panel conducted structured analysis comparing both approaches
+- Collaborative analysis conducted structured evaluation comparing both approaches
 - Decision based on: {goal}
 
 Evolution Guidance:
 - Maintain the core strengths that led to debate victory
-- Address any weaknesses identified during expert discussion
+- Address any weaknesses identified during collaborative evaluation
 - Build upon the winning approach's foundation
 
 Debate Context:
@@ -3456,7 +3461,7 @@ def get_competing_scenarios(target_scenario: dict, all_scenarios: list) -> str:
     return summary
 
 async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configuration, num_directions: int = 3, **kwargs) -> dict:
-    """Conduct actual conversation between two LLM instances."""
+    """Conduct collaborative consultation conversation between two LLM instances."""
     
     print(f"🗣️ Starting LLM vs LLM debate for {debate_type}")
     
@@ -3599,12 +3604,12 @@ Focus: [What this emphasizes]
         debate_context = "\n".join(conversation_history)
         
         # LLM A final argument
-        prompt_a_final = f"""Make your final argument for Scenario 1. Previous debate:
+        prompt_a_final = f"""Make your final collaborative assessment. Previous consultation:
 
 {debate_context}
 
-Give your concluding argument and declare your winner:
-WINNER: SCENARIO 1 or SCENARIO 2"""
+Give your concluding assessment and declare the better option:
+BETTER OPTION: 1 or BETTER OPTION: 2"""
 
         response_a_final = await llm_a.ainvoke([HumanMessage(content=prompt_a_final)])
         final_a = response_a_final.content
@@ -3612,27 +3617,29 @@ WINNER: SCENARIO 1 or SCENARIO 2"""
         conversation_history.append(f"**LLM A Final Argument:**\n{final_a}\n")
         
         # LLM B final argument
-        prompt_b_final = f"""Make your final argument for Scenario 2. Previous debate:
+        prompt_b_final = f"""Make your final collaborative assessment. Previous consultation:
 
 {debate_context}
 
-Give your concluding argument and declare your winner:
-WINNER: SCENARIO 1 or SCENARIO 2"""
+Give your concluding assessment and declare the better option:
+BETTER OPTION: 1 or BETTER OPTION: 2"""
 
         response_b_final = await llm_b.ainvoke([HumanMessage(content=prompt_b_final)])
         final_b = response_b_final.content
         
         conversation_history.append(f"**LLM B Final Argument:**\n{final_b}\n")
         
-        # Determine winner based on stronger argument or consensus
-        if "WINNER: SCENARIO 1" in final_a and "WINNER: SCENARIO 1" in final_b:
-            final_conclusion = "CONSENSUS WINNER: SCENARIO 1"
-        elif "WINNER: SCENARIO 2" in final_a and "WINNER: SCENARIO 2" in final_b:
-            final_conclusion = "CONSENSUS WINNER: SCENARIO 2"
-        elif "WINNER: SCENARIO 1" in final_b:
-            final_conclusion = "WINNER: SCENARIO 1 (LLM B convinced)"
-        elif "WINNER: SCENARIO 2" in final_a:
-            final_conclusion = "WINNER: SCENARIO 2 (LLM A convinced)"
+        # Determine winner based on collaborative consensus
+        if (("BETTER OPTION: 1" in final_a or "WINNER: SCENARIO 1" in final_a) and 
+            ("BETTER OPTION: 1" in final_b or "WINNER: SCENARIO 1" in final_b)):
+            final_conclusion = "BETTER OPTION: 1 (Consensus)"
+        elif (("BETTER OPTION: 2" in final_a or "WINNER: SCENARIO 2" in final_a) and 
+              ("BETTER OPTION: 2" in final_b or "WINNER: SCENARIO 2" in final_b)):
+            final_conclusion = "BETTER OPTION: 2 (Consensus)"
+        elif "BETTER OPTION: 1" in final_b or "WINNER: SCENARIO 1" in final_b:
+            final_conclusion = "BETTER OPTION: 1 (Expert B conclusion)"
+        elif "BETTER OPTION: 2" in final_a or "WINNER: SCENARIO 2" in final_a:
+            final_conclusion = "BETTER OPTION: 2 (Expert A conclusion)"
         else:
             # Default to LLM B's choice (they had last word)
             final_conclusion = final_b
@@ -3649,7 +3656,7 @@ WINNER: SCENARIO 1 or SCENARIO 2"""
     }
 
 def parse_debate_result_directions(conclusion_text: str) -> list:
-    """Parse research directions from LLM debate conclusion."""
+    """Parse research directions from LLM collaborative consultation conclusion."""
     directions = []
     
     # Look for FINAL CONSENSUS section
@@ -3671,15 +3678,20 @@ def parse_debate_result_directions(conclusion_text: str) -> list:
             direction_name = line.split(':', 1)[1].strip()
             current_direction = {
                 "name": direction_name,
-                "assumption": "",
-                "focus": ""
+                "assumption": "",  # Maps to core_focus for backward compatibility
+                "focus": ""        # Maps to research_approach for backward compatibility
             }
         
         elif current_direction:
+            # Support both old format (for backward compatibility) and new collaborative format
             if line.startswith('Core Assumption:'):
                 current_direction["assumption"] = line.split(':', 1)[1].strip()
+            elif line.startswith('Core Focus:'):
+                current_direction["assumption"] = line.split(':', 1)[1].strip()  # Map to assumption field
             elif line.startswith('Focus:'):
                 current_direction["focus"] = line.split(':', 1)[1].strip()
+            elif line.startswith('Research Approach:'):
+                current_direction["focus"] = line.split(':', 1)[1].strip()  # Map to focus field
     
     # Add the last direction
     if current_direction:
@@ -3701,143 +3713,6 @@ def format_debate_directions_summary(research_directions: list, debate_result: d
     
     content += "## Debate Process\n\n"
     content += "This result was generated through an actual conversation between two AI debaters, "
-    content += "each taking different perspectives and working toward consensus through structured argumentation.\n"
-    
-    return content
-
-async def generate_expert_proposal(model, prompt: str, expert_domain: str) -> str:
-    """Generate a direction proposal from a specific expert domain."""
-    try:
-        response = await model.ainvoke([HumanMessage(content=prompt)])
-        return response.content
-    except Exception as e:
-        print(f"Failed to generate proposal for {expert_domain}: {e}")
-        raise e
-
-def parse_expert_proposal(proposal_content: str, expert_domain: str) -> list:
-    """Parse directions from expert proposal content."""
-    directions = []
-    
-    # Split by direction headers
-    lines = proposal_content.split('\n')
-    current_direction = None
-    
-    for line in lines:
-        line = line.strip()
-        
-        # Look for direction headers
-        if line.startswith('Direction 1:') or line.startswith('Direction 2:'):
-            if current_direction:
-                directions.append(current_direction)
-            
-            direction_name = line.split(':', 1)[1].strip()
-            current_direction = {
-                "name": direction_name,
-                "expert_domain": expert_domain,
-                "assumption": "",
-                "focus": "",
-                "rationale": ""
-            }
-        
-        elif current_direction:
-            if line.startswith('Core Assumption:'):
-                current_direction["assumption"] = line.split(':', 1)[1].strip()
-            elif line.startswith('Focus:'):
-                current_direction["focus"] = line.split(':', 1)[1].strip()
-            elif line.startswith('Domain Rationale:') or line.startswith('Narrative Rationale:') or line.startswith('Craft Rationale:') or line.startswith('Revision Rationale:') or line.startswith('Structure Rationale:') or line.startswith('Research Rationale:') or line.startswith('Adaptation Rationale:'):
-                current_direction["rationale"] = line.split(':', 1)[1].strip()
-    
-    # Add the last direction
-    if current_direction:
-        directions.append(current_direction)
-    
-    return directions
-
-def parse_debate_directions(debate_content: str) -> list:
-    """Parse final selected directions from debate transcript."""
-    directions = []
-    
-    # Look for the Final Selection section
-    lines = debate_content.split('\n')
-    in_final_selection = False
-    current_direction = None
-    
-    for line in lines:
-        line = line.strip()
-        
-        if '<Final Selection>' in line or 'Final Selection' in line:
-            in_final_selection = True
-            continue
-        
-        if in_final_selection:
-            # Look for direction headers
-            if line.startswith('Direction 1:') or line.startswith('Direction 2:') or line.startswith('Direction 3:'):
-                if current_direction:
-                    directions.append(current_direction)
-                
-                direction_name = line.split(':', 1)[1].strip()
-                current_direction = {
-                    "name": direction_name,
-                    "assumption": "",
-                    "focus": "",
-                    "consensus": ""
-                }
-            
-            elif current_direction:
-                if line.startswith('Core Assumption:'):
-                    current_direction["assumption"] = line.split(':', 1)[1].strip()
-                elif line.startswith('Focus:'):
-                    current_direction["focus"] = line.split(':', 1)[1].strip()
-                elif line.startswith('Panel Consensus:'):
-                    current_direction["consensus"] = line.split(':', 1)[1].strip()
-    
-    # Add the last direction
-    if current_direction:
-        directions.append(current_direction)
-    
-    return directions
-
-def format_proposed_directions(valid_proposals: list) -> str:
-    """Format all proposed directions for debate input."""
-    content = ""
-    
-    for proposal in valid_proposals:
-        expert_domain = proposal["expert_domain"]
-        directions = proposal["directions"]
-        
-        content += f"\n**{expert_domain} Expert Proposals:**\n"
-        
-        for i, direction in enumerate(directions, 1):
-            content += f"\nDirection {expert_domain}-{i}: {direction['name']}\n"
-            content += f"Core Assumption: {direction.get('assumption', '')}\n"
-            content += f"Focus: {direction.get('focus', '')}\n"
-            content += f"Rationale: {direction.get('rationale', '')}\n"
-    
-    return content
-
-def format_expert_proposals(valid_proposals: list) -> str:
-    """Format expert proposals for file output."""
-    content = "# Expert Domain Proposals\n\n"
-    
-    for proposal in valid_proposals:
-        expert_domain = proposal["expert_domain"]
-        content += f"## {expert_domain}\n\n"
-        content += proposal["proposal_content"]
-        content += "\n\n---\n\n"
-    
-    return content
-
-def format_selected_directions(research_directions: list, expert_domains: list) -> str:
-    """Format selected directions for file output."""
-    content = "# Selected Research Directions\n\n"
-    content += f"**Expert Panel:** {', '.join(expert_domains)}\n\n"
-    
-    for i, direction in enumerate(research_directions, 1):
-        content += f"## Direction {i}: {direction['name']}\n\n"
-        content += f"**Core Assumption:** {direction.get('assumption', '')}\n\n"
-        content += f"**Focus:** {direction.get('focus', '')}\n\n"
-        if direction.get('consensus'):
-            content += f"**Panel Consensus:** {direction['consensus']}\n\n"
-        content += "---\n\n"
+    content += "each taking different perspectives and working toward consensus through collaborative consultation.\n"
     
     return content
