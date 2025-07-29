@@ -313,7 +313,7 @@ async def _generate_with_isolated_llm(research_query: str, team_id: str, co_conf
     from co_scientist.utils.model_factory import create_model_factory
     
     # Create model using centralized factory
-    model_factory = create_model_factory(configuration)
+    model_factory = create_model_factory(co_config)
     llm = model_factory.create_phase_model("generation")
     
     try:

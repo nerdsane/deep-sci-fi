@@ -5,12 +5,7 @@ This module provides a standardized way to create and manage LLM instances
 across all co_scientist phases, eliminating hardcoded values and repetitive code.
 """
 
-import time
-import random
 from typing import Any, Optional
-from langchain_core.messages import HumanMessage
-from langchain.chat_models import init_chat_model
-
 from co_scientist.configuration import CoScientistConfiguration, ModelSettings
 from co_scientist.utils.llm_manager import LLMManager
 
@@ -21,6 +16,9 @@ class ModelFactory:
     
     This class eliminates scattered hardcoded values and provides a single
     point of configuration for all model creation across co_scientist phases.
+    
+    ModelFactory is the high-level, configuration-aware interface that
+    delegates actual model creation to LLMManager.
     """
     
     def __init__(self, configuration: CoScientistConfiguration):
@@ -52,32 +50,26 @@ class ModelFactory:
         Returns:
             Configured model instance ready for use
         """
-        # Determine model to use
-        if model_name is None:
-            model_name = self.configuration.general_model
+        # Create an LLMManager configured for this phase
+        llm_manager = self.create_llm_manager(phase, model_name)
         
-        # Get phase-specific settings
-        temperature = self.model_settings.get_temperature_for_phase(phase, model_name)
-        max_tokens = self.model_settings.get_max_tokens_for_phase(phase)
+        # Apply any parameter overrides
+        max_tokens = override_params.get('max_tokens', llm_manager.default_max_tokens)
+        temperature = override_params.get('temperature', llm_manager.default_temperature)
         
-        # Apply any overrides
-        temperature = override_params.get('temperature', temperature)
-        max_tokens = override_params.get('max_tokens', max_tokens)
-        
-        # Create model parameters
-        model_params = {
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "request_timeout": self.model_settings.request_timeout,
-            "max_retries": self.model_settings.max_retries,
-        }
-        
-        # Add seed for isolation if needed
+        # Delegate to LLMManager for actual model creation
         if isolated:
-            unique_seed = hash(f"{model_name}_{phase}_{max_tokens}_{time.time()}_{random.random()}")
-            model_params["seed"] = unique_seed % 2**31
-        
-        return init_chat_model(model_name, **model_params)
+            return llm_manager.create_isolated_instance(
+                model_name=model_name,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+        else:
+            return llm_manager.create_shared_instance(
+                model_name=model_name,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
     
     def create_llm_manager(
         self,

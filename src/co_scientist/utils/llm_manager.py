@@ -189,6 +189,32 @@ class LLMManager:
         
         return self._create_isolated_instance(model, tokens, temp)
     
+    def create_shared_instance(
+        self,
+        model_name: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None
+    ) -> Any:
+        """
+        Create a shared model instance for efficiency when isolation isn't needed.
+        
+        Use this for sequential operations where context bleeding isn't a concern
+        and you want better performance through connection reuse.
+        
+        Args:
+            model_name: Model to instantiate (optional, uses default)
+            max_tokens: Token limit (optional, uses default)
+            temperature: Temperature setting (optional, uses default)
+            
+        Returns:
+            LangChain model instance ready for use
+        """
+        model = model_name or self.default_model
+        tokens = max_tokens or self.default_max_tokens
+        temp = temperature or self.default_temperature
+        
+        return self._create_shared_instance(model, tokens, temp)
+    
     async def _call_with_retry(self, llm: Any, messages: List[Any]) -> Any:
         """
         Internal method that implements the retry logic with exponential backoff.
