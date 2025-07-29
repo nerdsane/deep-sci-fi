@@ -2,7 +2,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
-from typing import Literal
+from typing import Literal, Any
 import asyncio
 import uuid
 import json
@@ -48,6 +48,40 @@ from open_deep_research.deep_researcher import deep_researcher
 configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
+
+async def llm_call_with_retry(llm, messages, max_retries: int = 3, base_delay: float = 1.0) -> Any:
+    """Call LLM with exponential backoff retry for transient errors."""
+    import anthropic
+    
+    for attempt in range(max_retries):
+        try:
+            return await llm.ainvoke(messages)
+            
+        except anthropic.APIStatusError as e:
+            error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+            
+            # Retry on overload and rate limit errors
+            if error_type in ["overloaded_error", "rate_limit_error"] and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                print(f"  ⏳ API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
+                continue
+            else:
+                raise  # Re-raise if not retryable or max retries exceeded
+                
+        except Exception as e:
+            # For other exceptions, only retry if it looks like a transient network issue
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["timeout", "connection", "network"]) and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                print(f"  ⏳ Network error, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
+                continue
+            else:
+                raise  # Re-raise if not retryable or max retries exceeded
+    
+    # This shouldn't be reached but added for completeness
+    raise Exception(f"Failed after {max_retries} attempts")
 
 def create_isolated_model_instance(model_name: str, max_tokens: int = 8000, temperature: float = 0.9) -> object:
     """Create a completely isolated model instance for parallel generation.
@@ -756,6 +790,10 @@ async def meta_analysis_phase(state: CoScientistState, config: RunnableConfig) -
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
+    # Debug: Show configuration
+    print(f"🔍 DEBUG META-ANALYSIS: use_meta_analysis_debate = {configuration.use_meta_analysis_debate}")
+    print(f"🔍 DEBUG META-ANALYSIS: Configuration source: {type(configuration)}")
+    
     # Choose between debate system and traditional single LLM approach
     if configuration.use_meta_analysis_debate:
         print(f"🗣️ Using DEBATE system for meta-analysis")
@@ -815,7 +853,7 @@ async def meta_analysis_traditional_phase(state: CoScientistState, config: Runna
         meta_prompt = get_meta_analysis_prompt(use_case, processed_state, config)
     
     # Generate research directions
-    response = await isolated_model.ainvoke([HumanMessage(content=meta_prompt)])
+    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=meta_prompt)])
     
     # Parse response to extract research directions
     research_directions = parse_research_directions(response.content)
@@ -892,6 +930,7 @@ async def meta_analysis_debate_phase(state: CoScientistState, config: RunnableCo
         "meta_analysis",
         configuration,
         num_directions=num_directions,
+        max_rounds=4,  # Can be made configurable later
         **state_kwargs
     )
     
@@ -912,8 +951,9 @@ async def meta_analysis_debate_phase(state: CoScientistState, config: RunnableCo
     if configuration.save_intermediate_results:
         manager = get_output_manager(configuration.output_dir, configuration.phase)
         
-        # Save full debate conversation
+        # Save full debate conversation (both formats)
         manager.save_file("llm_debate_conversation.md", debate_result["full_conversation"], "meta_analysis")
+        manager.save_file("llm_debate_chat.md", debate_result["chat_conversation"], "meta_analysis")
         
         # Save final conclusion
         manager.save_file("debate_conclusion.md", debate_result["final_conclusion"], "meta_analysis")
@@ -1126,10 +1166,36 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
             from open_deep_research.deep_researcher import reset_deep_researcher_global_state
             reset_deep_researcher_global_state()
             
-            research_result = await deep_researcher.ainvoke(
-                {"messages": [HumanMessage(content=research_query)]},
-                research_config
-            )
+            # Use retry logic for deep_researcher call
+            import anthropic
+            import asyncio
+            import random
+            
+            for attempt in range(3):  # max_retries = 3
+                try:
+                    research_result = await deep_researcher.ainvoke(
+                        {"messages": [HumanMessage(content=research_query)]},
+                        research_config
+                    )
+                    break  # Success, exit retry loop
+                except anthropic.APIStatusError as e:
+                    error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                    if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:  # attempt < max_retries - 1
+                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)  # base_delay = 1.0
+                        print(f"  ⏳ Deep researcher API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise  # Re-raise if not retryable or max retries exceeded
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if any(keyword in error_msg for keyword in ["timeout", "connection", "network"]) and attempt < 2:
+                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)
+                        print(f"  ⏳ Deep researcher network error, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise
             scenario_content = research_result.get("final_report", "")
             raw_result = str(research_result)
             print(f"Successfully generated content for {team_id} using deep_researcher, length: {len(scenario_content)}")
@@ -1148,7 +1214,7 @@ async def generate_single_scenario(direction: dict, team_id: str, state: CoScien
         )
         
         try:
-            response = await isolated_model.ainvoke([HumanMessage(content=research_query)])
+            response = await llm_call_with_retry(isolated_model, [HumanMessage(content=research_query)])
             scenario_content = response.content
             raw_result = f"Isolated LLM response: {response.content}"
             print(f"Successfully generated content for {team_id} using isolated LLM, length: {len(scenario_content)}")
@@ -1267,7 +1333,7 @@ async def generate_unified_reflection(scenario: dict, config: RunnableConfig) ->
     
     try:
         # Generate unified reflection
-        response = await isolated_model.ainvoke([HumanMessage(content=reflection_prompt)])
+        response = await llm_call_with_retry(isolated_model, [HumanMessage(content=reflection_prompt)])
         reflection_content = response.content
         
         # Parse quality scores from the reflection
@@ -1673,7 +1739,7 @@ async def pairwise_comparison(scenario1: dict, scenario2: dict, round_number: in
     
     comparison_prompt = pairwise_prompt_template.format(**prompt_params)
     
-    response = await isolated_model.ainvoke([HumanMessage(content=comparison_prompt)])
+    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=comparison_prompt)])
     
     # More robust winner determination
     response_text = response.content.lower()
@@ -1976,7 +2042,7 @@ async def evolve_scenario(scenario: dict, strategy: str, state: CoScientistState
     )
     
     try:
-        response = await isolated_model.ainvoke([HumanMessage(content=evolution_prompt)])
+        response = await llm_call_with_retry(isolated_model, [HumanMessage(content=evolution_prompt)])
         evolved_content = response.content
         print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy, content length: {len(evolved_content)}")
     except Exception as e:
@@ -2082,7 +2148,7 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
         evolution_data=evolution_data
     )
     
-    response = await isolated_model.ainvoke([HumanMessage(content=meta_review_prompt)])
+    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=meta_review_prompt)])
     process_analysis = response.content
     
     # Generate a brief competition summary for user presentation
@@ -2861,11 +2927,18 @@ async def ranking_phase(state: CoScientistState, config: RunnableConfig) -> dict
     
     # Save leaderboard outputs
     if configuration.save_intermediate_results:
+        print(f"💾 Saving Elo leaderboard with {len(detailed_leaderboard)} scenarios...")
         save_elo_leaderboard(leaderboard_data, configuration.output_dir, configuration.phase)
     
     print(f"Ranking complete: {len(detailed_leaderboard)} scenarios ranked")
     print(f"Top performer: {detailed_leaderboard[0]['team_id'] if detailed_leaderboard else 'None'} "
           f"({detailed_leaderboard[0]['final_elo_rating']:.0f} Elo)" if detailed_leaderboard else "")
+    
+    # Debug: Confirm what we're returning
+    print(f"🔍 DEBUG RANKING: Returning leaderboard_data with {len(detailed_leaderboard)} rankings")
+    print(f"🔍 DEBUG RANKING: Leaderboard data keys: {list(leaderboard_data.keys())}")
+    if detailed_leaderboard:
+        print(f"🔍 DEBUG RANKING: Sample ranking entry: team_id={detailed_leaderboard[0].get('team_id')}, rank={detailed_leaderboard[0].get('rank')}")
     
     return {
         "leaderboard_data": leaderboard_data,
@@ -3110,9 +3183,26 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
     
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
+    print(f"🗣️ DEBATE PHASE: Starting final tournament LLM vs LLM debate")
+    
+    # Debug: Check what data we're receiving
+    print(f"🔍 DEBUG: State keys available: {list(state.keys())}")
+    print(f"🔍 DEBUG: Leaderboard data type: {type(state.get('leaderboard_data', 'missing'))}")
+    
     # Get leaderboard data to find top 2 scenarios
     leaderboard_data = state.get("leaderboard_data", {})
     rankings = leaderboard_data.get("rankings", [])
+    
+    print(f"📊 Found {len(rankings)} ranked scenarios for debate")
+    print(f"🔍 DEBUG: Leaderboard data keys: {list(leaderboard_data.keys()) if leaderboard_data else 'No leaderboard data'}")
+    
+    if len(rankings) > 0:
+        print(f"🔍 DEBUG: First ranking entry keys: {list(rankings[0].keys()) if rankings[0] else 'Empty ranking'}")
+        print(f"🔍 DEBUG: Top 2 scenarios:")
+        for i, scenario in enumerate(rankings[:2]):
+            print(f"    #{i+1}: {scenario.get('team_id', 'unknown')} (Elo: {scenario.get('final_elo_rating', 'unknown')})")
+    else:
+        print(f"🔍 DEBUG: No rankings found!")
     
     if len(rankings) < 2:
         print("Insufficient scenarios for debate - need at least 2 ranked scenarios")
@@ -3189,6 +3279,7 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
         use_case,
         "tournament",
         configuration,
+        max_rounds=3,  # Tournament debates typically shorter
         goal=goal,
         criteria=preferences,
         scenario_1_content=scenario_1_content,
@@ -3238,8 +3329,13 @@ async def debate_phase(state: CoScientistState, config: RunnableConfig) -> dict:
     if configuration.save_intermediate_results:
         manager = get_output_manager(configuration.output_dir, configuration.phase)
         
-        # Save full debate transcript
+        # Save full debate transcript (both formats)
+        print(f"💾 Saving final debate transcript to: {manager.get_file_path('final_debate_transcript.md', 'debate')}")
         manager.save_file("final_debate_transcript.md", debate_transcript, "debate")
+        
+        # Save chat format if available
+        if "chat_conversation" in debate_result:
+            manager.save_file("final_debate_chat.md", debate_result["chat_conversation"], "debate")
         
         # Save debate summary
         debate_summary = f"""# Final Debate Results
@@ -3468,7 +3564,62 @@ def get_competing_scenarios(target_scenario: dict, all_scenarios: list) -> str:
     
     return summary
 
-async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configuration, num_directions: int = 3, **kwargs) -> dict:
+def format_as_chat_conversation(conversation_history: list, debate_type: str) -> str:
+    """Format the conversation as a chat-style conversation."""
+    
+    chat_lines = []
+    chat_lines.append("# 💬 Expert Consultation - Chat Format")
+    chat_lines.append(f"**Type:** {debate_type.title()} Discussion")
+    chat_lines.append(f"**Participants:** Expert A & Expert B")
+    chat_lines.append(f"**Format:** Collaborative Consultation\n")
+    
+    for i, exchange in enumerate(conversation_history):
+        if isinstance(exchange, dict):
+            # New structured format
+            speaker_key = exchange.get("speaker", f"speaker_{i}")
+            content = exchange.get("content", "")
+            
+            if speaker_key == "expert_a":
+                speaker = "🎯 Expert A"
+            elif speaker_key == "expert_b":
+                speaker = "🔄 Expert B"
+            else:
+                speaker = f"💬 {speaker_key.title()}"
+        else:
+            # Legacy format fallback
+            speaker = f"💬 Speaker {i+1}"
+            content = str(exchange)
+        
+        # Format as chat message
+        chat_lines.append(f"## {speaker}")
+        chat_lines.append("")
+        chat_lines.append(content.strip())
+        chat_lines.append("")
+        chat_lines.append("---")
+        chat_lines.append("")
+    
+    return '\n'.join(chat_lines)
+
+def format_conversation_for_context(conversation_history: list) -> str:
+    """Format conversation history naturally for LLM context."""
+    if not conversation_history:
+        return "This is the start of the conversation."
+    
+    formatted = []
+    for exchange in conversation_history:
+        speaker = exchange["speaker"]
+        content = exchange["content"]
+        
+        if speaker == "expert_a":
+            formatted.append(f"Expert A:\n{content}")
+        elif speaker == "expert_b":
+            formatted.append(f"Expert B:\n{content}")
+        else:
+            formatted.append(f"{speaker}:\n{content}")
+    
+    return "\n\n" + "="*50 + "\n\n".join(formatted) + "\n\n" + "="*50 + "\n"
+
+async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configuration, num_directions: int = 3, max_rounds: int = 4, **kwargs) -> dict:
     """Conduct collaborative consultation conversation between two LLM instances."""
     
     print(f"🗣️ Starting LLM vs LLM debate for {debate_type}")
@@ -3518,58 +3669,72 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
             template_kwargs["story_concept"] = context_value
             template_kwargs["source_content"] = kwargs.get("reference_material", "")
         
-        # LLM A makes opening proposal
-        prompt_a = get_debate_participant_prompt(use_case, "A", num_directions=num_directions, **template_kwargs)
-        print("🤖 LLM A: Making opening proposals...")
+        # Expert A starts the conversation naturally
+        prompt_a = f"""You're discussing research directions for {use_case} with another expert. Your task is to propose {num_directions} distinct research directions.
+
+Context: {context_value}
+Reference Material: {template_kwargs.get('source_content', template_kwargs.get('reference_material', 'None provided'))}
+
+Please propose {num_directions} different research directions, explaining your reasoning for each. Focus on creating diverse approaches that could lead to high-quality results."""
         
-        response_a = await llm_a.ainvoke([HumanMessage(content=prompt_a)])
+        print("💬 Expert A: Starting the conversation...")
+        
+        response_a = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a)])
         proposals_a = response_a.content
         
-        conversation_history.append(f"**LLM A Opening Proposals:**\n{proposals_a}\n")
-        print(f"  ✅ LLM A proposed {num_directions} directions")
+        conversation_history.append({"speaker": "expert_a", "content": proposals_a})
+        print(f"  ✅ Expert A shared {num_directions} directions")
         
-        # LLM B responds with counter-proposals and critique
-        prompt_b = get_debate_participant_prompt(use_case, "B", 
-                                                num_directions=num_directions, 
-                                                debater_a_proposals=proposals_a,
-                                                **template_kwargs)
-        print("🤖 LLM B: Making counter-proposals and critique...")
+        # Expert B responds naturally to Expert A
+        conversation_context = format_conversation_for_context(conversation_history)
+        prompt_b = f"""You're discussing research directions for {use_case} with another expert. Here's the conversation so far:
+
+{conversation_context}
+
+Please respond to Expert A's proposals. You can:
+- Build on their ideas with enhancements
+- Offer alternative perspectives or approaches  
+- Identify potential improvements or gaps
+- Propose {num_directions} refined or alternative directions
+
+Focus on advancing the discussion toward the best possible research directions."""
+
+        print("💬 Expert B: Responding to Expert A...")
         
-        response_b = await llm_b.ainvoke([HumanMessage(content=prompt_b)])
+        response_b = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b)])
         proposals_b = response_b.content
         
-        conversation_history.append(f"**LLM B Counter-Proposals & Critique:**\n{proposals_b}\n")
-        print(f"  ✅ LLM B responded with critique and {num_directions} alternatives")
+        conversation_history.append({"speaker": "expert_b", "content": proposals_b})
+        print(f"  ✅ Expert B provided response and alternatives")
         
-        # Continue debate for 2-3 more rounds
-        for round_num in range(2, 5):  # Rounds 2, 3, 4
+        # Continue debate until consensus or max rounds reached
+        for round_num in range(2, max_rounds + 1):  # Configurable max rounds
             print(f"🔄 Debate Round {round_num}...")
             
-            # LLM A responds to B's critique
-            debate_context = "\n".join(conversation_history)
-            prompt_a_continue = f"""Continue the debate. You are Debater A.
+            # Expert A continues the conversation
+            conversation_context = format_conversation_for_context(conversation_history)
+            prompt_a_continue = f"""Continue the discussion about research directions for {use_case}. Here's the conversation so far:
 
-Previous conversation:
-{debate_context}
+{conversation_context}
 
-Respond to Debater B's critique and proposals. Defend your directions and/or critique theirs. Work toward consensus on the best {num_directions} research directions.
+Please respond to Expert B's points. You can refine your ideas, build on theirs, or offer new perspectives. Work toward reaching consensus on the best {num_directions} research directions.
 
-If you think you've reached consensus, conclude with:
+If you think you've reached a good consensus, conclude with:
 FINAL CONSENSUS:
 Direction 1: [Name]
 Core Assumption: [Key assumption]
 Focus: [What this emphasizes]
 
-Direction 2: [Name]
+Direction 2: [Name]  
 Core Assumption: [Key assumption]
 Focus: [What this emphasizes]
 
 [Continue for {num_directions} directions]"""
 
-            response_a_continue = await llm_a.ainvoke([HumanMessage(content=prompt_a_continue)])
+            response_a_continue = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a_continue)])
             response_a_text = response_a_continue.content
             
-            conversation_history.append(f"**LLM A Round {round_num}:**\n{response_a_text}\n")
+            conversation_history.append({"speaker": "expert_a", "content": response_a_text})
             
             # Check if consensus reached
             if "FINAL CONSENSUS:" in response_a_text:
@@ -3577,14 +3742,13 @@ Focus: [What this emphasizes]
                 final_conclusion = response_a_text
                 break
             
-            # LLM B responds
-            debate_context = "\n".join(conversation_history)
-            prompt_b_continue = f"""Continue the debate. You are Debater B.
+            # Expert B responds
+            conversation_context = format_conversation_for_context(conversation_history)
+            prompt_b_continue = f"""Continue the discussion about research directions for {use_case}. Here's the conversation so far:
 
-Previous conversation:
-{debate_context}
+{conversation_context}
 
-Respond to Debater A's latest arguments. Work toward consensus on the best {num_directions} research directions.
+Please respond to Expert A's latest points. You can refine ideas, build on them, or offer new perspectives. Work toward reaching consensus on the best {num_directions} research directions.
 
 If you think you've reached consensus, conclude with:
 FINAL CONSENSUS:
@@ -3598,10 +3762,10 @@ Focus: [What this emphasizes]
 
 [Continue for {num_directions} directions]"""
 
-            response_b_continue = await llm_b.ainvoke([HumanMessage(content=prompt_b_continue)])
+            response_b_continue = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b_continue)])
             response_b_text = response_b_continue.content
             
-            conversation_history.append(f"**LLM B Round {round_num}:**\n{response_b_text}\n")
+            conversation_history.append({"speaker": "expert_b", "content": response_b_text})
             
             # Check if consensus reached
             if "FINAL CONSENSUS:" in response_b_text:
@@ -3613,55 +3777,76 @@ Focus: [What this emphasizes]
     
     elif debate_type == "tournament":
         # Tournament debate: Pick winner between 2 scenarios
+        scenario_1_content = kwargs.get("scenario_1_content", "Option 1")
+        scenario_2_content = kwargs.get("scenario_2_content", "Option 2")
         
-        # LLM A argues for scenario 1
-        prompt_a = get_tournament_debate_participant_prompt(use_case, "A", **kwargs)
-        print("🤖 LLM A: Arguing for Scenario 1...")
+        # Expert A reviews and advocates for scenario 1
+        prompt_a = f"""You're helping evaluate two {use_case} options with another expert. Please review Option 1 and make a case for why it might be the better choice:
+
+OPTION 1:
+{scenario_1_content}
+
+OPTION 2: 
+{scenario_2_content}
+
+Please analyze Option 1's strengths and explain why it might be the better choice."""
         
-        response_a = await llm_a.ainvoke([HumanMessage(content=prompt_a)])
+        print("💬 Expert A: Evaluating Option 1...")
+        
+        response_a = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a)])
         argument_a = response_a.content
         
-        conversation_history.append(f"**LLM A (Advocating Scenario 1):**\n{argument_a}\n")
+        conversation_history.append({"speaker": "expert_a", "content": argument_a})
         
-        # LLM B argues for scenario 2
-        prompt_b = get_tournament_debate_participant_prompt(use_case, "B", 
-                                                          debater_a_argument=argument_a,
-                                                          **kwargs)
-        print("🤖 LLM B: Arguing for Scenario 2...")
+        # Expert B reviews and advocates for scenario 2, seeing Expert A's argument
+        conversation_context = format_conversation_for_context(conversation_history)
+        prompt_b = f"""You're helping evaluate two {use_case} options with another expert. Here's what Expert A said about Option 1:
+
+{conversation_context}
+
+Now please review Option 2 and make a case for why it might be the better choice:
+
+OPTION 2:
+{scenario_2_content}
+
+Please analyze Option 2's strengths and explain why it might be the better choice than Option 1."""
+
+        print("💬 Expert B: Evaluating Option 2...")
         
-        response_b = await llm_b.ainvoke([HumanMessage(content=prompt_b)])
+        response_b = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b)])
         argument_b = response_b.content
         
-        conversation_history.append(f"**LLM B (Advocating Scenario 2):**\n{argument_b}\n")
+        conversation_history.append({"speaker": "expert_b", "content": argument_b})
         
-        # Final round: both make concluding arguments
-        debate_context = "\n".join(conversation_history)
+        # Final round: both make concluding assessments
+        conversation_context = format_conversation_for_context(conversation_history)
         
-        # LLM A final argument
-        prompt_a_final = f"""Make your final collaborative assessment. Previous consultation:
+        # Expert A final assessment
+        prompt_a_final = f"""Based on the discussion so far, please make your final assessment of which option is better:
 
-{debate_context}
+{conversation_context}
 
 Give your concluding assessment and declare the better option:
 BETTER OPTION: 1 or BETTER OPTION: 2"""
 
-        response_a_final = await llm_a.ainvoke([HumanMessage(content=prompt_a_final)])
+        response_a_final = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a_final)])
         final_a = response_a_final.content
         
-        conversation_history.append(f"**LLM A Final Argument:**\n{final_a}\n")
+        conversation_history.append({"speaker": "expert_a", "content": final_a})
         
-        # LLM B final argument
-        prompt_b_final = f"""Make your final collaborative assessment. Previous consultation:
+        # Expert B final assessment  
+        conversation_context = format_conversation_for_context(conversation_history)
+        prompt_b_final = f"""Based on the full discussion, please make your final assessment of which option is better:
 
-{debate_context}
+{conversation_context}
 
 Give your concluding assessment and declare the better option:
 BETTER OPTION: 1 or BETTER OPTION: 2"""
 
-        response_b_final = await llm_b.ainvoke([HumanMessage(content=prompt_b_final)])
+        response_b_final = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b_final)])
         final_b = response_b_final.content
         
-        conversation_history.append(f"**LLM B Final Argument:**\n{final_b}\n")
+        conversation_history.append({"speaker": "expert_b", "content": final_b})
         
         # Determine winner based on collaborative consensus
         if (("BETTER OPTION: 1" in final_a or "WINNER: SCENARIO 1" in final_a) and 
@@ -3678,15 +3863,38 @@ BETTER OPTION: 1 or BETTER OPTION: 2"""
             # Default to LLM B's choice (they had last word)
             final_conclusion = final_b
     
-    full_conversation = "\n".join(conversation_history)
+    # Format conversation for raw transcript
+    conversation_lines = []
+    for exchange in conversation_history:
+        if isinstance(exchange, dict):
+            speaker = exchange.get("speaker", "unknown")
+            content = exchange.get("content", "")
+            if speaker == "expert_a":
+                conversation_lines.append(f"Expert A:\n{content}")
+            elif speaker == "expert_b":
+                conversation_lines.append(f"Expert B:\n{content}")
+            else:
+                conversation_lines.append(f"{speaker}:\n{content}")
+        else:
+            # Legacy format fallback
+            conversation_lines.append(str(exchange))
+    
+    full_conversation = "\n\n" + "="*50 + "\n\n".join(conversation_lines)
+    
+    # Create chat-style conversation format
+    chat_conversation = format_as_chat_conversation(conversation_history, debate_type)
     
     print(f"🏁 LLM debate completed. Total conversation length: {len(full_conversation)} characters")
+    print(f"📝 Formatted as {len(conversation_history)} conversation exchanges")
+    print(f"🔄 Completed {len(conversation_history)} rounds (max allowed: {max_rounds})")
     
     return {
         "full_conversation": full_conversation,
+        "chat_conversation": chat_conversation,
         "final_conclusion": final_conclusion,
         "conversation_rounds": len(conversation_history),
-        "debate_type": debate_type
+        "debate_type": debate_type,
+        "max_rounds_allowed": max_rounds
     }
 
 def parse_debate_result_directions(conclusion_text: str) -> list:
