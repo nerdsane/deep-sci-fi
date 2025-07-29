@@ -291,17 +291,19 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
     # Import legacy functions (will be replaced with direct LLMManager calls in future)
     from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
     
-    # Create two isolated LLM instances
+    # Determine temperature based on model type
+    debate_temperature = 1 if "o3" in configuration.general_model else 0.8
+    
     llm_a = create_isolated_model_instance(
         model_name=configuration.general_model,
         max_tokens=4096,
-        temperature=0.8  # Slightly creative for debate
+        temperature=debate_temperature  # Use appropriate temperature for model
     )
     
     llm_b = create_isolated_model_instance(
         model_name=configuration.general_model,
         max_tokens=4096,
-        temperature=0.8  # Slightly creative for debate
+        temperature=debate_temperature  # Use appropriate temperature for model
     )
     
     # Initialize conversation

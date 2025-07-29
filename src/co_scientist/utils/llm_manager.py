@@ -252,32 +252,31 @@ class LLMManager:
         # Create unique seed for this model instance
         unique_seed = hash(f"{model_name}_{max_tokens}_{time.time()}_{random.random()}")
         
-        # Build model parameters
+        # Build model parameters (don't include 'model' since it's passed as first argument)
         model_params = {
-            "model": model_name,
-            "temperature": temperature,
             "max_tokens": max_tokens,
-            # Force new instance by adding unique metadata
-            "metadata": {"isolation_id": str(uuid.uuid4()), "created_at": time.time()}
+            "temperature": temperature,
+            "request_timeout": 300,
+            "max_retries": 3,
+            "seed": unique_seed % 2**31  # Ensure seed is within valid range
         }
         
-        # Only add seed for OpenAI models (Anthropic doesn't support it)
-        if not model_name.startswith("anthropic:"):
-            model_params["seed"] = abs(unique_seed) % (2**31 - 1)  # Ensure positive 32-bit int
-        
-        return init_chat_model(**model_params)
+        return init_chat_model(model_name, **model_params)
     
     def _create_shared_instance(self, model_name: str, max_tokens: int, temperature: float) -> Any:
         """
-        Create a shared model instance for better performance when isolation isn't needed.
-        
-        Use this for sequential operations where context bleeding isn't a concern.
+        Create or retrieve shared model instance for efficiency.
+        Uses caching to reuse instances with identical parameters.
         """
-        return init_chat_model(
-            model=model_name,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+        # Build model parameters (don't include 'model' since it's passed as first argument)
+        model_params = {
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "request_timeout": 300,
+            "max_retries": 3
+        }
+        
+        return init_chat_model(model_name, **model_params)
 
 
 # Convenience function for quick setup

@@ -125,12 +125,12 @@ class ModelConfig:
     # === Use Case Model Assignments ===
     # Format: {"provider": "model_key", "thinking": True/False}
     USE_CASE_MODELS = {
-        # Creative narrative tasks - Claude Sonnet 4 with thinking
+        # Creative narrative tasks - OpenAI O3 for reasoning-driven creativity
         "general_creative": {
-            "provider": ModelProvider.ANTHROPIC,
-            "model": "sonnet_4", 
-            "thinking": True,
-            "temperature": 0.9,
+            "provider": ModelProvider.OPENAI,
+            "model": "o3", 
+            "thinking": False,  # O3 has built-in reasoning
+            "temperature": 1,  # Maximum creativity
             "max_tokens": 8000
         },
         

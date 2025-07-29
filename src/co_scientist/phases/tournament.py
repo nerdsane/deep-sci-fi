@@ -318,11 +318,13 @@ async def pairwise_comparison(scenario1: Dict[str, Any], scenario2: Dict[str, An
     # Import legacy functions (will be replaced with direct LLMManager calls in future)
     from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
     
-    # Use isolated model for pairwise comparison (prevents context bleeding)
-    isolated_model = create_isolated_model_instance(
+    # Determine temperature based on model type
+    tournament_temperature = 1 if "o3" in configuration.general_model else 0.7
+    
+    llm = create_isolated_model_instance(
         model_name=configuration.general_model,
-        max_tokens=3072,
-        temperature=0.7  # Balanced temperature for consistent comparison
+        max_tokens=4096,
+        temperature=tournament_temperature  # Use appropriate temperature for model
     )
     
     # Get pre-comparison Elo ratings
@@ -361,7 +363,7 @@ async def pairwise_comparison(scenario1: Dict[str, Any], scenario2: Dict[str, An
     
     comparison_prompt = pairwise_prompt_template.format(**prompt_params)
     
-    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=comparison_prompt)])
+    response = await llm_call_with_retry(llm, [HumanMessage(content=comparison_prompt)])
     
     # More robust winner determination
     response_text = response.content.lower()

@@ -179,11 +179,6 @@ Develop a realistic projection showing how the world evolves from the baseline s
 # Used in: get_generation_prompt() for "storyline_creation" use case
 STORYLINE_GENERATION_PROMPT = """You are a master storyteller creating a fresh, original storyline using the {direction_name} approach.
 
-<Uniqueness Context>
-Session: {uniqueness_seed}
-This is a completely fresh creative session - ignore any previous storylines or characters.
-</Uniqueness Context>
-
 <Approach>
 {direction_assumption}
 </Approach>
@@ -199,7 +194,7 @@ Create a complete storyline that follows your narrative approach and brings the 
 - Compelling protagonist and supporting characters  
 - Central conflict and meaningful resolution
 - Appropriate pacing for your chosen approach
-- Clear thematic foundation
+- Story should be set in today's world
 </Requirements>
 
 <Storyline Must Include>
@@ -210,10 +205,6 @@ Create a complete storyline that follows your narrative approach and brings the 
 - Climactic resolution and conclusion
 
 Create a compelling, complete storyline that exemplifies your narrative approach.
-
-<Critical Constraints>
-- This is a FRESH storyline - avoid any references to previous stories or characters
-</Critical Constraints>
 
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
@@ -228,11 +219,6 @@ Create a compelling, complete storyline that exemplifies your narrative approach
 
 # Used in: get_generation_prompt() for "chapter_writing" use case  
 CHAPTER_WRITING_GENERATION_PROMPT = """You are a skilled novelist writing a fresh, original first chapter using the {direction_name} approach.
-
-<Uniqueness Context>
-Session: {uniqueness_seed}
-This is a completely fresh creative session - ignore any previous chapters or characters.
-</Uniqueness Context>
 
 <Approach>
 {direction_assumption}
@@ -255,13 +241,7 @@ Write a complete first chapter that hooks readers and launches the story. The op
 - Set up central conflict or tension
 - Vivid scene-setting and natural dialogue
 - Strong opening hook and chapter-ending momentum
-
-<Critical Constraints>
-- This is a FRESH chapter - avoid any references to previous stories or characters  
-- Technology level must exactly match the story's time period
-- NO anachronistic technology (quantum computing, neural interfaces, advanced AI) unless story is set in future
-- NO repeated company names like "Meridian Labs" or similar from any previous context
-- Each organization, character, and technology must be completely original and unique
+</Requirements>
 
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.

@@ -75,11 +75,13 @@ async def meta_analysis_traditional_phase(state: CoScientistState, config: Runna
     
     print(f"🧠 Starting traditional meta-analysis: {configuration.use_case}")
     
-    # Create isolated model to prevent context bleeding
-    isolated_model = create_isolated_model_instance(
+    # Determine temperature based on model type
+    analysis_temperature = 1 if "o3" in configuration.general_model else 0.8
+    
+    llm = create_isolated_model_instance(
         model_name=configuration.general_model,
         max_tokens=4096,
-        temperature=0.8
+        temperature=analysis_temperature  # Use appropriate temperature for model
     )
     
     # Process state for backward compatibility
@@ -98,7 +100,7 @@ async def meta_analysis_traditional_phase(state: CoScientistState, config: Runna
         meta_prompt = get_meta_analysis_prompt(use_case, processed_state, config)
     
     # Generate research directions
-    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=meta_prompt)])
+    response = await llm_call_with_retry(llm, [HumanMessage(content=meta_prompt)])
     research_directions = parse_research_directions(response.content)
     
     print(f"📊 Parsed {len(research_directions)} research directions")

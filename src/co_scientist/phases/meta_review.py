@@ -55,11 +55,13 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     # Import here to avoid circular imports
     from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
     
-    # Create isolated model for meta-review
-    isolated_model = create_isolated_model_instance(
-        model_name=configuration.research_model,
+    # Determine temperature based on model type
+    review_temperature = 1 if "o3" in configuration.general_model else 0.7
+    
+    llm = create_isolated_model_instance(
+        model_name=configuration.general_model,
         max_tokens=4096,
-        temperature=0.7
+        temperature=review_temperature  # Use appropriate temperature for model
     )
     
     # Prepare analysis data
@@ -85,7 +87,7 @@ Evolution Analysis:
     )
     
     # Generate process analysis
-    response = await llm_call_with_retry(isolated_model, [HumanMessage(content=meta_review_prompt)])
+    response = await llm_call_with_retry(llm, [HumanMessage(content=meta_review_prompt)])
     process_analysis = response.content
     
     # Create competition summary

@@ -134,11 +134,13 @@ async def generate_unified_reflection(scenario: Dict[str, Any], config: Runnable
     # Import legacy functions (will be replaced with direct LLMManager calls in future)
     from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
     
-    # Configure isolated model for reflection (prevents context bleeding)
-    isolated_model = create_isolated_model_instance(
+    # Determine temperature based on model type
+    reflection_temperature = 1 if "o3" in configuration.general_model else 0.8
+    
+    llm = create_isolated_model_instance(
         model_name=configuration.general_model,
         max_tokens=4096,
-        temperature=0.8  # Moderate temperature for balanced reflection
+        temperature=reflection_temperature  # Use appropriate temperature for model
     )
     
     # Format the unified reflection prompt
@@ -150,7 +152,7 @@ async def generate_unified_reflection(scenario: Dict[str, Any], config: Runnable
     
     try:
         # Generate unified reflection
-        response = await llm_call_with_retry(isolated_model, [HumanMessage(content=reflection_prompt)])
+        response = await llm_call_with_retry(llm, [HumanMessage(content=reflection_prompt)])
         reflection_content = response.content
         
         # Parse quality scores from the reflection

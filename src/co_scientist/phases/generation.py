@@ -311,15 +311,17 @@ async def _generate_with_isolated_llm(research_query: str, team_id: str, co_conf
     # Import legacy functions (will be replaced with direct LLMManager calls in future)
     from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
     
-    # Use isolated LLM for creative generation (prevents context bleeding between parallel tasks)
-    isolated_model = create_isolated_model_instance(
-        model_name=co_config.general_model,
-        max_tokens=8000,
-        temperature=0.9  # High temperature for creativity and uniqueness
+    # Determine temperature based on model type
+    generation_temperature = 1 if "o3" in configuration.general_model else 0.9
+    
+    llm = create_isolated_model_instance(
+        model_name=configuration.general_model,
+        max_tokens=4096,
+        temperature=generation_temperature  # Use appropriate temperature for model
     )
     
     try:
-        response = await llm_call_with_retry(isolated_model, [HumanMessage(content=research_query)])
+        response = await llm_call_with_retry(llm, [HumanMessage(content=research_query)])
         scenario_content = response.content
         raw_result = f"Isolated LLM response: {response.content}"
         print(f"Successfully generated content for {team_id} using isolated LLM, length: {len(scenario_content)}")
