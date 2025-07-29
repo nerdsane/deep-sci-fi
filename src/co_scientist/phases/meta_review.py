@@ -66,12 +66,22 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
     analysis_data = _prepare_analysis_data(state, direction_winners)
     
     # Generate meta-review prompt
+    # Combine all analysis data into a single formatted string
+    combined_analysis_data = f"""
+Tournament Analysis:
+{analysis_data["tournament_data"]}
+
+Reflection Analysis:
+{analysis_data["reflection_data"]}
+
+Evolution Analysis:
+{analysis_data["evolution_data"]}
+"""
+    
     meta_review_prompt = META_REVIEW_PROMPT.format(
         competition_summary=format_content("competition_summary", state),
-        direction_winners_summary=analysis_data["winners_summary"],
-        tournament_data=analysis_data["tournament_data"],
-        reflection_data=analysis_data["reflection_data"],
-        evolution_data=analysis_data["evolution_data"]
+        tournament_winners=analysis_data["winners_summary"],
+        analysis_data=combined_analysis_data
     )
     
     # Generate process analysis
