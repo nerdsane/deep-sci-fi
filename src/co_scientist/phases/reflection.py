@@ -198,8 +198,18 @@ def parse_quality_scores(reflection_content: str) -> Dict[str, int]:
     """
     quality_scores = {}
     
-    # Extract overall quality score
-    overall_match = re.search(r'\*\*Overall Quality Score:\s*(\d+)/100\*\*', reflection_content)
+    # Extract overall quality score - handle multiple possible formats
+    overall_patterns = [
+        r'\*\*Overall Quality Score:\s*(\d+)/100\*\*',  # Format: **Overall Quality Score: 85/100**
+        r'\*\*Overall Quality Score:\*\*\s*(\d+)/100',  # Format: **Overall Quality Score:** 85/100
+        r'Overall Quality Score:\s*(\d+)/100',          # Format: Overall Quality Score: 85/100
+    ]
+    
+    overall_match = None
+    for pattern in overall_patterns:
+        overall_match = re.search(pattern, reflection_content)
+        if overall_match:
+            break
     if overall_match:
         quality_scores["overall_quality_score"] = int(overall_match.group(1))
     

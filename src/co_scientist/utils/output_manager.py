@@ -329,7 +329,15 @@ class UnifiedOutputManager:
         round_num = comparison.get('round', 'unknown')
         scenario1_id = comparison.get('scenario1_id', 'unknown')
         scenario2_id = comparison.get('scenario2_id', 'unknown')
+        
+        # Handle winner_id which might be nested under 'winner'
         winner_id = comparison.get('winner_id', 'unknown')
+        if winner_id == 'unknown':
+            winner_data = comparison.get('winner', {})
+            if isinstance(winner_data, dict):
+                winner_id = winner_data.get('scenario_id', 'unknown')
+            elif isinstance(winner_data, str):
+                winner_id = winner_data
         
         content = f"# Tournament Comparison {counter:03d}\n\n"
         content += f"**Direction:** {direction}\n"
@@ -340,7 +348,12 @@ class UnifiedOutputManager:
         content += f"**Generated:** {datetime.now().isoformat()}\n\n"
         
         content += "## Comparison Analysis\n\n"
-        content += comparison.get('comparison_content', 'No comparison content available')
+        # Check multiple possible field names for comparison content
+        comparison_content = comparison.get('comparison_content', 
+                                          comparison.get('reasoning',
+                                          comparison.get('analysis',
+                                          comparison.get('content', 'No comparison content available'))))
+        content += comparison_content
         
         return content
     
@@ -381,7 +394,7 @@ class UnifiedOutputManager:
             content += f"**Total Rating Spread:** {elo_stats.get('range', 0):.0f} points\n\n"
         
         # Add rankings table
-        rankings = leaderboard_data.get('detailed_leaderboard', [])
+        rankings = leaderboard_data.get('rankings', [])
         if rankings:
             content += "## Full Rankings\n\n"
             content += "| Rank | Team ID | Research Direction | Elo Rating | Change | W-L | Win Rate | Status |\n"

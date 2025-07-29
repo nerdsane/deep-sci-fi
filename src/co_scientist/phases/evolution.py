@@ -214,9 +214,7 @@ async def evolution_tournament_phase(state: CoScientistState, config: RunnableCo
         # Save raw JSON data for debugging
         manager.save_structured_data("raw_data", {"evolution_tournaments": evolution_results}, filename="evolution_tournaments_raw_data.json", subdirectory="raw_data")
         
-        # Save summary
-        tournament_content = format_content("evolution_tournament_results", final_representatives)
-        manager.save_simple_content("evolution_tournaments_summary.md", tournament_content)
+        # Note: Evolution tournament summary removed - detailed evolution files provide better information
     
     return {
         "evolution_tournament_results": evolution_results,

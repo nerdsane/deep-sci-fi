@@ -332,9 +332,7 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
     
     # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
-        # Save competition summary
-        competition_summary = co_scientist_result.get("competition_summary", "")
-        save_output(output_dir, "00_01a_storyline_competition_summary.md", competition_summary)
+        # Note: Competition summary saved in co_scientist subdirectory to avoid duplication
         
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
@@ -390,12 +388,7 @@ def select_storyline(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough storyline options for user selection.")
     
-    # Save individual option files for reference
-    option_1_content = storyline_options.get("option_1", "")
-    option_2_content = storyline_options.get("option_2", "")
-    
-    save_output(output_dir, "00_01a_storyline_option_1.md", option_1_content)
-    save_output(output_dir, "00_01b_storyline_option_2.md", option_2_content)
+    # Note: Individual storyline options saved as full versions (_full.md) in create_storyline() - no duplicates needed
     
     print("--- Storyline Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
@@ -575,12 +568,7 @@ def select_first_chapter(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough first chapter options for user selection.")
     
-    # Save individual option files for reference
-    option_1_content = first_chapter_options.get("option_1", "")
-    option_2_content = first_chapter_options.get("option_2", "")
-    
-    save_output(output_dir, "00_03a_first_chapter_option_1.md", option_1_content)
-    save_output(output_dir, "00_03b_first_chapter_option_2.md", option_2_content)
+    # Note: Individual chapter options saved as full versions (_full.md) - no duplicates needed
     
     print("--- First Chapter Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
@@ -705,9 +693,7 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     
     # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
-        # Save competition summary
-        competition_summary = co_scientist_result.get("competition_summary", "")
-        save_output(output_dir, f"{state['loop_count']:02d}_05a_competition_summary.md", competition_summary)
+        # Note: Competition summary saved in co_scientist subdirectory to avoid duplication
         
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
@@ -949,7 +935,7 @@ def format_co_scientist_winner_details(winner_scenario: dict, content_type: str)
     return details
 
 def format_detailed_competition_results(co_scientist_result: dict) -> str:
-    """Format detailed co-scientist competition results for analysis."""
+    """Format detailed co-scientist competition results with meaningful analysis."""
     
     detailed = "# Detailed Co-Scientist Competition Results\n\n"
     
@@ -961,65 +947,77 @@ def format_detailed_competition_results(co_scientist_result: dict) -> str:
         detailed += f"- **Assumption:** {direction.get('assumption', 'N/A')}\n"
         detailed += f"- **Focus:** {direction.get('focus', 'N/A')}\n\n"
     
-    # Population statistics
+    # Population statistics  
     population = co_scientist_result.get("scenario_population", [])
     detailed += f"## Scenario Population\n"
     detailed += f"- **Total Generated:** {len(population)}\n"
-    detailed += f"- **Per Direction:** ~{len(population) // max(len(directions), 1)}\n\n"
+    if directions:
+        per_direction = len(population) // len(directions)
+        detailed += f"- **Per Direction:** {per_direction} scenarios\n"
     
-    # Reflection results
+    # Calculate quality distribution
+    quality_scores = [s.get("quality_score", 0) for s in population if s.get("quality_score")]
+    if quality_scores:
+        avg_quality = sum(quality_scores) / len(quality_scores)
+        detailed += f"- **Average Quality Score:** {avg_quality:.1f}/100\n"
+        detailed += f"- **Quality Range:** {min(quality_scores)}-{max(quality_scores)}/100\n"
+    detailed += "\n"
+    
+    # Reflection results with meaningful stats
     critiques = co_scientist_result.get("reflection_critiques", [])
     detailed += f"## Reflection Phase\n"
-    detailed += f"- **Total Critiques:** {len(critiques)}\n"
+    detailed += f"- **Total Critiques Generated:** {len(critiques)}\n"
     
+    # Show advancement recommendations
     if critiques:
-        # Count critiques by domain
-        domain_counts = {}
-        for critique in critiques:
-            domain = critique.get("critique_domain", "Unknown")
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        advance_count = sum(1 for c in critiques if c.get("advancement_recommendation", "").upper() == "ADVANCE")
+        detailed += f"- **Recommended for Advancement:** {advance_count}/{len(critiques)} scenarios\n"
+    detailed += "\n"
+    
+    # Tournament results with winner details
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    detailed += f"## Tournament Winners\n"
+    detailed += f"- **Direction Champions:** {len(direction_winners)}\n"
+    
+    for i, winner in enumerate(direction_winners, 1):
+        winner_scenario = winner.get("winner", {}) if "winner" in winner else winner
+        direction = winner_scenario.get("research_direction", "Unknown Direction")
+        team_id = winner_scenario.get("team_id", "unknown")
+        quality = winner_scenario.get("quality_score", 0)
+        elo = winner_scenario.get("elo_rating", winner_scenario.get("final_elo_rating", 1500))
         
-        detailed += "- **By Domain:**\n"
-        for domain, count in domain_counts.items():
-            detailed += f"  - {domain}: {count}\n"
+        detailed += f"### Winner {i}: {direction}\n"
+        detailed += f"- **Team ID:** {team_id}\n"
+        detailed += f"- **Quality Score:** {quality}/100\n" 
+        detailed += f"- **Final Elo Rating:** {elo:.0f}\n\n"
     
-    detailed += "\n"
-    
-    # Tournament results
-    winners = co_scientist_result.get("tournament_winners", [])
-    detailed += f"## Tournament Results\n"
-    detailed += f"- **Direction Winners:** {len(winners)}\n"
-    for i, winner in enumerate(winners, 1):
-        direction = winner.get("direction", "Unknown")
-        detailed += f"  - Winner {i}: {direction}\n"
-    
-    detailed += "\n"
-    
-    # Evolution results
+    # Evolution results with strategy breakdown
     evolved = co_scientist_result.get("evolved_scenarios", [])
+    evolution_results = co_scientist_result.get("evolution_tournament_results", [])
     detailed += f"## Evolution Phase\n"
-    detailed += f"- **Total Evolutions:** {len(evolved)}\n"
+    detailed += f"- **Scenarios Evolved:** {len(evolved)}\n"
+    detailed += f"- **Evolution Tournaments:** {len(evolution_results)}\n"
     
     if evolved:
-        # Count by strategy
-        strategy_counts = {}
-        for evolution in evolved:
-            strategy = evolution.get("strategy", "Unknown")
-            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
-        
-        detailed += "- **By Strategy:**\n"
-        for strategy, count in strategy_counts.items():
-            detailed += f"  - {strategy}: {count}\n"
-    
+        # Count successful evolutions
+        successful = sum(1 for e in evolved if e.get("quality_score", 0) > 0)
+        detailed += f"- **Successful Evolutions:** {successful}/{len(evolved)}\n"
     detailed += "\n"
     
-    # Final selection
-    top_scenarios = co_scientist_result.get("top_scenarios", [])
-    detailed += f"## Final Selection\n"
-    detailed += f"- **Top Scenarios Selected:** {len(top_scenarios)}\n"
-    for i, scenario in enumerate(top_scenarios, 1):
-        direction = scenario.get("research_direction", "Unknown")
-        detailed += f"  - Scenario {i}: {direction}\n"
+    # Final selection - use direction_winners as the final result
+    detailed += f"## Final Selection Results\n"
+    if direction_winners:
+        detailed += f"- **Tournament Champions Selected:** {len(direction_winners)}\n"
+        detailed += f"- **Competition Status:** Complete\n"
+        
+        # Show quality distribution of winners
+        winner_qualities = [w.get("winner", {}).get("quality_score", w.get("quality_score", 0)) for w in direction_winners]
+        winner_qualities = [q for q in winner_qualities if q > 0]
+        if winner_qualities:
+            avg_winner_quality = sum(winner_qualities) / len(winner_qualities)
+            detailed += f"- **Average Winner Quality:** {avg_winner_quality:.1f}/100\n"
+    else:
+        detailed += f"- **Champions Selected:** 0 (Competition may have failed)\n"
     
     return detailed
 
@@ -1033,10 +1031,7 @@ def select_world_scenario(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough world scenario options for user selection.")
     
-    # Save individual option files for reference
-    for i in range(len(options_metadata)):
-        option_content = world_scenario_options.get(f"option_{i+1}", "")
-        save_output(output_dir, f"{state['loop_count']:02d}_05a_world_scenario_option_{i+1}.md", option_content)
+    # Note: Individual world scenario options saved as full versions (_full.md) - no duplicates needed
     
     print("--- World Scenario Options Prepared for User Selection ---")
     for i, metadata in enumerate(options_metadata, 1):
@@ -1164,9 +1159,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     
     # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
-        # Save competition summary
-        competition_summary = co_scientist_result.get("competition_summary", "")
-        save_output(output_dir, f"{state['loop_count']:02d}_08a_linguistic_competition_summary.md", competition_summary)
+        # Note: Competition summary saved in co_scientist subdirectory to avoid duplication
         
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
@@ -1229,12 +1222,7 @@ def select_linguistic_evolution(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough linguistic evolution options for user selection.")
     
-    # Save individual option files for reference
-    option_1_content = linguistic_evolution_options.get("option_1", "")
-    option_2_content = linguistic_evolution_options.get("option_2", "")
-    
-    save_output(output_dir, f"{state['loop_count']:02d}_08a_linguistic_option_1.md", option_1_content)
-    save_output(output_dir, f"{state['loop_count']:02d}_08b_linguistic_option_2.md", option_2_content)
+    # Note: Individual linguistic evolution options saved as full versions (_full.md) - no duplicates needed
     
     print("--- Linguistic Evolution Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
@@ -1363,12 +1351,7 @@ def select_storyline_adjustment(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough storyline adjustment options for user selection.")
     
-    # Save individual option files for reference
-    option_1_content = storyline_adjustment_options.get("option_1", "")
-    option_2_content = storyline_adjustment_options.get("option_2", "")
-    
-    save_output(output_dir, f"{state['loop_count']:02d}_09a_storyline_adjustment_option_1.md", option_1_content)
-    save_output(output_dir, f"{state['loop_count']:02d}_09b_storyline_adjustment_option_2.md", option_2_content)
+    # Note: Individual storyline adjustment options saved as full versions (_full.md) - no duplicates needed
     
     print("--- Storyline Adjustment Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
@@ -1511,9 +1494,7 @@ async def rewrite_first_chapter(state: AgentState, config: RunnableConfig):
     
     # Save detailed competition results
     if model_config.get("save_intermediate_results", True):
-        # Save competition summary
-        competition_summary = co_scientist_result.get("competition_summary", "")
-        save_output(output_dir, f"{state['loop_count']:02d}_11a_chapter_rewrite_competition_summary.md", competition_summary)
+        # Note: Competition summary saved in co_scientist subdirectory to avoid duplication
         
         # Save detailed competition data
         detailed_results = format_detailed_competition_results(co_scientist_result)
@@ -1558,12 +1539,7 @@ def select_chapter_rewrite(state: AgentState):
     if len(options_metadata) < 2:
         raise ValueError("Not enough chapter rewrite options for user selection.")
     
-    # Save individual option files for reference
-    option_1_content = chapter_rewrite_options.get("option_1", "")
-    option_2_content = chapter_rewrite_options.get("option_2", "")
-    
-    save_output(output_dir, f"{state['loop_count']:02d}_11a_chapter_rewrite_option_1.md", option_1_content)
-    save_output(output_dir, f"{state['loop_count']:02d}_11b_chapter_rewrite_option_2.md", option_2_content)
+    # Note: Individual chapter rewrite options saved as full versions (_full.md) - no duplicates needed
     
     print("--- Chapter Rewrite Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")

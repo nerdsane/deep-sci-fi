@@ -48,18 +48,50 @@ async def ranking_phase(state: CoScientistState, config: RunnableConfig) -> Dict
     # Get tournament data and Elo tracker
     tournament_winners = state.get("tournament_winners", [])
     scenario_population = state.get("scenario_population", [])
-    elo_tracker = state.get("elo_tracker")
     
     print(f"🔍 RANKING DEBUG: Found {len(tournament_winners)} tournament winners")
     print(f"🔍 RANKING DEBUG: Found {len(scenario_population)} scenarios")
-    print(f"🔍 RANKING DEBUG: elo_tracker is {'present' if elo_tracker else 'None'}")
     
+    # Simple approach: Use existing elo_tracker from tournament winners
+    elo_tracker = None
+    if tournament_winners:
+        for winner in tournament_winners:
+            winner_elo_tracker = winner.get("elo_tracker")
+            if winner_elo_tracker and hasattr(winner_elo_tracker, 'ratings'):
+                elo_tracker = winner_elo_tracker
+                print(f"🔍 RANKING DEBUG: Using elo_tracker from winner with {len(elo_tracker.ratings)} ratings")
+                break
+    
+    # Fallback: Read from saved file if we didn't find elo_tracker in winners
+    if not elo_tracker:
+        print("🔍 RANKING DEBUG: No elo_tracker in winners, trying file fallback...")
+        try:
+            # Try to load from the elo_ratings.json file that tournament phase saves
+            import json
+            import os
+            elo_file_path = os.path.join(configuration.output_dir, "raw_data", "elo_ratings.json")
+            if os.path.exists(elo_file_path):
+                with open(elo_file_path, 'r') as f:
+                    elo_data = json.load(f)
+                    
+                from co_scientist.elo_rating import EloTracker
+                elo_tracker = EloTracker(k_factor=32)
+                elo_tracker.ratings = elo_data.get("final_ratings", {})
+                elo_tracker.rating_history = elo_data.get("rating_history", {})
+                print(f"🔍 RANKING DEBUG: Loaded elo_tracker from file with {len(elo_tracker.ratings)} ratings")
+        except Exception as e:
+            print(f"🔍 RANKING DEBUG: File fallback failed: {e}")
+    
+    # Final check - if we still don't have elo_tracker, return empty results
     if not elo_tracker:
         print("❌ RANKING DEBUG: No Elo tracker available for ranking")
         print(f"❌ RANKING DEBUG: tournament_winners length: {len(tournament_winners)}")
         print(f"❌ RANKING DEBUG: state keys: {list(state.keys())}")
         if tournament_winners:
             print(f"❌ RANKING DEBUG: First tournament winner keys: {list(tournament_winners[0].keys())}")
+            # Check what's actually in the elo_tracker field
+            first_winner_elo = tournament_winners[0].get("elo_tracker")
+            print(f"❌ RANKING DEBUG: First winner elo_tracker type: {type(first_winner_elo)}")
         return {
             "leaderboard_data": {},
             "ranking_complete": True

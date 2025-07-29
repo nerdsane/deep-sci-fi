@@ -135,11 +135,18 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> D
     # Collect final Elo statistics
     final_elo_tracker = None
     if direction_winners:
+        print(f"🔍 TOURNAMENT DEBUG: Processing {len(direction_winners)} direction winners")
         # Use the Elo tracker from the first tournament (they should all be the same instance)
-        for winner in direction_winners:
-            if winner.get("elo_tracker"):
-                final_elo_tracker = winner["elo_tracker"]
+        for i, winner in enumerate(direction_winners):
+            elo_tracker_obj = winner.get("elo_tracker")
+            print(f"🔍 TOURNAMENT DEBUG: Winner {i} elo_tracker type: {type(elo_tracker_obj)}")
+            print(f"🔍 TOURNAMENT DEBUG: Winner {i} elo_tracker bool: {bool(elo_tracker_obj)}")
+            if elo_tracker_obj is not None:
+                print(f"🔍 TOURNAMENT DEBUG: Using elo_tracker from winner {i}")
+                final_elo_tracker = elo_tracker_obj
                 break
+            else:
+                print(f"🔍 TOURNAMENT DEBUG: Winner {i} has None elo_tracker")
         
         if final_elo_tracker:
             final_elo_stats = final_elo_tracker.get_statistics()
@@ -155,7 +162,18 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> D
     if configuration.save_intermediate_results:
         # Save tournament data with full reasoning and Elo information
         manager = get_output_manager(configuration.output_dir, configuration.phase)
-        manager.save_tournament_comparisons(direction_winners)
+        
+        # Extract individual comparisons from all tournaments for detailed saving
+        all_comparisons = []
+        for tournament_result in direction_winners:
+            tournament_comparisons = tournament_result.get("all_comparisons", [])
+            for comparison in tournament_comparisons:
+                # Add tournament context to each comparison
+                enhanced_comparison = comparison.copy()
+                enhanced_comparison["direction"] = tournament_result.get("direction", "Unknown")
+                all_comparisons.append(enhanced_comparison)
+        
+        manager.save_tournament_comparisons(all_comparisons)
         
         # Save raw JSON data for debugging (including Elo data)
         manager.save_structured_data("raw_data", {"tournaments": direction_winners}, filename="tournaments_raw_data.json", subdirectory="raw_data")
@@ -170,15 +188,19 @@ async def tournament_phase(state: CoScientistState, config: RunnableConfig) -> D
             }
             manager.save_structured_data("raw_data", elo_export, filename="elo_ratings.json", subdirectory="raw_data")
         
-        # Save summary with Elo information
-        tournament_content = format_content("tournament_results", {"winners": direction_winners, "all_results": tournament_results})
-        manager.save_simple_content("tournament_results_summary.md", tournament_content)
+        # Note: Tournament summary removed - leaderboard and individual tournament files provide better information
+    
+    print(f"🔍 TOURNAMENT RETURN DEBUG: final_elo_tracker type: {type(final_elo_tracker)}")
+    print(f"🔍 TOURNAMENT RETURN DEBUG: final_elo_tracker bool: {bool(final_elo_tracker)}")
+    if final_elo_tracker:
+        print(f"🔍 TOURNAMENT RETURN DEBUG: final_elo_tracker has {len(final_elo_tracker.ratings)} ratings")
+    else:
+        print("🔍 TOURNAMENT RETURN DEBUG: final_elo_tracker is None/False")
     
     return {
         "tournament_rounds": tournament_results,
-        "tournament_winners": direction_winners,
-        "tournament_complete": True,
-        "elo_tracker": final_elo_tracker  # Include final Elo tracker in state
+        "tournament_winners": direction_winners,  # Each winner already contains elo_tracker
+        "tournament_complete": True
     }
 
 
