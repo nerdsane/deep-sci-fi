@@ -38,8 +38,31 @@ configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
 
+async def llm_call_with_retry(llm, messages, max_retries: int = 3, base_delay: float = 1.0) -> Any:
+    """
+    Retry logic for LLM calls with exponential backoff.
+    
+    This function is still used by refactored phases for consistent retry behavior.
+    """
+    temp_manager = LLMManager("temp", max_retries, base_delay)
+    return await temp_manager._call_with_retry(llm, messages)
+
+
+# DEPRECATED FUNCTIONS - Use ModelFactory instead
+import warnings
+
 def _create_phase_llm_manager(configuration) -> LLMManager:
-    """Create an LLM manager for a specific phase with configuration settings."""
+    """
+    DEPRECATED: Use ModelFactory.create_llm_manager() instead.
+    
+    This function is deprecated and will be removed in a future version.
+    Use the centralized ModelFactory for consistent model creation.
+    """
+    warnings.warn(
+        "_create_phase_llm_manager is deprecated. Use ModelFactory.create_llm_manager() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return LLMManager(
         default_model=configuration.research_model,
         max_retries=3,
@@ -48,13 +71,18 @@ def _create_phase_llm_manager(configuration) -> LLMManager:
         default_temperature=0.9
     )
 
-async def llm_call_with_retry(llm, messages, max_retries: int = 3, base_delay: float = 1.0) -> Any:
-    """Legacy compatibility function - delegates to LLMManager."""
-    temp_manager = LLMManager("temp", max_retries, base_delay)
-    return await temp_manager._call_with_retry(llm, messages)
-
 def create_isolated_model_instance(model_name: str, max_tokens: int = 8000, temperature: float = 0.9) -> object:
-    """Legacy compatibility function - delegates to LLMManager."""
+    """
+    DEPRECATED: Use ModelFactory.create_phase_model() instead.
+    
+    This function is deprecated and will be removed in a future version.
+    Use the centralized ModelFactory for consistent model creation with proper configuration.
+    """
+    warnings.warn(
+        "create_isolated_model_instance is deprecated. Use ModelFactory.create_phase_model() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     temp_manager = LLMManager(model_name, default_max_tokens=max_tokens, default_temperature=temperature)
     return temp_manager.create_isolated_instance()
 

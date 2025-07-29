@@ -355,17 +355,13 @@ async def evolve_scenario(scenario: Dict[str, Any], strategy: str, state: CoScie
         world_state_context=world_state_context
     )
     
-    # Import legacy functions (will be replaced with direct LLMManager calls in future)
-    from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
+    # Import model factory and retry logic
+    from co_scientist.co_scientist import llm_call_with_retry
+    from co_scientist.utils.model_factory import create_model_factory
     
-    # Determine temperature based on model type
-    evolution_temperature = 1 if "o3" in configuration.general_model else 0.8
-    
-    llm = create_isolated_model_instance(
-        model_name=configuration.general_model,
-        max_tokens=8000,
-        temperature=evolution_temperature  # Use appropriate temperature for model
-    )
+    # Create model using centralized factory
+    model_factory = create_model_factory(configuration)
+    llm = model_factory.create_phase_model("evolution")
     
     try:
         response = await llm_call_with_retry(llm, [HumanMessage(content=evolution_prompt)])

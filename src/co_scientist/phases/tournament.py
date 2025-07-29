@@ -315,17 +315,13 @@ async def pairwise_comparison(scenario1: Dict[str, Any], scenario2: Dict[str, An
     """
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
-    # Import legacy functions (will be replaced with direct LLMManager calls in future)
-    from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
+    # Import model factory and retry logic
+    from co_scientist.co_scientist import llm_call_with_retry
+    from co_scientist.utils.model_factory import create_model_factory
     
-    # Determine temperature based on model type
-    tournament_temperature = 1 if "o3" in configuration.general_model else 0.7
-    
-    llm = create_isolated_model_instance(
-        model_name=configuration.general_model,
-        max_tokens=4096,
-        temperature=tournament_temperature  # Use appropriate temperature for model
-    )
+    # Create model using centralized factory
+    model_factory = create_model_factory(configuration)
+    llm = model_factory.create_phase_model("tournament")
     
     # Get pre-comparison Elo ratings
     scenario1_id = scenario1["scenario_id"]

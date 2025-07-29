@@ -68,21 +68,17 @@ async def meta_analysis_traditional_phase(state: CoScientistState, config: Runna
         dict: State with research directions and analysis reasoning
     """
     # Import session reset here to avoid circular imports
-    from co_scientist.co_scientist import comprehensive_session_reset, create_isolated_model_instance, llm_call_with_retry
+    from co_scientist.co_scientist import comprehensive_session_reset, llm_call_with_retry
+    from co_scientist.utils.model_factory import create_model_factory
     
     session_id = comprehensive_session_reset()
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
     print(f"🧠 Starting traditional meta-analysis: {configuration.use_case}")
     
-    # Determine temperature based on model type
-    analysis_temperature = 1 if "o3" in configuration.general_model else 0.8
-    
-    llm = create_isolated_model_instance(
-        model_name=configuration.general_model,
-        max_tokens=4096,
-        temperature=analysis_temperature  # Use appropriate temperature for model
-    )
+    # Create model using centralized factory
+    model_factory = create_model_factory(configuration)
+    llm = model_factory.create_phase_model("meta_analysis")
     
     # Process state for backward compatibility
     processed_state = _process_legacy_state(state)

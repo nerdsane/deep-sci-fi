@@ -7,6 +7,7 @@ for the Co-Scientist system, including LLM management, content formatting, and o
 
 # Import the main classes for convenient access
 from .llm_manager import LLMManager, create_default_llm_manager
+from .model_factory import ModelFactory, create_model_factory
 from .output_manager import UnifiedOutputManager, get_output_manager, reset_output_manager
 from .content_formatters import ContentFormatter, format_content
 from .feedback_utils import get_critique_summary, get_comprehensive_feedback_summary
@@ -17,6 +18,10 @@ __all__ = [
     # LLM Management
     'LLMManager', 
     'create_default_llm_manager',
+    
+    # Model Factory
+    'ModelFactory',
+    'create_model_factory',
     
     # Output Management
     'UnifiedOutputManager', 

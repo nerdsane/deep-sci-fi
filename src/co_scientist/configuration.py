@@ -102,6 +102,66 @@ USE_CASE_CONFIGS = {
     }
 }
 
+class ModelSettings(BaseModel):
+    """Centralized model settings for different use cases"""
+    
+    # Temperature settings by phase
+    meta_analysis_temperature: float = Field(default=0.8, ge=0.0, le=2.0)
+    generation_temperature: float = Field(default=0.9, ge=0.0, le=2.0)
+    debate_temperature: float = Field(default=0.8, ge=0.0, le=2.0)
+    reflection_temperature: float = Field(default=0.8, ge=0.0, le=2.0)
+    evolution_temperature: float = Field(default=0.8, ge=0.0, le=2.0)
+    tournament_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    meta_review_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    
+    # Token limits by phase
+    meta_analysis_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    generation_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    debate_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    reflection_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    evolution_max_tokens: int = Field(default=8000, ge=512, le=16384)
+    tournament_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    meta_review_max_tokens: int = Field(default=4096, ge=512, le=16384)
+    
+    # Global model settings
+    request_timeout: int = Field(default=300, ge=30, le=600)
+    max_retries: int = Field(default=3, ge=1, le=10)
+    base_delay: float = Field(default=1.0, ge=0.1, le=5.0)
+    
+    # O3-specific handling
+    o3_models: List[str] = Field(default=["o3", "o3-mini"], description="Models that require temperature=1")
+    
+    def get_temperature_for_phase(self, phase: str, model_name: str) -> float:
+        """Get appropriate temperature for phase and model"""
+        # O3 models only support temperature=1
+        if any(o3_model in model_name for o3_model in self.o3_models):
+            return 1.0
+            
+        phase_temps = {
+            "meta_analysis": self.meta_analysis_temperature,
+            "generation": self.generation_temperature,
+            "debate": self.debate_temperature,
+            "reflection": self.reflection_temperature,
+            "evolution": self.evolution_temperature,
+            "tournament": self.tournament_temperature,
+            "meta_review": self.meta_review_temperature
+        }
+        return phase_temps.get(phase, 0.8)
+    
+    def get_max_tokens_for_phase(self, phase: str) -> int:
+        """Get appropriate max tokens for phase"""
+        phase_tokens = {
+            "meta_analysis": self.meta_analysis_max_tokens,
+            "generation": self.generation_max_tokens,
+            "debate": self.debate_max_tokens,
+            "reflection": self.reflection_max_tokens,
+            "evolution": self.evolution_max_tokens,
+            "tournament": self.tournament_max_tokens,
+            "meta_review": self.meta_review_max_tokens
+        }
+        return phase_tokens.get(phase, 4096)
+
+
 class CoScientistConfiguration(BaseModel):
     # Use Case and Process Control
     use_case: UseCase = Field(
@@ -182,6 +242,17 @@ class CoScientistConfiguration(BaseModel):
                 "type": "string", 
                 "default": "openai:o4-mini",
                 "description": "Model to use for general tasks like reflection and ranking"
+            }
+        }
+    )
+    
+    # Centralized Model Settings
+    model_settings: ModelSettings = Field(
+        default_factory=ModelSettings,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "object",
+                "description": "Centralized model configuration for all phases"
             }
         }
     )

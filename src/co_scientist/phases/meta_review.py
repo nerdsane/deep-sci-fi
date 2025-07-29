@@ -52,17 +52,13 @@ async def final_meta_review_phase(state: CoScientistState, config: RunnableConfi
             "competition_summary": "Process analysis: No winners to analyze."
         }
     
-    # Import here to avoid circular imports
-    from co_scientist.co_scientist import create_isolated_model_instance, llm_call_with_retry
+    # Import model factory and retry logic
+    from co_scientist.co_scientist import llm_call_with_retry
+    from co_scientist.utils.model_factory import create_model_factory
     
-    # Determine temperature based on model type
-    review_temperature = 1 if "o3" in configuration.general_model else 0.7
-    
-    llm = create_isolated_model_instance(
-        model_name=configuration.general_model,
-        max_tokens=4096,
-        temperature=review_temperature  # Use appropriate temperature for model
-    )
+    # Create model using centralized factory
+    model_factory = create_model_factory(configuration)
+    llm = model_factory.create_phase_model("meta_review")
     
     # Prepare analysis data
     analysis_data = _prepare_analysis_data(state, direction_winners)
