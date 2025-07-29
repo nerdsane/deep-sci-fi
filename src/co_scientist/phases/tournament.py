@@ -26,7 +26,7 @@ from co_scientist.configuration import CoScientistConfiguration
 from co_scientist.elo_rating import EloTracker
 from co_scientist.utils.output_manager import get_output_manager
 from co_scientist.utils.content_formatters import format_content
-from co_scientist.prompts import get_pairwise_prompt
+from co_scientist.prompts.tournament_prompts import get_pairwise_prompt
 from co_scientist.phases.reflection import integrate_quality_scores
 
 

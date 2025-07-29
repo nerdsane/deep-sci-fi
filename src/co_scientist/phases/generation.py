@@ -26,7 +26,7 @@ from co_scientist.state import CoScientistState
 from co_scientist.configuration import CoScientistConfiguration
 from co_scientist.utils.output_manager import get_output_manager
 from co_scientist.utils.content_formatters import format_content
-from co_scientist.prompts import INCREMENTAL_SCENARIO_GENERATION_PROMPT, get_generation_prompt
+from co_scientist.prompts.generation_prompts import INCREMENTAL_SCENARIO_GENERATION_PROMPT, get_generation_prompt
 
 
 async def parallel_scenario_generation(state: CoScientistState, config: RunnableConfig) -> Dict[str, Any]:

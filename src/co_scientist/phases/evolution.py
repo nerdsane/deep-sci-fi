@@ -25,7 +25,7 @@ from co_scientist.state import CoScientistState
 from co_scientist.configuration import CoScientistConfiguration
 from co_scientist.utils.output_manager import get_output_manager
 from co_scientist.utils.content_formatters import format_content
-from co_scientist.prompts import get_evolution_prompt
+from co_scientist.prompts.evolution_prompts import get_evolution_prompt
 from co_scientist.utils.feedback_utils import get_comprehensive_feedback_summary
 
 

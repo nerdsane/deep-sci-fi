@@ -23,7 +23,7 @@ from co_scientist.state import CoScientistState
 from co_scientist.configuration import CoScientistConfiguration
 from co_scientist.utils.output_manager import get_output_manager
 from co_scientist.utils.content_formatters import format_content
-from co_scientist.prompts import (
+from co_scientist.prompts.debate_prompts import (
     get_llm_debate_meta_analysis_prompt_a, get_llm_debate_meta_analysis_prompt_b,
     get_llm_debate_meta_analysis_continue_a, get_llm_debate_meta_analysis_continue_b,
     get_llm_debate_tournament_prompt_a, get_llm_debate_tournament_prompt_b,
