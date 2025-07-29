@@ -42,13 +42,24 @@ async def ranking_phase(state: CoScientistState, config: RunnableConfig) -> Dict
     """
     configuration = CoScientistConfiguration.from_runnable_config(config)
     
+    print("🔍 RANKING DEBUG: Ranking phase started!")
+    print(f"🔍 RANKING DEBUG: State contains keys: {list(state.keys())}")
+    
     # Get tournament data and Elo tracker
     tournament_winners = state.get("tournament_winners", [])
     scenario_population = state.get("scenario_population", [])
     elo_tracker = state.get("elo_tracker")
     
+    print(f"🔍 RANKING DEBUG: Found {len(tournament_winners)} tournament winners")
+    print(f"🔍 RANKING DEBUG: Found {len(scenario_population)} scenarios")
+    print(f"🔍 RANKING DEBUG: elo_tracker is {'present' if elo_tracker else 'None'}")
+    
     if not elo_tracker:
-        print("No Elo tracker available for ranking - returning empty results")
+        print("❌ RANKING DEBUG: No Elo tracker available for ranking")
+        print(f"❌ RANKING DEBUG: tournament_winners length: {len(tournament_winners)}")
+        print(f"❌ RANKING DEBUG: state keys: {list(state.keys())}")
+        if tournament_winners:
+            print(f"❌ RANKING DEBUG: First tournament winner keys: {list(tournament_winners[0].keys())}")
         return {
             "leaderboard_data": {},
             "ranking_complete": True
