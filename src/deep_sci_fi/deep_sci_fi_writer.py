@@ -681,6 +681,7 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
         "research_model": ModelConfig.get_model_string("world_research"), # Use OpenAI O3 for all world research tasks
         "general_model": ModelConfig.get_model_string("world_research"),  # Use OpenAI O3 for all world research tasks
         "search_api": "tavily",
+        "use_deep_researcher": True,  # Enable research-backed scenario generation with sources
         "output_dir": output_dir,
         "phase": "world_scenario_research"
     })

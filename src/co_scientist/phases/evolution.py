@@ -353,21 +353,29 @@ async def evolve_scenario(scenario: Dict[str, Any], strategy: str, state: CoScie
         world_state_context=world_state_context
     )
     
-    # Import model factory and retry logic
-    from co_scientist.co_scientist import llm_call_with_retry
-    from co_scientist.utils.model_factory import create_model_factory
-    
-    # Create model using centralized factory
-    model_factory = create_model_factory(configuration)
-    llm = model_factory.create_phase_model("evolution")
-    
-    try:
-        response = await llm_call_with_retry(llm, [HumanMessage(content=evolution_prompt)])
-        evolved_content = response.content
-        print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy, content length: {len(evolved_content)}")
-    except Exception as e:
-        print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy}: {e}")
-        evolved_content = f"Evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
+    # Use either deep_researcher or regular LLM based on configuration (same pattern as generation phase)
+    if configuration.use_deep_researcher:
+        # Use deep_researcher for research-backed evolution with sources
+        from co_scientist.phases.generation import _generate_with_deep_researcher
+        team_id = f"evolution_{strategy}_{scenario['scenario_id'][:8]}"
+        try:
+            evolved_content, raw_result = await _generate_with_deep_researcher(evolution_prompt, team_id, configuration, config)
+            print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy with deep researcher, content length: {len(evolved_content)}")
+        except Exception as e:
+            print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy} using deep researcher: {e}")
+            evolved_content = f"Evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
+            raw_result = f"Deep researcher evolution error: {str(e)}"
+    else:
+        # Use isolated LLM for creative evolution (original approach)
+        from co_scientist.phases.generation import _generate_with_isolated_llm
+        team_id = f"evolution_{strategy}_{scenario['scenario_id'][:8]}"
+        try:
+            evolved_content, raw_result = await _generate_with_isolated_llm(evolution_prompt, team_id, configuration)
+            print(f"Successfully evolved scenario {scenario['scenario_id']} using {strategy} strategy with isolated LLM, content length: {len(evolved_content)}")
+        except Exception as e:
+            print(f"Failed to evolve scenario {scenario['scenario_id']} with {strategy} using isolated LLM: {e}")
+            evolved_content = f"Evolution failed for {strategy} strategy on scenario {scenario['scenario_id']}. Error: {str(e)}"
+            raw_result = f"Isolated LLM evolution error: {str(e)}"
     
     return {
         "evolution_id": str(uuid.uuid4()),
@@ -376,6 +384,7 @@ async def evolve_scenario(scenario: Dict[str, Any], strategy: str, state: CoScie
         "evolution_prompt": evolution_prompt,
         "strategy": strategy,
         "evolved_content": evolved_content,
+        "raw_evolution_result": raw_result,  # Include raw research/generation result
         "original_direction": scenario["research_direction"],
         "critique_summary": critique_summary,
         "world_state_context": world_state_context,

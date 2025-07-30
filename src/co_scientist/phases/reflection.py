@@ -198,20 +198,32 @@ def parse_quality_scores(reflection_content: str) -> Dict[str, int]:
     """
     quality_scores = {}
     
-    # Extract overall quality score - handle multiple possible formats
+    # Extract overall quality score - handle multiple possible formats with robust patterns
     overall_patterns = [
         r'\*\*Overall Quality Score:\s*(\d+)/100\*\*',  # Format: **Overall Quality Score: 85/100**
         r'\*\*Overall Quality Score:\*\*\s*(\d+)/100',  # Format: **Overall Quality Score:** 85/100
+        r'\*\*Overall Quality Score:\s*(\d+)/100',      # Format: **Overall Quality Score: 85/100 (missing end **)
         r'Overall Quality Score:\s*(\d+)/100',          # Format: Overall Quality Score: 85/100
+        r'Overall Quality Score.*?(\d+)/100',           # More flexible matching
+        r'(?i)overall.*?quality.*?score.*?(\d+)[/\s]*100',  # Very flexible case-insensitive
     ]
     
     overall_match = None
     for pattern in overall_patterns:
-        overall_match = re.search(pattern, reflection_content)
+        overall_match = re.search(pattern, reflection_content, re.IGNORECASE | re.DOTALL)
         if overall_match:
             break
+    
     if overall_match:
-        quality_scores["overall_quality_score"] = int(overall_match.group(1))
+        score = int(overall_match.group(1))
+        quality_scores["overall_quality_score"] = score
+    else:
+        # Final fallback: look for the last occurrence of X/100 in the text
+        # This assumes the overall score comes last in the format
+        all_scores = re.findall(r'(\d+)/100', reflection_content)
+        if all_scores:
+            # Take the last score found, which is likely the overall score
+            quality_scores["overall_quality_score"] = int(all_scores[-1])
     
     # Extract individual dimension scores (flexible patterns for different use cases)
     score_patterns = [

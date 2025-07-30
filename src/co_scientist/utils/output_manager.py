@@ -294,7 +294,7 @@ class UnifiedOutputManager:
         content += scenario.get("scenario_content", "No content available")
         
         # Add quality information if available
-        if scenario.get("quality_score"):
+        if "quality_score" in scenario:
             content += f"\n\n## Quality Information\n\n"
             content += f"**Quality Score:** {scenario.get('quality_score', 0)}/100\n"
             content += f"**Advancement Recommendation:** {scenario.get('advancement_recommendation', 'N/A')}\n"

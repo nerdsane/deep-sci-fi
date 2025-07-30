@@ -307,6 +307,10 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
     if debate_type == "meta_analysis":
         # Meta-analysis debate: Generate research directions
         
+        # Get use case-specific goal and criteria
+        goal = kwargs.get("goal", "")  # Research goal for this use case
+        criteria = kwargs.get("criteria", "")  # Quality criteria for evaluation
+        
         # Map state parameters to template parameters for each use case
         template_kwargs = kwargs.copy()
         context_value = kwargs.get("context", "")
@@ -335,7 +339,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         
         # Expert A starts the conversation naturally
         source_content = template_kwargs.get('source_content', template_kwargs.get('reference_material', 'None provided'))
-        prompt_a = get_llm_debate_meta_analysis_prompt_a(use_case, num_directions, context_value, source_content)
+        prompt_a = get_llm_debate_meta_analysis_prompt_a(use_case, num_directions, context_value, source_content, goal, criteria)
         
         print("💬 Expert A: Starting the conversation...")
         
@@ -347,7 +351,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         
         # Expert B responds naturally to Expert A
         conversation_context = format_content("conversation_context", conversation_history)
-        prompt_b = get_llm_debate_meta_analysis_prompt_b(use_case, num_directions, conversation_context)
+        prompt_b = get_llm_debate_meta_analysis_prompt_b(use_case, num_directions, conversation_context, goal, criteria)
 
         print("💬 Expert B: Responding to Expert A...")
         
@@ -363,7 +367,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
             
             # Expert A continues the conversation
             conversation_context = format_content("conversation_context", conversation_history)
-            prompt_a_continue = get_llm_debate_meta_analysis_continue_a(use_case, num_directions, conversation_context)
+            prompt_a_continue = get_llm_debate_meta_analysis_continue_a(use_case, num_directions, conversation_context, goal, criteria)
 
             response_a_continue = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a_continue)])
             response_a_text = response_a_continue.content
@@ -378,7 +382,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
             
             # Expert B responds
             conversation_context = format_content("conversation_context", conversation_history)
-            prompt_b_continue = get_llm_debate_meta_analysis_continue_b(use_case, num_directions, conversation_context)
+            prompt_b_continue = get_llm_debate_meta_analysis_continue_b(use_case, num_directions, conversation_context, goal, criteria)
 
             response_b_continue = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b_continue)])
             response_b_text = response_b_continue.content
@@ -394,12 +398,14 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
             final_conclusion = response_b_text  # Use last response if no consensus marker
     
     elif debate_type == "tournament":
-        # Tournament debate: Pick winner between 2 scenarios
-        scenario_1_content = kwargs.get("scenario_1_content", "Option 1")
-        scenario_2_content = kwargs.get("scenario_2_content", "Option 2")
+        # Tournament debate: Compare two specific scenarios
+        scenario_1_content = kwargs.get("scenario_1_content", "")
+        scenario_2_content = kwargs.get("scenario_2_content", "")
+        goal = kwargs.get("goal", "")  # Use case-specific evaluation goal
+        criteria = kwargs.get("criteria", "")  # Use case-specific evaluation criteria
         
         # Expert A reviews and advocates for scenario 1
-        prompt_a = get_llm_debate_tournament_prompt_a(use_case, scenario_1_content, scenario_2_content)
+        prompt_a = get_llm_debate_tournament_prompt_a(use_case, scenario_1_content, scenario_2_content, goal, criteria)
         
         print("💬 Expert A: Evaluating Option 1...")
         
@@ -410,7 +416,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         
         # Expert B reviews and advocates for scenario 2, seeing Expert A's argument
         conversation_context = format_content("conversation_context", conversation_history)
-        prompt_b = get_llm_debate_tournament_prompt_b(use_case, scenario_2_content, conversation_context)
+        prompt_b = get_llm_debate_tournament_prompt_b(use_case, scenario_2_content, conversation_context, goal, criteria)
 
         print("💬 Expert B: Evaluating Option 2...")
         
@@ -423,7 +429,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         conversation_context = format_content("conversation_context", conversation_history)
         
         # Expert A final assessment
-        prompt_a_final = get_llm_debate_tournament_final_a(conversation_context)
+        prompt_a_final = get_llm_debate_tournament_final_a(conversation_context, goal, criteria)
 
         response_a_final = await llm_call_with_retry(llm_a, [HumanMessage(content=prompt_a_final)])
         final_a = response_a_final.content
@@ -432,7 +438,7 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
         
         # Expert B final assessment  
         conversation_context = format_content("conversation_context", conversation_history)
-        prompt_b_final = get_llm_debate_tournament_final_b(conversation_context)
+        prompt_b_final = get_llm_debate_tournament_final_b(conversation_context, goal, criteria)
 
         response_b_final = await llm_call_with_retry(llm_b, [HumanMessage(content=prompt_b_final)])
         final_b = response_b_final.content

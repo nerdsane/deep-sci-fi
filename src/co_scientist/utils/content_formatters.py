@@ -159,7 +159,7 @@ class ContentFormatter:
         content += f"**Total Critiques Generated:** {len(critiques)}\n\n"
         
         # Calculate quality statistics
-        quality_scores = [c.get('quality_score', 0) for c in critiques if c.get('quality_score')]
+        quality_scores = [c.get('overall_quality_score', 0) for c in critiques if c.get('overall_quality_score')]
         if quality_scores:
             avg_quality = sum(quality_scores) / len(quality_scores)
             content += f"**Average Quality Score:** {avg_quality:.1f}/100\n"
@@ -173,7 +173,7 @@ class ContentFormatter:
             content += f"**Critiques in Domain:** {len(domain_critiques)}\n\n"
             
             # Show quality distribution
-            domain_scores = [c.get('quality_score', 0) for c in domain_critiques if c.get('quality_score')]
+            domain_scores = [c.get('overall_quality_score', 0) for c in domain_critiques if c.get('overall_quality_score')]
             if domain_scores:
                 high_quality = [s for s in domain_scores if s >= 80]
                 medium_quality = [s for s in domain_scores if 60 <= s < 80]
@@ -185,7 +185,7 @@ class ContentFormatter:
             # Show individual critiques
             for i, critique in enumerate(domain_critiques[:3]):  # Show first 3 as examples
                 scenario_id = critique.get('target_scenario_id', 'unknown')
-                quality_score = critique.get('quality_score', 0)
+                quality_score = critique.get('overall_quality_score', 0)
                 
                 content += f"### {i}. Scenario {scenario_id}\n\n"
                 content += f"**Overall Quality Score:** {quality_score}/100\n"
@@ -389,7 +389,7 @@ class ContentFormatter:
         content += f"**Total Scenarios Evaluated:** {len(critiques)}\n\n"
         
         # Calculate quality statistics
-        quality_scores = [c.get('quality_score', 0) for c in critiques if c.get('quality_score')]
+        quality_scores = [c.get('overall_quality_score', 0) for c in critiques if c.get('overall_quality_score')]
         if quality_scores:
             avg_quality = sum(quality_scores) / len(quality_scores)
             content += f"**Average Quality Score:** {avg_quality:.1f}/100\n"
@@ -408,7 +408,7 @@ class ContentFormatter:
         content += "## Individual Assessments\n\n"
         for i, critique in enumerate(critiques):
             scenario_id = critique.get('target_scenario_id', 'unknown')
-            quality_score = critique.get('quality_score', 0)
+            quality_score = critique.get('overall_quality_score', 0)  # Fixed: use 'overall_quality_score'
             
             content += f"### {i}. Scenario {scenario_id}\n\n"
             content += f"**Overall Quality Score:** {quality_score}/100\n"
