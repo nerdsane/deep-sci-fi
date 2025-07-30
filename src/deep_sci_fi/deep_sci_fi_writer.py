@@ -112,8 +112,8 @@ class ModelConfig:
             "o3": "openai:o3-2025-04-16",
             "o3_mini": "openai:o3-mini-2025-04-16", 
             "o1": "openai:o1-2024-12-17",
-            "gpt4": "openai:gpt-4o-2024-11-20",
-            "gpt4_mini": "openai:gpt-4o-mini-2024-07-18"
+            "gpt4": "openai:o3-2025-04-16",
+            "gpt4_mini": "openai:o3-mini-2025-04-16"
         },
         ModelProvider.GOOGLE: {
             # Google models

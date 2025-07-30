@@ -31,12 +31,12 @@ MODEL_TEMPLATES = {
     "creative": {
         "description": "Optimized for creative and narrative tasks",
         "meta_analysis_model": "openai:o3-2025-04-16",              # Deep strategic thinking
-        "generation_model": "anthropic:claude-3-5-opus-20241022",   # Maximum creativity
-        "debate_a_model": "anthropic:claude-3-5-opus-20241022",     # Creative perspective A
-        "debate_b_model": "anthropic:claude-3-5-sonnet-20241022",   # Structured perspective B  
-        "reflection_model": "anthropic:claude-3-5-sonnet-20241022", # Balanced critique
-        "evolution_model": "anthropic:claude-3-5-opus-20241022",    # Creative enhancement
-        "tournament_model": "anthropic:claude-3-5-sonnet-20241022", # Balanced comparison
+        "generation_model": "anthropic:claude-opus-4-20250514",              # Maximum creativity
+        "debate_a_model": "anthropic:claude-opus-4-20250514",                # Creative perspective A
+        "debate_b_model": "anthropic:claude-sonnet-4-20250514",              # Structured perspective B  
+        "reflection_model": "anthropic:claude-sonnet-4-20250514",            # Balanced critique
+        "evolution_model": "anthropic:claude-opus-4-20250514",               # Creative enhancement
+        "tournament_model": "anthropic:claude-sonnet-4-20250514",            # Balanced comparison
         "meta_review_model": "openai:o3-2025-04-16",               # Final strategic selection
         
         # Creative-optimized temperatures
@@ -54,10 +54,10 @@ MODEL_TEMPLATES = {
         "meta_analysis_model": "openai:o3-2025-04-16",      # Maximum reasoning
         "generation_model": "openai:o3-2025-04-16",         # Reasoned generation
         "debate_a_model": "openai:o3-2025-04-16",           # Deep analytical perspective
-        "debate_b_model": "openai:gpt-4o",                  # Fast counter-perspective
-        "reflection_model": "anthropic:claude-3-5-sonnet-20241022", # Structured critique
+        "debate_b_model": "openai:o3-2025-04-16",           # Fast counter-perspective
+        "reflection_model": "anthropic:claude-sonnet-4-20250514",    # Structured critique
         "evolution_model": "openai:o3-2025-04-16",          # Reasoned improvement
-        "tournament_model": "openai:gpt-4o",                # Efficient comparison
+        "tournament_model": "openai:o3-2025-04-16",         # Efficient comparison
         "meta_review_model": "openai:o3-2025-04-16",        # Deep final analysis
         
         # Reasoning-optimized temperatures  
@@ -173,8 +173,8 @@ class ModelSettings(BaseModel):
         )
         
     Available templates:
-        - "creative": Optimized for narrative and creative tasks (Opus + Sonnet + O3)
-        - "reasoning": Optimized for analytical and research tasks (O3 + GPT-4o + Sonnet)
+        - "creative": Optimized for narrative and creative tasks (Claude 4 Opus + Sonnet + O3)
+        - "reasoning": Optimized for analytical and research tasks (O3 + Claude 4 Sonnet)
     """
     
     # Model selection by phase (None = use general_model fallback)
