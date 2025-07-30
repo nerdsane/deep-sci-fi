@@ -175,14 +175,19 @@ class ModelFactory:
         """
         model_name = self.configuration.general_model
         
-        return {
+        settings = {
             "model_name": model_name,
             "temperature": self.model_settings.get_temperature_for_phase(phase, model_name),
             "max_tokens": self.model_settings.get_max_tokens_for_phase(phase),
-            "request_timeout": self.model_settings.request_timeout,
             "max_retries": self.model_settings.max_retries,
             "base_delay": self.model_settings.base_delay
         }
+        
+        # Only add request_timeout for OpenAI models (Anthropic doesn't support it)
+        if "openai:" in model_name.lower() or "gpt-" in model_name.lower() or "o1-" in model_name.lower() or "o3" in model_name.lower():
+            settings["request_timeout"] = self.model_settings.request_timeout
+            
+        return settings
 
 
 def create_model_factory(configuration: CoScientistConfiguration) -> ModelFactory:
