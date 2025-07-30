@@ -282,13 +282,13 @@ class LLMManager:
         model_params = {
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "max_retries": 3,
-            "seed": unique_seed % 2**31  # Ensure seed is within valid range
+            "max_retries": 3
         }
         
-        # Only add request_timeout for OpenAI models (Anthropic doesn't support it)
+        # Only add OpenAI-specific parameters (Anthropic doesn't support them)
         if "openai:" in model_name.lower() or "gpt-" in model_name.lower() or "o1-" in model_name.lower() or "o3" in model_name.lower():
             model_params["request_timeout"] = 300
+            model_params["seed"] = unique_seed % 2**31  # Ensure seed is within valid range
         
         return init_chat_model(model_name, **model_params)
     
