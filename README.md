@@ -1,6 +1,15 @@
 # Deep Sci-Fi
 
-A sci-fi writing assistant inspired by [DeepMind's AI co-scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/) tournament-based hypothesis evaluation system.
+A sci-fi writing workflow inspired by [DeepMind's AI co-scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/). 
+
+This system uses **competitive tournaments** and **AI debates** to create science fiction grounded in research:
+
+- **Tournament competition** generates multiple world-building scenarios
+- **Research-backed predictions** create scientifically plausible futures through incremental steps
+- **Debate phases** refine ideas through argumentation between different AI models
+- **Evolutionary refinement** improves storylines, chapters, and prose through iterative competition
+
+The result: rigorous research meets creative storytelling for scientifically-grounded sci-fi.
 
 ## 🚀 Quickstart
 
@@ -20,13 +29,7 @@ uv pip install -e .
 3. Set up your `.env` file with API keys:
 ```bash
 cp .env.example .env
-# Edit .env with your API keys:
-# OPENAI_API_KEY=your_key_here
-# ANTHROPIC_API_KEY=your_key_here
-# TAVILY_API_KEY=your_key_here
-# LANGCHAIN_TRACING_V2=true
-# LANGSMITH_API_KEY=your_key_here
-# LANGSMITH_PROJECT="deep-sci-fi"
+# Edit .env with your API keys
 ```
 
 4. Launch the system with LangGraph server:
@@ -44,114 +47,91 @@ Use this to open the Studio UI:
 
 ## 📖 Deep Sci-Fi Writer
 
-The core writing assistant that creates scientifically-grounded science fiction narratives through a structured multi-stage process.
+Creates scientifically-grounded science fiction through competitive AI tournaments and research integration.
 
-### Features
+### Process
 
-- **Competitive Storyline Creation**: Uses Co-Scientist for generating multiple storyline options through competitive evolution
-- **Research-Driven World Building**: Integrates Open Deep Research for scientifically accurate background research
-- **Multi-Stage Development**: Structured workflow from initial concept to complete narrative
-- **Scientific Accuracy**: Ensures plausibility through expert domain analysis
-- **Unique Voice**: Avoids clichés and generic tropes for authentic storytelling
-
-### How It Works
-
-1. **Storyline Competition**: Co-Scientist generates and evolves multiple storyline concepts
-2. **Research Integration**: Open Deep Research provides scientific backing for concepts
-3. **World Building**: Develops comprehensive world state and linguistic evolution
-4. **Chapter Development**: Creates detailed chapter arcs with scientific explanations
-5. **Narrative Synthesis**: Combines all elements into coherent, engaging story
+1. **Storyline Competition**: Multiple AI models compete to create storyline concepts
+2. **Research Integration**: Automated fact-gathering for scientific accuracy
+3. **World Building**: Develops plausible future scenarios and technologies
+4. **Chapter Development**: Creates structured narrative with scientific explanations
 
 ### Usage
 
-Access the Deep Sci-Fi Writer through LangGraph Studio:
-1. Select "Deep Sci-Fi" from the available graphs
-2. Enter your story concept in the messages field
-3. Follow the interactive prompts to guide story development
-4. Review generated content at each stage with human-in-the-loop approval
+Launch via LangGraph Studio, select "Deep Sci-Fi" graph, and enter your story concept. The system guides you through each stage with human-in-the-loop approval.
 
 ### Configuration
 
-Key model settings (in `src/deep_sci_fi/deep_sci_fi_writer.py`):
-- **Research Model**: Powers research integration
-- **Writing Model**: Handles narrative generation  
-- **General Model**: Manages workflow coordination
+Model templates (in `src/co_scientist/configuration.py`):
+- **Creative Template**: Optimized for narrative tasks (Claude Opus + O3)
+- **Reasoning Template**: Optimized for research tasks (O3 + GPT-4o)
 
 ## 🧬 Co-Scientist
 
-A competitive multi-agent system that generates and evolves ideas through tournament-style analysis and refinement.
+Competitive tournament workflow that generates and evolves ideas through AI debates and quality ranking.
 
-### Features
+### Core Features
 
-- **Tournament Evolution**: Multiple agents compete to refine and improve concepts
-- **Domain Expertise**: Specialized critique from different scientific and creative domains
-- **Meta-Analysis**: Identifies research directions and analytical approaches
-- **Parallel Processing**: Concurrent analysis streams for comprehensive coverage
-- **Iterative Refinement**: Multiple rounds of critique and improvement
+- **Tournament Competition**: AI models compete to generate the best concepts
+- **Debate Phases**: Different models argue for competing approaches
+- **Quality Ranking**: Elo rating system tracks performance across competitions
+- **Evolutionary Refinement**: Winning ideas are improved through iterative competition
 
-### Use Cases
+### Workflow Phases
 
-- **Storyline Creation**: Generate competing narrative concepts for sci-fi stories
-- **Research Direction**: Identify optimal approaches for investigation
-- **Concept Development**: Evolve initial ideas through competitive analysis
-- **Quality Assurance**: Multi-perspective critique for robust outcomes
-
-### How It Works
-
-1. **Meta-Analysis**: Identifies multiple research or creative approaches
-2. **Scenario Generation**: Creates detailed implementations of each approach
-3. **Domain Critique**: Specialists analyze from their expertise areas
-4. **Tournament Comparison**: Head-to-head evaluation of alternatives  
-5. **Evolution**: Winning concepts are refined and evolved further
-
-### Configuration Options
-
-- **Process Depth**: `quick`, `standard`, `thorough`
-- **Domain Focus**: Scientific, narrative, or hybrid analysis modes
-- **Tournament Size**: Number of competing concepts per direction
-- **Evolution Rounds**: Iterations of refinement and improvement
-- **Critique Depth**: Depth of domain expert analysis
-
-### Advanced Features
-
-- **Elo Rating System**: Dynamic quality assessment across competitions
-- **Quality Integration**: Scores influence tournament seeding and advancement
-- **Persistent Intelligence**: Ratings carry between sessions for learning
-- **Phase-Based Output**: Organized results by graph execution phase
-
-## 🔬 Open Deep Research
-
-Automated research assistant that conducts comprehensive investigations using multiple search engines and synthesis techniques.
-
-### Features
-
-- **Multi-Source Research**: Integrates Tavily, DuckDuckGo, and custom search APIs
-- **Intelligent Synthesis**: Combines findings from multiple sources
-- **Citation Management**: Tracks and formats source attribution
-- **Quality Filtering**: Ranks and validates research findings
-- **Report Generation**: Creates structured research documents
-
-### Use Cases
-
-- **Scientific Background**: Research real science behind sci-fi concepts
-- **World Building**: Investigate plausible future technologies and societies
-- **Fact Checking**: Verify scientific accuracy of story elements
-- **Trend Analysis**: Identify emerging scientific developments
-
-### How It Works
-
-1. **Query Planning**: Breaks complex research into focused sub-queries
-2. **Multi-Search Execution**: Parallel searches across multiple sources
-3. **Source Processing**: Summarizes and validates research findings
-4. **Synthesis**: Combines information into coherent analysis
-5. **Report Creation**: Generates structured research documents
+1. **Meta-Analysis**: Generate multiple research/creative directions
+2. **Generation**: Create detailed content for each direction  
+3. **Reflection**: Quality assessment and critique
+4. **Tournament**: Head-to-head comparisons with debates
+5. **Evolution**: Refine and improve winning concepts
 
 ### Configuration
 
-- **Search APIs**: Configure Tavily, DuckDuckGo, or custom sources
-- **Processing Mode**: Summarization vs. split-and-rerank approaches
-- **Depth Settings**: Quick overview vs. comprehensive investigation
-- **Citation Style**: Academic, journalistic, or custom formatting
+Templates automatically assign models per use case:
+- **Creative Template**: For storylines, chapters (Claude Opus + Sonnet + O3)
+- **Reasoning Template**: For research, analysis (O3 + GPT-4o + Sonnet)
+
+Per-phase model override supported for advanced users.
+
+## 📁 Project Structure
+
+```
+deep-sci-fi/
+├── src/                          # Main source code
+│   ├── co_scientist/            # Competitive tournament system
+│   │   ├── phases/              # Tournament phases (debate, evolution, etc.)
+│   │   ├── prompts/             # Phase-specific prompts
+│   │   ├── utils/               # Model factory, LLM manager, output tools
+│   │   └── configuration.py     # Model templates and settings
+│   ├── deep_sci_fi/             # Main writing workflow
+│   │   ├── deep_sci_fi_writer.py # Core orchestration logic
+│   │   └── prompts.py           # Writing-specific prompts
+│   └── open_deep_research/      # Research integration module
+├── output/                      # Generated content (timestamped folders)
+├── examples/                    # Usage examples and demos
+└── langgraph.json              # LangGraph configuration
+```
+
+### Output Organization
+
+All generated content is saved to timestamped folders in `output/`:
+
+```
+output/YYYY-MM-DD_HH-MM-SS/
+├── 00_01a_storyline_competition_summary.md    # Competition overview
+├── 00_01b_storyline_competition_details.md    # Detailed results
+├── 01_storyline_option_1_full.md              # Generated storylines
+├── 02_world_scenario_full.md                  # World building
+├── 03_first_chapter_full.md                   # Chapter content
+├── elo_leaderboard.md                         # Quality rankings
+└── tournament_*.md                            # Debate transcripts
+```
+
+### Key Configuration Files
+
+- **`src/co_scientist/configuration.py`**: Model templates, phase settings
+- **`src/deep_sci_fi/deep_sci_fi_writer.py`**: Use case configurations  
+- **`langgraph.json`**: Workflow definitions and API settings
 
 ## 🤝 Contributing
 
@@ -167,4 +147,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Related Work
 
-Inspired by [DeepMind's AI co-scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/) tournament-based hypothesis evaluation system.
+- Uses [Open Deep Research](https://github.com/langchain-ai/open_deep_research) for automated web research and scientific fact-gathering
+- Inspired by [DeepMind's AI co-scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/) tournament-based hypothesis evaluation system
+
