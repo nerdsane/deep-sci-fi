@@ -26,6 +26,51 @@ class UseCase(Enum):
     LINGUISTIC_EVOLUTION = "linguistic_evolution"
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
 
+# Model Templates - Define phase-specific model configurations
+MODEL_TEMPLATES = {
+    "creative": {
+        "description": "Optimized for creative and narrative tasks",
+        "meta_analysis_model": "openai:o3-2025-04-16",              # Deep strategic thinking
+        "generation_model": "anthropic:claude-3-5-opus-20241022",   # Maximum creativity
+        "debate_a_model": "anthropic:claude-3-5-opus-20241022",     # Creative perspective A
+        "debate_b_model": "anthropic:claude-3-5-sonnet-20241022",   # Structured perspective B  
+        "reflection_model": "anthropic:claude-3-5-sonnet-20241022", # Balanced critique
+        "evolution_model": "anthropic:claude-3-5-opus-20241022",    # Creative enhancement
+        "tournament_model": "anthropic:claude-3-5-sonnet-20241022", # Balanced comparison
+        "meta_review_model": "openai:o3-2025-04-16",               # Final strategic selection
+        
+        # Creative-optimized temperatures
+        "generation_temperature": 0.9,      # High creativity
+        "evolution_temperature": 0.9,       # High creativity enhancement
+        "meta_analysis_temperature": 0.7,   # Strategic but creative
+        "reflection_temperature": 0.6,      # Precise critique
+        "debate_temperature": 0.8,          # Balanced argumentation
+        "tournament_temperature": 0.7,      # Structured comparison
+        "meta_review_temperature": 0.7,     # Strategic selection
+    },
+    
+    "reasoning": {
+        "description": "Optimized for analytical and research tasks",
+        "meta_analysis_model": "openai:o3-2025-04-16",      # Maximum reasoning
+        "generation_model": "openai:o3-2025-04-16",         # Reasoned generation
+        "debate_a_model": "openai:o3-2025-04-16",           # Deep analytical perspective
+        "debate_b_model": "openai:gpt-4o",                  # Fast counter-perspective
+        "reflection_model": "anthropic:claude-3-5-sonnet-20241022", # Structured critique
+        "evolution_model": "openai:o3-2025-04-16",          # Reasoned improvement
+        "tournament_model": "openai:gpt-4o",                # Efficient comparison
+        "meta_review_model": "openai:o3-2025-04-16",        # Deep final analysis
+        
+        # Reasoning-optimized temperatures  
+        "generation_temperature": 0.7,      # Controlled creativity
+        "evolution_temperature": 0.7,       # Controlled enhancement
+        "meta_analysis_temperature": 0.6,   # Precise analysis
+        "reflection_temperature": 0.6,      # Precise critique
+        "debate_temperature": 0.7,          # Structured argumentation
+        "tournament_temperature": 0.6,      # Objective comparison
+        "meta_review_temperature": 0.6,     # Analytical selection
+    }
+}
+
 # Use case configurations
 USE_CASE_CONFIGS = {
     "scenario_generation": {
@@ -35,7 +80,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["feasibility_enhancement"],  # Single evolution strategy
         "output_name": "scenarios",
         "meta_prompt_key": "scenario_meta",
-        "generation_prompt_key": "scenario_generation"
+        "generation_prompt_key": "scenario_generation",
+        "model_template": "reasoning"  # Use reasoning template for research-heavy scenarios
     },
     "storyline_creation": {
         "direction_type": "narrative approaches",
@@ -44,7 +90,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
         "output_name": "storylines",
         "meta_prompt_key": "storyline_meta",
-        "generation_prompt_key": "storyline_generation"
+        "generation_prompt_key": "storyline_generation",
+        "model_template": "creative"  # Use creative template for narrative development
     },
     "chapter_writing": {
         "direction_type": "narrative approaches",
@@ -53,7 +100,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
         "output_name": "chapters",
         "meta_prompt_key": "chapter_meta",
-        "generation_prompt_key": "chapter_generation"
+        "generation_prompt_key": "chapter_generation",
+        "model_template": "creative"  # Use creative template for prose writing
     },
     "chapter_rewriting": {
         "direction_type": "narrative approaches", 
@@ -62,7 +110,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
         "output_name": "chapter_versions",
         "meta_prompt_key": "chapter_meta",
-        "generation_prompt_key": "chapter_generation"
+        "generation_prompt_key": "chapter_generation",
+        "model_template": "creative"  # Use creative template for prose rewriting
     },
     "chapter_arcs_creation": {
         "direction_type": "narrative approaches",
@@ -71,7 +120,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
         "output_name": "chapter_arcs",
         "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation"
+        "generation_prompt_key": "narrative_generation",
+        "model_template": "creative"  # Use creative template for structural narrative work
     },
     "chapter_arcs_adjustment": {
         "direction_type": "narrative approaches",
@@ -80,7 +130,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
         "output_name": "adjusted_chapter_arcs",
         "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation"
+        "generation_prompt_key": "narrative_generation",
+        "model_template": "creative"  # Use creative template for narrative adjustments
     },
     "linguistic_evolution": {
         "direction_type": "research approaches",
@@ -89,7 +140,8 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["linguistic_enhancement"],  # Single evolution strategy
         "output_name": "linguistic_analyses",
         "meta_prompt_key": "research_meta",
-        "generation_prompt_key": "research_generation"
+        "generation_prompt_key": "research_generation",
+        "model_template": "reasoning"  # Use reasoning template for research analysis
     },
     "storyline_adjustment": {
         "direction_type": "narrative approaches",
@@ -98,12 +150,43 @@ USE_CASE_CONFIGS = {
         "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
         "output_name": "revised_storylines",
         "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation"
+        "generation_prompt_key": "narrative_generation",
+        "model_template": "creative"  # Use creative template for narrative revisions
     }
 }
 
 class ModelSettings(BaseModel):
-    """Centralized model settings for different use cases"""
+    """
+    Centralized model settings for different use cases.
+    
+    Example usage with templates (recommended):
+        model_settings = ModelSettings.from_template("creative")  # Apply creative template
+        model_settings = ModelSettings.from_template("reasoning") # Apply reasoning template
+        
+    Example usage for manual phase-specific models:
+        model_settings = ModelSettings(
+            meta_analysis_model="openai:o3-2025-04-16",     # O3 for deep reasoning
+            generation_model="anthropic:claude-3-5-opus-20241022",  # Opus for creative writing
+            debate_a_model="openai:o3-2025-04-16",          # O3 for debater A (analytical)
+            debate_b_model="anthropic:claude-3-5-opus-20241022",    # Opus for debater B (creative)
+            reflection_model="anthropic:claude-3-5-sonnet-20241022"  # Sonnet for critique
+        )
+        
+    Available templates:
+        - "creative": Optimized for narrative and creative tasks (Opus + Sonnet + O3)
+        - "reasoning": Optimized for analytical and research tasks (O3 + GPT-4o + Sonnet)
+    """
+    
+    # Model selection by phase (None = use general_model fallback)
+    meta_analysis_model: Optional[str] = Field(default=None, description="Model for meta-analysis phase")
+    generation_model: Optional[str] = Field(default=None, description="Model for scenario generation phase")
+    debate_model: Optional[str] = Field(default=None, description="Model for debate phase (fallback if A/B not specified)")
+    debate_a_model: Optional[str] = Field(default=None, description="Model for debate participant A")
+    debate_b_model: Optional[str] = Field(default=None, description="Model for debate participant B")
+    reflection_model: Optional[str] = Field(default=None, description="Model for reflection phase")
+    evolution_model: Optional[str] = Field(default=None, description="Model for evolution phase")
+    tournament_model: Optional[str] = Field(default=None, description="Model for tournament phase")
+    meta_review_model: Optional[str] = Field(default=None, description="Model for meta-review phase")
     
     # Temperature settings by phase
     meta_analysis_temperature: float = Field(default=0.8, ge=0.0, le=2.0)
@@ -130,6 +213,34 @@ class ModelSettings(BaseModel):
     
     # O3-specific handling
     o3_models: List[str] = Field(default=["o3", "o3-mini"], description="Models that require temperature=1")
+    
+    def get_model_for_phase(self, phase: str, fallback_model: str) -> str:
+        """Get appropriate model for phase with fallback to general_model"""
+        phase_models = {
+            "meta_analysis": self.meta_analysis_model,
+            "generation": self.generation_model,
+            "debate": self.debate_model,
+            "reflection": self.reflection_model,
+            "evolution": self.evolution_model,
+            "tournament": self.tournament_model,
+            "meta_review": self.meta_review_model
+        }
+        return phase_models.get(phase) or fallback_model
+    
+    def get_debate_models(self, fallback_model: str) -> tuple[str, str]:
+        """Get models for debate participants A and B with intelligent fallback logic"""
+        # First priority: specific A/B models
+        model_a = self.debate_a_model
+        model_b = self.debate_b_model
+        
+        # Second priority: general debate model
+        debate_fallback = self.debate_model or fallback_model
+        
+        # Final fallback logic
+        model_a = model_a or debate_fallback
+        model_b = model_b or debate_fallback
+        
+        return model_a, model_b
     
     def get_temperature_for_phase(self, phase: str, model_name: str) -> float:
         """Get appropriate temperature for phase and model"""
@@ -160,6 +271,60 @@ class ModelSettings(BaseModel):
             "meta_review": self.meta_review_max_tokens
         }
         return phase_tokens.get(phase, 4096)
+    
+    @classmethod
+    def from_template(cls, template_name: str) -> "ModelSettings":
+        """Create ModelSettings from a predefined template"""
+        if template_name not in MODEL_TEMPLATES:
+            available = ", ".join(MODEL_TEMPLATES.keys())
+            raise ValueError(f"Unknown template '{template_name}'. Available templates: {available}")
+        
+        template = MODEL_TEMPLATES[template_name]
+        
+        # Extract model assignments from template
+        model_fields = {
+            field: template.get(field) 
+            for field in [
+                "meta_analysis_model", "generation_model", "debate_model",
+                "debate_a_model", "debate_b_model", "reflection_model",
+                "evolution_model", "tournament_model", "meta_review_model"
+            ]
+            if template.get(field) is not None
+        }
+        
+        # Extract temperature settings from template
+        temperature_fields = {
+            field: template.get(field)
+            for field in [
+                "meta_analysis_temperature", "generation_temperature", "debate_temperature",
+                "reflection_temperature", "evolution_temperature", "tournament_temperature",
+                "meta_review_temperature"
+            ]
+            if template.get(field) is not None
+        }
+        
+        # Combine all fields
+        all_fields = {**model_fields, **temperature_fields}
+        
+        return cls(**all_fields)
+    
+    def apply_template(self, template_name: str) -> "ModelSettings":
+        """Apply a template to current settings (overwrites existing values)"""
+        if template_name not in MODEL_TEMPLATES:
+            available = ", ".join(MODEL_TEMPLATES.keys())
+            raise ValueError(f"Unknown template '{template_name}'. Available templates: {available}")
+        
+        template = MODEL_TEMPLATES[template_name]
+        
+        # Create a new instance with template values overriding current values
+        current_dict = self.model_dump()
+        
+        # Update with template values (only non-None values)
+        for key, value in template.items():
+            if value is not None and hasattr(self, key):
+                current_dict[key] = value
+        
+        return ModelSettings(**current_dict)
 
 
 class CoScientistConfiguration(BaseModel):
@@ -252,7 +417,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "object",
-                "description": "Centralized model configuration for all phases"
+                "description": "Centralized model configuration for all phases (supports per-phase model selection)"
             }
         }
     )
@@ -506,6 +671,33 @@ class CoScientistConfiguration(BaseModel):
     def get_phase_list(self) -> List[str]:
         """Get the list of phases to run based on process depth."""
         return self.get_enabled_phases_for_depth()
+    
+    def get_template_name(self) -> str:
+        """Get the model template for the current use case."""
+        use_case_config = self.get_use_case_config()
+        return use_case_config.get("model_template", "creative")  # Default to creative
+    
+    def get_model_settings_with_template(self) -> ModelSettings:
+        """Get model settings with the use case template applied."""
+        template_name = self.get_template_name()
+        
+        # If model_settings is already customized, apply template as base then override
+        if any([
+            self.model_settings.meta_analysis_model,
+            self.model_settings.generation_model,
+            self.model_settings.debate_a_model,
+            self.model_settings.debate_b_model,
+            # ... other model fields have been manually set
+        ]):
+            # User has customized settings, start with template then apply their overrides
+            template_settings = ModelSettings.from_template(template_name)
+            current_dict = template_settings.model_dump()
+            user_dict = self.model_settings.model_dump(exclude_unset=True, exclude_none=True)
+            current_dict.update(user_dict)
+            return ModelSettings(**current_dict)
+        else:
+            # No customization, just use the template
+            return ModelSettings.from_template(template_name)
 
     @classmethod
     def create_input_state(cls, 

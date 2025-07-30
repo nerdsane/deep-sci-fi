@@ -292,10 +292,13 @@ async def conduct_llm_vs_llm_debate(use_case: str, debate_type: str, configurati
     from co_scientist.co_scientist import llm_call_with_retry
     from co_scientist.utils.model_factory import create_model_factory
     
-    # Create models using centralized factory
+    # Create models using centralized factory - supports A/B model configuration
     model_factory = create_model_factory(configuration)
-    llm_a = model_factory.create_phase_model("debate")
-    llm_b = model_factory.create_phase_model("debate")
+    llm_a, llm_b = model_factory.create_debate_models()
+    
+    # Get model names for logging
+    model_a_name, model_b_name = configuration.model_settings.get_debate_models(configuration.general_model)
+    print(f"🤖 Debate Models: A={model_a_name} vs B={model_b_name}")
     
     # Initialize conversation
     conversation_history = []

@@ -29,7 +29,8 @@ class ModelFactory:
             configuration: CoScientistConfiguration containing model settings
         """
         self.configuration = configuration
-        self.model_settings = configuration.model_settings
+        # Use template-aware model settings that apply use case templates
+        self.model_settings = configuration.get_model_settings_with_template()
     
     def create_phase_model(
         self,
@@ -71,6 +72,37 @@ class ModelFactory:
                 temperature=temperature
             )
     
+    def create_debate_models(self, isolated: bool = True, **override_params) -> tuple[Any, Any]:
+        """
+        Create separate model instances for debate participants A and B.
+        
+        Args:
+            isolated: Whether to create isolated instances (recommended for parallel debates)
+            **override_params: Any parameter overrides for both models
+            
+        Returns:
+            Tuple of (model_a, model_b) instances ready for debate
+        """
+        model_a_name, model_b_name = self.model_settings.get_debate_models(self.configuration.general_model)
+        
+        # Create model A
+        model_a = self.create_phase_model(
+            phase="debate",
+            model_name=model_a_name,
+            isolated=isolated,
+            **override_params
+        )
+        
+        # Create model B  
+        model_b = self.create_phase_model(
+            phase="debate", 
+            model_name=model_b_name,
+            isolated=isolated,
+            **override_params
+        )
+        
+        return model_a, model_b
+    
     def create_llm_manager(
         self,
         phase: str,
@@ -87,7 +119,8 @@ class ModelFactory:
             Configured LLMManager instance
         """
         if model_name is None:
-            model_name = self.configuration.general_model
+            # Use phase-specific model if configured, otherwise fallback to general_model
+            model_name = self.model_settings.get_model_for_phase(phase, self.configuration.general_model)
             
         temperature = self.model_settings.get_temperature_for_phase(phase, model_name)
         max_tokens = self.model_settings.get_max_tokens_for_phase(phase)
