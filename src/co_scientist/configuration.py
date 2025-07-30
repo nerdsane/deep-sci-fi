@@ -30,7 +30,7 @@ class UseCase(Enum):
 MODEL_TEMPLATES = {
     "creative": {
         "description": "Optimized for creative and narrative tasks",
-        "meta_analysis_model": "openai:o3-2025-04-16",              # Deep strategic thinking
+        "meta_analysis_model": "anthropic:claude-sonnet-4-20250514",              # Deep strategic thinking
         "generation_model": "anthropic:claude-opus-4-20250514",              # Maximum creativity
         "debate_a_model": "anthropic:claude-opus-4-20250514",                # Creative perspective A
         "debate_b_model": "anthropic:claude-sonnet-4-20250514",              # Structured perspective B  

@@ -11,6 +11,12 @@ This system uses **competitive tournaments** and **AI debates** to create scienc
 
 The result: rigorous research meets creative storytelling for scientifically-grounded sci-fi.
 
+## 🏗️ Architecture
+
+![Deep Sci-Fi Workflow](workflow.png)
+
+The system orchestrates a competitive tournament between AI models, with the Deep Sci-Fi Writer managing creative phases while Co-Scientist runs tournaments for idea generation and refinement. Research integration provides scientific accuracy through automated fact-gathering.
+
 ## 🚀 Quickstart
 
 1. Clone the repository and activate a virtual environment:
