@@ -81,11 +81,26 @@ INITIAL_META_ANALYSIS_PROMPT = """You are an expert meta-analyst. Identify 3 fun
 - Equally plausible scientific trajectories
 - Consider societal impacts: energy, transport, communication, governance
 
+<Realism Constraints>
+- Base directions on incremental evolution from current technology
+- Avoid breakthrough-dependent scenarios without explicit justification
+- Ensure all technological assumptions have clear development pathways from 2024
+- Question bold claims: if something sounds impressive, ask "what would need to go wrong for this NOT to happen?"
+</Realism Constraints>
+
 <Process>
 1. Identify key technological/scientific choice points
 2. Create 3 distinct directions based on different core assumptions
 3. Validate scientific plausibility and meaningful differentiation
 </Process>
+
+<Comprehensive Coverage Requirement>
+Each direction must address ALL world-building questions comprehensively:
+- Do not cherry-pick 2-3 questions that fit your direction
+- Do not tunnel vision on one technological aspect
+- Show how your direction creates meaningful approaches to workplace monitoring, housing, mental health, privacy, infrastructure, creativity, etc.
+- If a direction cannot address a question area, it is inadequate
+</Comprehensive Coverage Requirement>
 
 <Output Format>
 Direction 1: [Name]

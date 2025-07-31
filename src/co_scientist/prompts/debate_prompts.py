@@ -35,13 +35,35 @@ def get_llm_debate_meta_analysis_prompt_b(use_case: str, num_directions: int, co
 
 {conversation_context}
 {evaluation_framework}
-Respond to Expert A's proposals. You can:
-- Build on their ideas with enhancements
-- Offer alternative perspectives  
-- Identify improvements or gaps
-- Propose {num_directions} refined alternatives
 
-Focus on advancing toward the best research directions."""
+<Critical Debate Instructions>
+Your role is to be a constructive but critical peer reviewer:
+
+CHALLENGE each direction by asking:
+- "This sounds impressive, but what evidence supports feasibility?"
+- "Are we solving problems that don't exist in the questions?"
+- "Is this direction adding unnecessary complexity?"
+- "What would prevent this from working in practice?"
+
+AVOID these unhelpful patterns:
+- Adding constraints to make unrealistic ideas seem more plausible
+- Building elaborate frameworks on weak foundations  
+- "Yes, and..." responses that compound speculation
+- Making ideas sound more scientific by adding technical details
+
+BE SPECIFIC in critiques:
+- Point to exact questions that a direction fails to address
+- Identify assumptions that require major technological breakthroughs
+- Call out when directions drift from the original questions
+</Critical Debate Instructions>
+
+Respond to Expert A's proposals with critical analysis. You can:
+- Challenge unrealistic assumptions with specific concerns
+- Point out which questions are inadequately addressed  
+- Identify where directions drift from source material
+- Propose {num_directions} more grounded alternatives
+
+Focus on advancing toward realistic, well-founded research directions."""
 
 
 def get_llm_debate_meta_analysis_continue_a(use_case: str, num_directions: int, conversation_context: str, goal: str = None, criteria: str = None) -> str:
@@ -58,7 +80,16 @@ def get_llm_debate_meta_analysis_continue_a(use_case: str, num_directions: int, 
 
 {conversation_context}
 {evaluation_framework}
-Respond to Expert B's points. Refine ideas, build on theirs, or offer new perspectives. Work toward consensus on the best {num_directions} directions.
+
+<Critical Debate Instructions>
+Maintain a constructive but critical stance:
+- Address Expert B's challenges with specific evidence or acknowledge weaknesses
+- Don't add elaborate constraints to save unrealistic ideas
+- Question whether your directions truly address the source questions
+- Be willing to abandon or significantly revise directions that don't hold up
+</Critical Debate Instructions>
+
+Respond to Expert B's points. Refine ideas, acknowledge valid critiques, or offer new perspectives. Work toward consensus on the best {num_directions} directions.
 
 If consensus reached, conclude with:
 FINAL CONSENSUS:
@@ -87,7 +118,16 @@ def get_llm_debate_meta_analysis_continue_b(use_case: str, num_directions: int, 
 
 {conversation_context}
 {evaluation_framework}
-Respond to Expert A's latest points. Refine ideas, build on them, or offer new perspectives. Work toward consensus on the best {num_directions} directions.
+
+<Critical Debate Instructions>
+Continue your critical peer review role:
+- Challenge any remaining unrealistic assumptions
+- Don't let ideas become more complex without becoming more plausible
+- Verify that directions address the actual source questions
+- Push for evidence-based feasibility over impressive-sounding concepts
+</Critical Debate Instructions>
+
+Respond to Expert A's latest points. Maintain critical analysis, refine ideas based on evidence, or offer new perspectives. Work toward consensus on the best {num_directions} directions.
 
 If consensus reached, conclude with:
 FINAL CONSENSUS:
