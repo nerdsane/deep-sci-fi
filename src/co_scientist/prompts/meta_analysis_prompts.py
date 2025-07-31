@@ -50,9 +50,12 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["source_content"] = state.get("reference_material", "")
     elif use_case == "chapter_rewriting":
         params["source_content"] = state.get("reference_material", "")
-    elif use_case in ["chapter_arcs_creation", "chapter_arcs_adjustment"]:
+    elif use_case == "chapter_arcs_creation":
         params["story_concept"] = context_value
         params["source_content"] = state.get("reference_material", "")
+    elif use_case == "chapter_arcs_adjustment":
+        params["story_concept"] = context_value  # User's original story concept
+        params["source_content"] = state.get("reference_material", "")  # Original chapter arcs
     else:
         # For other use cases, keep generic context
         params["context"] = context_value

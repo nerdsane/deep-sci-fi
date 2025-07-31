@@ -10,8 +10,8 @@ def get_unified_reflection_prompt(use_case: str) -> str:
         "storyline_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
         "chapter_writing": UNIFIED_PROSE_REFLECTION_PROMPT,
         "chapter_rewriting": UNIFIED_PROSE_REFLECTION_PROMPT,
-        "chapter_arcs_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
-        "chapter_arcs_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
+        "chapter_arcs_creation": CHAPTER_ARCS_REFLECTION_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_REFLECTION_PROMPT,
         "linguistic_evolution": UNIFIED_RESEARCH_REFLECTION_PROMPT,
         "storyline_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT
     }
@@ -397,6 +397,68 @@ Rate the research analysis on each dimension (1-100 scale):
 1. [Top priority research improvement]
 2. [Second priority improvement]
 3. [Third priority improvement]
+
+## Tournament Readiness
+**Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]
+</Output Format>
+"""
+
+# Used for: chapter arcs creation and adjustment use cases
+CHAPTER_ARCS_REFLECTION_PROMPT = """You are a comprehensive narrative architecture panel evaluating a chapter arc structure.
+
+<Scenario ID>
+{scenario_id}
+</Scenario ID>
+
+<Research Direction>
+{research_direction}
+</Research Direction>
+
+<Chapter Arc Structure to Evaluate>
+{scenario_content}
+</Chapter Arc Structure to Evaluate>
+
+<Expert Panel>
+You represent a collaborative team of experts in: Narrative Structure, Pacing Strategy, Character Development
+</Expert Panel>
+
+<Comprehensive Evaluation>
+Assess this chapter arc structure across all narrative dimensions:
+
+**Structural Foundation:**
+- Chapter organization completeness, logical flow
+- Pacing strategy effectiveness, tension development
+- Narrative momentum patterns, reader engagement hooks
+
+**Character Development:**
+- Character arc progression across chapters
+- Development milestone placement, growth authenticity
+- Relationship dynamics evolution, motivation clarity
+
+**Story Architecture:**
+- Plot progression coherence, climax buildup
+- Thematic consistency throughout structure
+- Chapter purposes clarity, narrative service
+</Comprehensive Evaluation>
+
+<Quality Assessment>
+Rate the chapter arc structure on each dimension (1-100 scale):
+
+1. **Chapter Organization** (1-100): Logical flow and structural coherence
+2. **Pacing Mastery** (1-100): Tension, momentum, and reader engagement  
+3. **Character Development** (1-100): Growth arcs and milestone placement
+4. **Plot Progression** (1-100): Story advancement and climax buildup
+5. **Thematic Consistency** (1-100): Theme integration across chapters
+6. **Reader Engagement** (1-100): Hook effectiveness and page-turning appeal
+7. **Chapter Purposes** (1-100): Clear function and narrative service
+8. **Overall Architecture** (1-100): Complete structural effectiveness
+
+**Overall Quality Score: X/100**
+
+## Key Recommendations
+1. [Top priority structural improvement]
+2. [Second priority pacing/character improvement]  
+3. [Third priority engagement improvement]
 
 ## Tournament Readiness
 **Advancement Recommendation:** [ADVANCE/REVISE/REJECT with brief justification]

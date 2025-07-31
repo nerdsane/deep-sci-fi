@@ -20,7 +20,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
         "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
         "chapter_arcs_creation": NARRATIVE_GENERATION_PROMPT,
-        "chapter_arcs_adjustment": NARRATIVE_GENERATION_PROMPT,
+        "chapter_arcs_adjustment": CHAPTER_ARCS_ADJUSTMENT_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
     }
@@ -68,6 +68,9 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         pass  # No context needed, instructions are embedded in prompt
     elif use_case == "chapter_rewriting":
         pass  # No context needed, instructions are embedded in prompt
+    elif use_case == "chapter_arcs_adjustment":
+        params["context"] = context_value  # User's original story concept for context
+        # source_content will contain the original chapter arcs to refine
     else:
         # For other use cases, keep generic context
         params["context"] = context_value
@@ -298,11 +301,6 @@ Completely rewrite the chapter to naturally integrate world-building, linguistic
 # Used in: get_generation_prompt() for "chapter_arcs_creation" and "chapter_arcs_adjustment" use cases
 NARRATIVE_GENERATION_PROMPT = """You are a master narrative architect creating a complete chapter-by-chapter structure using the {direction_name} approach.
 
-<Uniqueness Context>
-Session: {uniqueness_seed}
-This is a completely fresh creative session - ignore any previous chapter structures.
-</Uniqueness Context>
-
 <Approach>
 {direction_assumption}
 </Approach>
@@ -341,7 +339,6 @@ Create a detailed chapter-by-chapter arc structure that follows your narrative a
 Create a compelling, complete chapter arc structure that exemplifies your narrative approach.
 
 <Critical Constraints>
-- This is a FRESH chapter structure - avoid any references to previous structures
 - Focus on chapter-level organization, not scene-by-scene details
 - Ensure each chapter serves a clear narrative purpose
 - Balance plot advancement with character development
@@ -357,6 +354,71 @@ Create a compelling, complete chapter arc structure that exemplifies your narrat
 - Story should feel real, resonant and have personality
 - Use creative, original structural approaches
 </Reminders>
+"""
+
+# Used in: get_generation_prompt() for "chapter_arcs_adjustment" use case  
+CHAPTER_ARCS_ADJUSTMENT_PROMPT = """You are a master narrative architect refining an existing chapter-by-chapter structure using the {direction_name} approach.
+
+<Uniqueness Context>
+Session: {uniqueness_seed}
+This is a completely fresh refinement session - focus on targeted improvements.
+</Uniqueness Context>
+
+<Refinement Approach>
+{direction_assumption}
+</Refinement Approach>
+
+<Original Chapter Arcs to Refine>
+{source_content}
+</Original Chapter Arcs to Refine>
+
+<Story Context>
+{context}
+</Story Context>
+
+<World State Integration>
+{world_state_context}
+</World State Integration>
+
+Refine the existing chapter arc structure to better integrate with the evolved world state and address any structural weaknesses while preserving its core strengths.
+
+<Refinement Focus>
+- Enhance integration with world state and linguistic evolution
+- Improve pacing and narrative flow where needed
+- Strengthen character development progression
+- Better align chapters with thematic evolution
+- Address any structural inconsistencies or gaps
+- Maintain what already works well
+</Refinement Focus>
+
+<Chapter Arc Refinements Must Include>
+- Updated chapter-by-chapter breakdown with clear improvements
+- Enhanced plot point placement considering world evolution
+- Refined character development beats aligned with new context
+- Improved pacing strategy accounting for world changes
+- Strengthened thematic integration throughout structure
+- Better climactic buildup considering evolved world state
+
+Create a refined, enhanced chapter arc structure that builds on the original while integrating new world context.
+
+<Critical Constraints>
+- Build upon the existing structure rather than replacing it entirely
+- Preserve successful elements while improving problematic areas
+- Focus on targeted refinements, not wholesale reconstruction
+- Integrate world state evolution meaningfully into chapter progression
+- Maintain narrative coherence while enhancing contextual relevance
+</Critical Constraints>
+
+<Refinement Guidelines>
+- Identify what works well in the original and preserve it
+- Target specific areas that need improvement or integration
+- Consider how world evolution affects character motivations and conflicts
+- Ensure chapter purposes remain clear but evolved with context
+- Balance structural improvements with narrative continuity
+- Enhance reader engagement while maintaining story integrity
+- Address any pacing issues or character development gaps
+- Strengthen thematic consistency across the refined structure
+</Refinement Guidelines>
 """
 
 # === Linguistic Evolution Templates ===

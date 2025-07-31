@@ -25,6 +25,8 @@ class UseCase(Enum):
     CHAPTER_ARCS_ADJUSTMENT = "chapter_arcs_adjustment"
     LINGUISTIC_EVOLUTION = "linguistic_evolution"
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
+    CHAPTER_PLANNING = "chapter_planning"
+    CHAPTER_WORLD_RESEARCH = "chapter_world_research"
 
 # Model Templates - Define phase-specific model configurations
 MODEL_TEMPLATES = {
@@ -152,6 +154,26 @@ USE_CASE_CONFIGS = {
         "meta_prompt_key": "narrative_meta",
         "generation_prompt_key": "narrative_generation",
         "model_template": "creative"  # Use creative template for narrative revisions
+    },
+    "chapter_planning": {
+        "direction_type": "planning approaches",
+        "task_type": "chapter structure planning",
+        "reflection_domains": ["narrative_structure", "pacing", "character_development", "plot_progression", "thematic_alignment"],
+        "evolution_strategies": ["structure_enhancement"],  # Single evolution strategy
+        "output_name": "chapter_plans",
+        "meta_prompt_key": "narrative_meta",
+        "generation_prompt_key": "narrative_generation",
+        "model_template": "creative"  # Use creative template for planning
+    },
+    "chapter_world_research": {
+        "direction_type": "research approaches",
+        "task_type": "chapter-specific world research",
+        "reflection_domains": ["physics", "sociology", "technology", "economics", "culture"],
+        "evolution_strategies": ["research_depth_enhancement"],  # Single evolution strategy
+        "output_name": "chapter_world_contexts",
+        "meta_prompt_key": "research_meta",
+        "generation_prompt_key": "research_generation",
+        "model_template": "reasoning"  # Use reasoning template for research-focused tasks
     }
 }
 
@@ -334,7 +356,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment"],
+                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment", "chapter_planning", "chapter_world_research"],
                 "default": "scenario_generation",
                 "description": "Pre-configured use case template"
             }

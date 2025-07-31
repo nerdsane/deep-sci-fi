@@ -287,18 +287,6 @@ Research Approach: {direction2}
 - Practical application and real-world relevance
 </Evaluation Criteria>
 
-<Sci-Fi Requirements>
-Also evaluate based on sci-fi excellence:
-- Strength of central "what if?" speculation (1-10)
-- How effectively technology shapes world/characters (1-10)  
-- Internal consistency of established rules (1-10)
-- Balance between ideas and character development (1-10)
-- Character competence vs. knowledge limits (1-10)
-- Depth of human condition exploration (1-10)
-- Natural integration of social commentary (1-10)
-- Story-idea balance (technology serves narrative) (1-10)
-</Sci-Fi Requirements>
-
 <Process>
 Conduct a structured evaluation by answering these key questions:
 

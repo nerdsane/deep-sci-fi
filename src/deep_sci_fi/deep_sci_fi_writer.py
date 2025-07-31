@@ -19,6 +19,14 @@ from deep_sci_fi.prompts import (
     GENERATE_SCIENTIFIC_EXPLANATIONS_PROMPT,
     GENERATE_GLOSSARY_PROMPT,
     PROJECT_QUESTIONS_PROMPT,
+    # Multi-chapter book writing prompts
+    GENERATE_CHAPTER_WORLD_QUESTIONS_PROMPT,
+    CHECK_CHAPTER_COHERENCE_PROMPT,
+    VALIDATE_TRANSITIONS_PROMPT,
+    PLAN_REMAINING_CHAPTERS_PROMPT,
+    UPDATE_PLOT_CONTINUITY_PROMPT,
+    GENERATE_CHAPTER_SCIENTIFIC_EXPLANATIONS_PROMPT,
+    UPDATE_ACCUMULATED_GLOSSARY_PROMPT,
 )
 
 async def _run_deep_researcher(research_query: str, config: RunnableConfig) -> str:
@@ -64,8 +72,10 @@ class AgentState(TypedDict):
     baseline_world_state: Optional[str]
     storyline: Optional[str]
     storyline_options: Optional[dict]  # Co-scientist storyline options
-    storyline_choice: Optional[str]  # User's storyline selection (1 or 2)
+    storyline_choice: Optional[str]  # User's storyline selection (1, 2, or 3)
     chapter_arcs: Optional[str]
+    chapter_arcs_options: Optional[dict]  # Co-scientist chapter arcs options
+    chapter_arcs_choice: Optional[str]  # User's chapter arcs selection (1, 2, or 3)
     first_chapter: Optional[str]
     first_chapter_options: Optional[dict]  # Co-scientist first chapter options
     chapter_choice: Optional[str]  # User's chapter selection (1 or 2)
@@ -86,6 +96,27 @@ class AgentState(TypedDict):
     chapter_rewrite_choice: Optional[str]  # User's chapter rewrite selection (1 or 2)
     scientific_explanations: Optional[str]
     glossary: Optional[str]
+    # Multi-chapter book writing fields
+    next_action_choice: Optional[str]  # "project" or "write_book"
+    current_chapter_number: Optional[int]
+    total_planned_chapters: Optional[int]
+    previous_chapters: Optional[list]  # List of completed chapter contents
+    accumulated_scientific_explanations: Optional[str]
+    accumulated_glossary: Optional[str]
+    plot_continuity_tracker: Optional[str]
+    chapter_coherence_issues: Optional[str]
+    transition_quality_scores: Optional[list]  # List of transition quality scores
+    chapter_transitions: Optional[str]  # Transition notes between chapters
+    chapter_planning_options: Optional[dict]  # Co-scientist chapter planning options
+    chapter_planning_choice: Optional[str]
+    chapter_world_questions: Optional[str]
+    chapter_world_context: Optional[str]
+    current_chapter_draft: Optional[str]
+    chapter_coherence_report: Optional[str]
+    transition_validation_report: Optional[str]
+    book_compilation_complete: Optional[bool]
+    total_chapters_written: Optional[int]
+    average_transition_quality: Optional[float]
 
 # === Flexible Model Configuration System ===
 
@@ -357,11 +388,12 @@ async def create_storyline(state: AgentState, config: RunnableConfig):
         storyline_options = {
             "option_1": direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else "",
             "option_2": direction_winners[1].get("scenario_content", "") if len(direction_winners) > 1 else "",
+            "option_3": direction_winners[2].get("scenario_content", "") if len(direction_winners) > 2 else "",
             "options_metadata": direction_winners
         }
         
         print("--- Co-Scientist Storyline Competition Complete ---")
-        print("--- Two storyline options created. User selection required. ---")
+        print(f"--- {len(direction_winners)} storyline options created. User selection required. ---")
         
         return {
             "output_dir": output_dir,
@@ -393,6 +425,8 @@ def select_storyline(state: AgentState):
     print("--- Storyline Options Prepared for User Selection ---")
     print(f"Option 1: {options_metadata[0].get('research_direction', 'Unknown')}")
     print(f"Option 2: {options_metadata[1].get('research_direction', 'Unknown')}")
+    if len(options_metadata) > 2:
+        print(f"Option 3: {options_metadata[2].get('research_direction', 'Unknown')}")
     
     # This function prepares options for user selection via LangGraph Studio interrupt
     # The actual selection happens in the next node via interrupt_before mechanism
@@ -411,20 +445,31 @@ def process_storyline_selection(state: AgentState):
     
     option_1_content = storyline_options.get("option_1", "")
     option_2_content = storyline_options.get("option_2", "")
+    option_3_content = storyline_options.get("option_3", "")
     
     # Process user choice
     choice = str(user_choice).strip()
+    print(f"--- Processing user choice: '{choice}' ---")
+    print(f"Available options: option_1={len(option_1_content)} chars, option_2={len(option_2_content)} chars, option_3={len(option_3_content)} chars")
+    
     if choice == "1":
         selected_storyline = option_1_content
         selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
     elif choice == "2":
         selected_storyline = option_2_content
         selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    elif choice == "3":
+        selected_storyline = option_3_content
+        selected_option = options_metadata[2] if len(options_metadata) > 2 else {}
+        print(f"--- Option 3 selected. Content length: {len(selected_storyline)} characters ---")
     else:
         # Default to option 1 if invalid choice
         print(f"Invalid choice '{choice}', defaulting to Option 1")
         selected_storyline = option_1_content
         selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    if not selected_storyline:
+        raise ValueError(f"Selected storyline content is empty for choice '{choice}'. This indicates a problem with option storage.")
     
     save_output(output_dir, "00_01_selected_storyline.md", selected_storyline)
     
@@ -435,16 +480,64 @@ def process_storyline_selection(state: AgentState):
         "selected_scenario": selected_option.get('research_direction', 'Unknown')
     }
 
+def get_chapter_arcs_selection_input(state: AgentState):
+    """Get chapter arcs selection input from user."""
+    print("--- Chapter Arcs Options Available. User selection required. ---")
+    return {"messages": ["User must select from chapter arc options"]}
+
+def process_chapter_arcs_selection(state: AgentState):
+    """Process user's chapter arcs selection after interrupt."""
+    if not (output_dir := state.get("output_dir")) or not (chapter_arcs_options := state.get("chapter_arcs_options")):
+        raise ValueError("Required state 'output_dir' or 'chapter_arcs_options' is missing.")
+    
+    # Get user's choice from state (will be set by LangGraph Studio)
+    user_choice = state.get("chapter_arcs_choice", "1")  # Default to option 1
+    options_metadata = chapter_arcs_options.get("options_metadata", [])
+    
+    option_1_content = chapter_arcs_options.get("option_1", "")
+    option_2_content = chapter_arcs_options.get("option_2", "")
+    option_3_content = chapter_arcs_options.get("option_3", "")
+    
+    # Process user choice
+    choice = str(user_choice).strip()
+    if choice == "1":
+        selected_chapter_arcs = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    elif choice == "2":
+        selected_chapter_arcs = option_2_content
+        selected_option = options_metadata[1] if len(options_metadata) > 1 else {}
+    elif choice == "3":
+        selected_chapter_arcs = option_3_content
+        selected_option = options_metadata[2] if len(options_metadata) > 2 else {}
+    else:
+        # Default to option 1 if invalid choice
+        print(f"Invalid choice '{choice}', defaulting to Option 1")
+        selected_chapter_arcs = option_1_content
+        selected_option = options_metadata[0] if len(options_metadata) > 0 else {}
+    
+    save_output(output_dir, "00_02_selected_chapter_arcs.md", selected_chapter_arcs)
+    
+    print(f"--- Chapter Arcs Selected: {selected_option.get('research_direction', 'Unknown')} ---")
+    
+    return {
+        "chapter_arcs": selected_chapter_arcs
+    }
+
 async def create_chapter_arcs(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (storyline := state.get("storyline")):
         raise ValueError("Required state 'output_dir' or 'storyline' is missing.")
     
     print("--- Creating Chapter Arcs with Co-Scientist Competition ---")
     
+    # Get initial user input for context
+    initial_input = state.get("input", "")
+    
     # Use co_scientist for competitive chapter arcs creation
     co_scientist_input = CoScientistConfiguration.create_input_state(
         use_case=UseCase.CHAPTER_ARCS_CREATION,
-        storyline=storyline
+        context=initial_input,  # Pass user's original story concept
+        reference_material=storyline,  # Pass selected storyline as reference
+        storyline=storyline  # Keep for backward compatibility
     )
     
     # Configure co_scientist for full creative competition
@@ -480,15 +573,28 @@ async def create_chapter_arcs(state: AgentState, config: RunnableConfig):
             winner_details = format_co_scientist_winner_details(winner, f"chapter_arcs_option_{i}")
             save_output(output_dir, f"00_02_chapter_arcs_option_{i+1}.md", winner_details)
     
-    # Format options for user selection
+    # Extract direction winners for user selection
     direction_winners = co_scientist_result.get("direction_winners", [])
-    formatted_options = format_chapter_arcs_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
-    
-    print("--- Chapter Arcs Created ---")
-    return {
-        "chapter_arcs_options": formatted_options,
-        "chapter_arcs": direction_winners[0]["scenario_content"] if direction_winners else "No chapter arcs generated."
-    }
+    if direction_winners:
+        # Format options for user presentation
+        formatted_options = format_chapter_arcs_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
+        save_output(output_dir, "00_02_chapter_arcs_options.md", formatted_options)
+        
+        # Store options in state for user selection
+        chapter_arcs_options = {
+            "option_1": direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else "",
+            "option_2": direction_winners[1].get("scenario_content", "") if len(direction_winners) > 1 else "",
+            "option_3": direction_winners[2].get("scenario_content", "") if len(direction_winners) > 2 else "",
+            "options_metadata": direction_winners
+        }
+        
+        print("--- Co-Scientist Chapter Arcs Competition Complete ---")
+        print(f"--- {len(direction_winners)} chapter arc options created. User selection required. ---")
+        
+        return {"chapter_arcs_options": chapter_arcs_options, "chapter_arcs": None}  # No auto-selection
+    else:
+        print("--- No chapter arcs generated. ---")
+        return {"chapter_arcs": "No chapter arcs generated.", "chapter_arcs_options": None}
 
 async def write_first_chapter(state: AgentState, config: RunnableConfig):
     if not (output_dir := state.get("output_dir")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")):
@@ -1084,25 +1190,18 @@ def process_world_scenario_selection(state: AgentState):
 
 async def world_projection_deep_research(state: AgentState, config: RunnableConfig):
     """Use the co-scientist selected scenario as the baseline world state since it's already research-backed."""
-    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")):
+    if not (output_dir := state.get("output_dir")) or not (target_year := state.get("target_year")) or not (loop_count := state.get("loop_count") is not None) or not (selected_scenario := state.get("selected_scenario")) or not (world_building_scenarios := state.get("world_building_scenarios")):
         raise ValueError("Required state for world projection research is missing.")
     
     print("--- Using Co-Scientist Selected Scenario as Baseline (Already Research-Backed) ---")
     
-    # Use the selected scenario as the baseline world state since it's already comprehensive
+    # Use the selected scenario content as the baseline world state since it's already comprehensive
     world_state = f"# Baseline World State for {target_year}\n\n"
-    world_state += "This world state is derived from co-scientist competition results and is already research-backed.\n\n"
-    world_state += f"## Selected Scenario\n\n{state['selected_scenario']}\n\n"
-    world_state += "Note: This scenario has undergone:\n"
-    world_state += "- Deep literature research by specialized teams\n"
-    world_state += "- Expert critique by domain specialists\n" 
-    world_state += "- Competitive tournament selection\n"
-    world_state += "- Evolution and improvement phases\n"
-    world_state += "- Meta-review synthesis\n\n"
-    world_state += "No additional research is required as the scenario is scientifically grounded and comprehensive."
+    world_state += f"## Selected Scenario: {selected_scenario}\n\n"
+    world_state += world_building_scenarios
     
     save_output(output_dir, f"{state['loop_count']:02d}_07_world_state_{target_year}.md", world_state)
-    return {"baseline_world_state": state["selected_scenario"]}
+    return {"baseline_world_state": world_building_scenarios}
 
 async def linguistic_evolution_research(state: AgentState, config: RunnableConfig):
     """Uses co_scientist to research the linguistic evolution of the world with competitive analysis."""
@@ -1404,10 +1503,14 @@ async def adjust_chapter_arcs(state: AgentState, config: RunnableConfig):
     
     print("--- Adjusting Chapter Arcs with Co-Scientist Competition ---")
     
+    # Get initial user input for context
+    initial_input = state.get("input", "")
+    
     # Use co_scientist for competitive chapter arcs adjustment
     co_scientist_input = CoScientistConfiguration.create_input_state(
         use_case=UseCase.CHAPTER_ARCS_ADJUSTMENT,
-        reference_material=f"Original Chapter Arcs: {chapter_arcs}",
+        context=initial_input,  # Pass user's original story concept
+        reference_material=chapter_arcs,  # Pass original chapter arcs to refine
         storyline=revised_storyline,
         baseline_world_state=baseline_world_state,
         linguistic_evolution=linguistic_evolution
@@ -1621,6 +1724,688 @@ def compile_baseline_world_state(state: AgentState):
     save_output(output_dir, f"{state['loop_count']:02d}_14_baseline_world_state.md", baseline_content)
     return {"baseline_world_state": baseline_content, "loop_count": state["loop_count"] + 1}
 
+# === Multi-Chapter Book Writing Workflow Nodes ===
+
+def choose_next_action(state: AgentState):
+    """Present user with choice to project further into future or write remaining chapters."""
+    message = AIMessage(content="Choose your next action:\n1. Project the world further into the future (continue current loop)\n2. Write the remaining chapters of the book\n\nPlease provide your choice in the `next_action_choice` field: 'project' or 'write_book'")
+    return {"messages": [message]}
+
+async def plan_remaining_chapters(state: AgentState, config: RunnableConfig):
+    """Use Co-Scientist to plan the structure for remaining chapters."""
+    if not (output_dir := state.get("output_dir")) or not (storyline := state.get("storyline")) or not (chapter_arcs := state.get("chapter_arcs")) or not (first_chapter := state.get("revised_first_chapter", state.get("first_chapter"))) or not (baseline_world_state := state.get("baseline_world_state")):
+        raise ValueError("Required state for planning remaining chapters is missing.")
+    
+    print("--- Planning Remaining Chapters with Co-Scientist Competition ---")
+    
+    # Use co_scientist for competitive chapter planning
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_PLANNING,
+        reference_material=f"First Chapter: {first_chapter}",
+        storyline=storyline,
+        chapter_arcs=chapter_arcs,
+        baseline_world_state=baseline_world_state
+    )
+    
+    # Configure co_scientist for planning competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": ModelConfig.get_model_string("general_creative"),
+        "general_model": ModelConfig.get_model_string("general_creative"),
+        "use_case": "chapter_planning",
+        "process_depth": "standard",
+        "population_scale": "light",
+        "use_deep_researcher": False,
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": "chapter_planning"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save and process results
+    if model_config.get("save_intermediate_results", True):
+        competition_summary = co_scientist_result.get("competition_summary", "")
+        save_output(output_dir, "15_chapter_planning_competition_summary.md", competition_summary)
+        
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, "15_chapter_planning_details.md", detailed_results)
+        
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners, 1):
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_planning_option_{i}")
+            save_output(output_dir, f"15_chapter_planning_option_{i}_full.md", winner_details)
+    
+    # Store options for user selection
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        formatted_options = format_chapter_planning_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
+        save_output(output_dir, "15_chapter_planning_options.md", formatted_options)
+        
+        chapter_planning_options = {
+            "option_1": direction_winners[0].get("scenario_content", "") if len(direction_winners) > 0 else "",
+            "option_2": direction_winners[1].get("scenario_content", "") if len(direction_winners) > 1 else "",
+            "options_metadata": direction_winners
+        }
+        
+        # Extract total chapters from the winning plan and initialize chapter progression
+        plan_content = direction_winners[0].get("scenario_content", "")
+        total_chapters = extract_total_chapters_from_plan(plan_content)
+        
+        print(f"--- Chapter Planning Complete: {total_chapters} total chapters planned ---")
+        
+        return {
+            "chapter_planning_options": chapter_planning_options,
+            "total_planned_chapters": total_chapters,
+            "current_chapter_number": 2,  # Starting with chapter 2 (first chapter already done)
+            "previous_chapters": [first_chapter],
+            "accumulated_scientific_explanations": state.get("scientific_explanations", ""),
+            "accumulated_glossary": state.get("glossary", ""),
+            "plot_continuity_tracker": f"Chapter 1 Complete: {first_chapter[:200]}...",
+            "transition_quality_scores": []
+        }
+    else:
+        raise RuntimeError("Co-scientist chapter planning competition failed to produce direction winners.")
+
+def extract_total_chapters_from_plan(plan_content: str) -> int:
+    """Extract the total number of chapters from the planning content."""
+    import re
+    # Look for patterns like "12 chapters" or "Chapter 12"
+    matches = re.findall(r'(?:chapter\s*(\d+)|(\d+)\s*chapters)', plan_content.lower())
+    if matches:
+        # Find the highest number mentioned
+        numbers = [int(match[0] or match[1]) for match in matches if match[0] or match[1]]
+        return max(numbers) if numbers else 10
+    return 10  # Default fallback
+
+def generate_chapter_world_questions(state: AgentState):
+    """Generate research questions specific to the current chapter."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (baseline_world_state := state.get("baseline_world_state")):
+        raise ValueError("Required state for generating chapter world questions is missing.")
+    
+    # Get the current chapter arc from the planning
+    chapter_planning = state.get("chapter_planning_options", {}).get("option_1", "")
+    current_chapter_arc = extract_chapter_arc(chapter_planning, current_chapter_number)
+    
+    # Summarize previous chapters
+    previous_chapters = state.get("previous_chapters", [])
+    previous_chapters_summary = "\n\n".join([f"Chapter {i+1}: {ch[:300]}..." for i, ch in enumerate(previous_chapters)])
+    
+    prompt = ChatPromptTemplate.from_template(GENERATE_CHAPTER_WORLD_QUESTIONS_PROMPT)
+    response = general_model.invoke(prompt.format(
+        chapter_number=current_chapter_number,
+        current_chapter_arc=current_chapter_arc,
+        baseline_world_state=baseline_world_state,
+        previous_chapters_summary=previous_chapters_summary
+    ))
+    
+    content = response.content
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_01_world_questions.md", content)
+    print(f"--- Chapter {current_chapter_number} World Questions Generated ---")
+    return {"chapter_world_questions": content}
+
+def extract_chapter_arc(planning_content: str, chapter_number: int) -> str:
+    """Extract the specific arc for the current chapter from the planning content."""
+    import re
+    # Look for chapter-specific content
+    pattern = rf'chapter\s*{chapter_number}[:\s]([^#]*?)(?=chapter\s*{chapter_number + 1}|$)'
+    match = re.search(pattern, planning_content.lower())
+    if match:
+        return match.group(1).strip()
+    return f"Chapter {chapter_number} content from overall plan"
+
+async def chapter_world_research(state: AgentState, config: RunnableConfig):
+    """Use Co-Scientist with Deep Research to research chapter-specific world context."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (chapter_world_questions := state.get("chapter_world_questions")) or not (baseline_world_state := state.get("baseline_world_state")):
+        raise ValueError("Required state for chapter world research is missing.")
+    
+    print(f"--- Researching World Context for Chapter {current_chapter_number} ---")
+    
+    # Use co_scientist for competitive chapter world research
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_WORLD_RESEARCH,
+        context=chapter_world_questions,
+        reference_material=f"Baseline World State: {baseline_world_state}",
+        target_year=state.get("target_year"),
+        baseline_world_state=baseline_world_state
+    )
+    
+    # Configure co_scientist for research competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": ModelConfig.get_model_string("world_research"),
+        "general_model": ModelConfig.get_model_string("world_research"),
+        "use_case": "chapter_world_research",
+        "process_depth": "standard",
+        "population_scale": "light",
+        "use_deep_researcher": True,  # Enable research for world context
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": f"chapter_{current_chapter_number}_world_research"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save and process results
+    if model_config.get("save_intermediate_results", True):
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_02_world_research_details.md", detailed_results)
+        
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners, 1):
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_world_context_option_{i}")
+            save_output(output_dir, f"chapter_{current_chapter_number:02d}_02_world_context_option_{i}.md", winner_details)
+    
+    # Use the top research result as chapter world context
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        chapter_world_context = direction_winners[0].get("scenario_content", "")
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_02_selected_world_context.md", chapter_world_context)
+        
+        print(f"--- Chapter {current_chapter_number} World Research Complete ---")
+        return {"chapter_world_context": chapter_world_context}
+    else:
+        raise RuntimeError(f"Co-scientist chapter world research for chapter {current_chapter_number} failed to produce results.")
+
+async def write_next_chapter(state: AgentState, config: RunnableConfig):
+    """Use Co-Scientist to write the next chapter with full context."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (storyline := state.get("storyline")) or not (chapter_world_context := state.get("chapter_world_context")):
+        raise ValueError("Required state for writing next chapter is missing.")
+    
+    print(f"--- Writing Chapter {current_chapter_number} with Co-Scientist Competition ---")
+    
+    # Prepare comprehensive context for chapter writing
+    previous_chapters = state.get("previous_chapters", [])
+    previous_chapters_context = "\n\n".join([f"Chapter {i+1}:\n{ch}" for i, ch in enumerate(previous_chapters)])
+    
+    # Get chapter planning context
+    chapter_planning = state.get("chapter_planning_options", {}).get("option_1", "")
+    current_chapter_arc = extract_chapter_arc(chapter_planning, current_chapter_number)
+    
+    # Use co_scientist for competitive chapter writing
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_WRITING,
+        context=f"Chapter {current_chapter_number} Arc: {current_chapter_arc}",
+        storyline=storyline,
+        reference_material=f"Previous Chapters: {previous_chapters_context}\n\nWorld Context: {chapter_world_context}",
+        baseline_world_state=state.get("baseline_world_state"),
+        linguistic_evolution=state.get("linguistic_evolution")
+    )
+    
+    # Configure co_scientist for chapter writing competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": ModelConfig.get_model_string("chapter_writing"),
+        "general_model": ModelConfig.get_model_string("chapter_writing"),
+        "use_case": "chapter_writing",
+        "process_depth": "standard",
+        "population_scale": "light",
+        "use_deep_researcher": False,
+        "reflection_domains": ["prose_quality", "scene_development", "character_voice", "pacing", "atmosphere", "world_integration"],
+        "world_state_context": f"Chapter World Context: {chapter_world_context}",
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": f"chapter_{current_chapter_number}_writing"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save and process results
+    if model_config.get("save_intermediate_results", True):
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_03_writing_details.md", detailed_results)
+        
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners, 1):
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_{current_chapter_number}_option_{i}")
+            save_output(output_dir, f"chapter_{current_chapter_number:02d}_03_chapter_option_{i}.md", winner_details)
+    
+    # Use the top result as the chapter draft
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        chapter_draft = direction_winners[0].get("scenario_content", "")
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_03_draft.md", chapter_draft)
+        
+        print(f"--- Chapter {current_chapter_number} Draft Complete ---")
+        return {"current_chapter_draft": chapter_draft}
+    else:
+        raise RuntimeError(f"Co-scientist chapter writing for chapter {current_chapter_number} failed to produce results.")
+
+def check_chapter_coherence(state: AgentState):
+    """Check the written chapter for coherence with previous chapters and storyline."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for checking chapter coherence is missing.")
+    
+    print(f"--- Checking Chapter {current_chapter_number} Coherence ---")
+    
+    # Prepare context for coherence check
+    previous_chapters = state.get("previous_chapters", [])
+    previous_chapters_context = "\n\n".join([f"Chapter {i+1}:\n{ch}" for i, ch in enumerate(previous_chapters)])
+    
+    prompt = ChatPromptTemplate.from_template(CHECK_CHAPTER_COHERENCE_PROMPT)
+    response = general_model.invoke(prompt.format(
+        current_chapter=current_chapter_draft,
+        storyline=state.get("storyline", ""),
+        previous_chapters=previous_chapters_context,
+        baseline_world_state=state.get("baseline_world_state", ""),
+        plot_continuity_tracker=state.get("plot_continuity_tracker", "")
+    ))
+    
+    coherence_report = response.content
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_04_coherence_check.md", coherence_report)
+    
+    # Extract coherence score (simple pattern matching)
+    import re
+    score_match = re.search(r'score[:\s]*(\d+)', coherence_report.lower())
+    coherence_score = int(score_match.group(1)) if score_match else 5
+    
+    print(f"--- Chapter {current_chapter_number} Coherence Score: {coherence_score}/10 ---")
+    
+    return {
+        "chapter_coherence_report": coherence_report,
+        "chapter_coherence_score": coherence_score
+    }
+
+def validate_transitions(state: AgentState):
+    """Validate the transition from the previous chapter to the current chapter."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for validating transitions is missing.")
+    
+    # Skip transition validation for chapter 2 (no previous chapter to transition from)
+    if current_chapter_number <= 2:
+        print(f"--- Skipping Transition Validation for Chapter {current_chapter_number} (First/Second Chapter) ---")
+        return {"transition_validation_report": "N/A - No previous chapter", "transition_score": 10}
+    
+    print(f"--- Validating Chapter {current_chapter_number} Transition ---")
+    
+    # Get previous chapter ending and current chapter beginning
+    previous_chapters = state.get("previous_chapters", [])
+    if len(previous_chapters) < current_chapter_number - 1:
+        print(f"--- Warning: Not enough previous chapters for transition validation ---")
+        return {"transition_validation_report": "Warning: Insufficient previous chapters", "transition_score": 5}
+    
+    previous_chapter = previous_chapters[-1]  # Last completed chapter
+    previous_chapter_ending = previous_chapter[-1000:]  # Last 1000 characters
+    current_chapter_beginning = current_chapter_draft[:1000]  # First 1000 characters
+    
+    prompt = ChatPromptTemplate.from_template(VALIDATE_TRANSITIONS_PROMPT)
+    response = general_model.invoke(prompt.format(
+        previous_chapter_ending=previous_chapter_ending,
+        current_chapter_beginning=current_chapter_beginning,
+        storyline=state.get("storyline", "")
+    ))
+    
+    transition_report = response.content
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_05_transition_validation.md", transition_report)
+    
+    # Extract transition score
+    import re
+    score_match = re.search(r'score[:\s]*(\d+)', transition_report.lower())
+    transition_score = int(score_match.group(1)) if score_match else 5
+    
+    print(f"--- Chapter {current_chapter_number} Transition Score: {transition_score}/10 ---")
+    
+    return {
+        "transition_validation_report": transition_report,
+        "transition_score": transition_score
+    }
+
+async def rewrite_chapter_for_coherence(state: AgentState, config: RunnableConfig):
+    """Rewrite the chapter to address coherence or transition issues."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for rewriting chapter is missing.")
+    
+    print(f"--- Rewriting Chapter {current_chapter_number} for Improved Coherence ---")
+    
+    # Prepare context including the issues found
+    coherence_report = state.get("chapter_coherence_report", "")
+    transition_report = state.get("transition_validation_report", "")
+    previous_chapters = state.get("previous_chapters", [])
+    previous_chapters_context = "\n\n".join([f"Chapter {i+1}:\n{ch}" for i, ch in enumerate(previous_chapters)])
+    
+    # Use co_scientist for competitive chapter rewriting
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.CHAPTER_REWRITING,
+        reference_material=f"Original Chapter: {current_chapter_draft}\n\nCoherence Issues: {coherence_report}\n\nTransition Issues: {transition_report}",
+        storyline=state.get("storyline"),
+        baseline_world_state=state.get("baseline_world_state"),
+        linguistic_evolution=state.get("linguistic_evolution"),
+        revised_storyline=state.get("revised_storyline", state.get("storyline")),
+        revised_chapter_arcs=state.get("revised_chapter_arcs", state.get("chapter_arcs"))
+    )
+    
+    # Configure co_scientist for rewriting competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": ModelConfig.get_model_string("chapter_writing"),
+        "general_model": ModelConfig.get_model_string("chapter_writing"),
+        "use_case": "chapter_rewriting",
+        "process_depth": "standard",
+        "population_scale": "light",
+        "use_deep_researcher": False,
+        "reflection_domains": ["narrative_structure", "world_building", "character_development", "prose_style", "world_integration", "coherence_improvement"],
+        "world_state_context": f"Previous Chapters: {previous_chapters_context}\n\nCoherence Requirements: {coherence_report}",
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": f"chapter_{current_chapter_number}_rewrite"
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save and process results
+    if model_config.get("save_intermediate_results", True):
+        detailed_results = format_detailed_competition_results(co_scientist_result)
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_06_rewrite_details.md", detailed_results)
+        
+        direction_winners = co_scientist_result.get("direction_winners", [])
+        for i, winner in enumerate(direction_winners, 1):
+            winner_details = format_co_scientist_winner_details(winner, f"chapter_{current_chapter_number}_rewrite_option_{i}")
+            save_output(output_dir, f"chapter_{current_chapter_number:02d}_06_rewrite_option_{i}.md", winner_details)
+    
+    # Use the top result as the improved chapter
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        improved_chapter = direction_winners[0].get("scenario_content", "")
+        save_output(output_dir, f"chapter_{current_chapter_number:02d}_06_improved_draft.md", improved_chapter)
+        
+        print(f"--- Chapter {current_chapter_number} Rewrite Complete ---")
+        return {"current_chapter_draft": improved_chapter}
+    else:
+        print(f"--- Chapter {current_chapter_number} Rewrite Failed, Using Original ---")
+        return {"current_chapter_draft": current_chapter_draft}
+
+def generate_chapter_scientific_explanations(state: AgentState):
+    """Generate scientific explanations for concepts in the current chapter."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for generating chapter scientific explanations is missing.")
+    
+    print(f"--- Generating Scientific Explanations for Chapter {current_chapter_number} ---")
+    
+    prompt = ChatPromptTemplate.from_template(GENERATE_CHAPTER_SCIENTIFIC_EXPLANATIONS_PROMPT)
+    response = general_model.invoke(prompt.format(
+        chapter_number=current_chapter_number,
+        chapter_content=current_chapter_draft,
+        baseline_world_state=state.get("baseline_world_state", ""),
+        previous_explanations=state.get("accumulated_scientific_explanations", "")
+    ))
+    
+    chapter_explanations = response.content
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_07_scientific_explanations.md", chapter_explanations)
+    
+    print(f"--- Chapter {current_chapter_number} Scientific Explanations Generated ---")
+    return {"chapter_scientific_explanations": chapter_explanations}
+
+def update_accumulated_materials(state: AgentState):
+    """Update accumulated scientific explanations and glossary with the current chapter's materials."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for updating accumulated materials is missing.")
+    
+    print(f"--- Updating Accumulated Materials for Chapter {current_chapter_number} ---")
+    
+    # Update accumulated scientific explanations
+    current_explanations = state.get("chapter_scientific_explanations", "")
+    previous_explanations = state.get("accumulated_scientific_explanations", "")
+    
+    updated_explanations = f"{previous_explanations}\n\n## Chapter {current_chapter_number} Scientific Explanations\n\n{current_explanations}" if previous_explanations else f"## Chapter {current_chapter_number} Scientific Explanations\n\n{current_explanations}"
+    
+    # Update accumulated glossary
+    prompt = ChatPromptTemplate.from_template(UPDATE_ACCUMULATED_GLOSSARY_PROMPT)
+    response = general_model.invoke(prompt.format(
+        chapter_number=current_chapter_number,
+        chapter_content=current_chapter_draft,
+        existing_glossary=state.get("accumulated_glossary", ""),
+        baseline_world_state=state.get("baseline_world_state", ""),
+        linguistic_evolution=state.get("linguistic_evolution", "")
+    ))
+    
+    updated_glossary = response.content
+    
+    # Update plot continuity tracker
+    continuity_prompt = ChatPromptTemplate.from_template(UPDATE_PLOT_CONTINUITY_PROMPT)
+    continuity_response = general_model.invoke(continuity_prompt.format(
+        current_tracker=state.get("plot_continuity_tracker", ""),
+        new_chapter=current_chapter_draft,
+        chapter_number=current_chapter_number
+    ))
+    
+    updated_plot_tracker = continuity_response.content
+    
+    # Save updated materials
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_08_updated_explanations.md", updated_explanations)
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_08_updated_glossary.md", updated_glossary)
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_08_updated_plot_tracker.md", updated_plot_tracker)
+    
+    print(f"--- Chapter {current_chapter_number} Materials Updated ---")
+    
+    return {
+        "accumulated_scientific_explanations": updated_explanations,
+        "accumulated_glossary": updated_glossary,
+        "plot_continuity_tracker": updated_plot_tracker
+    }
+
+def advance_to_next_chapter(state: AgentState):
+    """Finalize the current chapter and advance to the next chapter."""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+        raise ValueError("Required state for advancing to next chapter is missing.")
+    
+    print(f"--- Finalizing Chapter {current_chapter_number} ---")
+    
+    # Add current chapter to previous chapters list
+    previous_chapters = state.get("previous_chapters", [])
+    previous_chapters.append(current_chapter_draft)
+    
+    # Add transition score to the list
+    transition_scores = state.get("transition_quality_scores", [])
+    transition_score = state.get("transition_score", 10)
+    transition_scores.append(transition_score)
+    
+    # Save the completed chapter
+    save_output(output_dir, f"chapter_{current_chapter_number:02d}_FINAL.md", current_chapter_draft)
+    
+    # Increment chapter number
+    next_chapter_number = current_chapter_number + 1
+    
+    print(f"--- Chapter {current_chapter_number} Finalized, Moving to Chapter {next_chapter_number} ---")
+    
+    return {
+        "previous_chapters": previous_chapters,
+        "current_chapter_number": next_chapter_number,
+        "transition_quality_scores": transition_scores,
+        "current_chapter_draft": None,  # Clear current draft
+        "chapter_coherence_report": None,
+        "transition_validation_report": None,
+        "chapter_scientific_explanations": None,
+        "chapter_world_questions": None,
+        "chapter_world_context": None
+    }
+
+# Helper functions for chapter planning
+def format_chapter_planning_options_for_selection(direction_winners: list, competition_summary: str) -> str:
+    """Format chapter planning options for user selection."""
+    content = "# Chapter Planning Options from Co-Scientist Competition\n\n"
+    content += "Multiple planning approaches competed and are now available for your selection.\n\n"
+    
+    content += "## Competition Overview\n"
+    content += competition_summary + "\n\n"
+    
+    for i, winner in enumerate(direction_winners, 1):
+        content += f"## Option {i}: {winner.get('research_direction', 'Unknown Approach')}\n\n"
+        content += f"**Core Approach:** {winner.get('core_assumption', 'No assumption available')}\n\n"
+        content += f"**Selection Reasoning:** {winner.get('selection_reasoning', 'Tournament winner')}\n\n"
+        content += "### Full Chapter Plan:\n\n"
+        content += f"{winner.get('scenario_content', 'No content available')}\n\n"
+        content += "---\n\n"
+    
+    content += "## Selection Instructions\n"
+    content += f"Please review all {len(direction_winners)} chapter planning options above and choose your preferred approach. "
+    content += "You can select one option as-is, or combine elements from multiple approaches.\n\n"
+    content += "To continue, the system will automatically use the top-ranked option from the competition.\n"
+    
+    return content
+
+# Conditional functions for workflow control
+def check_if_rewrite_needed(state: AgentState):
+    """Check if chapter needs rewriting based on coherence and transition scores."""
+    coherence_score = state.get("chapter_coherence_score", 10)
+    transition_score = state.get("transition_score", 10)
+    
+    # Rewrite if either score is below 7
+    if coherence_score < 7 or transition_score < 7:
+        print(f"--- Chapter needs rewriting (Coherence: {coherence_score}, Transition: {transition_score}) ---")
+        return "rewrite_chapter_for_coherence"
+    else:
+        print(f"--- Chapter quality acceptable (Coherence: {coherence_score}, Transition: {transition_score}) ---")
+        return "generate_chapter_scientific_explanations"
+
+def compile_complete_book(state: AgentState):
+    """Compile all chapters into a single complete book file."""
+    if not (output_dir := state.get("output_dir")) or not (previous_chapters := state.get("previous_chapters")):
+        raise ValueError("Required state for compiling complete book is missing.")
+    
+    print("--- Compiling Complete Book ---")
+    
+    # Gather all components
+    storyline = state.get("revised_storyline", state.get("storyline", ""))
+    chapter_arcs = state.get("revised_chapter_arcs", state.get("chapter_arcs", ""))
+    baseline_world_state = state.get("baseline_world_state", "")
+    linguistic_evolution = state.get("linguistic_evolution", "")
+    accumulated_scientific_explanations = state.get("accumulated_scientific_explanations", "")
+    accumulated_glossary = state.get("accumulated_glossary", "")
+    plot_continuity_tracker = state.get("plot_continuity_tracker", "")
+    total_chapters = len(previous_chapters)
+    transition_scores = state.get("transition_quality_scores", [])
+    
+    # Calculate average transition quality
+    avg_transition_score = sum(transition_scores) / len(transition_scores) if transition_scores else "N/A"
+    
+    # Build complete book content
+    complete_book = f"""# Complete Science Fiction Novel
+Generated by Deep Sci-Fi Writer with Co-Scientist Competition
+
+## Metadata
+- **Total Chapters:** {total_chapters}
+- **Target Year:** {state.get("target_year", "Future")}
+- **Average Transition Quality:** {avg_transition_score}
+- **Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+---
+
+## Storyline
+
+{storyline}
+
+---
+
+## Chapter Structure
+
+{chapter_arcs}
+
+---
+
+## The Complete Novel
+
+"""
+    
+    # Add all chapters
+    for i, chapter in enumerate(previous_chapters, 1):
+        complete_book += f"""
+### Chapter {i}
+
+{chapter}
+
+---
+
+"""
+    
+    # Add supporting materials
+    complete_book += f"""
+## Supporting Materials
+
+### World State
+{baseline_world_state}
+
+### Linguistic Evolution
+{linguistic_evolution}
+
+### Scientific Explanations
+{accumulated_scientific_explanations}
+
+### Glossary
+{accumulated_glossary}
+
+### Plot Continuity Summary
+{plot_continuity_tracker}
+
+---
+
+*This novel was generated using the Deep Sci-Fi Writer system with Co-Scientist competitive multi-agent generation, ensuring scientific grounding and narrative coherence.*
+"""
+    
+    # Save the complete book
+    save_output(output_dir, "COMPLETE_BOOK.md", complete_book)
+    
+    # Also save a version with just the story (no supporting materials)
+    story_only = f"""# {storyline.split('.')[0] if storyline else 'Science Fiction Novel'}
+
+"""
+    
+    for i, chapter in enumerate(previous_chapters, 1):
+        story_only += f"""
+## Chapter {i}
+
+{chapter}
+
+"""
+    
+    save_output(output_dir, "STORY_ONLY.md", story_only)
+    
+    print(f"--- Complete Book Compiled: {total_chapters} chapters ---")
+    print(f"--- Files saved: COMPLETE_BOOK.md, STORY_ONLY.md ---")
+    
+    return {
+        "book_compilation_complete": True,
+        "total_chapters_written": total_chapters,
+        "average_transition_quality": avg_transition_score
+    }
+
+def check_if_more_chapters(state: AgentState):
+    """Check if there are more chapters to write."""
+    current_chapter_number = state.get("current_chapter_number", 2)
+    total_planned_chapters = state.get("total_planned_chapters", 10)
+    
+    if current_chapter_number <= total_planned_chapters:
+        print(f"--- Continuing to Chapter {current_chapter_number} of {total_planned_chapters} ---")
+        return "generate_chapter_world_questions"
+    else:
+        print(f"--- Book Complete: All {total_planned_chapters} chapters written ---")
+        return "compile_complete_book"
+
+def process_next_action_choice(state: AgentState):
+    """Process user's choice between projecting further or writing the book."""
+    user_choice = state.get("next_action_choice", "project")  # Default to projection
+    
+    if user_choice.lower() == "write_book":
+        print("--- User chose to write the remaining chapters ---")
+        return {"next_action_choice": "write_book"}
+    else:
+        print("--- User chose to project further into the future ---")
+        return {"next_action_choice": "project"}
+
+def should_loop_or_write_book(state: AgentState):
+    """Determine whether to continue projection loop or start book writing."""
+    user_choice = state.get("next_action_choice", "project")
+    
+    if user_choice == "write_book":
+        return "plan_remaining_chapters"
+    elif user_choice == "project":
+        return "prompt_for_projection_year" 
+    else:
+        return END
+
 def should_loop(state: AgentState):
     if state.get("loop_count", 0) < 5:
         return "prompt_for_projection_year"
@@ -1634,6 +2419,8 @@ workflow.add_node("select_storyline", select_storyline)
 workflow.add_node("get_storyline_selection_input", lambda state: None)  # Dummy node for interrupt
 workflow.add_node("process_storyline_selection", process_storyline_selection)
 workflow.add_node("create_chapter_arcs", create_chapter_arcs)
+workflow.add_node("get_chapter_arcs_selection_input", get_chapter_arcs_selection_input)  # Dummy node for interrupt
+workflow.add_node("process_chapter_arcs_selection", process_chapter_arcs_selection)
 workflow.add_node("write_first_chapter", write_first_chapter)
 workflow.add_node("select_first_chapter", select_first_chapter)
 workflow.add_node("get_chapter_selection_input", lambda state: None)  # Dummy node for interrupt
@@ -1669,7 +2456,9 @@ workflow.add_edge("create_storyline", "select_storyline")
 workflow.add_edge("select_storyline", "get_storyline_selection_input")
 workflow.add_edge("get_storyline_selection_input", "process_storyline_selection")
 workflow.add_edge("process_storyline_selection", "create_chapter_arcs")
-workflow.add_edge("create_chapter_arcs", "write_first_chapter")
+workflow.add_edge("create_chapter_arcs", "get_chapter_arcs_selection_input")
+workflow.add_edge("get_chapter_arcs_selection_input", "process_chapter_arcs_selection")
+workflow.add_edge("process_chapter_arcs_selection", "write_first_chapter")
 workflow.add_edge("write_first_chapter", "select_first_chapter")
 workflow.add_edge("select_first_chapter", "get_chapter_selection_input")
 workflow.add_edge("get_chapter_selection_input", "process_chapter_selection")
@@ -1699,6 +2488,62 @@ workflow.add_edge("process_chapter_rewrite_selection", "generate_scientific_expl
 workflow.add_edge("generate_scientific_explanations", "generate_glossary")
 workflow.add_edge("generate_glossary", "compile_baseline_world_state")
 
-workflow.add_conditional_edges("compile_baseline_world_state", should_loop, {"prompt_for_projection_year": "prompt_for_projection_year", END: END})
+workflow.add_edge("compile_baseline_world_state", "choose_next_action")
 
-app = workflow.compile(interrupt_before=["get_storyline_selection_input", "get_chapter_selection_input", "get_world_scenario_selection_input", "get_linguistic_selection_input", "get_storyline_adjustment_input", "get_chapter_rewrite_input", "get_projection_year_input"]) 
+# === Multi-Chapter Book Writing Workflow ===
+
+# User choice between projection and book writing
+workflow.add_node("choose_next_action", choose_next_action)
+workflow.add_node("get_next_action_input", lambda state: None)  # Dummy node for interrupt
+workflow.add_node("process_next_action_choice", process_next_action_choice)
+
+# Chapter planning and book writing workflow
+workflow.add_node("plan_remaining_chapters", plan_remaining_chapters)
+workflow.add_node("generate_chapter_world_questions", generate_chapter_world_questions)
+workflow.add_node("chapter_world_research", chapter_world_research)
+workflow.add_node("write_next_chapter", write_next_chapter)
+workflow.add_node("check_chapter_coherence", check_chapter_coherence)
+workflow.add_node("validate_transitions", validate_transitions)
+workflow.add_node("rewrite_chapter_for_coherence", rewrite_chapter_for_coherence)
+workflow.add_node("generate_chapter_scientific_explanations", generate_chapter_scientific_explanations)
+workflow.add_node("update_accumulated_materials", update_accumulated_materials)
+workflow.add_node("advance_to_next_chapter", advance_to_next_chapter)
+workflow.add_node("compile_complete_book", compile_complete_book)
+
+# User choice workflow edges
+workflow.add_edge("choose_next_action", "get_next_action_input")
+workflow.add_edge("get_next_action_input", "process_next_action_choice")
+workflow.add_conditional_edges("process_next_action_choice", should_loop_or_write_book, {
+    "prompt_for_projection_year": "prompt_for_projection_year",
+    "plan_remaining_chapters": "plan_remaining_chapters",
+    END: END
+})
+
+# Chapter writing workflow edges
+workflow.add_edge("plan_remaining_chapters", "generate_chapter_world_questions")
+workflow.add_edge("generate_chapter_world_questions", "chapter_world_research")
+workflow.add_edge("chapter_world_research", "write_next_chapter")
+workflow.add_edge("write_next_chapter", "check_chapter_coherence")
+workflow.add_edge("check_chapter_coherence", "validate_transitions")
+
+# Conditional rewrite based on coherence/transition scores
+workflow.add_conditional_edges("validate_transitions", check_if_rewrite_needed, {
+    "rewrite_chapter_for_coherence": "rewrite_chapter_for_coherence",
+    "generate_chapter_scientific_explanations": "generate_chapter_scientific_explanations"
+})
+
+# Continue chapter workflow after rewrite
+workflow.add_edge("rewrite_chapter_for_coherence", "generate_chapter_scientific_explanations")
+workflow.add_edge("generate_chapter_scientific_explanations", "update_accumulated_materials")
+workflow.add_edge("update_accumulated_materials", "advance_to_next_chapter")
+
+# Chapter progression loop - continue to next chapter or compile complete book
+workflow.add_conditional_edges("advance_to_next_chapter", check_if_more_chapters, {
+    "generate_chapter_world_questions": "generate_chapter_world_questions",
+    "compile_complete_book": "compile_complete_book"
+})
+
+# Final book compilation
+workflow.add_edge("compile_complete_book", END)
+
+app = workflow.compile(interrupt_before=["get_storyline_selection_input", "get_chapter_arcs_selection_input", "get_chapter_selection_input", "get_world_scenario_selection_input", "get_linguistic_selection_input", "get_storyline_adjustment_input", "get_chapter_rewrite_input", "get_projection_year_input", "get_next_action_input"]) 
