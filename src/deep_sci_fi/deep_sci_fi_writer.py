@@ -786,7 +786,7 @@ async def research_and_propose_scenarios(state: AgentState, config: RunnableConf
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("world_research"), # Use OpenAI O3 for all world research tasks
         "general_model": ModelConfig.get_model_string("world_research"),  # Use OpenAI O3 for all world research tasks
-        "search_api": "tavily",
+        "search_api": "openai",  # Use OpenAI native web search for O3 models
         "use_deep_researcher": True,  # Enable research-backed scenario generation with sources
         "output_dir": output_dir,
         "phase": "world_scenario_research"
@@ -1236,7 +1236,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("linguistic_research"),    # Sonnet 4 for thinking
         "general_model": ModelConfig.get_model_string("linguistic_research"),     # Sonnet 4 for thinking
-        "search_api": "tavily",  # Enable external research database access
+        "search_api": "anthropic",  # Use Anthropic native web search for Claude models
         "use_case": "linguistic_evolution",
         "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
@@ -1877,7 +1877,7 @@ async def chapter_world_research(state: AgentState, config: RunnableConfig):
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("world_research"),
         "general_model": ModelConfig.get_model_string("world_research"),
-        "search_api": "tavily",  # Enable external research database access
+        "search_api": "openai",  # Use OpenAI native web search for O3 models
         "use_case": "chapter_world_research",
         "process_depth": "standard",
         "population_scale": "light",
