@@ -1236,6 +1236,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("linguistic_research"),    # Sonnet 4 for thinking
         "general_model": ModelConfig.get_model_string("linguistic_research"),     # Sonnet 4 for thinking
+        "search_api": "tavily",  # Enable external research database access
         "use_case": "linguistic_evolution",
         "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
@@ -1876,6 +1877,7 @@ async def chapter_world_research(state: AgentState, config: RunnableConfig):
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("world_research"),
         "general_model": ModelConfig.get_model_string("world_research"),
+        "search_api": "tavily",  # Enable external research database access
         "use_case": "chapter_world_research",
         "process_depth": "standard",
         "population_scale": "light",
