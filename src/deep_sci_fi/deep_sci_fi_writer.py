@@ -1236,7 +1236,7 @@ async def linguistic_evolution_research(state: AgentState, config: RunnableConfi
     subgraph_config["configurable"].update({
         "research_model": ModelConfig.get_model_string("linguistic_research"),    # Sonnet 4 for thinking
         "general_model": ModelConfig.get_model_string("linguistic_research"),     # Sonnet 4 for thinking
-        "search_api": "anthropic",  # Use Anthropic native web search for Claude models
+        "search_api": "tavily",  # Use Tavily search API for external research access
         "use_case": "linguistic_evolution",
         "process_depth": "standard",  # Full creative process with reflection and evolution
         "population_scale": "light",  # Keep processing reasonable
@@ -1370,7 +1370,7 @@ def process_linguistic_evolution_selection(state: AgentState):
     }
 
 async def adjust_storyline(state: AgentState, config: RunnableConfig):
-    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (storyline := state.get("storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (linguistic_evolution := state.get("linguistic_evolution")):
+    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (storyline := state.get("storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (linguistic_evolution := state.get("linguistic_evolution")) or not (target_year := state.get("target_year")):
         raise ValueError("Required state for adjusting storyline is missing.")
     
     print("--- Adjusting Storyline with Co-Scientist Competition ---")
@@ -1381,7 +1381,8 @@ async def adjust_storyline(state: AgentState, config: RunnableConfig):
         reference_material=f"Original Storyline: {storyline}",
         storyline=storyline,
         baseline_world_state=baseline_world_state,
-        linguistic_evolution=linguistic_evolution
+        linguistic_evolution=linguistic_evolution,
+        target_year=target_year  # Pass target year for sci-fi context
     )
     
     # Configure co_scientist for full competition with world-aware reflection

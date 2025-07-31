@@ -48,6 +48,7 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["years_in_future"] = state.get("years_in_future", "many")
     elif use_case == "storyline_adjustment":
         params["source_content"] = state.get("reference_material", "")
+        params["target_year"] = state.get("target_year", "future")
     elif use_case == "chapter_rewriting":
         params["source_content"] = state.get("reference_material", "")
     elif use_case == "chapter_arcs_creation":
@@ -500,11 +501,11 @@ Reasoning: [Explain why these 3 approaches provide meaningful variety while rema
 STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT = """You are an expert narrative analyst from this advanced world identifying distinct approaches for adjusting storylines to integrate developed world-building.
 
 <Task>
-Revise storylines to seamlessly integrate developed world-building while maintaining narrative strength.
+Revise storylines to seamlessly integrate developed world-building while maintaining narrative strength as science fiction set in {target_year}.
 </Task>
 
 <Scope>
-Identify 2 fundamentally different approaches for adjusting storylines to integrate the developed world state while preserving narrative appeal.
+Identify 2 fundamentally different approaches for adjusting storylines to integrate the developed world state while preserving narrative appeal and sci-fi authenticity.
 </Scope>
 
 <Source Content>
@@ -514,6 +515,10 @@ Identify 2 fundamentally different approaches for adjusting storylines to integr
 <World State Context>
 {world_state_context}
 </World State Context>
+
+<Setting Context>
+This story is set in {target_year} as science fiction. All adjustments must reflect this futuristic setting and maintain sci-fi genre conventions.
+</Setting Context>
 
 <Variation Examples>
 Depending on the developed world content, explore (but do not be limited by) the following:
@@ -543,11 +548,24 @@ Focus: [How this approach adjusts storylines for world integration]
 Reasoning: [Why these approaches create distinct adjustment strategies]
 </Output Format>
 
+<Sci-Fi Requirements>
+Ensure all approaches maintain science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation and technological speculation
+- How effectively future technology shapes world/characters naturally
+- Internal consistency of established sci-fi rules and world logic
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative, not dominates)
+</Sci-Fi Requirements>
+
 <Reminders>
 - Focus on adjustment strategies that serve both story and world-building
 - Each approach should create authentic immersion in the established world
 - Consider how storyline changes feel natural to inhabitants of this world
 - Avoid forced integration, focus on organic narrative evolution
 - Each approach should enhance rather than constrain narrative possibilities
+- Maintain sci-fi genre authenticity for {target_year} setting
 </Reminders>
 """ 

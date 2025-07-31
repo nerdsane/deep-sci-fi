@@ -52,6 +52,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "team_id": team_id,
         "source_content": state.get("reference_material", ""),
         "world_state_context": world_state_context,
+        "target_year": state.get("target_year", "future"),  # Add target year for sci-fi context
         "uniqueness_seed": get_uniqueness_seed()  # Inject uniqueness to prevent repetition
     }
     
@@ -500,7 +501,11 @@ This is a completely fresh narrative session - ignore any previous storyline rev
 {world_state_context}
 </Developed World State>
 
-Revise the storyline to seamlessly integrate the developed world-building while maintaining narrative strength and character authenticity.
+<Setting Context>
+This story is set in {target_year} as science fiction. All revisions must maintain sci-fi genre authenticity and reflect this futuristic setting.
+</Setting Context>
+
+Revise the storyline to seamlessly integrate the developed world-building while maintaining narrative strength, character authenticity, and sci-fi excellence for {target_year}.
 
 <Revision Must Include>
 - Integrated world-building elements woven naturally into plot
@@ -519,6 +524,18 @@ Create a compelling, integrated storyline that feels natural within the develope
 - Maintain original storyline's core appeal while enhancing world integration
 </Critical Constraints>
 
+<Sci-Fi Requirements>
+Ensure your revised storyline maintains science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation and technological implications
+- How effectively future technology shapes world/characters organically  
+- Internal consistency of established sci-fi rules and world logic
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative, not dominates)
+</Sci-Fi Requirements>
+
 <Reminders>
 - Each approach should create authentic immersion in the established world
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
@@ -527,5 +544,6 @@ Create a compelling, integrated storyline that feels natural within the develope
 - Avoid over-explaining.
 - Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
 - Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+- Maintain sci-fi genre authenticity for {target_year} setting
 </Reminders>
 """ 
