@@ -158,6 +158,18 @@ Rate the storyline on each dimension (1-100 scale):
 7. **Dialogue Quality** (1-100): Natural conversation and character voice
 8. **Resolution Strength** (1-100): Satisfying conclusion and conflict resolution
 
+<Sci-Fi Requirements>
+Also evaluate based on sci-fi excellence:
+- Strength of central "what if?" speculation (1-10)
+- How effectively technology shapes world/characters (1-10)  
+- Internal consistency of established rules (1-10)
+- Balance between ideas and character development (1-10)
+- Character competence vs. knowledge limits (1-10)
+- Depth of human condition exploration (1-10)
+- Natural integration of social commentary (1-10)
+- Story-idea balance (technology serves narrative) (1-10)
+</Sci-Fi Requirements>
+
 **Overall Quality Score** (1-100): Weighted average emphasizing narrative craft
 </Quality Assessment>
 
@@ -244,6 +256,18 @@ Rate the chapter on each dimension (1-100 scale):
 6. **Dialogue Excellence** (1-100): Natural conversation and character distinction
 7. **Sensory Richness** (1-100): Vivid and engaging descriptions
 8. **Technical Proficiency** (1-100): Grammar, syntax, and style consistency
+
+<Sci-Fi Requirements>
+Also evaluate based on sci-fi excellence:
+- Strength of central "what if?" speculation (1-10)
+- How effectively technology shapes world/characters (1-10)  
+- Internal consistency of established rules (1-10)
+- Balance between ideas and character development (1-10)
+- Character competence vs. knowledge limits (1-10)
+- Depth of human condition exploration (1-10)
+- Natural integration of social commentary (1-10)
+- Story-idea balance (technology serves narrative) (1-10)
+</Sci-Fi Requirements>
 
 **Overall Quality Score** (1-100): Weighted average emphasizing prose craft
 </Quality Assessment>

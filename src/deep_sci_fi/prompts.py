@@ -54,6 +54,16 @@ Your primary goal is to avoid bias and assumptions about the future. Frame your 
 - "What are the primary economic and social drivers for individuals in {target_year}? How has the concept of wealth and societal pressure evolved? Do they still exist or matter?"
 
 Based on the provided storyline, chapter arcs, and first chapter, generate a list of 10 such unbiased, open-ended questions about the world of {target_year}. These questions should cover technology, society, economy, and daily life as relevant to the story.
+
+<Sci-Fi Requirements>
+Ensure your questions explore:
+- How technology fundamentally shapes daily life and social interactions
+- What "what if?" scenarios drive this world's development
+- How technological systems create internally consistent rules
+- Where human competence reaches its limits in this world
+- How this world reflects or critiques current human condition
+- What social commentary emerges from these speculative changes
+</Sci-Fi Requirements>
 </Instructions>
 """
 
@@ -80,6 +90,17 @@ ADJUST_CHAPTER_ARCS_PROMPT = """You are a story editor. Your task is to revise a
 
 <Instructions>
 Revise the chapter-by-chapter arcs to be consistent with the new storyline and the final world state. Ensure that the events and character progression in each chapter reflect the updated plot, the detailed world, and its unique language. Your output should be the complete, revised list of chapter arcs.
+
+<Sci-Fi Requirements>
+Ensure each chapter arc:
+- Advances the core "what if?" philosophical question
+- Shows technology shaping character choices and world events (not just decorating scenes)
+- Maintains internal consistency with established world rules
+- Presents ideas with equal weight to character development
+- Shows competent characters facing limits of their knowledge/ability
+- Uses speculative elements to examine human nature and society
+- Balances story momentum with philosophical exploration
+</Sci-Fi Requirements>
 </Instructions>
 
 <Reminders>
@@ -185,5 +206,270 @@ Your job is to formulate unbiased, open-ended research questions about how this 
 - "What are the primary economic and social drivers for individuals in {years_to_project} years? How has the concept of wealth and societal pressure evolved? Do they still exist or matter?"
 
 </Reminders>
+"""
+
+# === Multi-Chapter Book Writing ===
+
+# Used in: generate_chapter_world_questions() function
+GENERATE_CHAPTER_WORLD_QUESTIONS_PROMPT = """You are a world-building expert helping an author research specific aspects of their established world for chapter {chapter_number}.
+
+<Task>
+Generate focused research questions about the world state that are specifically relevant to what happens in chapter {chapter_number}. These questions should help flesh out the details needed for this particular chapter.
+</Task>
+
+<Current Chapter Arc>
+{current_chapter_arc}
+</Current Chapter Arc>
+
+<Established World State>
+{baseline_world_state}
+</Established World State>
+
+<Previous Chapters Summary>
+{previous_chapters_summary}
+</Previous Chapters Summary>
+
+<Instructions>
+- Focus on aspects of the world that will be directly relevant to this chapter's events
+- Ask specific questions about technology, social systems, or environments that this chapter will feature
+- Build on the established world state rather than contradicting it
+- Consider what details readers will need to understand this chapter's setting and events
+- Generate 8-10 targeted research questions
+</Instructions>
+
+<Reminders>
+- Questions should be specific to this chapter's needs, not generic world-building
+- Build on existing world elements rather than introducing completely new concepts
+- Focus on details that will enhance the reader's experience of this particular chapter
+</Reminders>
+"""
+
+# Used in: check_chapter_coherence() function  
+CHECK_CHAPTER_COHERENCE_PROMPT = """You are a narrative continuity expert validating a chapter against the established story.
+
+<Task>
+Analyze the written chapter for coherence with the established storyline, previous chapters, and world state. Identify any inconsistencies or areas needing improvement.
+</Task>
+
+<Written Chapter>
+{current_chapter}
+</Written Chapter>
+
+<Established Storyline>
+{storyline}
+</Established Storyline>
+
+<Previous Chapters>
+{previous_chapters}
+</Previous Chapters>
+
+<World State>
+{baseline_world_state}
+</World State>
+
+<Plot Continuity Tracker>
+{plot_continuity_tracker}
+</Plot Continuity Tracker>
+
+<Instructions>
+Check for coherence in these areas:
+1. **Plot Consistency**: Does this chapter advance the story logically from previous events?
+2. **Character Consistency**: Are character actions, dialogue, and development consistent?
+3. **World State Consistency**: Does the chapter respect the established world rules and details?
+4. **Timeline Continuity**: Does the chronology make sense with previous chapters?
+5. **Narrative Flow**: Does this chapter contribute meaningfully to the overall story arc?
+
+Provide a coherence score (1-10) and detailed analysis of any issues found.
+If score < 7, provide specific recommendations for improving coherence.
+</Instructions>
+"""
+
+# Used in: validate_transitions() function
+VALIDATE_TRANSITIONS_PROMPT = """You are a narrative flow expert analyzing the transition between chapters.
+
+<Task>
+Analyze the transition from the previous chapter to the current chapter for smooth narrative flow and logical progression.
+</Task>
+
+<Previous Chapter Ending>
+{previous_chapter_ending}
+</Previous Chapter Ending>
+
+<Current Chapter Beginning>
+{current_chapter_beginning}
+</Current Chapter Beginning>
+
+<Storyline Context>
+{storyline}
+</Storyline Context>
+
+<Instructions>
+Evaluate the transition quality in these areas:
+1. **Narrative Flow**: Does the story move smoothly from one chapter to the next?
+2. **Pacing**: Is the transition appropriately paced for the story's rhythm?
+3. **Character Continuity**: Are character states/emotions consistent across the transition?
+4. **Timeline Logic**: Does the time progression make sense?
+5. **Scene Transition**: Does the setting/scene change feel natural?
+6. **Thematic Continuity**: Do themes and mood transition appropriately?
+
+Provide a transition quality score (1-10) and specific analysis.
+If score < 7, provide detailed recommendations for improving the transition.
+</Instructions>
+"""
+
+# Used in: plan_remaining_chapters() function (will be used by Co-Scientist)
+PLAN_REMAINING_CHAPTERS_PROMPT = """You are a master story architect planning the remaining chapters of a novel.
+
+<Task>
+Based on the completed first chapter and established story elements, create a detailed plan for the remaining chapters that will complete this novel effectively.
+</Task>
+
+<Completed First Chapter>
+{first_chapter}
+</Completed First Chapter>
+
+<Established Storyline>
+{storyline}
+</Established Storyline>
+
+<Chapter Arcs>
+{chapter_arcs}
+</Chapter Arcs>
+
+<World State>
+{baseline_world_state}
+</World State>
+
+<Sci-Fi Requirements>
+Structure the remaining chapters to:
+- Deepen exploration of the central "what if?" question
+- Escalate how technology shapes character conflicts and choices
+- Maintain rigorous internal consistency of world rules
+- Balance character arcs with philosophical idea development
+- Show characters reaching competence limits as stakes rise
+- Use plot events as "Socratic exercises" examining human condition
+- Weave social commentary naturally through story events
+- Ensure technology serves story purpose, not the reverse
+</Sci-Fi Requirements>
+
+<Instructions>
+Create a comprehensive chapter plan that includes:
+1. **Total Number of Chapters**: Recommend optimal book length
+2. **Chapter-by-Chapter Breakdown**: What happens in each remaining chapter
+3. **Plot Thread Development**: How major plot lines will develop and resolve
+4. **Character Arc Progression**: How characters will grow throughout the book
+5. **World Integration**: How world elements will be revealed and utilized
+6. **Pacing Strategy**: Ensure proper story rhythm and tension building
+7. **Climax and Resolution Planning**: Structure the dramatic arc appropriately
+
+Your plan should create a complete, satisfying novel that builds effectively from the established foundation.
+</Instructions>
+
+<Reminders>
+- Avoid cliches, tropes, generic storylines. Experiment and be unique.
+- Story should feel real, resonant and have personality.
+- Ensure each chapter serves a purpose in the overall narrative
+- Plan for proper story structure with rising action, climax, and resolution
+- Consider how the unique world elements will enhance each chapter
+</Reminders>
+"""
+
+# Used in: update_plot_continuity_tracker() function
+UPDATE_PLOT_CONTINUITY_PROMPT = """You are a plot continuity manager tracking story threads across chapters.
+
+<Task>
+Update the plot continuity tracker with information from the newly completed chapter, maintaining a clear record of all active story threads.
+</Task>
+
+<Current Plot Continuity Tracker>
+{current_tracker}
+</Current Plot Continuity Tracker>
+
+<Newly Completed Chapter>
+{new_chapter}
+</Newly Completed Chapter>
+
+<Chapter Number>
+{chapter_number}
+</Chapter Number>
+
+<Instructions>
+Update the tracker to include:
+1. **New Plot Threads**: Any new storylines or conflicts introduced
+2. **Advanced Plot Threads**: How existing threads progressed
+3. **Resolved Plot Threads**: Any storylines that concluded
+4. **Character Development**: Key character growth or changes
+5. **World Revelations**: New information about the world revealed
+6. **Foreshadowing Elements**: Hints or setups for future events
+7. **Loose Ends**: Questions or elements that need future resolution
+
+Maintain a clear, organized structure that will help ensure continuity in future chapters.
+</Instructions>
+"""
+
+# Used in: generate_chapter_scientific_explanations() function
+GENERATE_CHAPTER_SCIENTIFIC_EXPLANATIONS_PROMPT = """You are a science communicator creating technical documentation for chapter {chapter_number} of a science fiction novel.
+
+<Task>
+Identify and explain the scientific and technological concepts that appear in this chapter, building on the established world state and previous explanations.
+</Task>
+
+<Chapter Content>
+{chapter_content}
+</Chapter Content>
+
+<Established World State>
+{baseline_world_state}
+</Established World State>
+
+<Previous Scientific Explanations>
+{previous_explanations}
+</Previous Scientific Explanations>
+
+<Instructions>
+- Identify new scientific/technological concepts introduced in this chapter
+- Provide clear explanations grounded in the established world state
+- Build on previous explanations without repeating them
+- Focus on concepts that are important for understanding this chapter
+- Maintain scientific plausibility within the story's established parameters
+- Write for the author's reference to ensure consistency
+
+Create a structured document with explanations for each new concept introduced.
+</Instructions>
+"""
+
+# Used in: update_accumulated_glossary() function
+UPDATE_ACCUMULATED_GLOSSARY_PROMPT = """You are a lexicographer updating the comprehensive glossary for this science fiction novel.
+
+<Task>
+Add new terms, expressions, and concepts from chapter {chapter_number} to the existing glossary, ensuring no duplication and maintaining consistency.
+</Task>
+
+<Chapter Content>
+{chapter_content}
+</Chapter Content>
+
+<Existing Glossary>
+{existing_glossary}
+</Existing Glossary>
+
+<World State Context>
+{baseline_world_state}
+</World State Context>
+
+<Linguistic Evolution>
+{linguistic_evolution}
+</Linguistic Evolution>
+
+<Instructions>
+- Identify new terms, expressions, and cultural concepts from this chapter
+- Add only terms that are not already in the existing glossary
+- Ensure definitions are consistent with previous entries and world state
+- Maintain alphabetical organization
+- Include usage notes and etymology where relevant
+- Focus on terms that enhance understanding of this world's culture and technology
+
+Provide the updated glossary in complete form, incorporating both existing and new entries.
+</Instructions>
 """
 

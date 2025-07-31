@@ -13,6 +13,20 @@ def get_llm_debate_meta_analysis_prompt_a(use_case: str, num_directions: int, co
     if criteria:
         evaluation_framework += f"\n<Quality Criteria>\nFocus on directions that excel in: {criteria}\n</Quality Criteria>\n"
     
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
+    
     return f"""You're discussing research directions for {use_case} with another expert. Propose {num_directions} distinct research directions.{evaluation_framework}
 
 Context: {context_value}
@@ -30,6 +44,20 @@ def get_llm_debate_meta_analysis_prompt_b(use_case: str, num_directions: int, co
         evaluation_framework += f"\n<Research Goal>\n{goal}\n</Research Goal>\n"
     if criteria:
         evaluation_framework += f"\n<Quality Criteria>\nFocus on directions that excel in: {criteria}\n</Quality Criteria>\n"
+    
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
     
     return f"""You're discussing research directions for {use_case} with another expert. Here's the conversation:
 
@@ -76,6 +104,20 @@ def get_llm_debate_meta_analysis_continue_a(use_case: str, num_directions: int, 
     if criteria:
         evaluation_framework += f"\n<Quality Criteria>\nEvaluate directions based on: {criteria}\n</Quality Criteria>\n"
     
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
+    
     return f"""Continue the {use_case} research directions discussion:
 
 {conversation_context}
@@ -113,6 +155,20 @@ def get_llm_debate_meta_analysis_continue_b(use_case: str, num_directions: int, 
         evaluation_framework += f"\n<Research Goal>\n{goal}\n</Research Goal>\n"
     if criteria:
         evaluation_framework += f"\n<Quality Criteria>\nEvaluate directions based on: {criteria}\n</Quality Criteria>\n"
+    
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
     
     return f"""Continue the {use_case} research directions discussion:
 
@@ -152,6 +208,20 @@ def get_llm_debate_tournament_prompt_a(use_case: str, scenario_1_content: str, s
     if criteria:
         evaluation_framework += f"\n<Evaluation Criteria>\nFocus your analysis on: {criteria}\n</Evaluation Criteria>\n"
     
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
+    
     return f"""You're evaluating two {use_case} options with another expert. Review Option 1 and make a case for why it's better:{evaluation_framework}
 
 OPTION 1:
@@ -172,6 +242,20 @@ def get_llm_debate_tournament_prompt_b(use_case: str, scenario_2_content: str, c
         evaluation_framework += f"\n<Evaluation Goal>\n{goal}\n</Evaluation Goal>\n"
     if criteria:
         evaluation_framework += f"\n<Evaluation Criteria>\nFocus your analysis on: {criteria}\n</Evaluation Criteria>\n"
+    
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
     
     return f"""You're evaluating two {use_case} options with another expert. Here's what Expert A said about Option 1:
 
@@ -195,6 +279,20 @@ def get_llm_debate_tournament_final_a(conversation_context: str, goal: str = Non
     if criteria:
         evaluation_framework += f"\n<Evaluation Criteria>\nBase your final decision on: {criteria}\n</Evaluation Criteria>\n"
     
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
+    
     return f"""Based on the discussion, make your final assessment of which option is better:{evaluation_framework}
 
 {conversation_context}
@@ -212,6 +310,20 @@ def get_llm_debate_tournament_final_b(conversation_context: str, goal: str = Non
         evaluation_framework += f"\n<Evaluation Goal>\n{goal}\n</Evaluation Goal>\n"
     if criteria:
         evaluation_framework += f"\n<Evaluation Criteria>\nBase your final decision on: {criteria}\n</Evaluation Criteria>\n"
+    
+    # Add sci-fi requirements
+    evaluation_framework += """
+<Sci-Fi Requirements>
+When comparing stories, prioritize:
+- Which better explores meaningful "what if?" scenarios
+- Whose technology more fundamentally shapes the narrative
+- Which maintains stronger internal world consistency
+- Which achieves better balance of ideas and characters
+- Which shows more authentic character competence/limits
+- Which offers deeper insights into human nature
+- Which integrates social commentary more naturally
+- Which achieves superior story-idea symbiosis
+</Sci-Fi Requirements>"""
     
     return f"""Based on the full discussion, make your final assessment of which option is better:{evaluation_framework}
 
