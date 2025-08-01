@@ -1500,7 +1500,7 @@ def process_storyline_adjustment_selection(state: AgentState):
     }
 
 async def adjust_chapter_arcs(state: AgentState, config: RunnableConfig):
-    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_storyline := state.get("revised_storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (chapter_arcs := state.get("chapter_arcs")) or not (linguistic_evolution := state.get("linguistic_evolution")):
+    if not (output_dir := state.get("output_dir")) or not (loop_count := state.get("loop_count") is not None) or not (revised_storyline := state.get("revised_storyline")) or not (baseline_world_state := state.get("baseline_world_state")) or not (chapter_arcs := state.get("chapter_arcs")) or not (linguistic_evolution := state.get("linguistic_evolution")) or not (target_year := state.get("target_year")):
         raise ValueError("Required state for adjusting chapter arcs is missing.")
     
     print("--- Adjusting Chapter Arcs with Co-Scientist Competition ---")
@@ -1515,7 +1515,8 @@ async def adjust_chapter_arcs(state: AgentState, config: RunnableConfig):
         reference_material=chapter_arcs,  # Pass original chapter arcs to refine
         storyline=revised_storyline,
         baseline_world_state=baseline_world_state,
-        linguistic_evolution=linguistic_evolution
+        linguistic_evolution=linguistic_evolution,
+        target_year=target_year  # Pass target year for sci-fi context
     )
     
     # Configure co_scientist for full creative competition with world-aware reflection
@@ -2058,7 +2059,7 @@ def validate_transitions(state: AgentState):
 
 async def rewrite_chapter_for_coherence(state: AgentState, config: RunnableConfig):
     """Rewrite the chapter to address coherence or transition issues."""
-    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")):
+    if not (output_dir := state.get("output_dir")) or not (current_chapter_number := state.get("current_chapter_number")) or not (current_chapter_draft := state.get("current_chapter_draft")) or not (target_year := state.get("target_year")):
         raise ValueError("Required state for rewriting chapter is missing.")
     
     print(f"--- Rewriting Chapter {current_chapter_number} for Improved Coherence ---")
@@ -2077,7 +2078,8 @@ async def rewrite_chapter_for_coherence(state: AgentState, config: RunnableConfi
         baseline_world_state=state.get("baseline_world_state"),
         linguistic_evolution=state.get("linguistic_evolution"),
         revised_storyline=state.get("revised_storyline", state.get("storyline")),
-        revised_chapter_arcs=state.get("revised_chapter_arcs", state.get("chapter_arcs"))
+        revised_chapter_arcs=state.get("revised_chapter_arcs", state.get("chapter_arcs")),
+        target_year=target_year  # Pass target year for sci-fi context
     )
     
     # Configure co_scientist for rewriting competition

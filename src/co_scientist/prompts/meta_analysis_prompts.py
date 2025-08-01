@@ -51,12 +51,14 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["target_year"] = state.get("target_year", "future")
     elif use_case == "chapter_rewriting":
         params["source_content"] = state.get("reference_material", "")
+        params["target_year"] = state.get("target_year", "future")
     elif use_case == "chapter_arcs_creation":
         params["story_concept"] = context_value
         params["source_content"] = state.get("reference_material", "")
     elif use_case == "chapter_arcs_adjustment":
         params["story_concept"] = context_value  # User's original story concept
         params["source_content"] = state.get("reference_material", "")  # Original chapter arcs
+        params["target_year"] = state.get("target_year", "future")
     else:
         # For other use cases, keep generic context
         params["context"] = context_value
@@ -312,11 +314,11 @@ Reasoning: [Why these approaches create distinct chapter openings]
 CHAPTER_META_ANALYSIS_PROMPT = """You are an expert literary analyst tasked with identifying distinct approaches for rewriting a chapter to fully integrate developed world-building.
 
 <Task>
-Rewrite the first chapter to fully integrate the developed world-building, linguistic evolution, and narrative revisions.
+Rewrite the chapter as science fiction set in {target_year} to fully integrate the developed world-building, linguistic evolution, and narrative revisions.
 </Task>
 
 <Scope>
-Identify 2 fundamentally different approaches for rewriting the chapter to seamlessly integrate the developed world state, linguistic evolution, and storyline revisions.
+Identify 2 fundamentally different approaches for rewriting the chapter to seamlessly integrate the developed world state, linguistic evolution, and storyline revisions while maintaining sci-fi excellence.
 </Scope>
 
 <Source Content>
@@ -326,6 +328,10 @@ Identify 2 fundamentally different approaches for rewriting the chapter to seaml
 <World State Context>
 {world_state_context}
 </World State Context>
+
+<Setting Context>
+This story is set in {target_year} as science fiction. All rewriting approaches must reflect this futuristic setting and maintain sci-fi genre conventions.
+</Setting Context>
 
 <Variation Examples>
 Depending on the developed world content, explore (but do not be limited by) the following:
@@ -355,12 +361,25 @@ Focus: [How this approach integrates the developed world]
 Reasoning: [Why these approaches create distinct integration strategies]
 </Output Format>
 
+<Sci-Fi Requirements>
+Ensure all rewriting approaches maintain science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation and technological implications
+- How effectively future technology shapes chapter content naturally
+- Internal consistency of established sci-fi rules and world logic
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative, not dominates)
+</Sci-Fi Requirements>
+
 <Reminders>
 - Focus on authentic integration that serves the story
 - Each approach should create natural immersion in the established world
 - Avoid exposition dumps, focus on authentic character behavior
 - Consider how readers from this world would naturally experience the story
 - Each approach should feel organic to the developed world context
+- Maintain sci-fi genre authenticity for {target_year} setting
 </Reminders>
 """
 
@@ -370,11 +389,11 @@ Reasoning: [Why these approaches create distinct integration strategies]
 NARRATIVE_META_ANALYSIS_PROMPT = """You are an expert narrative architect tasked with identifying distinct chapter structure approaches.
 
 <Task>
-Create a compelling chapter-by-chapter arc structure for a novel.
+Create a compelling chapter-by-chapter arc structure for a science fiction novel set in {target_year}.
 </Task>
 
 <Scope>
-Identify 2 fundamentally different approaches for structuring chapter arcs that create compelling narrative progression.
+Identify 2 fundamentally different approaches for structuring chapter arcs that create compelling narrative progression and maintain sci-fi excellence.
 </Scope>
 
 <Story Concept>
@@ -388,6 +407,10 @@ Identify 2 fundamentally different approaches for structuring chapter arcs that 
 <World State Context>
 {world_state_context}
 </World State Context>
+
+<Setting Context>
+This story is set in {target_year} as science fiction. All chapter arc approaches must reflect this futuristic setting and maintain sci-fi genre conventions.
+</Setting Context>
 
 <Variation Examples>
 Depending on the story concept, explore (but do not be limited by) the following:
@@ -418,12 +441,25 @@ Focus: [How this approach structures chapter progression and narrative flow]
 Reasoning: [Why these approaches offer distinct chapter structuring possibilities]
 </Output Format>
 
+<Sci-Fi Requirements>
+Ensure all chapter arc approaches maintain science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation across chapter progression
+- How effectively future technology shapes chapter narrative flow
+- Internal consistency of established sci-fi rules throughout the arc
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative progression)
+</Sci-Fi Requirements>
+
 <Reminders>
 - Focus on chapter-level structure, not scene-level details
 - Consider how each chapter serves the overall narrative arc
 - Think about reader engagement and pacing across chapters
 - Avoid cliches, create unique structural approaches
 - Each approach should feel natural and purposeful
+- Maintain sci-fi genre authenticity for {target_year} setting
 </Reminders>
 """
 

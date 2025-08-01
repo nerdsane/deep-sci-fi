@@ -277,7 +277,11 @@ CHAPTER_GENERATION_PROMPT = """You are a skilled science fiction writer rewritin
 {world_state_context}
 </Developed World State>
 
-Completely rewrite the chapter to naturally integrate world-building, linguistic evolution, and technological developments. Write for readers who live in this future world.
+<Setting Context>
+This story is set in {target_year} as science fiction. All chapter revisions must maintain sci-fi genre authenticity and reflect this futuristic setting.
+</Setting Context>
+
+Completely rewrite the chapter to naturally integrate world-building, linguistic evolution, and technological developments for {target_year}. Write for readers who live in this future world.
 
 <Requirements>
 - Seamlessly weave world technologies into character actions and dialogue
@@ -287,6 +291,18 @@ Completely rewrite the chapter to naturally integrate world-building, linguistic
 - NO exposition dumps about how the world works
 - Show, don't tell - world emerges through authentic character interaction
 
+<Sci-Fi Requirements>
+Ensure your rewritten chapter maintains science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation and technological implications
+- How effectively future technology shapes character actions naturally
+- Internal consistency of established sci-fi rules and world logic
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative, not dominates)
+</Sci-Fi Requirements>
+
 <Reminders>
 - Avoid cliches, tropes, generic storylines. Experiment and be unique.
 - Story should feel real, resonant and have personality. 
@@ -294,6 +310,7 @@ Completely rewrite the chapter to naturally integrate world-building, linguistic
 - Avoid over-explaining.
 - Avoid using common word combinations. Avoid using whimsical and complex words for the sake of it.
 - Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
+- Maintain sci-fi genre authenticity for {target_year} setting
 </Reminders>
 """
 
@@ -381,7 +398,11 @@ This is a completely fresh refinement session - focus on targeted improvements.
 {world_state_context}
 </World State Integration>
 
-Refine the existing chapter arc structure to better integrate with the evolved world state and address any structural weaknesses while preserving its core strengths.
+<Setting Context>
+This story is set in {target_year} as science fiction. All refinements must maintain sci-fi genre authenticity and reflect this futuristic setting.
+</Setting Context>
+
+Refine the existing chapter arc structure to better integrate with the evolved world state and address any structural weaknesses while preserving its core strengths and sci-fi excellence for {target_year}.
 
 <Refinement Focus>
 - Enhance integration with world state and linguistic evolution
@@ -420,6 +441,25 @@ Create a refined, enhanced chapter arc structure that builds on the original whi
 - Address any pacing issues or character development gaps
 - Strengthen thematic consistency across the refined structure
 </Refinement Guidelines>
+
+<Sci-Fi Requirements>
+Ensure your refined chapter arcs maintain science fiction excellence for {target_year}:
+- Strength of central "what if?" speculation and technological implications
+- How effectively future technology shapes chapter progressions naturally
+- Internal consistency of established sci-fi rules throughout the arc
+- Balance between futuristic ideas and relatable character development
+- Characters' competence vs. knowledge limits in advanced society
+- Depth of human condition exploration within futuristic context
+- Natural integration of social commentary relevant to {target_year}
+- Story-idea balance (technology serves narrative progression)
+</Sci-Fi Requirements>
+
+<Reminders>
+- Maintain sci-fi genre authenticity for {target_year} setting
+- Each refinement should strengthen the futuristic narrative context
+- Avoid cliches, tropes, or generic chapter structures
+- Focus on targeted improvements that enhance both story and sci-fi elements
+</Reminders>
 """
 
 # === Linguistic Evolution Templates ===
