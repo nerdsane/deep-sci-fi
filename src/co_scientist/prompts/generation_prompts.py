@@ -13,18 +13,9 @@ def get_uniqueness_seed() -> str:
 
 
 def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: str, config: dict = None) -> str:
-    """Get the appropriate generation prompt for the use case."""
+    """Get the appropriate generation prompt for the Deep Sci-Fi use cases."""
     templates = {
-        "scenario_generation": INITIAL_SCENARIO_GENERATION_PROMPT,
-        "storyline_creation": STORYLINE_GENERATION_PROMPT,
-        "chapter_writing": CHAPTER_WRITING_GENERATION_PROMPT,
-        "chapter_rewriting": CHAPTER_GENERATION_PROMPT,
-        "chapter_arcs_creation": NARRATIVE_GENERATION_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_ARCS_ADJUSTMENT_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_GENERATION_PROMPT,
-        "storyline_adjustment": STORYLINE_ADJUSTMENT_GENERATION_PROMPT,
-        # Future-native workflow prompts
-        "future_story_seeds": FUTURE_STORY_SEEDS_GENERATION_PROMPT,
+        # Deep Sci-Fi future-native workflow prompts
         "competitive_loglines": COMPETITIVE_LOGLINES_GENERATION_PROMPT,
         "competitive_outline": COMPETITIVE_OUTLINE_GENERATION_PROMPT,
         "story_research_integration": STORY_RESEARCH_INTEGRATION_PROMPT,

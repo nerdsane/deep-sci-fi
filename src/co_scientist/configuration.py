@@ -16,23 +16,12 @@ class PopulationScale(str, Enum):
     HEAVY = "heavy"          # 3 directions × 12 contestants = 36 total
 
 class UseCase(Enum):
-    """Pre-configured use case templates."""
-    SCENARIO_GENERATION = "scenario_generation"
-    STORYLINE_CREATION = "storyline_creation"
-    CHAPTER_WRITING = "chapter_writing"
-    CHAPTER_REWRITING = "chapter_rewriting"
-    CHAPTER_ARCS_CREATION = "chapter_arcs_creation"
-    CHAPTER_ARCS_ADJUSTMENT = "chapter_arcs_adjustment"
-    LINGUISTIC_EVOLUTION = "linguistic_evolution"
-    STORYLINE_ADJUSTMENT = "storyline_adjustment"
-    CHAPTER_PLANNING = "chapter_planning"
-    CHAPTER_WORLD_RESEARCH = "chapter_world_research"
-    # New future-native workflow use cases
-    FUTURE_STORY_SEEDS = "future_story_seeds"
-    COMPETITIVE_LOGLINES = "competitive_loglines"  # NEW: Competitive logline generation
-    COMPETITIVE_OUTLINE = "competitive_outline"  # NEW: Competitive outline creation
-    STORY_RESEARCH_INTEGRATION = "story_research_integration"
-    FIRST_CHAPTER_WRITING = "first_chapter_writing"
+    """Pre-configured use case templates for Deep Sci-Fi workflow."""
+    # Deep Sci-Fi future-native workflow use cases
+    COMPETITIVE_LOGLINES = "competitive_loglines"  # Competitive logline generation
+    COMPETITIVE_OUTLINE = "competitive_outline"  # Competitive outline creation
+    STORY_RESEARCH_INTEGRATION = "story_research_integration"  # Research-integrated story refinement
+    FIRST_CHAPTER_WRITING = "first_chapter_writing"  # First chapter competitive writing
 
 # Model Templates - Define phase-specific model configurations
 MODEL_TEMPLATES = {
@@ -79,118 +68,8 @@ MODEL_TEMPLATES = {
     }
 }
 
-# Use case configurations
+# Use case configurations for Deep Sci-Fi workflow
 USE_CASE_CONFIGS = {
-    "scenario_generation": {
-        "direction_type": "research directions",
-        "task_type": "scenario development",
-        "reflection_domains": ["physics", "biology", "engineering", "social_science", "economics"],
-        "evolution_strategies": ["feasibility_enhancement"],  # Single evolution strategy
-        "output_name": "scenarios",
-        "meta_prompt_key": "scenario_meta",
-        "generation_prompt_key": "scenario_generation",
-        "model_template": "reasoning"  # Use reasoning template for research-heavy scenarios
-    },
-    "storyline_creation": {
-        "direction_type": "narrative approaches",
-        "task_type": "storyline development",
-        "reflection_domains": ["plot_structure", "character_development", "thematic_coherence", "pacing", "narrative_arc"],
-        "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
-        "output_name": "storylines",
-        "meta_prompt_key": "storyline_meta",
-        "generation_prompt_key": "storyline_generation",
-        "model_template": "creative"  # Use creative template for narrative development
-    },
-    "chapter_writing": {
-        "direction_type": "narrative approaches",
-        "task_type": "chapter writing",
-        "reflection_domains": ["prose_quality", "scene_development", "character_voice", "pacing", "atmosphere"],
-        "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
-        "output_name": "chapters",
-        "meta_prompt_key": "chapter_meta",
-        "generation_prompt_key": "chapter_generation",
-        "model_template": "creative"  # Use creative template for prose writing
-    },
-    "chapter_rewriting": {
-        "direction_type": "narrative approaches", 
-        "task_type": "chapter rewriting",
-        "reflection_domains": ["narrative_structure", "character_development", "prose_style", "pacing", "dialogue"],
-        "evolution_strategies": ["prose_enhancement"],  # Single evolution strategy
-        "output_name": "chapter_versions",
-        "meta_prompt_key": "chapter_meta",
-        "generation_prompt_key": "chapter_generation",
-        "model_template": "creative"  # Use creative template for prose rewriting
-    },
-    "chapter_arcs_creation": {
-        "direction_type": "narrative approaches",
-        "task_type": "chapter arcs creation",
-        "reflection_domains": ["narrative_structure", "story_pacing", "character_development", "plot_progression", "thematic_coherence"],
-        "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
-        "output_name": "chapter_arcs",
-        "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation",
-        "model_template": "creative"  # Use creative template for structural narrative work
-    },
-    "chapter_arcs_adjustment": {
-        "direction_type": "narrative approaches",
-        "task_type": "chapter arcs adjustment",
-        "reflection_domains": ["narrative_structure", "world_integration", "character_development", "plot_consistency", "thematic_alignment"],
-        "evolution_strategies": ["structural_enhancement"],  # Single evolution strategy
-        "output_name": "adjusted_chapter_arcs",
-        "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation",
-        "model_template": "creative"  # Use creative template for narrative adjustments
-    },
-    "linguistic_evolution": {
-        "direction_type": "research approaches",
-        "task_type": "linguistic evolution analysis",
-        "reflection_domains": ["linguistics", "technology", "sociology_and_anthropology"],
-        "evolution_strategies": ["linguistic_enhancement"],  # Single evolution strategy
-        "output_name": "linguistic_analyses",
-        "meta_prompt_key": "research_meta",
-        "generation_prompt_key": "research_generation",
-        "model_template": "reasoning"  # Use reasoning template for research analysis
-    },
-    "storyline_adjustment": {
-        "direction_type": "narrative approaches",
-        "task_type": "storyline revision",
-        "reflection_domains": ["narrative_structure", "world_building", "character_development", "thematic_coherence"],
-        "evolution_strategies": ["narrative_enhancement"],  # Single evolution strategy
-        "output_name": "revised_storylines",
-        "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation",
-        "model_template": "creative"  # Use creative template for narrative revisions
-    },
-    "chapter_planning": {
-        "direction_type": "planning approaches",
-        "task_type": "chapter structure planning",
-        "reflection_domains": ["narrative_structure", "pacing", "character_development", "plot_progression", "thematic_alignment"],
-        "evolution_strategies": ["structure_enhancement"],  # Single evolution strategy
-        "output_name": "chapter_plans",
-        "meta_prompt_key": "narrative_meta",
-        "generation_prompt_key": "narrative_generation",
-        "model_template": "creative"  # Use creative template for planning
-    },
-    "chapter_world_research": {
-        "direction_type": "research approaches",
-        "task_type": "chapter-specific world research",
-        "reflection_domains": ["physics", "sociology", "technology", "economics", "culture"],
-        "evolution_strategies": ["research_depth_enhancement"],  # Single evolution strategy
-        "output_name": "chapter_world_contexts",
-        "meta_prompt_key": "research_meta",
-        "generation_prompt_key": "research_generation",
-        "model_template": "reasoning"  # Use reasoning template for research-focused tasks
-    },
-    "future_story_seeds": {
-        "direction_type": "narrative approaches",
-        "task_type": "future story seed generation",
-        "reflection_domains": ["temporal_authenticity", "human_condition_exploration", "future_plausibility", "narrative_potential", "conceptual_originality"],
-        "evolution_strategies": ["concept_refinement"],  # Single evolution strategy
-        "output_name": "story_seeds",
-        "meta_prompt_key": "storyline_meta",
-        "generation_prompt_key": "future_story_seeds",
-        "model_template": "creative"  # Use creative template for concept development
-    },
     "competitive_loglines": {
         "direction_type": "logline approaches",
         "task_type": "competitive logline generation",
@@ -408,13 +287,13 @@ class ModelSettings(BaseModel):
 class CoScientistConfiguration(BaseModel):
     # Use Case and Process Control
     use_case: UseCase = Field(
-        default=UseCase.SCENARIO_GENERATION,
+        default=UseCase.COMPETITIVE_LOGLINES,
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment", "chapter_planning", "chapter_world_research", "future_story_seeds", "competitive_loglines", "competitive_outline", "story_research_integration", "first_chapter_writing"],
-                "default": "scenario_generation",
-                "description": "Pre-configured use case template"
+                "enum": ["competitive_loglines", "competitive_outline", "story_research_integration", "first_chapter_writing"],
+                "default": "competitive_loglines",
+                "description": "Pre-configured use case template for Deep Sci-Fi workflow"
             }
         }
     )
@@ -744,7 +623,7 @@ class CoScientistConfiguration(BaseModel):
     
     def get_use_case_config(self) -> Dict:
         """Get the configuration for the current use case."""
-        return USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
+        return USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["competitive_loglines"])
     
     def get_phase_list(self) -> List[str]:
         """Get the list of phases to run based on process depth."""
@@ -779,7 +658,7 @@ class CoScientistConfiguration(BaseModel):
 
     @classmethod
     def create_input_state(cls, 
-                          use_case: UseCase = UseCase.SCENARIO_GENERATION,
+                          use_case: UseCase = UseCase.COMPETITIVE_LOGLINES,
                           context: str = None,
                           storyline: str = None,
                           chapter_arcs: str = None,
@@ -836,7 +715,7 @@ class CoScientistConfiguration(BaseModel):
             return cls(
                 research_model=configurable.get("research_model", "gpt-4"),
                 general_model=configurable.get("general_model", "gpt-3.5-turbo"), 
-                use_case=UseCase(configurable.get("use_case", "scenario_generation")),
+                use_case=UseCase(configurable.get("use_case", "competitive_loglines")),
                 process_depth=configurable.get("process_depth", "standard"),
                 population_scale=configurable.get("population_scale", "medium"),
                 use_deep_researcher=configurable.get("use_deep_researcher", False),
