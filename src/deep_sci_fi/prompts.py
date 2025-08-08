@@ -78,11 +78,15 @@ From the vantage point of {target_year}, looking back at 2024:
 ## Key Insight for Stories
 Given the human condition focus "{human_condition}", what aspects of {target_year} life create unique storytelling opportunities that couldn't exist in 2024?
 
-Keep this LIGHT - just enough context to seed authentic future stories, not comprehensive world-building.
-
-Focus on changes that enable exploring: {human_condition}
-
-Remember to stay aligned with the original user's intent: {original_user_request}
+CRITICAL INSTRUCTIONS:
+- Keep this LIGHT - just enough context to seed authentic future stories, not comprehensive world-building
+- This is ANALYSIS ONLY - do NOT write any narrative stories, scenes, characters, or dialogue
+- NO fictional characters, NO story scenes, NO narrative prose
+- Focus on changes that enable exploring: {human_condition}
+- Remember to stay aligned with the original user's intent: {original_user_request}
+- Provide ONLY analytical, factual-style context about the future world
+- Use bullet points, lists, and analytical language - NOT storytelling language
+- This output will be used BY OTHER TOOLS to generate stories - do not do their job for them
 """
 
 # Used in: identify_story_research_targets() function (Step 4)
@@ -560,8 +564,8 @@ Create a detailed 20-25 chapter breakdown with:
 
 Structure your outline as:
 - **Act 1 (Chapters 1-6)**: Setup and world establishment
-- **Act 2A (Chapters 7-12)**: Rising action and complications
-- **Act 2B (Chapters 13-18)**: Crisis escalation and major reversals  
+- **Act 2A (Chapters 7-12)**: Rising action and complications  
+- **Act 2B (Chapters 13-18)**: Crisis escalation and major reversals
 - **Act 3 (Chapters 19-25)**: Climax, resolution, and new equilibrium
 
 ## AUTHENTICITY REQUIREMENTS

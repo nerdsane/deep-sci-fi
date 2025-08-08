@@ -29,11 +29,11 @@ MODEL_TEMPLATES = {
     "creative": {
         "description": "Optimized for creative and narrative tasks",
         "meta_analysis_model": "anthropic:claude-sonnet-4-20250514",              # Deep strategic thinking
-        "generation_model": "anthropic:claude-opus-4-20250514",              # Maximum creativity
-        "debate_a_model": "anthropic:claude-opus-4-20250514",                # Creative perspective A
+        "generation_model": "anthropic:claude-opus-4-1-20250805",              # Maximum creativity with Opus 4.1
+        "debate_a_model": "anthropic:claude-opus-4-1-20250805",                # Creative perspective A with Opus 4.1
         "debate_b_model": "anthropic:claude-sonnet-4-20250514",              # Structured perspective B  
         "reflection_model": "anthropic:claude-sonnet-4-20250514",            # Balanced critique
-        "evolution_model": "anthropic:claude-opus-4-20250514",               # Creative enhancement
+        "evolution_model": "anthropic:claude-opus-4-1-20250805",               # Creative enhancement with Opus 4.1
         "tournament_model": "anthropic:claude-sonnet-4-20250514",            # Balanced comparison
         "meta_review_model": "openai:o3-2025-04-16",               # Final strategic selection
         

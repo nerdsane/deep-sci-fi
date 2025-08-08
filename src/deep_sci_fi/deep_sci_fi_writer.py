@@ -61,9 +61,12 @@ def parse_and_limit_research_queries(research_queries_content: str, max_queries:
     
     for line in lines:
         line_stripped = line.strip()
-        # Look for patterns like "QUERY:" or "QUERY 1:" or "QUERY X:"
-        if (line_stripped.startswith("QUERY:") or 
-            (line_stripped.startswith("QUERY ") and ":" in line_stripped)):
+        # Look for patterns like "QUERY:", "**QUERY:**", "QUERY 1:", "**QUERY 1:**", etc.
+        # Remove markdown formatting and normalize
+        line_clean = line_stripped.replace("**", "").replace("*", "")
+        
+        if (line_clean.startswith("QUERY:") or 
+            (line_clean.startswith("QUERY ") and ":" in line_clean)):
             
             # Save previous query if we have one
             if current_query and len(queries) < max_queries:
@@ -71,14 +74,19 @@ def parse_and_limit_research_queries(research_queries_content: str, max_queries:
             if len(queries) >= max_queries:
                 break
             
-            # Extract the query after the colon
-            colon_idx = line_stripped.find(":")
+            # Extract the query after the colon from the cleaned line
+            colon_idx = line_clean.find(":")
             if colon_idx != -1:
-                current_query = line_stripped[colon_idx + 1:].strip()
+                current_query = line_clean[colon_idx + 1:].strip()
+                # Remove quotes if present
+                if current_query.startswith('"') and current_query.endswith('"'):
+                    current_query = current_query[1:-1]
             
-        elif current_query and line_stripped and not line_stripped.startswith("PURPOSE:"):
-            # Continue building the current query (skip PURPOSE lines)
-            current_query += " " + line_stripped
+        elif current_query and line_stripped and not line_clean.startswith("PURPOSE:") and not line_clean.startswith("DEPTH:"):
+            # Continue building the current query (skip PURPOSE and DEPTH lines)
+            # Also skip if line looks like a section header
+            if not line_stripped.startswith("#") and not line_stripped.startswith("**"):
+                current_query += " " + line_stripped
     
     # Add the last query if we haven't hit the limit
     if current_query and len(queries) < max_queries:
@@ -206,11 +214,11 @@ class ModelConfig:
     
     # === Use Case Model Assignments ===
     USE_CASE_MODELS = {
-        # Creative narrative tasks - OpenAI GPT-5 for reasoning-driven creativity
+        # Creative narrative tasks - Claude Opus 4.1 for maximum creativity and logline generation
         "general_creative": {
-            "provider": ModelProvider.OPENAI,
-            "model": "gpt5", 
-            "thinking": False,  # GPT-5 has advanced reasoning capabilities
+            "provider": ModelProvider.ANTHROPIC,
+            "model": "opus_4", 
+            "thinking": True,  # Use thinking mode for better logline reasoning
             "temperature": 1,  # Maximum creativity
             "max_tokens": 8000
         },
