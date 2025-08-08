@@ -151,6 +151,86 @@ DEPTH: [Technical level needed: basic/intermediate/advanced]
 Focus on research that will make the story both scientifically grounded and narratively compelling.
 """
 
+# Used in: integrate_research_findings() function (Step 6) - Research Integration
+RESEARCH_INTEGRATION_PROMPT = """Systematically integrate research findings into the story concept for maximum scientific accuracy and narrative coherence.
+
+STORY CONCEPT:
+{selected_story_concept}
+
+RESEARCH FINDINGS:
+{research_findings}
+
+TARGET YEAR: {target_year}
+HUMAN CONDITION THEME: {human_condition}
+ORIGINAL USER REQUEST: {original_user_request}
+
+## Integration Requirements
+
+### Scientific Accuracy
+- Weave research findings naturally into the story elements
+- Ensure all technological concepts are grounded in current scientific understanding
+- Maintain logical progression from 2024 to {target_year}
+- Address realistic limitations and unintended consequences
+
+### Narrative Coherence
+- Research integration must serve the story, not overwhelm it
+- Maintain character motivations and emotional core
+- Preserve the exploration of: {human_condition}
+- Keep the story authentic to {target_year} setting
+
+### Technical Integration Guidelines
+- **Character Knowledge**: Ensure characters understand their world's science realistically
+- **Plot Logic**: Scientific elements should drive or support plot developments organically
+- **World Consistency**: All research-based elements must align with established world rules
+- **Accessibility**: Complex concepts explained through character interaction and observation
+
+## Integration Process
+
+### Enhanced Story Synopsis
+Create a research-enhanced version of the story that includes:
+
+**Scientific Foundation**
+- How research findings support the core premise
+- Specific technologies and their realistic development paths
+- Scientific principles that govern the story world
+- Research-based constraints that shape character choices
+
+**Character Enhancement**
+- How characters' expertise reflects {target_year} scientific knowledge
+- Character relationships to technology and science that feel native to their time
+- Motivations and conflicts that emerge from research-grounded circumstances
+- Dialogue and thinking patterns informed by scientific understanding
+
+**Plot Integration**
+- Research-driven plot points that feel natural and inevitable
+- Scientific obstacles and solutions that create dramatic tension
+- Technology-based complications that serve character development
+- Research discoveries that propel the narrative forward
+
+**World-Building Depth**
+- Environmental and social changes supported by research findings
+- Scientific infrastructure and institutions appropriate to {target_year}
+- Cultural attitudes toward science and technology evolved from current trends
+- Economic and political implications of scientific developments
+
+### Authenticity Verification
+- **Timeline Realism**: All scientific developments respect realistic timescales
+- **Consequence Mapping**: Each research-based element has logical implications
+- **Human Impact**: Scientific changes affect society and individuals realistically
+- **Scientific Culture**: Characters interact with science in ways native to {target_year}
+
+## Output Format
+
+Provide a comprehensive, research-integrated story synopsis that:
+1. Maintains the original story's emotional core and character appeal
+2. Grounds all speculative elements in current scientific research
+3. Shows realistic development pathways to {target_year}
+4. Enhances rather than replaces creative storytelling with scientific detail
+5. Preserves the exploration of {human_condition} through a scientifically authentic lens
+
+The result should be a story that feels both scientifically credible and narratively compelling, ready for detailed outline development.
+"""
+
 # Used in: expand_logline_to_story_concept() function (Step 3.5) - Logline Expansion  
 EXPAND_LOGLINE_TO_STORY_PROMPT = """You are expanding a selected logline into a comprehensive story concept for a {target_year} science fiction novel.
 
@@ -813,5 +893,124 @@ Suggest ways to strengthen scientific integration in upcoming chapters.
 Provide guidance for maintaining scientific consistency throughout the remaining novel.
 
 This analysis is for monitoring purposes only - no changes will be made to existing chapters based on this feedback.
+"""
+
+# Used in: create_scene_brief_node() function (Step 12a) - Chapter Importance Classification
+CHAPTER_IMPORTANCE_CLASSIFIER = """
+After creating the scene brief, classify this chapter's importance:
+
+STANDARD: Regular narrative progression, character development, minor worldbuilding
+KEY: Major scientific concepts introduced, climactic moments, complex exposition, 
+     technology reveals, scientific convergence points, or final resolution
+
+Classification factors:
+- Does this chapter introduce new scientific principles?
+- Is this a major plot turning point involving science/technology?
+- Does this chapter require complex scientific exposition?
+- Do multiple scientific elements converge here?
+- Is this the climactic or final chapter?
+
+Output: 
+CHAPTER_IMPORTANCE: [STANDARD/KEY]
+REASONING: [Brief explanation]
+"""
+
+# Used in: dynamic_research_update_node() function (Step 12f) - Dynamic Research Detection
+DYNAMIC_RESEARCH_DETECTION_PROMPT = """
+Analyze the recently written chapters for NEW scientific concepts that weren't in our original research plan.
+
+ORIGINAL RESEARCH TOPICS:
+{original_research_summary}
+
+RECENT CHAPTERS (last 1-3):
+{recent_chapters}
+
+DETECTION CRITERIA:
+1. New scientific principles mentioned but not researched
+2. Technology that emerged organically in the story
+3. Scientific consequences that weren't anticipated
+4. Characters discussing science beyond our research scope
+5. Plot developments requiring scientific validation
+
+FORMAT:
+NEW_CONCEPTS_DETECTED: [YES/NO]
+
+If YES:
+CONCEPTS_LIST:
+- [Concept 1]: [Why it needs research]
+- [Concept 2]: [Why it needs research]
+
+RESEARCH_QUERIES (max 2):
+1. [Specific research query for concept 1]
+2. [Specific research query for concept 2]
+
+If NO:
+REASONING: [Why no new research needed]
+"""
+
+# Used in: enhanced_periodic_coherence_check() function (Step 12e) - Enhanced Scientific Coherence Analysis
+ENHANCED_SCIENTIFIC_COHERENCE_PROMPT = """
+Perform comprehensive scientific coherence analysis across these dimensions:
+
+CHAPTERS TO ANALYZE:
+{recent_chapters}
+
+ESTABLISHED SCIENCE (from earlier chapters):
+{established_scientific_facts}
+
+COHERENCE DIMENSIONS:
+
+1. SCIENTIFIC LAW ADHERENCE
+- Are physical laws consistently applied?
+- Any contradictions in how technology works?
+- Energy conservation, thermodynamics, etc. maintained?
+
+2. CHARACTER KNOWLEDGE CONSISTENCY  
+- What does each character know scientifically?
+- Are they acting within their expertise levels?
+- Any knowledge they shouldn't have yet?
+- Scientific learning progression realistic?
+
+3. TECHNOLOGY CAPABILITY TRACKING
+- Are tech capabilities consistent with earlier chapters?
+- Any sudden ability upgrades without explanation?
+- Technology limitations being respected?
+- Scientific basis for new capabilities established?
+
+4. WORLD PHYSICS CONSISTENCY
+- Environmental rules maintained (gravity, atmosphere, etc.)?
+- Scientific consequences of world changes tracked?
+- Cause-and-effect chains scientifically sound?
+
+5. RESEARCH INTEGRATION FIDELITY
+- Are researched scientific facts accurately represented?
+- No contradictions with established research?
+- Scientific accuracy maintained in plot integration?
+
+FORMAT:
+OVERALL_COHERENCE: [EXCELLENT/GOOD/MINOR_ISSUES/MAJOR_ISSUES]
+
+DIMENSION_SCORES:
+- Scientific Laws: [Score + brief note]
+- Character Knowledge: [Score + brief note]  
+- Technology Tracking: [Score + brief note]
+- World Physics: [Score + brief note]
+- Research Fidelity: [Score + brief note]
+
+SPECIFIC_ISSUES (if any):
+- [Issue description + suggested fix]
+
+POSITIVE_CONSISTENCY_NOTES:
+- [What's working well scientifically]
+
+TRACKING_UPDATES:
+CHARACTER_SCIENTIFIC_KNOWLEDGE:
+- [Character]: [What they now know that's new]
+
+ESTABLISHED_TECH_CAPABILITIES:
+- [Technology]: [Current established capabilities/limits]
+
+SCIENTIFIC_WORLD_RULES:
+- [Rule/Law]: [How it's been established/modified]
 """
 

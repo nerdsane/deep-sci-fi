@@ -22,6 +22,7 @@ class UseCase(Enum):
     COMPETITIVE_OUTLINE = "competitive_outline"  # Competitive outline creation
     STORY_RESEARCH_INTEGRATION = "story_research_integration"  # Research-integrated story refinement
     FIRST_CHAPTER_WRITING = "first_chapter_writing"  # First chapter competitive writing
+    KEY_CHAPTER_WRITING = "key_chapter_writing"  # Competitive writing for scientifically complex chapters
 
 # Model Templates - Define phase-specific model configurations
 MODEL_TEMPLATES = {

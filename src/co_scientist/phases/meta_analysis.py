@@ -99,6 +99,11 @@ async def meta_analysis_traditional_phase(state: CoScientistState, config: Runna
     response = await llm_call_with_retry(llm, [HumanMessage(content=meta_prompt)])
     research_directions = parse_research_directions(response.content)
     
+    # If parsing failed due to parameter issues, generate fallback directions
+    if not research_directions and _is_llm_refusal_response(response.content):
+        print("🔧 Generating fallback research directions due to parameter issues")
+        research_directions = _generate_fallback_directions(use_case, processed_state)
+    
     print(f"📊 Parsed {len(research_directions)} research directions")
     
     # Save results if configured
@@ -195,6 +200,11 @@ def parse_research_directions(content: str) -> List[Dict[str, Any]]:
     Returns:
         list: Parsed research directions with name, assumption, and focus
     """
+    # Check if the LLM refused to proceed due to missing parameters
+    if _is_llm_refusal_response(content):
+        print(f"⚠️ LLM refused to proceed due to missing parameters. Response: {content[:200]}...")
+        return []
+    
     directions = []
     lines = content.split('\n')
     
@@ -273,6 +283,85 @@ def _process_legacy_state(state: CoScientistState) -> Dict[str, Any]:
         processed_state.update(state)
     
     return processed_state
+
+
+def _is_llm_refusal_response(content: str) -> bool:
+    """Check if the LLM response indicates refusal due to missing parameters."""
+    refusal_indicators = [
+        "story context you've provided is incomplete",
+        "key details are missing",
+        "blank]",
+        "missing]",
+        "would need:",
+        "please fill in these context details",
+        "cannot provide the targeted",
+        "without knowing what specific"
+    ]
+    
+    content_lower = content.lower()
+    return any(indicator in content_lower for indicator in refusal_indicators)
+
+
+def _generate_fallback_directions(use_case: str, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate fallback research directions when LLM refuses due to missing parameters."""
+    
+    if use_case == "competitive_outline":
+        return [
+            {
+                "name": "Character-Driven Structural Architecture",
+                "assumption": "Story structure should prioritize character development and emotional arcs as the primary organizing principle",
+                "focus": "Building chapter sequences around character growth moments and relationship dynamics"
+            },
+            {
+                "name": "Thematic Resonance Framework", 
+                "assumption": "Each structural element should reinforce and explore the central human condition theme",
+                "focus": "Organizing content to create thematic echoes and deeper meaning through structural choices"
+            },
+            {
+                "name": "Future-World Integration Structure",
+                "assumption": "The story structure should showcase the unique aspects of the future world setting",
+                "focus": "Balancing world-building revelation with plot progression through strategic pacing"
+            }
+        ]
+    
+    elif use_case == "competitive_loglines":
+        return [
+            {
+                "name": "Technology-Consequence Exploration",
+                "assumption": "Future stories should examine unexpected consequences of technological advancement",
+                "focus": "Creating loglines that explore how technology changes human behavior and relationships"
+            },
+            {
+                "name": "Social Evolution Narrative",
+                "assumption": "Future societies develop new social structures and cultural norms",
+                "focus": "Crafting loglines around conflicts between old and new ways of being human"
+            },
+            {
+                "name": "Individual vs System Tension",
+                "assumption": "Future worlds create new forms of tension between individual agency and systemic control",
+                "focus": "Developing loglines where personal stakes intersect with larger societal forces"
+            }
+        ]
+    
+    else:
+        # Generic fallback for other use cases
+        return [
+            {
+                "name": "Foundation Approach",
+                "assumption": "Build on established principles while introducing innovation",
+                "focus": "Balancing proven methods with creative exploration"
+            },
+            {
+                "name": "Experimental Methodology", 
+                "assumption": "Push boundaries through systematic experimentation",
+                "focus": "Testing new approaches while maintaining coherence"
+            },
+            {
+                "name": "Synthesis Strategy",
+                "assumption": "Combine multiple perspectives for comprehensive solutions",
+                "focus": "Integrating diverse elements into unified approaches"
+            }
+        ]
 
 
 def _create_meta_analysis_result(research_directions: List[Dict[str, Any]], reasoning: str) -> Dict[str, Any]:

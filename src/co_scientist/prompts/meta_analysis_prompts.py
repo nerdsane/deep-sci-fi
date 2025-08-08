@@ -40,12 +40,13 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["original_user_input"] = context_value
     elif use_case == "competitive_outline":
         # Competitive outline meta-analysis parameters
-        params["human_condition"] = state.get("human_condition", "")
-        params["target_year"] = state.get("target_year", "future")
-        params["refined_story"] = state.get("refined_story", "")
-        params["research_findings"] = state.get("research_findings", "")
-        params["outline_prep_materials"] = state.get("outline_prep_materials", "")
-        params["selected_logline"] = state.get("selected_logline", "")
+        # Provide meaningful defaults to prevent blank parameter errors
+        params["human_condition"] = state.get("human_condition", "human resilience and adaptation in future society")
+        params["target_year"] = state.get("target_year", 2200)
+        params["refined_story"] = state.get("refined_story", "Story details not yet available")
+        params["research_findings"] = state.get("research_findings", "Research findings not yet available")
+        params["outline_prep_materials"] = state.get("outline_prep_materials", "Outline preparation materials not yet available")
+        params["selected_logline"] = state.get("selected_logline", "Logline not yet selected")
         params["original_user_input"] = context_value
     elif use_case == "story_research_integration":
         params["story_concept"] = context_value

@@ -20,6 +20,7 @@ from deep_sci_fi.prompts import (
     LIGHT_FUTURE_CONTEXT_PROMPT,
     STORY_RESEARCH_TARGETING_PROMPT,
     RESEARCH_QUERY_GENERATION_PROMPT,
+    RESEARCH_INTEGRATION_PROMPT,
     EXPAND_LOGLINE_TO_STORY_PROMPT,
     OUTLINE_PREP_PROMPT,
     ANALYZE_OUTLINE_PROMPT,
@@ -29,6 +30,9 @@ from deep_sci_fi.prompts import (
     CHAPTER_CRITIQUE_PROMPT,
     CHAPTER_REWRITE_PROMPT,
     SCIENTIFIC_COHERENCE_PROMPT,
+    CHAPTER_IMPORTANCE_CLASSIFIER,
+    DYNAMIC_RESEARCH_DETECTION_PROMPT,
+    ENHANCED_SCIENTIFIC_COHERENCE_PROMPT,
 )
 
 def parse_and_limit_research_queries(research_queries_content: str, max_queries: int = 5) -> list[str]:
@@ -117,9 +121,7 @@ class AgentState(TypedDict):
     research_targets: Optional[str]
     research_queries: Optional[list]  # List of parsed research queries
     research_findings: Optional[str]
-    story_refinement_options: Optional[list]  # Generated story refinement options for user selection
-    user_refinement_selection: Optional[int]  # User's selected refinement option number (1-based index)
-    refined_story: Optional[str]
+    refined_story: Optional[str]  # Research-integrated story from direct integration
     # New outline workflow fields
     outline_prep_materials: Optional[str]
     winning_outline: Optional[str]
@@ -134,9 +136,13 @@ class AgentState(TypedDict):
     current_chapter_draft: Optional[str]
     current_critique_feedback: Optional[str]
     current_quality_rating: Optional[str]
+    current_chapter_importance: Optional[str]  # STANDARD or KEY
     coherence_issues_log: Optional[list]
     enhanced_process_used: Optional[bool]
     coherence_checks_performed: Optional[int]
+    # Enhanced coherence tracking
+    coherence_tracking: Optional[dict]  # Scientific consistency tracking
+    original_research_summary: Optional[str]  # For dynamic research updates
 
 def get_state_values_with_defaults(state: AgentState):
     """Get target_year and human_condition with fallback defaults"""
@@ -160,7 +166,7 @@ class ModelConfig:
         ModelProvider.ANTHROPIC: {
             # Claude models with thinking capabilities
             "sonnet_4": "anthropic:claude-sonnet-4-20250514",
-            "opus_4": "anthropic:claude-opus-4-20250514", 
+            "opus_4": "anthropic:claude-opus-4-1-20250805", 
             "sonnet_3_5": "anthropic:claude-3-5-sonnet-20241022",
             "haiku_3_5": "anthropic:claude-3-5-haiku-20241022"
         },
@@ -169,6 +175,7 @@ class ModelConfig:
             "o3": "openai:o3-2025-04-16",
             "o3_mini": "openai:o3-mini-2025-04-16", 
             "o1": "openai:o1-2024-12-17",
+            "gpt5": "openai:gpt-5-2025-08-07",
             "gpt4": "openai:o3-2025-04-16",
             "gpt4_mini": "openai:o3-mini-2025-04-16"
         },
@@ -181,11 +188,11 @@ class ModelConfig:
     
     # === Use Case Model Assignments ===
     USE_CASE_MODELS = {
-        # Creative narrative tasks - OpenAI O3 for reasoning-driven creativity
+        # Creative narrative tasks - OpenAI GPT-5 for reasoning-driven creativity
         "general_creative": {
             "provider": ModelProvider.OPENAI,
-            "model": "o3", 
-            "thinking": False,  # O3 has built-in reasoning
+            "model": "gpt5", 
+            "thinking": False,  # GPT-5 has advanced reasoning capabilities
             "temperature": 1,  # Maximum creativity
             "max_tokens": 8000
         },
@@ -727,8 +734,8 @@ async def conduct_deep_research(state: AgentState, config: RunnableConfig):
     return {"research_findings": research_findings}
 
 
-async def refine_story_with_research(state: AgentState, config: RunnableConfig):
-    """Step 6: Generate story refinement options using Co-Scientist Competition"""
+async def integrate_research_findings(state: AgentState, config: RunnableConfig):
+    """Step 6: Systematically integrate research findings into story elements"""
     
     # Detailed error reporting for missing state
     missing_fields = []
@@ -741,7 +748,7 @@ async def refine_story_with_research(state: AgentState, config: RunnableConfig):
     
     if missing_fields:
         available_keys = list(state.keys())
-        raise ValueError(f"STORY REFINEMENT FAILURE: Missing required state fields: {missing_fields}. Available state keys: {available_keys}")
+        raise ValueError(f"RESEARCH INTEGRATION FAILURE: Missing required state fields: {missing_fields}. Available state keys: {available_keys}")
     
     # Extract validated state values
     output_dir = state["output_dir"]
@@ -751,124 +758,36 @@ async def refine_story_with_research(state: AgentState, config: RunnableConfig):
     # Get target_year and human_condition with fallback defaults
     target_year, human_condition = get_state_values_with_defaults(state)
     
-    print("--- Generating Story Refinement Options using Co-Scientist Competition ---")
+    print("--- Integrating Research Findings into Story ---")
     
-    # Use co_scientist for competitive story refinement with research integration
-    newline = "\n"
-    context_text = f"Original User Request: {state.get('user_input', '')}{newline}{newline}Original Story: {selected_story_concept}"
-    reference_text = f"Research Findings: {research_findings}"
-    co_scientist_input = CoScientistConfiguration.create_input_state(
-        use_case=UseCase.STORY_RESEARCH_INTEGRATION,
-        context=context_text,
-        reference_material=reference_text,
+    # Use general model with slightly lower temperature for accuracy-focused integration
+    integration_model = ModelConfig.create_model_instance("general_creative", temperature=0.8)
+    
+    prompt = ChatPromptTemplate.from_template(RESEARCH_INTEGRATION_PROMPT)
+    response = integration_model.invoke(prompt.format(
+        selected_story_concept=selected_story_concept,
+        research_findings=research_findings,
         target_year=target_year,
         human_condition=human_condition,
-        selected_story_concept=selected_story_concept,
-        research_findings=research_findings
-    )
+        original_user_request=state.get('user_input', '')
+    ))
     
-    # Configure co_scientist for story refinement competition
-    subgraph_config = config.copy()
-    subgraph_config["configurable"].update({
-        "research_model": ModelConfig.get_model_string("general_creative"),
-        "general_model": ModelConfig.get_model_string("general_creative"),
-        "use_case": "story_research_integration",
-        "process_depth": "standard",
-        "population_scale": "light",
-        "use_deep_researcher": False,
-        "save_intermediate_results": True,
-        "output_dir": output_dir,
-        "phase": "story_research_integration"
-    })
+    research_integrated_story = response.content
+    save_output(output_dir, "06_research_integrated_story.md", research_integrated_story)
     
-    # Run co_scientist competition
-    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    print("--- Research Integration Complete ---")
+    print("--- Story enhanced with scientific grounding and accuracy ---")
     
-    # Save detailed competition results
-    detailed_results = format_detailed_competition_results(co_scientist_result)
-    save_output(output_dir, "06_story_refinement_competition_details.md", detailed_results)
-    
-    # Save direction winners
-    direction_winners = co_scientist_result.get("direction_winners", [])
-    for i, winner in enumerate(direction_winners, 1):
-        winner_details = format_co_scientist_winner_details(winner, f"story_refinement_option_{i}")
-        save_output(output_dir, f"06_story_refinement_option_{i}_full.md", winner_details)
-    
-    if direction_winners:
-        # Format options for user selection
-        formatted_options = format_story_refinement_options_for_selection(direction_winners, co_scientist_result.get("competition_summary", ""))
-        save_output(output_dir, "06_story_refinement_options.md", formatted_options)
-        
-        print("--- Co-Scientist Story Refinement Options Generated ---")
-        print(f"--- {len(direction_winners)} refinement options available for user selection ---")
-        
-        # Return the refinement options while preserving all existing state
-        return {"story_refinement_options": direction_winners}
-    else:
-        raise RuntimeError("Co-scientist story refinement competition failed to produce direction winners.")
+    return {"refined_story": research_integrated_story}
 
 
-async def user_refinement_selection(state: AgentState, config: RunnableConfig):
-    """Step 6.5: Process user's numbered story refinement selection"""
-    if not (output_dir := state.get("output_dir")) or not (story_refinement_options := state.get("story_refinement_options")) or not (user_refinement_selection := state.get("user_refinement_selection")):
-        raise ValueError("Required state for user refinement selection is missing.")
-    
-    print(f"--- Processing User Refinement Selection: Option #{user_refinement_selection} ---")
-    
-    # Validate selection
-    if not (1 <= user_refinement_selection <= len(story_refinement_options)):
-        raise ValueError(f"Invalid selection {user_refinement_selection}. Must be between 1 and {len(story_refinement_options)}")
-    
-    # Get selected refinement option (1-indexed)
-    selected_option = story_refinement_options[user_refinement_selection - 1]
-    refined_story = selected_option.get("scenario_content", "")
-    approach_name = selected_option.get("research_direction", "Unknown")
-    
-    # Save the user-selected refined story
-    save_output(output_dir, "06_selected_refined_story.md", refined_story)
-    
-    print(f"--- User Selected Refinement Option #{user_refinement_selection}: {approach_name} ---")
-    
-    return {"refined_story": refined_story}
+# REMOVED: user_refinement_selection - no longer needed since Step 6 is direct integration
 
 
 async def create_outline_prep_materials(state: AgentState, config: RunnableConfig):
     """Step 7: Generate foundational story elements for detailed outline creation"""
     
-    # Debug: Print what state is actually available
-    print(f"--- DEBUG: Available state keys: {list(state.keys())} ---")
-    print(f"--- DEBUG: output_dir: {state.get('output_dir')} ---")
-    print(f"--- DEBUG: refined_story: {state.get('refined_story')} ---")
-    print(f"--- DEBUG: research_findings available: {bool(state.get('research_findings'))} ---")
-    
-    # Check if refined_story is missing but user_refinement_selection is available
-    refined_story = state.get("refined_story")
-    if not refined_story and state.get("user_refinement_selection") and state.get("story_refinement_options"):
-        print("--- DEBUG: refined_story missing but user selection available, processing selection inline ---")
-        
-        # Process the user refinement selection inline
-        user_refinement_selection = state.get("user_refinement_selection")
-        story_refinement_options = state.get("story_refinement_options")
-        
-        # Validate selection
-        if not (1 <= user_refinement_selection <= len(story_refinement_options)):
-            raise ValueError(f"Invalid selection {user_refinement_selection}. Must be between 1 and {len(story_refinement_options)}")
-        
-        # Get selected refinement option (1-indexed)
-        selected_option = story_refinement_options[user_refinement_selection - 1]
-        refined_story = selected_option.get("scenario_content", "")
-        approach_name = selected_option.get("research_direction", "Unknown")
-        
-        # Save the user-selected refined story
-        if output_dir := state.get("output_dir"):
-            save_output(output_dir, "06_selected_refined_story.md", refined_story)
-        
-        print(f"--- User Selected Refinement Option #{user_refinement_selection}: {approach_name} ---")
-        
-        # Update state with refined_story
-        state["refined_story"] = refined_story
-    
-    if not (output_dir := state.get("output_dir")) or not refined_story or not (research_findings := state.get("research_findings")):
+    if not (output_dir := state.get("output_dir")) or not (refined_story := state.get("refined_story")) or not (research_findings := state.get("research_findings")):
         # Provide detailed error about what's missing
         missing = []
         if not state.get("output_dir"):
@@ -943,7 +862,7 @@ async def create_competitive_outline(state: AgentState, config: RunnableConfig):
         "research_model": ModelConfig.get_model_string("chapter_writing"),  # Use writing model for structural work
         "general_model": ModelConfig.get_model_string("chapter_writing"),   # Use writing model for structural work
         "use_case": "competitive_outline",
-        "process_depth": "light",  # Generation + tournament only
+        "process_depth": "quick",  # Generation + tournament only
         "population_scale": "light",
         "use_deep_researcher": False,
         "save_intermediate_results": True,
@@ -1123,17 +1042,31 @@ async def initialize_chapter_loop(state: AgentState, config: RunnableConfig):
     # Initialize loop state
     current_chapter = state.get("total_chapters_written", 1) + 1  # Start after first chapter
     
+    # Create research summary for dynamic updates
+    research_findings = state.get("research_findings", "")
+    research_summary = create_research_summary(research_findings)
+    
+    # Initialize coherence tracking
+    coherence_tracking = {
+        "character_knowledge": {},  # Character -> scientific knowledge level
+        "tech_capabilities": {},    # Technology -> established capabilities  
+        "world_rules": {},         # Scientific rules established in world
+        "research_facts": {}       # Key facts from original research
+    }
+    
     return {
         "target_chapters_count": target_chapters,
         "current_chapter_number": current_chapter,
         "coherence_issues_log": [],
         "enhanced_process_used": True,
-        "coherence_checks_performed": 0
+        "coherence_checks_performed": 0,
+        "coherence_tracking": coherence_tracking,
+        "original_research_summary": research_summary
     }
 
 
 async def create_scene_brief_node(state: AgentState, config: RunnableConfig):
-    """Node: Create detailed scene brief for current chapter"""
+    """Node: Create detailed scene brief for current chapter and classify importance"""
     if not (output_dir := state.get("output_dir")) or not (current_chapter := state.get("current_chapter_number")):
         raise ValueError("Required state for creating scene brief is missing.")
     
@@ -1142,14 +1075,107 @@ async def create_scene_brief_node(state: AgentState, config: RunnableConfig):
     # Create scene brief using existing helper function
     scene_brief = await create_scene_brief(state, config, current_chapter)
     
-    # Save scene brief
-    save_output(output_dir, f"12a_chapter_{current_chapter:02d}_scene_brief.md", scene_brief)
+    # Classify chapter importance
+    importance_prompt = ChatPromptTemplate.from_template(CHAPTER_IMPORTANCE_CLASSIFIER)
+    importance_response = general_model.invoke(importance_prompt.format(
+        scene_brief=scene_brief,
+        chapter_number=current_chapter
+    ))
     
-    print(f"--- Scene brief for Chapter {current_chapter} complete ---")
+    importance_content = importance_response.content
+    
+    # Parse importance classification
+    chapter_importance = "STANDARD"  # Default
+    for line in importance_content.split('\n'):
+        if line.startswith("CHAPTER_IMPORTANCE:"):
+            classification = line.split(":", 1)[1].strip()
+            if classification in ["STANDARD", "KEY"]:
+                chapter_importance = classification
+                break
+    
+    # Save scene brief with importance classification
+    full_brief_content = f"{scene_brief}\n\n---\n\n## Chapter Importance Classification\n{importance_content}"
+    save_output(output_dir, f"12a_chapter_{current_chapter:02d}_scene_brief.md", full_brief_content)
+    
+    print(f"--- Scene brief for Chapter {current_chapter} complete (Importance: {chapter_importance}) ---")
     
     return {
-        "current_scene_brief": scene_brief
+        "current_scene_brief": scene_brief,
+        "current_chapter_importance": chapter_importance
     }
+
+
+async def write_key_chapter_competitive(state: AgentState, config: RunnableConfig):
+    """Step 12a-alt: Use CS competition for KEY chapters with high scientific complexity"""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter := state.get("current_chapter_number")) or not (scene_brief := state.get("current_scene_brief")):
+        raise ValueError("Required state for competitive key chapter writing is missing.")
+    
+    print(f"=== Writing KEY Chapter {current_chapter} with Co-Scientist Competition ===")
+    
+    # Get target_year and human_condition with fallback defaults
+    target_year, human_condition = get_state_values_with_defaults(state)
+    
+    # Use co_scientist for competitive key chapter writing
+    co_scientist_input = CoScientistConfiguration.create_input_state(
+        use_case=UseCase.KEY_CHAPTER_WRITING,
+        context=f"Chapter {current_chapter} Scene Brief: {scene_brief}",
+        reference_material=f"Previous Chapters Context: {get_chapter_context_for_writing(state)}",
+        target_year=target_year,
+        human_condition=human_condition,
+        chapter_number=current_chapter,
+        scene_brief=scene_brief,
+        research_findings=state.get("research_findings", "")
+    )
+    
+    # Configure co_scientist for key chapter competition
+    subgraph_config = config.copy()
+    subgraph_config["configurable"].update({
+        "research_model": ModelConfig.get_model_string("chapter_writing"),
+        "general_model": ModelConfig.get_model_string("chapter_writing"),
+        "use_case": "key_chapter_writing",
+        "process_depth": "standard",
+        "population_scale": "medium",  # More variety for key chapters
+        "use_deep_researcher": False,
+        "save_intermediate_results": True,
+        "output_dir": output_dir,
+        "phase": f"key_chapter_{current_chapter}",
+        "specialist_prompts": ["hard_sf_specialist", "science_educator", "narrative_physicist"]
+    })
+    
+    # Run co_scientist competition
+    co_scientist_result = await co_scientist.ainvoke(co_scientist_input, subgraph_config)
+    
+    # Save detailed competition results
+    detailed_results = format_detailed_competition_results(co_scientist_result)
+    save_output(output_dir, f"12b_chapter_{current_chapter:02d}_key_competition_details.md", detailed_results)
+    
+    # Get the winning chapter
+    direction_winners = co_scientist_result.get("direction_winners", [])
+    if direction_winners:
+        winning_chapter = direction_winners[0].get("scenario_content", "")
+        
+        # Save winning chapter draft
+        save_output(output_dir, f"12b_chapter_{current_chapter:02d}_draft.md", winning_chapter)
+        
+        print(f"--- KEY Chapter {current_chapter} competitive writing complete ---")
+        print(f"--- Selected winning chapter from {len(direction_winners)} approaches ---")
+        
+        return {
+            "current_chapter_draft": winning_chapter
+        }
+    else:
+        raise RuntimeError(f"Co-scientist key chapter competition failed for Chapter {current_chapter}.")
+
+
+def get_chapter_context_for_writing(state: AgentState) -> str:
+    """Get recent chapter context for writing."""
+    previous_chapters = state.get("previous_chapters", [])
+    if not previous_chapters:
+        return "No previous chapters available."
+    
+    # Get last 3 chapters for context
+    recent_chapters = previous_chapters[-3:]
+    return "\n\n---\n\n".join(recent_chapters)
 
 
 async def write_chapter_draft_node(state: AgentState, config: RunnableConfig):
@@ -1245,6 +1271,80 @@ async def check_if_more_chapters(state: AgentState, config: RunnableConfig):
         }
 
 
+async def dynamic_research_update_node(state: AgentState, config: RunnableConfig):
+    """Step 12f: Dynamic Research Update - detect and research emerging scientific concepts"""
+    if not (output_dir := state.get("output_dir")):
+        raise ValueError("Output directory missing for dynamic research update.")
+    
+    current_chapter = state.get("current_chapter_number", 0)
+    previous_chapters = state.get("previous_chapters", [])
+    original_research_summary = state.get("original_research_summary", "")
+    
+    print(f"=== Dynamic Research Update Check for Chapter {current_chapter} ===")
+    
+    # Get recent chapters for analysis (last 1-3 chapters)
+    recent_chapters = previous_chapters[-3:] if len(previous_chapters) >= 3 else previous_chapters
+    if not recent_chapters:
+        print("--- No chapters to analyze for dynamic research ---")
+        return {}
+    
+    recent_chapters_text = "\n\n=== CHAPTER BREAK ===\n\n".join(recent_chapters)
+    
+    # Check for new scientific concepts
+    detection_model = ModelConfig.create_model_instance("general_creative", temperature=0.7)
+    detection_prompt = ChatPromptTemplate.from_template(DYNAMIC_RESEARCH_DETECTION_PROMPT)
+    detection_response = detection_model.invoke(detection_prompt.format(
+        original_research_summary=original_research_summary,
+        recent_chapters=recent_chapters_text
+    ))
+    
+    detection_content = detection_response.content
+    save_output(output_dir, f"12f_chapter_{current_chapter:02d}_research_detection.md", detection_content)
+    
+    # Parse detection results
+    new_concepts_detected = False
+    research_queries = []
+    
+    for line in detection_content.split('\n'):
+        if line.startswith("NEW_CONCEPTS_DETECTED:"):
+            result = line.split(":", 1)[1].strip()
+            new_concepts_detected = result.upper() == "YES"
+        elif line.strip().startswith(("1.", "2.")) and "research query" in line.lower():
+            query = line.split(".", 1)[1].strip()
+            research_queries.append(query)
+    
+    if new_concepts_detected and research_queries:
+        print(f"--- New concepts detected! Conducting mini-research on {len(research_queries)} queries ---")
+        
+        # Conduct mini-research using deep researcher
+        mini_research_results = []
+        for i, query in enumerate(research_queries[:2], 1):  # Limit to 2 queries
+            try:
+                print(f"--- Mini-research Query {i}: {query[:100]}... ---")
+                research_result = await _run_deep_researcher(query, config)
+                mini_research_results.append(f"## Mini-Research Query {i}: {query}\n\n{research_result}")
+                save_output(output_dir, f"12f_mini_research_{current_chapter:02d}_{i}.md", research_result)
+            except Exception as e:
+                print(f"❌ Mini-research query {i} failed: {e}")
+                mini_research_results.append(f"## Mini-Research Query {i} FAILED: {query}\n\nError: {e}")
+        
+        # Combine and save mini-research results
+        combined_mini_research = "\n\n".join(mini_research_results)
+        save_output(output_dir, f"12f_combined_mini_research_{current_chapter:02d}.md", combined_mini_research)
+        
+        print(f"--- Dynamic research update complete: {len(mini_research_results)} mini-research queries conducted ---")
+        
+        return {
+            "mini_research_conducted": True,
+            "mini_research_findings": combined_mini_research
+        }
+    else:
+        print("--- No new concepts requiring research detected ---")
+        return {
+            "mini_research_conducted": False
+        }
+
+
 async def periodic_coherence_check_node(state: AgentState, config: RunnableConfig):
     """Node: Perform periodic scientific coherence check"""
     if not (output_dir := state.get("output_dir")):
@@ -1268,22 +1368,29 @@ async def periodic_coherence_check_node(state: AgentState, config: RunnableConfi
     # Get recent chapters batch
     recent_chapters_batch = previous_chapters[-4:] if len(previous_chapters) >= 4 else previous_chapters
     
-    # Run coherence check using existing helper function
-    coherence_analysis = await periodic_coherence_check(state, config, recent_chapters_batch, current_chapter)
+    # Run enhanced coherence check
+    coherence_analysis = await enhanced_periodic_coherence_check(state, config, recent_chapters_batch, current_chapter)
     
     # Save coherence analysis
     save_output(output_dir, f"12e_coherence_check_chapters_{max(1, current_chapter-3)}-{current_chapter}.md", coherence_analysis)
     
-    # Log any critical issues found
-    if "CRITICAL:" in coherence_analysis:
-        coherence_issues_log.append(f"Chapters {max(1, current_chapter-3)}-{current_chapter}: Issues found")
-        print(f"⚠️  Scientific coherence issues detected - see coherence check file")
+    # Parse coherence results and update tracking
+    updated_tracking = parse_coherence_tracking_updates(coherence_analysis, state.get("coherence_tracking", {}))
     
-    print(f"--- Coherence check complete ---")
+    # Log any critical issues found
+    if "MAJOR_ISSUES" in coherence_analysis:
+        coherence_issues_log.append(f"Chapters {max(1, current_chapter-3)}-{current_chapter}: Major issues found")
+        print(f"⚠️  Major scientific coherence issues detected - see coherence check file")
+    elif "MINOR_ISSUES" in coherence_analysis:
+        coherence_issues_log.append(f"Chapters {max(1, current_chapter-3)}-{current_chapter}: Minor issues noted")
+        print(f"ℹ️  Minor scientific coherence issues noted - see coherence check file")
+    
+    print(f"--- Enhanced coherence check complete ---")
     
     return {
         "coherence_checks_performed": coherence_checks_performed + 1,
-        "coherence_issues_log": coherence_issues_log
+        "coherence_issues_log": coherence_issues_log,
+        "coherence_tracking": updated_tracking
     }
 
 
@@ -1637,6 +1744,82 @@ async def rewrite_chapter_if_needed(state: AgentState, config: RunnableConfig, c
     return response.content
 
 
+def parse_coherence_tracking_updates(coherence_analysis: str, current_tracking: dict) -> dict:
+    """Parse coherence analysis results and update tracking information."""
+    tracking = current_tracking.copy()
+    
+    # Parse tracking updates from coherence analysis
+    lines = coherence_analysis.split('\n')
+    current_section = None
+    
+    for line in lines:
+        line = line.strip()
+        if line == "CHARACTER_SCIENTIFIC_KNOWLEDGE:":
+            current_section = "character_knowledge"
+        elif line == "ESTABLISHED_TECH_CAPABILITIES:":
+            current_section = "tech_capabilities"
+        elif line == "SCIENTIFIC_WORLD_RULES:":
+            current_section = "world_rules"
+        elif line.startswith("- ") and current_section and ":" in line:
+            # Parse tracking entries like "- Character: Knowledge update"
+            key_value = line[2:].split(":", 1)
+            if len(key_value) == 2:
+                key, value = key_value[0].strip(), key_value[1].strip()
+                tracking[current_section][key] = value
+    
+    return tracking
+
+
+async def enhanced_periodic_coherence_check(state: AgentState, config: RunnableConfig, recent_chapters: list[str], chapters_written: int) -> str:
+    """Enhanced coherence check with multi-dimensional scientific consistency tracking."""
+    research_findings = state.get("research_findings", "")
+    target_year = state.get("target_year", "")
+    coherence_tracking = state.get("coherence_tracking", {})
+    
+    # Create batch of recent chapters
+    chapters_batch = f"\n\n=== CHAPTER BREAK ===\n\n".join(recent_chapters)
+    
+    # Extract established scientific facts from tracking and research
+    established_facts = format_established_scientific_facts(coherence_tracking, research_findings)
+    
+    prompt = ChatPromptTemplate.from_template(ENHANCED_SCIENTIFIC_COHERENCE_PROMPT)
+    response = general_model.invoke(prompt.format(
+        recent_chapters=chapters_batch,
+        established_scientific_facts=established_facts,
+        target_year=target_year
+    ))
+    
+    return response.content
+
+
+def format_established_scientific_facts(coherence_tracking: dict, research_findings: str) -> str:
+    """Format established scientific facts for coherence checking."""
+    facts = []
+    
+    # Add facts from coherence tracking
+    if coherence_tracking.get("world_rules"):
+        facts.append("## Established World Rules")
+        for rule, description in coherence_tracking["world_rules"].items():
+            facts.append(f"- {rule}: {description}")
+    
+    if coherence_tracking.get("tech_capabilities"):
+        facts.append("## Technology Capabilities")
+        for tech, capabilities in coherence_tracking["tech_capabilities"].items():
+            facts.append(f"- {tech}: {capabilities}")
+    
+    if coherence_tracking.get("character_knowledge"):
+        facts.append("## Character Scientific Knowledge")
+        for character, knowledge in coherence_tracking["character_knowledge"].items():
+            facts.append(f"- {character}: {knowledge}")
+    
+    # Add condensed research findings
+    if research_findings:
+        facts.append("## Original Research Facts")
+        facts.append(research_findings[:1000] + "..." if len(research_findings) > 1000 else research_findings)
+    
+    return "\n".join(facts) if facts else "No established scientific facts tracked yet."
+
+
 async def periodic_coherence_check(state: AgentState, config: RunnableConfig, recent_chapters: list[str], chapters_written: int) -> str:
     """Sub-Step 12e: Check scientific consistency across recent chapters - ANALYSIS ONLY"""
     research_findings = state.get("research_findings", "")
@@ -1657,6 +1840,29 @@ async def periodic_coherence_check(state: AgentState, config: RunnableConfig, re
     ))
     
     return response.content
+
+
+def create_research_summary(research_findings: str) -> str:
+    """Create a concise summary of original research topics for dynamic updates."""
+    if not research_findings:
+        return "No original research conducted."
+    
+    # Extract key research topics from findings
+    lines = research_findings.split('\n')
+    topics = []
+    
+    for line in lines:
+        if line.startswith('## Research Query'):
+            # Extract the query topic
+            topic = line.replace('## Research Query', '').strip()
+            if ':' in topic:
+                topic = topic.split(':', 1)[1].strip()
+            topics.append(topic)
+    
+    if topics:
+        return "Original Research Topics:\n" + "\n".join(f"- {topic}" for topic in topics)
+    else:
+        return "Research conducted on story-relevant scientific concepts."
 
 
 def parse_chapter_count_from_outline(outline: str) -> int:
@@ -2035,12 +2241,31 @@ def format_co_scientist_winner_details(winner_scenario: dict, content_type: str)
 
 # === ROUTING FUNCTIONS FOR MODULAR CHAPTER WRITING ===
 
+def route_chapter_writing(state: AgentState) -> str:
+    """Route between standard and competitive chapter writing based on importance."""
+    chapter_importance = state.get("current_chapter_importance", "STANDARD")
+    
+    if chapter_importance == "KEY":
+        return "write_key_chapter_competitive"
+    else:
+        return "write_chapter_draft_node"
+
+
 def route_after_rewrite(state: AgentState) -> str:
-    """Route after chapter rewrite: check coherence, then check if more chapters"""
+    """Route after chapter rewrite: dynamic research → coherence → check if more chapters"""
     current_chapter = state.get("current_chapter_number", 0)
     target_chapters = state.get("target_chapters_count", 0)
     
-    # First check if we need coherence check
+    # Always do dynamic research check first
+    return "dynamic_research_update_node"
+
+
+def route_after_dynamic_research(state: AgentState) -> str:
+    """Route after dynamic research: check coherence, then check if more chapters"""
+    current_chapter = state.get("current_chapter_number", 0)
+    target_chapters = state.get("target_chapters_count", 0)
+    
+    # Check if we need coherence check (every 4 chapters or final chapter)
     should_check_coherence = (current_chapter % 4 == 0) or (current_chapter == target_chapters)
     
     if should_check_coherence:
@@ -2079,8 +2304,7 @@ workflow.add_node("user_story_selection", user_story_selection)
 workflow.add_node("identify_story_research_targets", identify_story_research_targets)
 workflow.add_node("generate_research_queries", generate_research_queries)
 workflow.add_node("conduct_deep_research", conduct_deep_research)
-workflow.add_node("refine_story_with_research", refine_story_with_research)
-workflow.add_node("user_refinement_selection", user_refinement_selection)
+workflow.add_node("integrate_research_findings", integrate_research_findings)
 workflow.add_node("create_outline_prep_materials", create_outline_prep_materials)
 workflow.add_node("create_competitive_outline", create_competitive_outline)
 workflow.add_node("analyze_outline", analyze_outline)
@@ -2089,9 +2313,11 @@ workflow.add_node("write_first_chapter_competitive", write_first_chapter_competi
 # Enhanced modular chapter writing nodes
 workflow.add_node("initialize_chapter_loop", initialize_chapter_loop)
 workflow.add_node("create_scene_brief_node", create_scene_brief_node)
+workflow.add_node("write_key_chapter_competitive", write_key_chapter_competitive)
 workflow.add_node("write_chapter_draft_node", write_chapter_draft_node)
 workflow.add_node("critique_chapter_node", critique_chapter_node)
 workflow.add_node("conditional_rewrite_chapter_node", conditional_rewrite_chapter_node)
+workflow.add_node("dynamic_research_update_node", dynamic_research_update_node)
 workflow.add_node("check_if_more_chapters", check_if_more_chapters)
 workflow.add_node("periodic_coherence_check_node", periodic_coherence_check_node)
 workflow.add_node("compile_complete_novel", compile_complete_novel)
@@ -2104,9 +2330,8 @@ workflow.add_edge("generate_competitive_loglines", "user_story_selection")
 workflow.add_edge("user_story_selection", "identify_story_research_targets")
 workflow.add_edge("identify_story_research_targets", "generate_research_queries")
 workflow.add_edge("generate_research_queries", "conduct_deep_research")
-workflow.add_edge("conduct_deep_research", "refine_story_with_research")
-workflow.add_edge("refine_story_with_research", "user_refinement_selection")
-workflow.add_edge("user_refinement_selection", "create_outline_prep_materials")
+workflow.add_edge("conduct_deep_research", "integrate_research_findings")
+workflow.add_edge("integrate_research_findings", "create_outline_prep_materials")
 workflow.add_edge("create_outline_prep_materials", "create_competitive_outline")
 workflow.add_edge("create_competitive_outline", "analyze_outline")
 workflow.add_edge("analyze_outline", "rewrite_outline")
@@ -2114,13 +2339,25 @@ workflow.add_edge("rewrite_outline", "write_first_chapter_competitive")
 workflow.add_edge("write_first_chapter_competitive", "initialize_chapter_loop")
 # Enhanced modular chapter writing flow
 workflow.add_edge("initialize_chapter_loop", "create_scene_brief_node")
-workflow.add_edge("create_scene_brief_node", "write_chapter_draft_node")
+# Conditional routing for chapter writing based on importance
+workflow.add_conditional_edges(
+    "create_scene_brief_node",
+    route_chapter_writing,
+    ["write_key_chapter_competitive", "write_chapter_draft_node"]
+)
+workflow.add_edge("write_key_chapter_competitive", "critique_chapter_node")
 workflow.add_edge("write_chapter_draft_node", "critique_chapter_node")
 workflow.add_edge("critique_chapter_node", "conditional_rewrite_chapter_node")
-# Conditional routing after rewrite
+# Routing after rewrite: always go to dynamic research
 workflow.add_conditional_edges(
     "conditional_rewrite_chapter_node",
     route_after_rewrite,
+    ["dynamic_research_update_node"]
+)
+# Routing after dynamic research: conditional coherence check
+workflow.add_conditional_edges(
+    "dynamic_research_update_node",
+    route_after_dynamic_research,
     ["periodic_coherence_check_node", "check_if_more_chapters"]
 )
 # Routing after coherence check
@@ -2140,13 +2377,17 @@ workflow.add_edge("compile_complete_novel", END)
 # Compile the workflow with user selection interrupt
 # Note: LangGraph Studio provides persistence automatically
 app = workflow.compile(
-    interrupt_before=["user_story_selection", "user_refinement_selection"]
+    interrupt_before=["user_story_selection"]
 )
 
-print("🚀 Deep Sci-Fi Writer initialized with Enhanced Modular Chapter Writing!")
-print("📚 Interactive process: Parse → Context → Competitive Loglines → [USER SELECTION] → Research → Refine → Outline Prep → Competitive Outline → Analyze → Rewrite → First Chapter → Modular Chapter Loop")
-print("🔧 Modular Chapter Process: Scene Brief → Draft → Critique → Conditional Rewrite → Coherence Check → Loop")
-print("⏸️  Workflow will pause after story generation for user selection in LangGraph Studio!")
+print("🚀 Deep Sci-Fi Writer initialized with Enhanced Scientific Coherence System!")
+print("📚 Streamlined process: Parse → Context → Competitive Loglines → [USER SELECTION] → Research → Integrate → Outline Prep → Competitive Outline → Analyze → Rewrite → First Chapter → Intelligent Chapter Loop")
+print("🔧 Intelligent Chapter Process: Scene Brief → [Classify] → Competitive/Standard Writing → Critique → Conditional Rewrite → Dynamic Research → Enhanced Coherence Check → Loop")
+print("⏸️  Workflow pauses once for story logline selection in LangGraph Studio!")
 print("💾 Persistence handled automatically by LangGraph Studio - no custom checkpointer needed!")
 print("⚡ Research queries run in parallel for faster completion!")
-print("🔍 Enhanced observability with separate nodes for each chapter writing step!")
+print("🎯 Direct research integration eliminates second user selection step!")
+print("🧠 Intelligent chapter classification routes KEY chapters through CS competition!")
+print("🔬 Dynamic research updates detect and research emerging scientific concepts!")
+print("📊 Enhanced coherence tracking maintains scientific consistency across dimensions!")
+print("🔍 Maximum observability with separate nodes for each process step!")
