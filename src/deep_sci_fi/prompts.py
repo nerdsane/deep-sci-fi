@@ -1014,3 +1014,255 @@ SCIENTIFIC_WORLD_RULES:
 - [Rule/Law]: [How it's been established/modified]
 """
 
+# === DIRECT LLM ALTERNATIVE PROMPTS FOR CS STEPS ===
+# These prompts are used when CS_ENABLED = False
+
+# Used in: generate_competitive_loglines_direct() - Direct LLM alternative to CS competition
+DIRECT_LOGLINES_PROMPT = """Generate multiple compelling story loglines for a {target_year} science fiction story.
+
+CONTEXT:
+Original User Request: {original_user_request}
+Human Condition Theme: {human_condition}
+Future Context: {light_future_context}
+Target Year: {target_year}
+Constraint: {constraint}
+Tone: {tone}
+Setting: {setting}
+
+## Creative Approach Requirements
+
+Generate 9 distinct loglines organized in 3 different creative approaches (3 loglines each):
+
+### Approach 1: Scientific Advancement Focus
+Core Philosophy: Technology as catalyst for human transformation
+Create 3 loglines that center on breakthrough scientific discoveries
+
+### Approach 2: Human Adaptation Focus  
+Core Philosophy: How humans evolve and adapt to technological change
+Create 3 loglines that explore human resilience and transformation
+
+### Approach 3: Societal Evolution Focus
+Core Philosophy: How social structures adapt to technological reality
+Create 3 loglines that examine community and cultural change
+
+## Logline Requirements
+
+Each logline must:
+- Be set specifically in {target_year}
+- Explore the theme: {human_condition}
+- Start with "In {target_year}..."
+- Be 1-2 sentences that capture the complete story premise
+- Feel authentically native to {target_year} (not retrofitted from 2024)
+- Balance scientific grounding with human drama
+
+## Output Format
+
+### Approach 1: Scientific Advancement Focus
+**Core Assumption:** Technology as catalyst for human transformation
+
+## Top 3 Selected
+1. In {target_year}, [logline 1]
+2. In {target_year}, [logline 2]  
+3. In {target_year}, [logline 3]
+
+### Approach 2: Human Adaptation Focus
+**Core Assumption:** How humans evolve and adapt to technological change
+
+## Top 3 Selected
+1. In {target_year}, [logline 4]
+2. In {target_year}, [logline 5]
+3. In {target_year}, [logline 6]
+
+### Approach 3: Societal Evolution Focus
+**Core Assumption:** How social structures adapt to technological reality
+
+## Top 3 Selected
+1. In {target_year}, [logline 7]
+2. In {target_year}, [logline 8]
+3. In {target_year}, [logline 9]
+
+Create 9 compelling, scientifically grounded loglines that authentically belong to {target_year}.
+"""
+
+# Used in: create_competitive_outline_direct() - Direct LLM alternative to CS competition
+DIRECT_OUTLINE_PROMPT = """Create a detailed chapter-by-chapter outline for a {target_year} science fiction novel.
+
+STORY FOUNDATION:
+Outline Prep: {outline_prep_materials}
+Refined Story: {refined_story}
+Research Findings: {research_findings}
+Target Year: {target_year}
+Human Condition Theme: {human_condition}
+
+## Outline Requirements
+
+Create a compelling 20-25 chapter novel outline that:
+- Maintains authentic {target_year} setting throughout
+- Explores {human_condition} through future-native lens
+- Integrates research findings naturally into plot
+- Balances scientific accuracy with narrative momentum
+- Shows realistic character development and world-building
+
+## Chapter Structure Template
+
+For each chapter, provide:
+
+### Chapter [Number]: [Compelling Title]
+**Word Count**: 2500-3000 words
+**POV Character**: [Character name and perspective type]
+**Setting**: [Specific {target_year} location with authentic details]
+**Plot Summary**: [3-4 sentences describing what happens]
+**Character Development**: [How characters grow/change this chapter]
+**World-Building Element**: [New aspect of {target_year} world revealed]
+**Theme Exploration**: [How {human_condition} is explored]
+**Scientific Element**: [Research-grounded technology/concept featured]
+**Chapter Goal**: [What this chapter accomplishes for overall story]
+**Cliffhanger/Transition**: [How chapter leads into next]
+
+## Story Structure
+
+Organize as:
+- **Act 1 (Chapters 1-6)**: Setup and world establishment
+- **Act 2A (Chapters 7-12)**: Rising action and complications  
+- **Act 2B (Chapters 13-18)**: Crisis escalation and major reversals
+- **Act 3 (Chapters 19-25)**: Climax, resolution, and new equilibrium
+
+## Integration Guidelines
+
+- All character names must feel authentically evolved by {target_year}
+- Technology and social systems must feel naturally developed
+- Scientific elements should drive plot organically
+- Conflicts and solutions must be impossible in 2024
+- Theme exploration should emerge naturally from {target_year} circumstances
+
+Create a comprehensive outline that serves as a roadmap for an engaging, scientifically grounded {target_year} novel.
+"""
+
+# Used in: write_first_chapter_competitive_direct() - Direct LLM alternative to CS competition
+DIRECT_FIRST_CHAPTER_PROMPT = """Write the opening chapter of a {target_year} science fiction novel.
+
+STORY CONTEXT:
+Original User Request: {original_user_request}
+Revised Outline: {revised_outline}
+Target Year: {target_year}
+Tone: {tone}
+Human Condition Theme: {human_condition}
+
+## Chapter Requirements
+
+### Opening Chapter Goals
+- Establish authentic {target_year} world through character perspective
+- Introduce protagonist as native to this future time
+- Set tone and style for entire novel
+- Hook reader immediately with compelling situation
+- Show don't tell how this future works
+
+### Writing Standards
+- **Length**: 2500-3000 words
+- **Perspective**: Establish consistent narrative voice
+- **Pacing**: Balance action with world-building
+- **Character Voice**: Authentic to someone raised in {target_year}
+- **Scientific Integration**: Natural, not expository
+
+### {target_year} Authenticity Requirements
+
+**Future-Native Elements:**
+- Technology that feels naturally evolved from current trends
+- Social systems showing realistic cultural adaptation
+- Language incorporating believable linguistic evolution
+- Environmental details reflecting {target_year} realities
+- Character behaviors native to their time period
+
+**Avoid 2024 Anachronisms:**
+- Contemporary technology, social media, or cultural references
+- Current political systems or figures
+- 2024 slang, idioms, or speech patterns
+- Modern brand names or companies
+- Present-day environmental conditions
+
+### Character and World Integration
+- Protagonist thinks, acts, speaks as {target_year} native
+- Technology use feels natural and taken-for-granted
+- Social customs reflect evolved cultural norms
+- Conflicts emerge from {target_year}-specific circumstances
+- World details support exploration of: {human_condition}
+
+### Story Opening Strategy
+Based on your outline, create an opening that:
+- Immediately establishes the story's unique premise
+- Introduces compelling character in authentic {target_year} situation
+- Sets up the central conflict that will drive the narrative
+- Establishes the tone: {tone}
+- Begins exploration of {human_condition}
+
+Write Chapter 1 that establishes your novel's world, character, and premise with the authenticity and scientific grounding that could only exist in {target_year}.
+"""
+
+# Used in: write_key_chapter_competitive_direct() - Direct LLM alternative to CS competition
+DIRECT_KEY_CHAPTER_PROMPT = """Write a KEY chapter requiring high scientific complexity and careful exposition.
+
+CHAPTER CONTEXT:
+Chapter Number: {chapter_number}
+Scene Brief: {scene_brief}
+Previous Chapters Context: {previous_chapters_context}
+Research Findings: {research_findings}
+Target Year: {target_year}
+Human Condition Theme: {human_condition}
+
+## KEY Chapter Requirements
+
+This chapter has been classified as KEY due to:
+- Major scientific concepts introduction
+- Complex technological exposition required
+- Scientific convergence point in the story
+- Climactic moments involving science/technology
+- Critical plot developments requiring scientific grounding
+
+### Scientific Excellence Standards
+- **Research Integration**: Seamlessly weave scientific findings into narrative
+- **Technical Accuracy**: Respect current scientific understanding while extrapolating thoughtfully
+- **Character Knowledge**: Characters understand science realistically for {target_year}
+- **Plot Integration**: Science drives story developments organically
+
+### KEY Chapter Writing Approach
+As a scientifically complex chapter, focus on:
+
+**Hard Science Fiction Excellence:**
+- Rigorous scientific accuracy in all technical elements
+- Realistic cause-and-effect relationships
+- Characters with appropriate scientific expertise
+- Technical details that enhance rather than overwhelm story
+
+**Science Educator Perspective:**
+- Complex concepts explained through character interaction
+- Scientific principles made accessible to readers
+- Learning moments integrated naturally into dialogue
+- Technical exposition balanced with emotional stakes
+
+**Narrative Physicist Approach:**
+- Scientific consequences drive plot developments
+- Technology limitations create dramatic tension
+- Physical laws maintained consistently
+- Scientific breakthroughs feel earned and logical
+
+### Chapter Execution
+- **Length**: 2500-3000 words
+- **Complexity**: Handle scientific material with sophistication
+- **Accessibility**: Keep complex concepts understandable
+- **Integration**: Science serves character and plot goals
+- **Authenticity**: Maintain {target_year} native perspective
+
+### Scene Brief Integration
+Follow your scene brief while bringing KEY chapter excellence:
+{scene_brief}
+
+### Scientific Grounding
+Incorporate relevant research findings naturally:
+- Use established scientific principles from research
+- Show realistic development pathways to {target_year}
+- Maintain consistency with previously established science
+- Address implications and consequences thoughtfully
+
+Write Chapter {chapter_number} as a scientifically sophisticated, narratively compelling KEY chapter that advances both plot and scientific understanding.
+"""
+

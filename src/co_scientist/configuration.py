@@ -597,7 +597,7 @@ class CoScientistConfiguration(BaseModel):
         if self.reflection_domains is not None:
             return self.reflection_domains
             
-        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
+        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["competitive_loglines"])
         return use_case_config["reflection_domains"]
     
     def get_evolution_strategies(self) -> List[str]:
@@ -605,7 +605,7 @@ class CoScientistConfiguration(BaseModel):
         if self.evolution_strategies is not None:
             return self.evolution_strategies
             
-        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["scenario_generation"])
+        use_case_config = USE_CASE_CONFIGS.get(self.use_case.value, USE_CASE_CONFIGS["competitive_loglines"])
         return use_case_config["evolution_strategies"]
     
     def get_enabled_phases_for_depth(self) -> List[str]:

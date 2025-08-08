@@ -33,7 +33,25 @@ from deep_sci_fi.prompts import (
     CHAPTER_IMPORTANCE_CLASSIFIER,
     DYNAMIC_RESEARCH_DETECTION_PROMPT,
     ENHANCED_SCIENTIFIC_COHERENCE_PROMPT,
+    # Direct LLM alternative prompts for CS steps
+    DIRECT_LOGLINES_PROMPT,
+    DIRECT_OUTLINE_PROMPT,
+    DIRECT_FIRST_CHAPTER_PROMPT,
+    DIRECT_KEY_CHAPTER_PROMPT,
 )
+
+# === CS TOGGLE CONFIGURATION ===
+# Set to False to disable CS competition and use direct LLM calls instead
+CS_ENABLED = False
+
+def get_cs_status():
+    """Get current CS enabled status for logging."""
+    return "CS Competition" if CS_ENABLED else "Direct LLM"
+
+def log_cs_mode(step_name: str):
+    """Log which mode is being used for a step."""
+    mode = "🏆 CS Competition" if CS_ENABLED else "⚡ Direct LLM"
+    print(f"--- {step_name}: Using {mode} ---")
 
 def parse_and_limit_research_queries(research_queries_content: str, max_queries: int = 5) -> list[str]:
     """Parse research queries from content and strictly limit to prevent research explosion."""
@@ -445,6 +463,108 @@ async def generate_light_future_context(state: AgentState, config: RunnableConfi
     return {"light_future_context": content}
 
 
+async def generate_competitive_loglines_direct(state: AgentState, config: RunnableConfig):
+    """Step 3 (Direct): Generate loglines using direct LLM call instead of CS competition"""
+    if not (output_dir := state.get("output_dir")) or not (light_future_context := state.get("light_future_context")):
+        raise ValueError("Required state for generating loglines is missing.")
+    
+    # Get values with fallback defaults
+    target_year, human_condition = get_state_values_with_defaults(state)
+    constraint = state.get("constraint") or "technological advancement"
+    tone = state.get("tone") or "thoughtful and immersive"
+    setting = state.get("setting") or "near-future Earth"
+    
+    log_cs_mode("Generate Loglines")
+    
+    # Use general creative model for direct logline generation
+    prompt = ChatPromptTemplate.from_template(DIRECT_LOGLINES_PROMPT)
+    response = general_model.invoke(prompt.format(
+        original_user_request=state.get('user_input', ''),
+        human_condition=human_condition,
+        light_future_context=light_future_context,
+        target_year=target_year,
+        constraint=constraint,
+        tone=tone,
+        setting=setting
+    ))
+    
+    loglines_content = response.content
+    save_output(output_dir, "03_direct_loglines_generation.md", loglines_content)
+    
+    # Parse the direct response into direction_winners format for compatibility
+    direction_winners = parse_direct_loglines_to_winners(loglines_content, target_year)
+    
+    # Save formatted options for user selection
+    formatted_options = format_direction_winners_for_selection(direction_winners, "Direct LLM logline generation", target_year, human_condition)
+    save_output(output_dir, "03_loglines_options.md", formatted_options)
+    
+    print("--- Direct LLM Logline Generation Complete ---")
+    print(f"--- Generated {len(direction_winners)} direction sets with 3 loglines each ---")
+    
+    return {"story_seed_options": direction_winners}
+
+
+def parse_direct_loglines_to_winners(loglines_content: str, target_year: int) -> list:
+    """Parse direct LLM loglines response into direction_winners format for compatibility."""
+    direction_winners = []
+    
+    # Parse the three approaches from the direct response
+    approaches = ["Scientific Advancement Focus", "Human Adaptation Focus", "Societal Evolution Focus"]
+    assumptions = [
+        "Technology as catalyst for human transformation",
+        "How humans evolve and adapt to technological change", 
+        "How social structures adapt to technological reality"
+    ]
+    
+    lines = loglines_content.split('\n')
+    current_approach = None
+    current_loglines = []
+    approach_index = 0
+    
+    for line in lines:
+        line = line.strip()
+        
+        # Detect approach sections
+        if any(approach in line for approach in approaches):
+            # Save previous approach if we have loglines
+            if current_approach and current_loglines and approach_index < len(approaches):
+                winner = {
+                    'research_direction': approaches[approach_index],
+                    'core_assumption': assumptions[approach_index],
+                    'scenario_content': create_loglines_content(current_loglines, approaches[approach_index], assumptions[approach_index])
+                }
+                direction_winners.append(winner)
+                approach_index += 1
+                current_loglines = []
+            
+            current_approach = line
+            
+        # Collect loglines (look for lines starting with numbers and containing target year)
+        elif line and line[0].isdigit() and str(target_year) in line:
+            # Extract logline text (remove number prefix)
+            logline_text = line.split('.', 1)[1].strip() if '.' in line else line
+            current_loglines.append(logline_text)
+    
+    # Add the last approach
+    if current_approach and current_loglines and approach_index < len(approaches):
+        winner = {
+            'research_direction': approaches[approach_index],
+            'core_assumption': assumptions[approach_index],
+            'scenario_content': create_loglines_content(current_loglines, approaches[approach_index], assumptions[approach_index])
+        }
+        direction_winners.append(winner)
+    
+    return direction_winners
+
+
+def create_loglines_content(loglines: list, approach: str, assumption: str) -> str:
+    """Create formatted content for loglines in direction_winners format."""
+    content = f"# {approach}\n\n**Core Assumption:** {assumption}\n\n## Top 3 Selected\n"
+    for i, logline in enumerate(loglines[:3], 1):
+        content += f"{i}. {logline}\n"
+    return content
+
+
 async def generate_competitive_loglines(state: AgentState, config: RunnableConfig):
     """Step 3: Generate competitive loglines using Co-Scientist competition"""
     if not (output_dir := state.get("output_dir")) or not (light_future_context := state.get("light_future_context")):
@@ -456,7 +576,7 @@ async def generate_competitive_loglines(state: AgentState, config: RunnableConfi
     tone = state.get("tone") or "thoughtful and immersive"
     setting = state.get("setting") or "near-future Earth"
     
-    print("--- Generating Competitive Loglines using Co-Scientist Competition ---")
+    log_cs_mode("Generate Loglines")
     
     # Use co_scientist for competitive logline development
     newline = "\n"
@@ -821,6 +941,35 @@ async def create_outline_prep_materials(state: AgentState, config: RunnableConfi
     return {"outline_prep_materials": content, "refined_story": refined_story}
 
 
+async def create_competitive_outline_direct(state: AgentState, config: RunnableConfig):
+    """Step 8 (Direct): Generate outline using direct LLM call instead of CS competition"""
+    if not (output_dir := state.get("output_dir")) or not (outline_prep_materials := state.get("outline_prep_materials")) or not (refined_story := state.get("refined_story")) or not (research_findings := state.get("research_findings")):
+        raise ValueError("Required state for creating outline is missing.")
+    
+    # Get target_year and human_condition with fallback defaults
+    target_year, human_condition = get_state_values_with_defaults(state)
+    
+    log_cs_mode("Create Outline")
+    
+    # Use chapter writing model for direct outline creation
+    outline_model = ModelConfig.create_model_instance("chapter_writing")
+    prompt = ChatPromptTemplate.from_template(DIRECT_OUTLINE_PROMPT)
+    response = outline_model.invoke(prompt.format(
+        outline_prep_materials=outline_prep_materials,
+        refined_story=refined_story,
+        research_findings=research_findings,
+        target_year=target_year,
+        human_condition=human_condition
+    ))
+    
+    winning_outline = response.content
+    save_output(output_dir, "08_direct_outline.md", winning_outline)
+    
+    print("--- Direct LLM Outline Creation Complete ---")
+    
+    return {"winning_outline": winning_outline}
+
+
 async def create_competitive_outline(state: AgentState, config: RunnableConfig):
     """Step 8: Generate optimized chapter-by-chapter outline through structural competition"""
     if not (output_dir := state.get("output_dir")) or not (outline_prep_materials := state.get("outline_prep_materials")) or not (refined_story := state.get("refined_story")) or not (research_findings := state.get("research_findings")):
@@ -829,7 +978,7 @@ async def create_competitive_outline(state: AgentState, config: RunnableConfig):
     # Get target_year and human_condition with fallback defaults
     target_year, human_condition = get_state_values_with_defaults(state)
     
-    print("--- Creating Competitive Outline using Co-Scientist Competition ---")
+    log_cs_mode("Create Outline")
     
     # Extract selected logline from earlier selection for context
     selected_logline = ""
@@ -951,6 +1100,45 @@ async def rewrite_outline(state: AgentState, config: RunnableConfig):
     return {"revised_outline": content}
 
 
+async def write_first_chapter_competitive_direct(state: AgentState, config: RunnableConfig):
+    """Step 11 (Direct): Write first chapter using direct LLM call instead of CS competition"""
+    if not (output_dir := state.get("output_dir")) or not (revised_outline := state.get("revised_outline")):
+        raise ValueError("Required state for writing first chapter is missing.")
+    
+    # Get target_year, human_condition, and tone with fallback defaults
+    target_year, human_condition = get_state_values_with_defaults(state)
+    tone = state.get("tone") or "thoughtful and immersive"
+    
+    log_cs_mode("First Chapter")
+    
+    # Use chapter writing model for direct first chapter creation
+    chapter_model = ModelConfig.create_model_instance("chapter_writing")
+    prompt = ChatPromptTemplate.from_template(DIRECT_FIRST_CHAPTER_PROMPT)
+    response = chapter_model.invoke(prompt.format(
+        original_user_request=state.get('user_input', ''),
+        revised_outline=revised_outline,
+        target_year=target_year,
+        tone=tone,
+        human_condition=human_condition
+    ))
+    
+    winning_chapter = response.content
+    save_output(output_dir, "11_direct_first_chapter.md", winning_chapter)
+    
+    # Analyze chapter style for continuation
+    style_analysis = analyze_chapter_style(winning_chapter)
+    save_output(output_dir, "11_first_chapter_style_analysis.md", style_analysis)
+    
+    print("--- Direct LLM First Chapter Writing Complete ---")
+    
+    return {
+        "first_chapter": winning_chapter,
+        "first_chapter_style_analysis": style_analysis,
+        "previous_chapters": [winning_chapter],
+        "total_chapters_written": 1
+    }
+
+
 async def write_first_chapter_competitive(state: AgentState, config: RunnableConfig):
     """Step 11: Establish tone, style, and world through opening chapter using CS"""
     if not (output_dir := state.get("output_dir")) or not (revised_outline := state.get("revised_outline")):
@@ -960,7 +1148,7 @@ async def write_first_chapter_competitive(state: AgentState, config: RunnableCon
     target_year, human_condition = get_state_values_with_defaults(state)
     tone = state.get("tone") or "thoughtful and immersive"
     
-    print("--- Writing First Chapter with Co-Scientist Competition ---")
+    log_cs_mode("First Chapter")
     
     # Use co_scientist for competitive first chapter approaches
     co_scientist_input = CoScientistConfiguration.create_input_state(
@@ -1105,12 +1293,46 @@ async def create_scene_brief_node(state: AgentState, config: RunnableConfig):
     }
 
 
+async def write_key_chapter_competitive_direct(state: AgentState, config: RunnableConfig):
+    """Step 12a-alt (Direct): Write KEY chapter using direct LLM call instead of CS competition"""
+    if not (output_dir := state.get("output_dir")) or not (current_chapter := state.get("current_chapter_number")) or not (scene_brief := state.get("current_scene_brief")):
+        raise ValueError("Required state for direct key chapter writing is missing.")
+    
+    print(f"=== Writing KEY Chapter {current_chapter} with Direct LLM ===")
+    log_cs_mode("KEY Chapter")
+    
+    # Get target_year and human_condition with fallback defaults
+    target_year, human_condition = get_state_values_with_defaults(state)
+    
+    # Use chapter writing model for direct key chapter creation
+    key_chapter_model = ModelConfig.create_model_instance("chapter_writing")
+    prompt = ChatPromptTemplate.from_template(DIRECT_KEY_CHAPTER_PROMPT)
+    response = key_chapter_model.invoke(prompt.format(
+        chapter_number=current_chapter,
+        scene_brief=scene_brief,
+        previous_chapters_context=get_chapter_context_for_writing(state),
+        research_findings=state.get("research_findings", ""),
+        target_year=target_year,
+        human_condition=human_condition
+    ))
+    
+    winning_chapter = response.content
+    save_output(output_dir, f"12b_chapter_{current_chapter:02d}_draft.md", winning_chapter)
+    
+    print(f"--- Direct LLM KEY Chapter {current_chapter} writing complete ---")
+    
+    return {
+        "current_chapter_draft": winning_chapter
+    }
+
+
 async def write_key_chapter_competitive(state: AgentState, config: RunnableConfig):
     """Step 12a-alt: Use CS competition for KEY chapters with high scientific complexity"""
     if not (output_dir := state.get("output_dir")) or not (current_chapter := state.get("current_chapter_number")) or not (scene_brief := state.get("current_scene_brief")):
         raise ValueError("Required state for competitive key chapter writing is missing.")
     
     print(f"=== Writing KEY Chapter {current_chapter} with Co-Scientist Competition ===")
+    log_cs_mode("KEY Chapter")
     
     # Get target_year and human_condition with fallback defaults
     target_year, human_condition = get_state_values_with_defaults(state)
@@ -2241,14 +2463,7 @@ def format_co_scientist_winner_details(winner_scenario: dict, content_type: str)
 
 # === ROUTING FUNCTIONS FOR MODULAR CHAPTER WRITING ===
 
-def route_chapter_writing(state: AgentState) -> str:
-    """Route between standard and competitive chapter writing based on importance."""
-    chapter_importance = state.get("current_chapter_importance", "STANDARD")
-    
-    if chapter_importance == "KEY":
-        return "write_key_chapter_competitive"
-    else:
-        return "write_chapter_draft_node"
+# Replaced by route_chapter_writing_with_toggle above
 
 
 def route_after_rewrite(state: AgentState) -> str:
@@ -2292,6 +2507,47 @@ def route_chapter_completion(state: AgentState) -> str:
         return "compile_complete_novel"
 
 
+# === CS TOGGLE WRAPPER FUNCTIONS ===
+# These functions choose between CS competition and direct LLM based on CS_ENABLED flag
+
+async def generate_loglines_with_toggle(state: AgentState, config: RunnableConfig):
+    """Wrapper: Choose between CS competition and direct LLM for loglines"""
+    if CS_ENABLED:
+        return await generate_competitive_loglines(state, config)
+    else:
+        return await generate_competitive_loglines_direct(state, config)
+
+async def create_outline_with_toggle(state: AgentState, config: RunnableConfig):
+    """Wrapper: Choose between CS competition and direct LLM for outline"""
+    if CS_ENABLED:
+        return await create_competitive_outline(state, config)
+    else:
+        return await create_competitive_outline_direct(state, config)
+
+async def write_first_chapter_with_toggle(state: AgentState, config: RunnableConfig):
+    """Wrapper: Choose between CS competition and direct LLM for first chapter"""
+    if CS_ENABLED:
+        return await write_first_chapter_competitive(state, config)
+    else:
+        return await write_first_chapter_competitive_direct(state, config)
+
+async def write_key_chapter_with_toggle(state: AgentState, config: RunnableConfig):
+    """Wrapper: Choose between CS competition and direct LLM for key chapters"""
+    if CS_ENABLED:
+        return await write_key_chapter_competitive(state, config)
+    else:
+        return await write_key_chapter_competitive_direct(state, config)
+
+def route_chapter_writing_with_toggle(state: AgentState) -> str:
+    """Route between standard and competitive/direct chapter writing based on importance."""
+    chapter_importance = state.get("current_chapter_importance", "STANDARD")
+    
+    if chapter_importance == "KEY":
+        return "write_key_chapter_with_toggle"
+    else:
+        return "write_chapter_draft_node"
+
+
 # === MAIN WORKFLOW GRAPH ===
 
 workflow = StateGraph(AgentState)
@@ -2299,21 +2555,21 @@ workflow = StateGraph(AgentState)
 # Add nodes for the future-native workflow with user selection
 workflow.add_node("parse_and_complete_user_input", parse_and_complete_user_input)
 workflow.add_node("generate_light_future_context", generate_light_future_context)  
-workflow.add_node("generate_competitive_loglines", generate_competitive_loglines)
+workflow.add_node("generate_loglines_with_toggle", generate_loglines_with_toggle)
 workflow.add_node("user_story_selection", user_story_selection)
 workflow.add_node("identify_story_research_targets", identify_story_research_targets)
 workflow.add_node("generate_research_queries", generate_research_queries)
 workflow.add_node("conduct_deep_research", conduct_deep_research)
 workflow.add_node("integrate_research_findings", integrate_research_findings)
 workflow.add_node("create_outline_prep_materials", create_outline_prep_materials)
-workflow.add_node("create_competitive_outline", create_competitive_outline)
+workflow.add_node("create_outline_with_toggle", create_outline_with_toggle)
 workflow.add_node("analyze_outline", analyze_outline)
 workflow.add_node("rewrite_outline", rewrite_outline)
-workflow.add_node("write_first_chapter_competitive", write_first_chapter_competitive)
+workflow.add_node("write_first_chapter_with_toggle", write_first_chapter_with_toggle)
 # Enhanced modular chapter writing nodes
 workflow.add_node("initialize_chapter_loop", initialize_chapter_loop)
 workflow.add_node("create_scene_brief_node", create_scene_brief_node)
-workflow.add_node("write_key_chapter_competitive", write_key_chapter_competitive)
+workflow.add_node("write_key_chapter_with_toggle", write_key_chapter_with_toggle)
 workflow.add_node("write_chapter_draft_node", write_chapter_draft_node)
 workflow.add_node("critique_chapter_node", critique_chapter_node)
 workflow.add_node("conditional_rewrite_chapter_node", conditional_rewrite_chapter_node)
@@ -2325,27 +2581,27 @@ workflow.add_node("compile_complete_novel", compile_complete_novel)
 # Define the workflow edges with user selection interrupt
 workflow.add_edge(START, "parse_and_complete_user_input")
 workflow.add_edge("parse_and_complete_user_input", "generate_light_future_context")
-workflow.add_edge("generate_light_future_context", "generate_competitive_loglines")
-workflow.add_edge("generate_competitive_loglines", "user_story_selection")
+workflow.add_edge("generate_light_future_context", "generate_loglines_with_toggle")
+workflow.add_edge("generate_loglines_with_toggle", "user_story_selection")
 workflow.add_edge("user_story_selection", "identify_story_research_targets")
 workflow.add_edge("identify_story_research_targets", "generate_research_queries")
 workflow.add_edge("generate_research_queries", "conduct_deep_research")
 workflow.add_edge("conduct_deep_research", "integrate_research_findings")
 workflow.add_edge("integrate_research_findings", "create_outline_prep_materials")
-workflow.add_edge("create_outline_prep_materials", "create_competitive_outline")
-workflow.add_edge("create_competitive_outline", "analyze_outline")
+workflow.add_edge("create_outline_prep_materials", "create_outline_with_toggle")
+workflow.add_edge("create_outline_with_toggle", "analyze_outline")
 workflow.add_edge("analyze_outline", "rewrite_outline")
-workflow.add_edge("rewrite_outline", "write_first_chapter_competitive")
-workflow.add_edge("write_first_chapter_competitive", "initialize_chapter_loop")
+workflow.add_edge("rewrite_outline", "write_first_chapter_with_toggle")
+workflow.add_edge("write_first_chapter_with_toggle", "initialize_chapter_loop")
 # Enhanced modular chapter writing flow
 workflow.add_edge("initialize_chapter_loop", "create_scene_brief_node")
 # Conditional routing for chapter writing based on importance
 workflow.add_conditional_edges(
     "create_scene_brief_node",
-    route_chapter_writing,
-    ["write_key_chapter_competitive", "write_chapter_draft_node"]
+    route_chapter_writing_with_toggle,
+    ["write_key_chapter_with_toggle", "write_chapter_draft_node"]
 )
-workflow.add_edge("write_key_chapter_competitive", "critique_chapter_node")
+workflow.add_edge("write_key_chapter_with_toggle", "critique_chapter_node")
 workflow.add_edge("write_chapter_draft_node", "critique_chapter_node")
 workflow.add_edge("critique_chapter_node", "conditional_rewrite_chapter_node")
 # Routing after rewrite: always go to dynamic research
@@ -2380,14 +2636,18 @@ app = workflow.compile(
     interrupt_before=["user_story_selection"]
 )
 
-print("🚀 Deep Sci-Fi Writer initialized with Enhanced Scientific Coherence System!")
-print("📚 Streamlined process: Parse → Context → Competitive Loglines → [USER SELECTION] → Research → Integrate → Outline Prep → Competitive Outline → Analyze → Rewrite → First Chapter → Intelligent Chapter Loop")
-print("🔧 Intelligent Chapter Process: Scene Brief → [Classify] → Competitive/Standard Writing → Critique → Conditional Rewrite → Dynamic Research → Enhanced Coherence Check → Loop")
+cs_mode = "🏆 CS Competition" if CS_ENABLED else "⚡ Direct LLM"
+print(f"🚀 Deep Sci-Fi Writer initialized with Enhanced Scientific Coherence System!")
+print(f"🔄 CS Toggle: {cs_mode} mode enabled (CS_ENABLED = {CS_ENABLED})")
+print("📚 Streamlined process: Parse → Context → Loglines → [USER SELECTION] → Research → Integrate → Outline Prep → Outline → Analyze → Rewrite → First Chapter → Intelligent Chapter Loop")
+print("🔧 Intelligent Chapter Process: Scene Brief → [Classify] → Competition/Direct/Standard Writing → Critique → Conditional Rewrite → Dynamic Research → Enhanced Coherence Check → Loop")
+print(f"🎯 CS Steps Using {cs_mode}: Loglines, Outline, First Chapter, KEY Chapters")
 print("⏸️  Workflow pauses once for story logline selection in LangGraph Studio!")
 print("💾 Persistence handled automatically by LangGraph Studio - no custom checkpointer needed!")
 print("⚡ Research queries run in parallel for faster completion!")
 print("🎯 Direct research integration eliminates second user selection step!")
-print("🧠 Intelligent chapter classification routes KEY chapters through CS competition!")
+print("🧠 Intelligent chapter classification routes KEY chapters through competition/direct mode!")
 print("🔬 Dynamic research updates detect and research emerging scientific concepts!")
 print("📊 Enhanced coherence tracking maintains scientific consistency across dimensions!")
 print("🔍 Maximum observability with separate nodes for each process step!")
+print("⚙️  Toggle CS_ENABLED=False for speed testing and A/B comparison!")
