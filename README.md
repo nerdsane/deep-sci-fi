@@ -57,14 +57,21 @@ Creates scientifically-grounded science fiction through competitive AI tournamen
 
 ### Process
 
-1. **Storyline Competition**: Multiple AI models compete to create storyline concepts
-2. **Research Integration**: Automated fact-gathering for scientific accuracy
-3. **World Building**: Develops plausible future scenarios and technologies
-4. **Chapter Development**: Creates structured narrative with scientific explanations
+1. **Competitive Loglines**: Multiple AI approaches compete to create authentic future story loglines
+2. **📋 User Selection**: Choose your preferred numbered logline option in LangGraph Studio (see `LOGLINE_SELECTION_GUIDE.md`)
+3. **Research Integration**: Automated fact-gathering for scientific accuracy
+4. **World Building**: Develops plausible future scenarios and technologies
+5. **Chapter Development**: Creates structured narrative with scientific explanations
 
 ### Usage
 
-Launch via LangGraph Studio, select "Deep Sci-Fi" graph, and enter your story concept. The system guides you through each stage with human-in-the-loop approval.
+1. **Launch** via LangGraph Studio and select "Deep Sci-Fi" graph
+2. **Enter** your story concept and parameters
+3. **Wait** for logline generation (workflow pauses automatically)
+4. **Select** your preferred logline by number in the `user_story_selection` field
+5. **Resume** workflow - the system handles the rest automatically
+
+📖 **Detailed Selection Guide**: See `LOGLINE_SELECTION_GUIDE.md` for step-by-step instructions.
 
 ### Configuration
 

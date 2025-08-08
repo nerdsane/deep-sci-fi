@@ -13,7 +13,11 @@ def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_i
         "chapter_rewriting": CHAPTER_PAIRWISE_PROMPT,
         "chapter_arcs_creation": CHAPTER_PAIRWISE_PROMPT,
         "chapter_arcs_adjustment": CHAPTER_PAIRWISE_PROMPT,
-        "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT
+        "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
+        # Future-native workflow prompts
+        "future_story_seeds": STORYLINE_PAIRWISE_PROMPT,  # Use storyline pairwise for story concepts
+        "story_research_integration": STORYLINE_PAIRWISE_PROMPT,  # Use storyline pairwise for story refinement
+        "first_chapter_writing": CHAPTER_PAIRWISE_PROMPT,  # Use chapter pairwise for chapter writing
     }
     
     template = templates.get(use_case, PAIRWISE_RANKING_PROMPT)

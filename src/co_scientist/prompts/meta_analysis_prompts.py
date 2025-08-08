@@ -13,6 +13,12 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "chapter_arcs_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
         "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
         "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
+        # Future-native workflow prompts
+        "future_story_seeds": STORYLINE_META_ANALYSIS_PROMPT,  # Use storyline meta-analysis for story concepts
+        "competitive_loglines": LOGLINE_META_ANALYSIS_PROMPT,  # Use specialized logline meta-analysis
+        "competitive_outline": COMPETITIVE_OUTLINE_META_ANALYSIS_PROMPT,  # Use specialized outline meta-analysis
+        "story_research_integration": STORYLINE_META_ANALYSIS_PROMPT,  # Use storyline meta-analysis for story refinement
+        "first_chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,  # Use chapter writing meta-analysis
     }
     
     # Use flexible format for all use cases
@@ -59,6 +65,32 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         params["story_concept"] = context_value  # User's original story concept
         params["source_content"] = state.get("reference_material", "")  # Original chapter arcs
         params["target_year"] = state.get("target_year", "future")
+    elif use_case == "future_story_seeds":
+        # Future story seeds meta-analysis parameters
+        params["human_condition"] = state.get("human_condition", "")
+        params["target_year"] = state.get("target_year", "future")
+        params["original_user_input"] = context_value
+    elif use_case == "competitive_loglines":
+        # Competitive loglines meta-analysis parameters
+        params["human_condition"] = state.get("human_condition", "")
+        params["target_year"] = state.get("target_year", "future")
+        params["light_future_context"] = state.get("light_future_context", "")
+        params["constraint"] = state.get("constraint", "")
+        params["tone"] = state.get("tone", "")
+        params["setting"] = state.get("setting", "")
+        params["original_user_input"] = context_value
+    elif use_case == "competitive_outline":
+        # Competitive outline meta-analysis parameters
+        params["human_condition"] = state.get("human_condition", "")
+        params["target_year"] = state.get("target_year", "future")
+        params["refined_story"] = state.get("refined_story", "")
+        params["research_findings"] = state.get("research_findings", "")
+        params["outline_prep_materials"] = state.get("outline_prep_materials", "")
+        params["selected_logline"] = state.get("selected_logline", "")
+        params["original_user_input"] = context_value
+    elif use_case == "story_research_integration":
+        params["story_concept"] = context_value
+        params["source_content"] = state.get("reference_material", "")
     else:
         # For other use cases, keep generic context
         params["context"] = context_value
@@ -251,6 +283,107 @@ Reasoning: [Why these approaches create distinct storyline possibilities]
 - Avoid cliches, create unique narrative approaches
 - Each approach should feel natural and purposeful
 </Reminders>
+"""
+
+LOGLINE_META_ANALYSIS_PROMPT = """You are a master story development expert tasked with identifying distinct logline creation approaches for {target_year} science fiction.
+
+<Task>
+Identify 3 fundamentally different approaches for creating compelling loglines that could ONLY exist in {target_year}.
+</Task>
+
+<Context>
+Original User Request: {original_user_input}
+Target Year: {target_year}
+Human Condition Theme: {human_condition}
+Future Context: {light_future_context}
+Constraint: {constraint}
+Tone: {tone}
+Setting: {setting}
+</Context>
+
+<Mission>
+Each approach should generate loglines that are:
+- Authentically native to {target_year} (not 2024 stories with future coating)
+- Explore the human condition: {human_condition}
+- Could NOT work effectively in 2024
+- Feel natural to inhabitants of {target_year}
+</Mission>
+
+<Approach Variation Examples>
+Consider (but don't limit yourself to):
+- Technology-consequence vs Social-evolution vs Philosophical-exploration approaches
+- Character-driven vs System-driven vs Concept-driven logline development
+- Near-term extrapolation vs Far-future speculation vs Paradigm-shift perspectives
+- Individual-stakes vs Collective-stakes vs Species-stakes focus
+- Optimistic vs Pessimistic vs Ambiguous future outlooks
+</Approach Variation Examples>
+
+<Requirements>
+- Each approach must create loglines that feel genuinely futuristic
+- Focus on how each approach serves the human condition exploration
+- Consider what makes {target_year} unique for storytelling
+- Ensure each approach generates different types of conflicts/stakes
+- Balance scientific plausibility with narrative potential
+</Requirements>
+
+<Output Format>
+Direction 1: [Name]
+Core Assumption: [What this approach assumes about {target_year} and human nature]
+Focus: [What this approach emphasizes in logline creation]
+
+Direction 2: [Name]
+Core Assumption: [What this approach assumes about {target_year} and human nature]
+Focus: [What this approach emphasizes in logline creation]
+
+Direction 3: [Name]
+Core Assumption: [What this approach assumes about {target_year} and human nature]
+Focus: [What this approach emphasizes in logline creation]
+
+Reasoning: [Why these approaches create distinct logline possibilities for {target_year}]
+</Output Format>
+
+<Reminders>
+- Focus on {target_year}-specific storytelling opportunities
+- Each approach should generate loglines that others cannot
+- Think about what conflicts/stakes are unique to this future
+- Avoid approaches that would work equally well in any time period
+- Consider how {target_year} technology/society creates new narrative possibilities
+</Reminders>
+"""
+
+COMPETITIVE_OUTLINE_META_ANALYSIS_PROMPT = """You are a story structure expert analyzing the most meaningful competitive approaches for outlining this specific novel.
+
+STORY CONTEXT:
+Target Year: {target_year}
+Human Condition Theme: {human_condition}  
+Selected Logline: {selected_logline}
+Refined Story Synopsis: {refined_story}
+Research Findings: {research_findings}
+Outline Prep Materials: {outline_prep_materials}
+
+Given THIS SPECIFIC story exploring "{human_condition}" in {target_year}, identify 3 fundamentally different structural approaches that would create meaningfully different reader experiences.
+
+Consider what structural choices matter most for THIS story:
+- What aspects of {human_condition} could be explored through different structural lenses?
+- What elements of the {target_year} world suggest different organizational priorities?  
+- What narrative choices would most impact how readers experience this particular theme?
+- What structural approaches best serve this specific story's goals?
+
+Do NOT default to generic categories - identify approaches specific to THIS story's needs.
+
+Direction 1: [Specific to this story's context]
+Core Assumption: [Why this approach serves THIS story exploring {human_condition}]
+Focus: [What this prioritizes for THIS specific narrative]
+
+Direction 2: [Specific to this story's context]
+Core Assumption: [Why this approach serves THIS story exploring {human_condition}]  
+Focus: [What this prioritizes for THIS specific narrative]
+
+Direction 3: [Specific to this story's context]
+Core Assumption: [Why this approach serves THIS story exploring {human_condition}]
+Focus: [What this prioritizes for THIS specific narrative]
+
+Reasoning: Why these 3 approaches create the most meaningful competition for outlining THIS specific {target_year} story about {human_condition}.
 """
 
 # === Chapter Writing Meta-Analysis Templates ===

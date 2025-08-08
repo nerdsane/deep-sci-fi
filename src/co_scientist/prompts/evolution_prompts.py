@@ -13,7 +13,11 @@ def get_evolution_prompt(use_case: str, **kwargs) -> str:
         "chapter_rewriting": CHAPTER_WRITING_EVOLUTION_PROMPT,
         "chapter_arcs_creation": CHAPTER_ARCS_EVOLUTION_PROMPT,
         "chapter_arcs_adjustment": CHAPTER_ARCS_EVOLUTION_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_EVOLUTION_PROMPT
+        "linguistic_evolution": LINGUISTIC_EVOLUTION_EVOLUTION_PROMPT,
+        # Future-native workflow prompts
+        "future_story_seeds": STORYLINE_EVOLUTION_PROMPT,  # Use storyline evolution for story concepts
+        "story_research_integration": STORYLINE_EVOLUTION_PROMPT,  # Use storyline evolution for story refinement  
+        "first_chapter_writing": CHAPTER_WRITING_EVOLUTION_PROMPT,  # Use chapter writing evolution
     }
     
     template = prompts.get(use_case, SCENARIO_EVOLUTION_PROMPT)
@@ -109,6 +113,12 @@ Key Constraints:
 - Do use unique and rare words and phrases to immerse reader into the feeling of the story and its personality.
 - Characters think, speak, and act as natives of this developed world.
 - Technology and systems are background reality, not novelties to explain.
+
+Narrative Perspective:
+- Write from deep point of view (close third person or first person), not omniscient narrator
+- Stay inside one character's experience and consciousness
+- Show the world through the character's sensory experience and thoughts
+- Avoid narrator commentary or external observations
 
 Generate an improved, immersive version that addresses the critiques while maintaining authentic voice and world integration."""
 

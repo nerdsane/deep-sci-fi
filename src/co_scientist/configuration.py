@@ -27,6 +27,12 @@ class UseCase(Enum):
     STORYLINE_ADJUSTMENT = "storyline_adjustment"
     CHAPTER_PLANNING = "chapter_planning"
     CHAPTER_WORLD_RESEARCH = "chapter_world_research"
+    # New future-native workflow use cases
+    FUTURE_STORY_SEEDS = "future_story_seeds"
+    COMPETITIVE_LOGLINES = "competitive_loglines"  # NEW: Competitive logline generation
+    COMPETITIVE_OUTLINE = "competitive_outline"  # NEW: Competitive outline creation
+    STORY_RESEARCH_INTEGRATION = "story_research_integration"
+    FIRST_CHAPTER_WRITING = "first_chapter_writing"
 
 # Model Templates - Define phase-specific model configurations
 MODEL_TEMPLATES = {
@@ -174,6 +180,56 @@ USE_CASE_CONFIGS = {
         "meta_prompt_key": "research_meta",
         "generation_prompt_key": "research_generation",
         "model_template": "reasoning"  # Use reasoning template for research-focused tasks
+    },
+    "future_story_seeds": {
+        "direction_type": "narrative approaches",
+        "task_type": "future story seed generation",
+        "reflection_domains": ["temporal_authenticity", "human_condition_exploration", "future_plausibility", "narrative_potential", "conceptual_originality"],
+        "evolution_strategies": ["concept_refinement"],  # Single evolution strategy
+        "output_name": "story_seeds",
+        "meta_prompt_key": "storyline_meta",
+        "generation_prompt_key": "future_story_seeds",
+        "model_template": "creative"  # Use creative template for concept development
+    },
+    "competitive_loglines": {
+        "direction_type": "logline approaches",
+        "task_type": "competitive logline generation",
+        "reflection_domains": ["premise_strength", "future_specificity", "protagonist_clarity", "stakes_uniqueness", "thematic_resonance"],
+        "evolution_strategies": ["logline_refinement"],  # Single evolution strategy
+        "output_name": "loglines",
+        "meta_prompt_key": "logline_meta",
+        "generation_prompt_key": "competitive_loglines",
+        "model_template": "creative"  # Use creative template for logline development
+    },
+    "competitive_outline": {
+        "direction_type": "structural approaches",
+        "task_type": "competitive outline creation",
+        "reflection_domains": ["plot_structure", "character_development", "thematic_integration", "world_building", "pacing"],
+        "evolution_strategies": ["structural_refinement"],  # Single evolution strategy
+        "output_name": "outlines",
+        "meta_prompt_key": "outline_meta",
+        "generation_prompt_key": "competitive_outline",
+        "model_template": "creative"  # Use creative template for outline development
+    },
+    "story_research_integration": {
+        "direction_type": "integration approaches",
+        "task_type": "research integration with story authenticity",
+        "reflection_domains": ["scientific_accuracy", "narrative_flow", "world_consistency", "research_integration", "story_authenticity"],
+        "evolution_strategies": ["integration_enhancement"],  # Single evolution strategy
+        "output_name": "research_integrated_stories",
+        "meta_prompt_key": "narrative_meta",
+        "generation_prompt_key": "narrative_generation",
+        "model_template": "creative"  # Use creative template for story refinement
+    },
+    "first_chapter_writing": {
+        "direction_type": "narrative approaches",
+        "task_type": "first chapter competitive writing",
+        "reflection_domains": ["opening_hook", "world_establishment", "character_introduction", "tone_setting", "future_authenticity"],
+        "evolution_strategies": ["opening_enhancement"],  # Single evolution strategy
+        "output_name": "first_chapters",
+        "meta_prompt_key": "chapter_meta",
+        "generation_prompt_key": "chapter_generation",
+        "model_template": "creative"  # Use creative template for chapter writing
     }
 }
 
@@ -356,7 +412,7 @@ class CoScientistConfiguration(BaseModel):
         metadata={
             "x_oap_ui_config": {
                 "type": "string",
-                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment", "chapter_planning", "chapter_world_research"],
+                "enum": ["scenario_generation", "storyline_creation", "chapter_writing", "chapter_rewriting", "linguistic_evolution", "storyline_adjustment", "chapter_planning", "chapter_world_research", "future_story_seeds", "competitive_loglines", "competitive_outline", "story_research_integration", "first_chapter_writing"],
                 "default": "scenario_generation",
                 "description": "Pre-configured use case template"
             }
