@@ -3,42 +3,19 @@
 
 
 def get_pairwise_prompt(use_case: str, baseline_world_state: str = None, years_in_future: int = None, storyline: str = None, chapter_arc: str = None) -> str:
-    """Get the appropriate pairwise comparison prompt for the use case."""
+    """Get the appropriate pairwise comparison prompt for Deep Sci-Fi use cases."""
     
     templates = {
-        "scenario_generation": PAIRWISE_RANKING_PROMPT,
-        "storyline_creation": STORYLINE_PAIRWISE_PROMPT,
-        "storyline_adjustment": STORYLINE_PAIRWISE_PROMPT,
-        "chapter_writing": CHAPTER_PAIRWISE_PROMPT,
-        "chapter_rewriting": CHAPTER_PAIRWISE_PROMPT,
-        "chapter_arcs_creation": CHAPTER_PAIRWISE_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_PAIRWISE_PROMPT,
-        "linguistic_evolution": RESEARCH_PAIRWISE_PROMPT,
-        # Future-native workflow prompts
-        "future_story_seeds": STORYLINE_PAIRWISE_PROMPT,  # Use storyline pairwise for story concepts
+        # Deep Sci-Fi future-native workflow prompts
+        "competitive_loglines": STORYLINE_PAIRWISE_PROMPT,  # Use storyline pairwise for logline comparison
+        "competitive_outline": CHAPTER_PAIRWISE_PROMPT,  # Use chapter pairwise for outline comparison
         "story_research_integration": STORYLINE_PAIRWISE_PROMPT,  # Use storyline pairwise for story refinement
         "first_chapter_writing": CHAPTER_PAIRWISE_PROMPT,  # Use chapter pairwise for chapter writing
     }
     
-    template = templates.get(use_case, PAIRWISE_RANKING_PROMPT)
+    template = templates.get(use_case, STORYLINE_PAIRWISE_PROMPT)  # Default to storyline for Deep Sci-Fi
     
-    # Different templates need different parameters
-    if use_case == "scenario_generation":
-        # PAIRWISE_RANKING_PROMPT needs baseline_world_state and years_in_future
-        if baseline_world_state and years_in_future:
-            return template
-        else:
-            return template
-    elif use_case in ["storyline_creation", "storyline_adjustment"]:
-        # STORYLINE_PAIRWISE_PROMPT needs storyline
-        return template
-    elif use_case in ["chapter_writing", "chapter_rewriting", "chapter_arcs_creation", "chapter_arcs_adjustment"]:
-        # CHAPTER_PAIRWISE_PROMPT needs storyline and chapter_arc
-        return template
-    elif use_case == "linguistic_evolution":
-        # RESEARCH_PAIRWISE_PROMPT
-        return template
-    
+    # All Deep Sci-Fi templates use consistent parameters
     return template
 
 

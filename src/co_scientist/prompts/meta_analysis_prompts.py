@@ -3,18 +3,9 @@
 
 
 def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) -> str:
-    """Get the appropriate meta-analysis prompt for the use case."""
+    """Get the appropriate meta-analysis prompt for Deep Sci-Fi use cases."""
     templates = {
-        "scenario_generation": INITIAL_META_ANALYSIS_PROMPT,
-        "storyline_creation": STORYLINE_META_ANALYSIS_PROMPT,
-        "chapter_writing": CHAPTER_WRITING_META_ANALYSIS_PROMPT,
-        "chapter_rewriting": CHAPTER_META_ANALYSIS_PROMPT,
-        "chapter_arcs_creation": NARRATIVE_META_ANALYSIS_PROMPT,
-        "chapter_arcs_adjustment": NARRATIVE_META_ANALYSIS_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_META_ANALYSIS_PROMPT,
-        "storyline_adjustment": STORYLINE_ADJUSTMENT_META_ANALYSIS_PROMPT,
-        # Future-native workflow prompts
-        "future_story_seeds": STORYLINE_META_ANALYSIS_PROMPT,  # Use storyline meta-analysis for story concepts
+        # Deep Sci-Fi future-native workflow prompts
         "competitive_loglines": LOGLINE_META_ANALYSIS_PROMPT,  # Use specialized logline meta-analysis
         "competitive_outline": COMPETITIVE_OUTLINE_META_ANALYSIS_PROMPT,  # Use specialized outline meta-analysis
         "story_research_integration": STORYLINE_META_ANALYSIS_PROMPT,  # Use storyline meta-analysis for story refinement
@@ -36,41 +27,9 @@ def get_meta_analysis_prompt(use_case: str, state: dict, config: dict = None) ->
         "world_state_context": world_state_context
     }
     
-    # Add use-case specific context parameters
+    # Add use-case specific context parameters for Deep Sci-Fi
     context_value = state.get("context", "")
-    if use_case == "scenario_generation":
-        params["world_building_questions"] = context_value
-        params["storyline"] = state.get("reference_material", "")
-        params["target_year"] = state.get("target_year", "future")
-    elif use_case == "chapter_writing":
-        params["storyline"] = state.get("storyline", "")
-        params["chapter_arcs"] = state.get("chapter_arcs", "")
-    elif use_case == "storyline_creation":
-        params["story_concept"] = context_value
-        params["source_content"] = state.get("reference_material", "")
-    elif use_case == "linguistic_evolution":
-        params["source_content"] = state.get("reference_material", "")
-        params["target_year"] = state.get("target_year", "future")
-        params["years_in_future"] = state.get("years_in_future", "many")
-    elif use_case == "storyline_adjustment":
-        params["source_content"] = state.get("reference_material", "")
-        params["target_year"] = state.get("target_year", "future")
-    elif use_case == "chapter_rewriting":
-        params["source_content"] = state.get("reference_material", "")
-        params["target_year"] = state.get("target_year", "future")
-    elif use_case == "chapter_arcs_creation":
-        params["story_concept"] = context_value
-        params["source_content"] = state.get("reference_material", "")
-    elif use_case == "chapter_arcs_adjustment":
-        params["story_concept"] = context_value  # User's original story concept
-        params["source_content"] = state.get("reference_material", "")  # Original chapter arcs
-        params["target_year"] = state.get("target_year", "future")
-    elif use_case == "future_story_seeds":
-        # Future story seeds meta-analysis parameters
-        params["human_condition"] = state.get("human_condition", "")
-        params["target_year"] = state.get("target_year", "future")
-        params["original_user_input"] = context_value
-    elif use_case == "competitive_loglines":
+    if use_case == "competitive_loglines":
         # Competitive loglines meta-analysis parameters
         params["human_condition"] = state.get("human_condition", "")
         params["target_year"] = state.get("target_year", "future")

@@ -117,6 +117,8 @@ class AgentState(TypedDict):
     research_targets: Optional[str]
     research_queries: Optional[list]  # List of parsed research queries
     research_findings: Optional[str]
+    story_refinement_options: Optional[list]  # Generated story refinement options for user selection
+    user_refinement_selection: Optional[int]  # User's selected refinement option number (1-based index)
     refined_story: Optional[str]
     # New outline workflow fields
     outline_prep_materials: Optional[str]
@@ -800,6 +802,7 @@ async def refine_story_with_research(state: AgentState, config: RunnableConfig):
         print("--- Co-Scientist Story Refinement Options Generated ---")
         print(f"--- {len(direction_winners)} refinement options available for user selection ---")
         
+        # Return the refinement options while preserving all existing state
         return {"story_refinement_options": direction_winners}
     else:
         raise RuntimeError("Co-scientist story refinement competition failed to produce direction winners.")
@@ -831,8 +834,51 @@ async def user_refinement_selection(state: AgentState, config: RunnableConfig):
 
 async def create_outline_prep_materials(state: AgentState, config: RunnableConfig):
     """Step 7: Generate foundational story elements for detailed outline creation"""
-    if not (output_dir := state.get("output_dir")) or not (refined_story := state.get("refined_story")) or not (research_findings := state.get("research_findings")):
-        raise ValueError("Required state for creating outline prep materials is missing.")
+    
+    # Debug: Print what state is actually available
+    print(f"--- DEBUG: Available state keys: {list(state.keys())} ---")
+    print(f"--- DEBUG: output_dir: {state.get('output_dir')} ---")
+    print(f"--- DEBUG: refined_story: {state.get('refined_story')} ---")
+    print(f"--- DEBUG: research_findings available: {bool(state.get('research_findings'))} ---")
+    
+    # Check if refined_story is missing but user_refinement_selection is available
+    refined_story = state.get("refined_story")
+    if not refined_story and state.get("user_refinement_selection") and state.get("story_refinement_options"):
+        print("--- DEBUG: refined_story missing but user selection available, processing selection inline ---")
+        
+        # Process the user refinement selection inline
+        user_refinement_selection = state.get("user_refinement_selection")
+        story_refinement_options = state.get("story_refinement_options")
+        
+        # Validate selection
+        if not (1 <= user_refinement_selection <= len(story_refinement_options)):
+            raise ValueError(f"Invalid selection {user_refinement_selection}. Must be between 1 and {len(story_refinement_options)}")
+        
+        # Get selected refinement option (1-indexed)
+        selected_option = story_refinement_options[user_refinement_selection - 1]
+        refined_story = selected_option.get("scenario_content", "")
+        approach_name = selected_option.get("research_direction", "Unknown")
+        
+        # Save the user-selected refined story
+        if output_dir := state.get("output_dir"):
+            save_output(output_dir, "06_selected_refined_story.md", refined_story)
+        
+        print(f"--- User Selected Refinement Option #{user_refinement_selection}: {approach_name} ---")
+        
+        # Update state with refined_story
+        state["refined_story"] = refined_story
+    
+    if not (output_dir := state.get("output_dir")) or not refined_story or not (research_findings := state.get("research_findings")):
+        # Provide detailed error about what's missing
+        missing = []
+        if not state.get("output_dir"):
+            missing.append("output_dir")
+        if not refined_story:
+            missing.append("refined_story")
+        if not state.get("research_findings"):
+            missing.append("research_findings")
+        
+        raise ValueError(f"Required state for creating outline prep materials is missing: {missing}. Available keys: {list(state.keys())}")
     
     # Get target_year and human_condition with fallback defaults
     target_year, human_condition = get_state_values_with_defaults(state)
@@ -853,7 +899,7 @@ async def create_outline_prep_materials(state: AgentState, config: RunnableConfi
     
     print("--- Outline Preparation Materials Complete ---")
     
-    return {"outline_prep_materials": content}
+    return {"outline_prep_materials": content, "refined_story": refined_story}
 
 
 async def create_competitive_outline(state: AgentState, config: RunnableConfig):
@@ -1823,31 +1869,42 @@ def format_loglines_options_for_selection(all_loglines: list, competition_summar
 
 
 def format_story_refinement_options_for_selection(direction_winners: list, competition_summary: str) -> str:
-    """Format story refinement options for user selection."""
+    """Format story refinement options with clear numbered options for user selection."""
     
     newline = "\n"
-    content = f"# Story Refinement Options from Co-Scientist Competition{newline}{newline}"
+    content = f"# 🔬 Select Your Story Refinement - Co-Scientist Competition Results{newline}{newline}"
     content += f"Research-grounded story refinement approaches competed and are now available for your selection.{newline}{newline}"
     
     content += f"## Competition Overview{newline}"
     content += competition_summary + f"{newline}{newline}"
     
-    content += f"## Selection Instructions{newline}"
-    content += f"Please review the refined story options below and select your preferred approach.{newline}"
-    content += f"To continue the workflow, respond with just the option number (1, 2, etc.).{newline}{newline}"
-    content += f"**Available Options:** {len(direction_winners)}{newline}{newline}"
+    content += f"## 📋 Numbered Refinement Options{newline}{newline}"
     
     for i, winner in enumerate(direction_winners, 1):
-        content += f"## Option {i}: {winner.get('research_direction', 'Unknown Approach')}{newline}{newline}"
+        content += f"### **Option {i}: {winner.get('research_direction', 'Unknown Approach')}**{newline}{newline}"
         content += f"**Core Approach:** {winner.get('core_assumption', 'No assumption available')}{newline}{newline}"
         content += f"**Selection Reasoning:** {winner.get('selection_reasoning', 'Tournament winner')}{newline}{newline}"
-        content += f"### Refined Story Synopsis:{newline}{newline}"
+        content += f"**Refined Story Synopsis:**{newline}"
         content += f"{winner.get('scenario_content', 'No content available')}{newline}{newline}"
         
         if i < len(direction_winners):
             content += f"---{newline}{newline}"
     
-    content += f"**Please select your preferred refinement option (1-{len(direction_winners)}) to continue.**{newline}"
+    content += f"## 🎮 How To Select Your Refinement{newline}{newline}"
+    content += f"1. **Choose** your preferred option number from the list above{newline}"
+    content += f"2. **In LangGraph Studio**, enter just the number into the `user_refinement_selection` field{newline}"
+    content += f"3. **Resume** the workflow to continue{newline}{newline}"
+    
+    content += f"### 💡 Example Selection:{newline}"
+    content += f"- If you like **Option 1**, simply enter: `1`{newline}"
+    content += f"- If you like **Option {len(direction_winners)}**, simply enter: `{len(direction_winners)}`{newline}{newline}"
+    
+    content += f"### 📱 LangGraph Studio Instructions:{newline}"
+    content += f"```json{newline}"
+    content += f'{{"user_refinement_selection": 1}}{newline}'
+    content += f"```{newline}{newline}"
+    
+    content += f"🚀 **The selected refinement will be used to create your detailed novel outline!**{newline}"
     
     return content
 

@@ -31,18 +31,7 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
     if config and config.get("configurable"):
         world_state_context = config["configurable"].get("world_state_context", "")
     
-    # Handle scenario generation with proper template format
-    if use_case == "scenario_generation":
-        return template.format(
-            research_direction=direction.get("name", ""),
-            core_assumption=direction.get("assumption", ""),
-            team_id=team_id,
-            research_context=state.get("research_context", state.get("context", "")),
-            storyline=state.get("storyline", ""),
-            target_year=state.get("target_year", "future")
-        )
-    
-    # Create base parameters for flexible format
+    # Create base parameters for Deep Sci-Fi use cases
     params = {
         "direction_name": direction.get("name", ""),
         "direction_assumption": direction.get("assumption", ""),
@@ -50,45 +39,22 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         "source_content": state.get("reference_material", ""),
         "world_state_context": world_state_context,
         "target_year": state.get("target_year", "future"),  # Add target year for sci-fi context
-        "uniqueness_seed": get_uniqueness_seed()  # Inject uniqueness to prevent repetition
+        "uniqueness_seed": get_uniqueness_seed(),  # Inject uniqueness to prevent repetition
+        "core_assumption": direction.get("assumption", "")  # Alias for template consistency
     }
     
-    # Add use-case specific context parameters
+    # Add use-case specific context parameters for Deep Sci-Fi
     context_value = state.get("context", "")
-    if use_case == "chapter_writing":
-        params["storyline"] = state.get("storyline", "")
-        params["chapter_arcs"] = state.get("chapter_arcs", "")
-    elif use_case == "storyline_creation":
-        params["story_concept"] = context_value
-    elif use_case == "linguistic_evolution":
-        params["research_context"] = context_value
-    elif use_case == "storyline_adjustment":
-        pass  # No context needed, instructions are embedded in prompt
-    elif use_case == "chapter_rewriting":
-        pass  # No context needed, instructions are embedded in prompt
-    elif use_case == "chapter_arcs_adjustment":
-        params["context"] = context_value  # User's original story concept for context
-        # source_content will contain the original chapter arcs to refine
-    elif use_case == "future_story_seeds":
-        # Future-native story seeds need specific parameters
-        params["human_condition"] = state.get("human_condition", "")
-        params["light_future_context"] = state.get("light_future_context", "")
-        params["constraint"] = state.get("constraint", "")
-        params["tone"] = state.get("tone", "")
-        params["setting"] = state.get("setting", "")
-        params["core_assumption"] = params["direction_assumption"]  # Alias for template consistency
-    elif use_case == "story_research_integration":
+    if use_case == "story_research_integration":
         # Story research integration needs specific parameters
         params["selected_story_concept"] = state.get("selected_story_concept", context_value)
         params["research_findings"] = state.get("research_findings", "")
         params["human_condition"] = state.get("human_condition", "")
-        params["core_assumption"] = params["direction_assumption"]  # Alias for template consistency
     elif use_case == "first_chapter_writing":
         # First chapter writing needs specific parameters
         params["refined_story"] = state.get("refined_story", "")
         params["tone"] = state.get("tone", "")
         params["human_condition"] = state.get("human_condition", "")
-        params["core_assumption"] = params["direction_assumption"]  # Alias for template consistency
     elif use_case == "competitive_loglines":
         # Competitive loglines need specific parameters  
         params["human_condition"] = state.get("human_condition", "")
@@ -96,7 +62,6 @@ def get_generation_prompt(use_case: str, state: dict, direction: dict, team_id: 
         params["constraint"] = state.get("constraint", "")
         params["tone"] = state.get("tone", "")
         params["setting"] = state.get("setting", "")
-        params["core_assumption"] = params["direction_assumption"]  # Alias for template consistency
     elif use_case == "competitive_outline":
         # Competitive outline needs specific parameters
         params["human_condition"] = state.get("human_condition", "")

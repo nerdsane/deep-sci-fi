@@ -3,19 +3,12 @@
 
 
 def get_unified_reflection_prompt(use_case: str) -> str:
-    """Get the appropriate unified reflection prompt based on use case."""
+    """Get the appropriate unified reflection prompt for Deep Sci-Fi use cases."""
     
     prompt_mapping = {
-        "scenario_generation": UNIFIED_SCIENTIFIC_REFLECTION_PROMPT,
-        "storyline_creation": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
-        "chapter_writing": UNIFIED_PROSE_REFLECTION_PROMPT,
-        "chapter_rewriting": UNIFIED_PROSE_REFLECTION_PROMPT,
-        "chapter_arcs_creation": CHAPTER_ARCS_REFLECTION_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_ARCS_REFLECTION_PROMPT,
-        "linguistic_evolution": UNIFIED_RESEARCH_REFLECTION_PROMPT,
-        "storyline_adjustment": UNIFIED_NARRATIVE_REFLECTION_PROMPT,
-        # Future-native workflow prompts
-        "future_story_seeds": UNIFIED_NARRATIVE_REFLECTION_PROMPT,  # Use narrative reflection for story concepts
+        # Deep Sci-Fi future-native workflow prompts
+        "competitive_loglines": UNIFIED_NARRATIVE_REFLECTION_PROMPT,  # Use narrative reflection for logline refinement
+        "competitive_outline": CHAPTER_ARCS_REFLECTION_PROMPT,  # Use chapter arcs reflection for outline refinement
         "story_research_integration": UNIFIED_NARRATIVE_REFLECTION_PROMPT,  # Use narrative reflection for story refinement
         "first_chapter_writing": UNIFIED_PROSE_REFLECTION_PROMPT,  # Use prose reflection for chapter writing
     }

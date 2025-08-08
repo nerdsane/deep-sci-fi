@@ -3,19 +3,12 @@
 
 
 def get_evolution_prompt(use_case: str, **kwargs) -> str:
-    """Get the evolution prompt for a specific use case."""
+    """Get the evolution prompt for Deep Sci-Fi use cases."""
     
     prompts = {
-        "scenario_generation": SCENARIO_EVOLUTION_PROMPT,
-        "storyline_creation": STORYLINE_EVOLUTION_PROMPT,
-        "storyline_adjustment": STORYLINE_EVOLUTION_PROMPT,
-        "chapter_writing": CHAPTER_WRITING_EVOLUTION_PROMPT,
-        "chapter_rewriting": CHAPTER_WRITING_EVOLUTION_PROMPT,
-        "chapter_arcs_creation": CHAPTER_ARCS_EVOLUTION_PROMPT,
-        "chapter_arcs_adjustment": CHAPTER_ARCS_EVOLUTION_PROMPT,
-        "linguistic_evolution": LINGUISTIC_EVOLUTION_EVOLUTION_PROMPT,
-        # Future-native workflow prompts
-        "future_story_seeds": STORYLINE_EVOLUTION_PROMPT,  # Use storyline evolution for story concepts
+        # Deep Sci-Fi future-native workflow prompts
+        "competitive_loglines": STORYLINE_EVOLUTION_PROMPT,  # Use storyline evolution for logline refinement
+        "competitive_outline": CHAPTER_ARCS_EVOLUTION_PROMPT,  # Use chapter arcs evolution for outline refinement
         "story_research_integration": STORYLINE_EVOLUTION_PROMPT,  # Use storyline evolution for story refinement  
         "first_chapter_writing": CHAPTER_WRITING_EVOLUTION_PROMPT,  # Use chapter writing evolution
     }
