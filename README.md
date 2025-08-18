@@ -13,9 +13,14 @@ The result: rigorous research meets creative storytelling for scientifically-gro
 
 ## 🏗️ Architecture
 
-![Deep Sci-Fi Workflow](workflow.png)
+The system uses a CS (Co-Scientist) agent-based architecture for iterative, scientifically grounded chapter writing:
 
-The system orchestrates a competitive tournament between AI models, with the Deep Sci-Fi Writer managing creative phases while Co-Scientist runs tournaments for idea generation and refinement. Research integration provides scientific accuracy through automated fact-gathering.
+**Main Workflow:** Parse → Context → Loglines → [USER SELECTION] → CS Agent System
+
+**CS Agent System:** Meta-Analysis → Generation → Reflection → Evolution → Meta-Review
+- Iterative improvement loop with just-in-time research
+- Each agent specializes in specific aspects of chapter writing
+- Quality-driven process with visible failure modes
 
 ## 🚀 Quickstart
 

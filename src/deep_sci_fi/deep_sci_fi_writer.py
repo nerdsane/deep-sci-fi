@@ -5,13 +5,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 
-from typing_extensions import TypedDict, Annotated
+from typing_extensions import TypedDict
 from typing import Optional
-import operator
-from langchain_core.messages import HumanMessage, AIMessage
-from open_deep_research.deep_researcher import deep_researcher
-from co_scientist.co_scientist import co_scientist
-from co_scientist.configuration import CoScientistConfiguration, UseCase
 from langchain_core.runnables import RunnableConfig
 
 from deep_sci_fi.prompts import (
@@ -396,15 +391,9 @@ async def user_story_selection(state: AgentState, config: RunnableConfig):
 
 async def cs_chapter_writing_system(state: AgentState, config: RunnableConfig):
     """
-    CS Agent-based chapter writing system that replaces all discontinued functions:
-    - identify_story_research_targets
-    - generate_research_queries  
-    - conduct_deep_research
-    - integrate_research_findings
-    - generate_outline
-    - write_chapters
+    CS Agent-based chapter writing system using iterative, scientifically grounded approach.
     
-    Uses CS agents for iterative, scientifically grounded chapter writing.
+    Coordinates CS agents to write chapters with just-in-time research and quality improvement.
     """
     from co_scientist.agents.cs_chapter_orchestrator import cs_chapter_orchestrator
     
