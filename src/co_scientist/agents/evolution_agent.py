@@ -51,7 +51,20 @@ Provide specific, actionable research findings that can be used to improve chapt
             response = self.model.invoke([{"role": "user", "content": research_prompt}])
             
             if hasattr(response, 'content'):
-                return str(response.content)
+                content = response.content
+                # Handle structured content
+                if isinstance(content, list):
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    return "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    return content['text']
+                else:
+                    return str(content)
             else:
                 return str(response)
                 
@@ -83,12 +96,22 @@ Provide specific, actionable research findings that can be used to improve chapt
             last_message = result["messages"][-1]
             # Handle different content formats
             if hasattr(last_message, 'content'):
-                improved_chapter = last_message.content
-                # Ensure it's a string
-                if isinstance(improved_chapter, list):
-                    improved_chapter = "\n".join(str(item) for item in improved_chapter)
+                content = last_message.content
+                # Handle structured content (list of dicts with 'text' field)
+                if isinstance(content, list):
+                    # Extract text from structured content
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    improved_chapter = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    # Single structured content object
+                    improved_chapter = content['text']
                 else:
-                    improved_chapter = str(improved_chapter)
+                    improved_chapter = str(content)
             else:
                 improved_chapter = str(last_message)
         else:

@@ -63,12 +63,22 @@ Be thorough but focused. Identify only what's essential for this specific chapte
             last_message = result["messages"][-1]
             # Handle different content formats
             if hasattr(last_message, 'content'):
-                analysis = last_message.content
-                # Ensure it's a string
-                if isinstance(analysis, list):
-                    analysis = "\n".join(str(item) for item in analysis)
+                content = last_message.content
+                # Handle structured content (list of dicts with 'text' field)
+                if isinstance(content, list):
+                    # Extract text from structured content
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    analysis = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    # Single structured content object
+                    analysis = content['text']
                 else:
-                    analysis = str(analysis)
+                    analysis = str(content)
             else:
                 analysis = str(last_message)
         else:

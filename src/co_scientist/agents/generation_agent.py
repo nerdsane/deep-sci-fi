@@ -99,7 +99,20 @@ Be specific and scientifically accurate."""
             response = self.model.invoke([{"role": "user", "content": research_prompt}])
             
             if hasattr(response, 'content'):
-                research_result = str(response.content)
+                content = response.content
+                # Handle structured content
+                if isinstance(content, list):
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    research_result = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    research_result = content['text']
+                else:
+                    research_result = str(content)
             else:
                 research_result = str(response)
                 
@@ -162,12 +175,22 @@ Basic research outline:
             last_message = result["messages"][-1]
             # Handle different content formats
             if hasattr(last_message, 'content'):
-                chapter_content = last_message.content
-                # Ensure it's a string
-                if isinstance(chapter_content, list):
-                    chapter_content = "\n".join(str(item) for item in chapter_content)
+                content = last_message.content
+                # Handle structured content (list of dicts with 'text' field)
+                if isinstance(content, list):
+                    # Extract text from structured content
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    chapter_content = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    # Single structured content object
+                    chapter_content = content['text']
                 else:
-                    chapter_content = str(chapter_content)
+                    chapter_content = str(content)
             else:
                 chapter_content = str(last_message)
         else:

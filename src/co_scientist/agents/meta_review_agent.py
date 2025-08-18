@@ -66,12 +66,22 @@ Be decisive but fair. Consider both scientific accuracy and narrative quality.""
             last_message = result["messages"][-1]
             # Handle different content formats
             if hasattr(last_message, 'content'):
-                decision = last_message.content
-                # Ensure it's a string
-                if isinstance(decision, list):
-                    decision = "\n".join(str(item) for item in decision)
+                content = last_message.content
+                # Handle structured content (list of dicts with 'text' field)
+                if isinstance(content, list):
+                    # Extract text from structured content
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    decision = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    # Single structured content object
+                    decision = content['text']
                 else:
-                    decision = str(decision)
+                    decision = str(content)
             else:
                 decision = str(last_message)
         else:
