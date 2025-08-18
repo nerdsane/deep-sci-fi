@@ -7,12 +7,15 @@ This agent writes chapter content and conducts research as needed:
 - Integrates research findings into the writing
 """
 
+import asyncio
+import random
+import traceback
 from typing import Dict, Any, List
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
 from langchain.chat_models import init_chat_model
-from open_deep_research.deep_researcher import deep_researcher
+from open_deep_research.deep_researcher import deep_researcher, reset_deep_researcher_global_state
 
 from deep_sci_fi.prompts import GENERATION_CHAPTER_PROMPT
 
@@ -44,59 +47,16 @@ Write compelling prose while maintaining scientific accuracy. When you encounter
     
     @tool
     def _write_chapter_content(self, chapter_goals: str, research_context: str) -> str:
-        """Write chapter content based on goals and available research"""
-        # Use the model to generate actual chapter content
+        """Write chapter content based on goals and research context"""
         try:
-            from deep_sci_fi.prompts import GENERATION_CHAPTER_PROMPT
-            
+            # Use the proper prompt from prompts.py
             prompt_content = GENERATION_CHAPTER_PROMPT.format(
                 chapter_analysis=chapter_goals,
                 story_concept="Story concept from state",
                 research_cache=research_context
             )
             
-            # Generate chapter content using the model
             response = self.model.invoke([{"role": "user", "content": prompt_content}])
-            
-            if hasattr(response, 'content'):
-                return str(response.content)
-            else:
-                return str(response)
-                
-        except Exception as e:
-            # Fallback to basic content if model call fails
-            return f"""# Chapter 1: Opening
-
-[Chapter generation failed: {str(e)}]
-
-Basic chapter structure based on:
-Goals: {chapter_goals}
-Research: {research_context}
-
-This is a fallback chapter. Full model integration needed."""
-    
-    @tool
-    def _conduct_research(self, research_query: str) -> str:
-        """Conduct deep research on a specific scientific question"""
-        # Check cache first
-        if research_query in self.research_cache:
-            return self.research_cache[research_query]
-        
-        # For now, use a synchronous research approach
-        # TODO: Implement proper async deep researcher integration
-        try:
-            # Use the model directly for research instead of deep researcher
-            research_prompt = f"""Conduct scientific research on this question: {research_query}
-
-Provide:
-1. Current scientific understanding
-2. Relevant research findings
-3. Future development possibilities
-4. Implications for science fiction storytelling
-
-Be specific and scientifically accurate."""
-
-            response = self.model.invoke([{"role": "user", "content": research_prompt}])
             
             if hasattr(response, 'content'):
                 content = response.content
@@ -108,17 +68,89 @@ Be specific and scientifically accurate."""
                             text_parts.append(item['text'])
                         else:
                             text_parts.append(str(item))
-                    research_result = "\n".join(text_parts)
+                    return "\n".join(text_parts)
                 elif isinstance(content, dict) and 'text' in content:
-                    research_result = content['text']
+                    return content['text']
                 else:
-                    research_result = str(content)
+                    return str(content)
             else:
-                research_result = str(response)
+                return str(response)
                 
         except Exception as e:
+            return f"""Chapter Generation Error: {str(e)}
+
+Chapter Goals: {chapter_goals}
+Research Context:
+{research_context}
+
+This is a fallback chapter. Full model integration needed."""
+    
+    @tool
+    async def _conduct_research(self, research_query: str) -> str:
+        """Conduct deep research on a specific scientific question using Deep Researcher"""
+        # Check cache first
+        if research_query in self.research_cache:
+            return self.research_cache[research_query]
+        
+        try:
+            # Reset deep_researcher for fresh research context
+            reset_deep_researcher_global_state()
+            
+            # Configure deep researcher
+            research_config = {
+                "configurable": {
+                    "research_model": "anthropic:claude-sonnet-4-20250514",
+                    "research_model_max_tokens": 8000,
+                    "summarization_model": "anthropic:claude-sonnet-4-20250514", 
+                    "compression_model": "anthropic:claude-sonnet-4-20250514",
+                    "compression_model_max_tokens": 8000,
+                    "final_report_model": "anthropic:claude-sonnet-4-20250514",
+                    "final_report_model_max_tokens": 8000,
+                    "allow_clarification": False,
+                    "search_api": "tavily"
+                }
+            }
+            
+            # Use retry logic for deep_researcher call
+            import anthropic
+            
+            for attempt in range(3):
+                try:
+                    research_result = await deep_researcher.ainvoke(
+                        {"messages": [HumanMessage(content=research_query)]},
+                        research_config
+                    )
+                    break  # Success, exit retry loop
+                except anthropic.APIStatusError as e:
+                    error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                    if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)
+                        print(f"  ⏳ Deep researcher API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if any(keyword in error_msg for keyword in ["timeout", "connection", "network"]) and attempt < 2:
+                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)
+                        print(f"  ⏳ Deep researcher network error, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise
+            
+            # Extract research findings
+            research_content = research_result.get("final_report", "")
+            print(f"✅ Deep research completed for: {research_query[:50]}...")
+            
+        except Exception as e:
             # Fallback if deep researcher fails
-            research_result = f"""Research Error for: {research_query}
+            print(f"❌ Deep researcher failed for '{research_query}': {e}")
+            print(f"Deep researcher failure traceback:")
+            print(traceback.format_exc())
+            
+            research_content = f"""Research Error for: {research_query}
 
 Error: {str(e)}
 
@@ -131,70 +163,107 @@ Basic research outline:
 - Implications for story world"""
         
         # Cache the result
-        self.research_cache[research_query] = research_result
-        return research_result
+        self.research_cache[research_query] = research_content
+        return research_content
     
     @tool
-    def _integrate_research(self, research_findings: str, chapter_content: str) -> str:
+    def _integrate_research(self, chapter_content: str, research_findings: str) -> str:
         """Integrate research findings into chapter content"""
-        # Basic implementation to prevent infinite loops
-        return f"""{chapter_content}
+        try:
+            integration_prompt = f"""Integrate these research findings into the chapter content naturally and seamlessly:
 
---- RESEARCH INTEGRATION ---
+CHAPTER CONTENT:
+{chapter_content}
+
+RESEARCH FINDINGS:
 {research_findings}
 
-[Research integrated into chapter content. Full integration logic needed.]"""
-    
-    async def write_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Main entry point for chapter generation"""
-        chapter_analysis = state.get("chapter_analysis", "")
-        story_concept = state.get("selected_story_concept", "")
-        research_cache = state.get("research_cache", {})
-        target_year = state.get("target_year", 2084)
-        human_condition = state.get("human_condition", "")
-        
-        # Update our cache with any existing research
-        self.research_cache.update(research_cache)
-        
-        # Use the proper prompt from prompts.py
-        from deep_sci_fi.prompts import GENERATION_CHAPTER_PROMPT
-        
-        generation_prompt = GENERATION_CHAPTER_PROMPT.format(
-            chapter_analysis=chapter_analysis,
-            story_concept=story_concept,
-            research_cache=str(self.research_cache)
-        )
-        
-        # Invoke the agent to write the chapter
-        result = await self.agent.ainvoke({
-            "messages": [HumanMessage(content=generation_prompt)]
-        })
-        
-        # Extract the chapter content from the result
-        if result["messages"]:
-            last_message = result["messages"][-1]
-            # Handle different content formats
-            if hasattr(last_message, 'content'):
-                content = last_message.content
-                # Handle structured content (list of dicts with 'text' field)
+Instructions:
+1. Weave research findings naturally into the narrative
+2. Maintain story flow and character voice
+3. Ensure scientific accuracy
+4. Don't make the research feel like exposition dumps
+5. Use research to enhance world-building and authenticity
+
+Return the improved chapter content."""
+
+            response = self.model.invoke([{"role": "user", "content": integration_prompt}])
+            
+            if hasattr(response, 'content'):
+                content = response.content
+                # Handle structured content
                 if isinstance(content, list):
-                    # Extract text from structured content
                     text_parts = []
                     for item in content:
                         if isinstance(item, dict) and 'text' in item:
                             text_parts.append(item['text'])
                         else:
                             text_parts.append(str(item))
-                    chapter_content = "\n".join(text_parts)
+                    return "\n".join(text_parts)
                 elif isinstance(content, dict) and 'text' in content:
-                    # Single structured content object
-                    chapter_content = content['text']
+                    return content['text']
                 else:
-                    chapter_content = str(content)
+                    return str(content)
             else:
-                chapter_content = str(last_message)
-        else:
-            chapter_content = "Chapter generation failed - no messages returned"
+                return str(response)
+                
+        except Exception as e:
+            return f"""Integration failed: {str(e)}
+
+Original content: {chapter_content}
+Research findings: {research_findings}"""
+    
+    async def write_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Main entry point for chapter writing with research"""
+        selected_story_concept = state.get("selected_story_concept", "")
+        chapter_analysis = state.get("chapter_analysis", "")
+        research_cache = state.get("research_cache", {})
+        
+        # Merge any existing research cache
+        self.research_cache.update(research_cache)
+        
+        # Use the proper prompt from prompts.py
+        prompt_content = GENERATION_CHAPTER_PROMPT.format(
+            story_concept=selected_story_concept,
+            chapter_analysis=chapter_analysis,
+            research_cache=str(self.research_cache) if self.research_cache else "No previous research available"
+        )
+        
+        try:
+            # Invoke the agent with the prompt
+            messages = [HumanMessage(content=prompt_content)]
+            result = await self.agent.ainvoke({"messages": messages})
+            
+            # Extract content from agent response
+            if result and "messages" in result:
+                last_message = result["messages"][-1]
+                if hasattr(last_message, 'content'):
+                    content = last_message.content
+                    # Handle structured content
+                    if isinstance(content, list):
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict) and 'text' in item:
+                                text_parts.append(item['text'])
+                            else:
+                                text_parts.append(str(item))
+                        chapter_content = "\n".join(text_parts)
+                    elif isinstance(content, dict) and 'text' in content:
+                        chapter_content = content['text']
+                    else:
+                        chapter_content = str(content)
+                else:
+                    chapter_content = str(last_message)
+            else:
+                chapter_content = "Chapter generation failed - no response from agent"
+            
+        except Exception as e:
+            chapter_content = f"""Chapter Generation Failed: {str(e)}
+
+Story Concept: {selected_story_concept}
+Analysis: {chapter_analysis}
+
+[Agent execution failed. Manual chapter writing needed.]"""
         
         return {
             "current_chapter": chapter_content,
