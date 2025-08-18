@@ -21,14 +21,10 @@ class MetaReviewAgent:
     
     def __init__(self, model_string: str = "openai:o3-2025-04-16"):
         self.model = init_chat_model(model_string, temperature=0.7)
-        self.tools = [
-            self._assess_overall_quality,
-            self._determine_readiness,
-            self._recommend_next_steps,
-        ]
+        # Meta-review uses LLM reasoning directly for strategic decisions
         self.agent = create_react_agent(
             self.model,
-            self.tools,
+            [],  # No tools needed for decision making
             prompt="""You are a meta-review agent for scientifically grounded chapter writing.
 
 Your role is to make final strategic decisions:
@@ -39,48 +35,28 @@ Your role is to make final strategic decisions:
 Be decisive but fair. Consider both scientific accuracy and narrative quality."""
         )
     
-    @tool
-    def _assess_overall_quality(self, chapter_content: str, all_feedback: str) -> str:
-        """Assess the overall quality of the chapter"""
-        # Basic implementation to prevent infinite loops
-        return "Overall quality: ACCEPTABLE - Chapter meets basic standards for publication"
-    
-    @tool
-    def _determine_readiness(self, quality_score: str, feedback_summary: str) -> str:
-        """Determine if the chapter is ready for publication"""
-        # Basic implementation to prevent infinite loops
-        return "Chapter readiness: READY - Chapter is acceptable for publication"
-    
-    @tool
-    def _recommend_next_steps(self, readiness_status: str, remaining_issues: str) -> str:
-        """Recommend next steps for the chapter"""
-        # Basic implementation to prevent infinite loops
-        return "Next steps: PUBLISH - Chapter is ready for publication"
+
     
     async def review_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for meta-review"""
         current_chapter = state.get("current_chapter", "")
         chapter_evaluation = state.get("chapter_evaluation", "")
         improvement_applied = state.get("improvement_applied", False)
+        iteration_count = state.get("iteration_count", 0)
+        max_iterations = state.get("max_iterations", 3)
+        
+        # Use the proper prompt from prompts.py
+        from deep_sci_fi.prompts import META_REVIEW_CHAPTER_PROMPT
+        
+        review_prompt = META_REVIEW_CHAPTER_PROMPT.format(
+            current_chapter=current_chapter,
+            chapter_evaluation=chapter_evaluation,
+            improvement_applied=improvement_applied
+        )
         
         # Invoke the agent to make final decision
         result = await self.agent.ainvoke({
-            "messages": [
-                HumanMessage(content=f"""Make a final strategic decision about this chapter:
-
-CHAPTER CONTENT: {current_chapter}
-
-EVALUATION FEEDBACK: {chapter_evaluation}
-
-IMPROVEMENTS APPLIED: {improvement_applied}
-
-Decide:
-1. Is this chapter ready for publication?
-2. Does it need another iteration?
-3. What are the next steps?
-
-Provide a clear recommendation.""")
-            ]
+            "messages": [HumanMessage(content=review_prompt)]
         })
         
         # Extract the decision from the result
@@ -99,15 +75,48 @@ Provide a clear recommendation.""")
         else:
             decision = "Decision failed - no messages returned"
         
-        # Determine if the chapter is ready
-        # For basic implementation, mark chapter as ready to prevent infinite loops
-        # TODO: Implement proper decision logic
-        chapter_ready = True  # Set to True to allow system to complete
-        needs_iteration = False  # Set to False to prevent infinite loops
+        # Intelligently determine next steps based on decision and iteration count
+        chapter_ready, needs_iteration = self._make_strategic_decision(
+            decision, current_chapter, iteration_count, max_iterations
+        )
         
         return {
             "final_decision": decision,
             "chapter_ready": chapter_ready,
             "needs_iteration": needs_iteration,
             "meta_review_complete": True
-        } 
+        }
+    
+    def _make_strategic_decision(self, decision: str, chapter_content: str, iteration_count: int, max_iterations: int) -> tuple[bool, bool]:
+        """Make intelligent strategic decision about chapter readiness"""
+        
+        # Force completion if we've reached max iterations
+        if iteration_count >= max_iterations:
+            return True, False  # chapter_ready=True, needs_iteration=False
+        
+        # Check for explicit readiness indicators in the decision
+        ready_indicators = ["ready", "publish", "complete", "acceptable", "good quality"]
+        iteration_indicators = ["improve", "revise", "needs work", "another iteration", "not ready"]
+        
+        decision_lower = decision.lower()
+        
+        # If decision explicitly says ready, mark as ready
+        if any(indicator in decision_lower for indicator in ready_indicators):
+            return True, False
+        
+        # If decision explicitly says needs iteration, and we haven't hit max
+        if any(indicator in decision_lower for indicator in iteration_indicators):
+            if iteration_count < max_iterations:
+                return False, True
+            else:
+                return True, False  # Force completion at max iterations
+        
+        # Default: if chapter has substantial content, consider it ready
+        if len(chapter_content.strip()) > 1000:  # Substantial content
+            return True, False
+        else:
+            # Short content, needs improvement if under max iterations
+            if iteration_count < max_iterations:
+                return False, True
+            else:
+                return True, False 

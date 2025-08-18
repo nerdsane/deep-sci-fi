@@ -23,10 +23,7 @@ class EvolutionAgent:
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.8)
         self.tools = [
-            self._improve_scientific_accuracy,
-            self._enhance_narrative_quality,
             self._conduct_additional_research,
-            self._refine_character_authenticity,
         ]
         self.agent = create_react_agent(
             self.model,
@@ -43,28 +40,23 @@ Make targeted improvements while preserving the chapter's strengths."""
         )
     
     @tool
-    def _improve_scientific_accuracy(self, chapter_content: str, accuracy_issues: str) -> str:
-        """Fix scientific accuracy issues in the chapter"""
-        # Basic implementation to prevent infinite loops
-        return f"{chapter_content}\n\n[Scientific accuracy improvements applied - full implementation needed]"
-    
-    @tool
-    def _enhance_narrative_quality(self, chapter_content: str, quality_issues: str) -> str:
-        """Improve narrative quality and story flow"""
-        # Basic implementation to prevent infinite loops
-        return f"{chapter_content}\n\n[Narrative quality enhancements applied - full implementation needed]"
-    
-    @tool
     def _conduct_additional_research(self, research_query: str) -> str:
         """Conduct additional research to fill gaps"""
-        # Basic implementation to prevent infinite loops
-        return f"Additional research completed for: {research_query}\n[Placeholder research - full implementation needed]"
-    
-    @tool
-    def _refine_character_authenticity(self, chapter_content: str, authenticity_issues: str) -> str:
-        """Improve character authenticity for the time period"""
-        # Basic implementation to prevent infinite loops
-        return f"{chapter_content}\n\n[Character authenticity refinements applied - full implementation needed]"
+        try:
+            # Use the model for research
+            research_prompt = f"""Conduct focused research on: {research_query}
+
+Provide specific, actionable research findings that can be used to improve chapter content."""
+
+            response = self.model.invoke([{"role": "user", "content": research_prompt}])
+            
+            if hasattr(response, 'content'):
+                return str(response.content)
+            else:
+                return str(response)
+                
+        except Exception as e:
+            return f"Research failed for '{research_query}': {str(e)}"
     
     async def improve_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for chapter improvement"""
@@ -72,19 +64,18 @@ Make targeted improvements while preserving the chapter's strengths."""
         chapter_evaluation = state.get("chapter_evaluation", "")
         research_cache = state.get("research_cache", {})
         
+        # Use the proper prompt from prompts.py
+        from deep_sci_fi.prompts import EVOLUTION_CHAPTER_PROMPT
+        
+        evolution_prompt = EVOLUTION_CHAPTER_PROMPT.format(
+            current_chapter=current_chapter,
+            chapter_evaluation=chapter_evaluation,
+            research_cache=str(research_cache)
+        )
+        
         # Invoke the agent to improve the chapter
         result = await self.agent.ainvoke({
-            "messages": [
-                HumanMessage(content=f"""Improve this chapter based on the evaluation feedback:
-
-CURRENT CHAPTER: {current_chapter}
-
-EVALUATION FEEDBACK: {chapter_evaluation}
-
-AVAILABLE RESEARCH: {str(research_cache)}
-
-Make specific improvements to address the identified issues while preserving the chapter's strengths. If additional research is needed, conduct it first.""")
-            ]
+            "messages": [HumanMessage(content=evolution_prompt)]
         })
         
         # Extract the improved chapter from the result
