@@ -108,7 +108,7 @@ class ModelConfig:
             "provider": ModelProvider.OPENAI,
             "model": "o3",
             "thinking": False,  # O3 has internal reasoning, doesn't need explicit thinking
-            "temperature": 0.7,
+            "temperature": 1.0,  # O3 models only support temperature=1
             "max_tokens": 8000
         },
     }
@@ -129,8 +129,15 @@ class ModelConfig:
     def get_model_params(cls, use_case: str) -> dict:
         """Get model parameters for a use case."""
         config = cls.USE_CASE_MODELS.get(use_case, cls.USE_CASE_MODELS["general_creative"])
+        model_string = cls.get_model_string(use_case)
+        
+        # O3 models only support temperature=1
+        temperature = config.get("temperature", 0.8)
+        if "o3" in model_string.lower():
+            temperature = 1.0
+            
         return {
-            "temperature": config.get("temperature", 0.8),
+            "temperature": temperature,
             "max_tokens": config.get("max_tokens", 8000)
         }
     

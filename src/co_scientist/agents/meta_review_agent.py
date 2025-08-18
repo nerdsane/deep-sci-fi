@@ -20,7 +20,9 @@ class MetaReviewAgent:
     """Agent that makes final strategic decisions about chapter quality"""
     
     def __init__(self, model_string: str = "openai:o3-2025-04-16"):
-        self.model = init_chat_model(model_string, temperature=0.7)
+        # O3 models only support temperature=1
+        temperature = 1.0 if "o3" in model_string.lower() else 0.7
+        self.model = init_chat_model(model_string, temperature=temperature)
         # Meta-review uses LLM reasoning directly for strategic decisions
         self.agent = create_react_agent(
             self.model,
