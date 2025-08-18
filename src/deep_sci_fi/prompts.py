@@ -363,10 +363,12 @@ RESEARCH FINDINGS: {research_findings}
 ## CRITICAL REQUIREMENTS FOR {target_year} AUTHENTICITY
 
 **FUTURE-NATIVE NAMING:**
-- ALL character names must reflect {target_year} naming conventions - avoid common 2024 names
-- Use names that evolved linguistically, culturally, or technologically by {target_year}
-- Consider: blended cultures, tech-influenced names, evolved pronunciations, new naming traditions
-- Examples: Neo-linguistic blends, tech-suffix names, evolved cultural names, post-global names
+- ALL character names must feel authentically evolved by {target_year} - NOT simple cultural combinations
+- **PROHIBITED**: Generic hyphenated surnames like "Chen-Okonkwo", "Smith-Patel", "Jones-Kim" 
+- **PROHIBITED**: Common 2024 names with minor modifications like "Alex-2200" or "Maria-Neo"
+- **REQUIRED**: Names that reflect specific cultural/technological evolution unique to {target_year}
+- **Examples of GOOD naming**: Tech-influenced (Veil-Temporal, Echo-Weave), evolved linguistic blends (Kassim from Arabic drift), iteration markers (Quantum-Sift-Prime), natural elements chosen by new generations (Moss, Archipelago)
+- **Consider**: How language evolved, new naming traditions that emerged, technology's influence on identity, generational naming movements, substrate-being chosen names, post-scarcity naming culture
 
 **CREATIVE WORLD-BUILDING:**
 - Every element should feel authentically native to {target_year}, not retrofitted from 2024
@@ -381,11 +383,11 @@ RESEARCH FINDINGS: {research_findings}
 Generate detailed prep materials:
 
 <characters>
-PROTAGONIST: [Future-native name reflecting {target_year} culture, age, background shaped by {target_year} history, key traits authentic to this future, worldview of someone who grew up in {target_year}, relationship to human condition theme through {target_year} lens]
+PROTAGONIST: [Name that reflects {target_year}-specific naming evolution - avoid simple cultural hyphenations. Consider: consciousness-descriptive surnames after identity modification, evolved linguistic roots, tech-influenced naming, generational naming movements. Include name etymology explaining how it developed. Age, background shaped by {target_year} history, key traits authentic to this future, worldview of someone who grew up in {target_year}, relationship to human condition theme through {target_year} lens]
 
-SUPPORTING CHARACTERS: [2-3 key characters with future-native names uncommon in 2024, roles/relationships that could only exist in {target_year}, perspectives shaped by growing up in this future world]
+SUPPORTING CHARACTERS: [2-3 key characters with names that could ONLY exist in {target_year} - NOT 2024 names with modifications. Each name should tell a story about their relationship to {target_year} technology/culture. Include brief name etymologies. Roles/relationships that could only exist in {target_year}, perspectives shaped by growing up in this future world]
 
-ANTAGONIST/OPPOSITION: [What opposes protagonist - person with {target_year}-authentic name, system evolved by {target_year}, or internal conflict specific to this future. Must feel native to {target_year}, not transplanted from today]
+ANTAGONIST/OPPOSITION: [What opposes protagonist - if a person, use name that reflects {target_year} naming evolution specific to their background/role. If system/force, name that emerged by {target_year}. Must feel native to {target_year}, not transplanted from today. Include name etymology.]
 </characters>
 
 <locations>
@@ -418,9 +420,10 @@ THEMATIC QUESTION: [Central question about {human_condition} that could only be 
 
 **AUTHENTICITY CHECK:**
 - Would a native of {target_year} recognize this as their natural world?
-- Do names sound like they evolved naturally by {target_year}?
+- Do names sound like they evolved naturally by {target_year} (NOT simple cultural mashups like "Chen-Okonkwo")?
 - Could any element be transplanted to 2024 without seeming strange?
 - Does everything feel creatively extrapolated rather than obviously extended?
+- **NAME SPECIFIC CHECK**: Do ALL names reflect unique {target_year} cultural/technological evolution rather than predictable demographic combinations?
 
 Ensure ALL elements feel authentically native to {target_year} with creative, evolved naming and world-building that serves the exploration of: {human_condition}
 """
@@ -551,7 +554,6 @@ Your task is to create a completely revised, structurally sound 20-25 chapter ou
 Create a detailed 20-25 chapter breakdown with:
 
 ### Chapter [Number]: [Compelling Title]
-**Word Count**: 2500-3000 words
 **POV Character**: [Character name and perspective type]
 **Setting**: [Specific {target_year} location with authentic details]
 **Plot Summary**: [3-4 sentences describing what happens]
@@ -617,11 +619,9 @@ For each major scene in the chapter:
 - **Transition**: How it connects to the next scene
 
 ### Technical Specifications
-- **Word Count Target**: 2000-3000 words total
 - **Pacing**: Where to accelerate/decelerate narrative rhythm
 - **Sensory Focus**: Dominant sensory experiences for {target_year} authenticity
 - **Dialogue Balance**: Key conversations vs. internal narrative
-- **Scientific Integration**: How research findings appear naturally
 
 ### Style Continuity
 - **Voice Consistency**: Match established narrative voice from previous chapters
@@ -658,11 +658,9 @@ HUMAN CONDITION THEME: {human_condition}
 
 ## Chapter Writing Requirements
 
-### Word Count & Structure
-- **Target**: 2000-3000 words
+### Structure
 - **Opening**: Strong hook that immediately engages
 - **Pacing**: Varied rhythm that serves the narrative
-- **Closing**: Compelling transition to next chapter
 
 ### Scientific Integration
 - **Natural Integration**: Science emerges from character needs and plot requirements
@@ -764,7 +762,6 @@ TARGET YEAR: {target_year}
 - **Internal Life**: Appropriate balance of action and introspection
 
 ### Technical Execution
-- **Word Count**: Appropriate length (2000-3000 words)
 - **Structure**: Strong opening, compelling progression, effective closing
 - **Dialogue**: Natural conversations that advance plot and character
 - **Sensory Details**: Rich, specific sensory experiences
@@ -825,7 +822,6 @@ HUMAN CONDITION THEME: {human_condition}
 - **World-Building**: Enhance {target_year} authenticity without contradicting established details
 
 ### Writing Quality Standards
-- **Target Length**: 2000-3000 words
 - **Improved Prose**: Clearer, more engaging writing throughout
 - **Better Integration**: Smoother science integration and character development
 - **Enhanced Authenticity**: Stronger {target_year} future-native elements
@@ -1112,7 +1108,6 @@ Create a compelling 20-25 chapter novel outline that:
 For each chapter, provide:
 
 ### Chapter [Number]: [Compelling Title]
-**Word Count**: 2500-3000 words
 **POV Character**: [Character name and perspective type]
 **Setting**: [Specific {target_year} location with authentic details]
 **Plot Summary**: [3-4 sentences describing what happens]
@@ -1133,7 +1128,7 @@ Organize as:
 
 ## Integration Guidelines
 
-- All character names must feel authentically evolved by {target_year}
+- All character names must feel authentically evolved by {target_year} - AVOID generic cultural combinations like "Chen-Okonkwo"
 - Technology and social systems must feel naturally developed
 - Scientific elements should drive plot organically
 - Conflicts and solutions must be impossible in 2024
@@ -1162,11 +1157,9 @@ Human Condition Theme: {human_condition}
 - Show don't tell how this future works
 
 ### Writing Standards
-- **Length**: 2500-3000 words
 - **Perspective**: Establish consistent narrative voice
 - **Pacing**: Balance action with world-building
 - **Character Voice**: Authentic to someone raised in {target_year}
-- **Scientific Integration**: Natural, not expository
 
 ### {target_year} Authenticity Requirements
 
@@ -1250,7 +1243,6 @@ As a scientifically complex chapter, focus on:
 - Scientific breakthroughs feel earned and logical
 
 ### Chapter Execution
-- **Length**: 2500-3000 words
 - **Complexity**: Handle scientific material with sophistication
 - **Accessibility**: Keep complex concepts understandable
 - **Integration**: Science serves character and plot goals

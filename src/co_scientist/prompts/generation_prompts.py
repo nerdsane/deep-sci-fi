@@ -734,7 +734,6 @@ How does this approach best serve the exploration of {human_condition} in {targe
 Create exactly 20-25 chapters using this format for EACH chapter:
 
 ### Chapter 1: [Specific Title]
-**Length**: 2500-3000 words
 **POV**: [Specific character name from prep materials]
 **Setting**: [Specific location from prep materials with {target_year} details]
 **Plot Summary**: [Detailed 3-4 sentence description of what actually happens in this chapter]

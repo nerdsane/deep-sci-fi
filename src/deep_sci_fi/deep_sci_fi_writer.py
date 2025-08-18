@@ -2358,7 +2358,6 @@ def analyze_chapter_style(chapter_content: str) -> str:
     analysis = (
         f"# Chapter Style Analysis\n\n"
         f"## Prose Style Characteristics\n"
-        f"- **Length:** {len(chapter_content.split())} words\n"
         f"- **Paragraph Structure:** {paragraph_style}\n"
         f"- **Sentence Variety:** Mixed sentence lengths for engaging rhythm\n"
         f"- **Perspective:** {perspective}\n\n"
