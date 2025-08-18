@@ -72,18 +72,45 @@ class CSChapterOrchestrator:
             """Meta-analysis agent node"""
             print("🔍 CS Meta-Analysis: Analyzing chapter requirements...")
             result = await self.meta_analysis_agent.analyze_chapter_requirements(state)
+            
+            # Save meta-analysis output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                save_output(output_dir, "04a_cs_meta_analysis.md", result.get("chapter_analysis", ""))
+                print("💾 Meta-analysis saved to 04a_cs_meta_analysis.md")
+            
             return {**state, **result}
         
         async def generation_node(state: CSChapterState) -> CSChapterState:
             """Generation agent node"""
             print("✍️ CS Generation: Writing chapter with just-in-time research...")
             result = await self.generation_agent.write_chapter(state)
+            
+            # Save generation output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                save_output(output_dir, "04b_cs_generation.md", result.get("current_chapter", ""))
+                # Also save research cache updates
+                research_cache = result.get("research_cache", {})
+                if research_cache:
+                    cache_content = "\n\n".join([f"## {query}\n{result}" for query, result in research_cache.items()])
+                    save_output(output_dir, "04b_cs_research_cache.md", cache_content)
+                print("💾 Generation output saved to 04b_cs_generation.md")
+            
             return {**state, **result}
         
         async def reflection_node(state: CSChapterState) -> CSChapterState:
             """Reflection agent node"""
             print("🤔 CS Reflection: Evaluating chapter quality...")
             result = await self.reflection_agent.evaluate_chapter(state)
+            
+            # Save reflection output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                iteration = state.get("iteration_count", 0)
+                save_output(output_dir, f"04c_cs_reflection_iter{iteration}.md", result.get("chapter_evaluation", ""))
+                print(f"💾 Reflection saved to 04c_cs_reflection_iter{iteration}.md")
+            
             return {**state, **result}
         
         async def evolution_node(state: CSChapterState) -> CSChapterState:
@@ -92,12 +119,27 @@ class CSChapterOrchestrator:
             result = await self.evolution_agent.improve_chapter(state)
             # Increment iteration count
             iteration_count = state.get("iteration_count", 0) + 1
+            
+            # Save evolution output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                save_output(output_dir, f"04d_cs_evolution_iter{iteration_count}.md", result.get("current_chapter", ""))
+                print(f"💾 Evolution output saved to 04d_cs_evolution_iter{iteration_count}.md")
+            
             return {**state, **result, "iteration_count": iteration_count}
         
         async def meta_review_node(state: CSChapterState) -> CSChapterState:
             """Meta-review agent node"""
             print("⚖️ CS Meta-Review: Making final quality decision...")
             result = await self.meta_review_agent.review_chapter(state)
+            
+            # Save meta-review output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                iteration = state.get("iteration_count", 0)
+                save_output(output_dir, f"04e_cs_meta_review_iter{iteration}.md", result.get("final_decision", ""))
+                print(f"💾 Meta-review saved to 04e_cs_meta_review_iter{iteration}.md")
+            
             return {**state, **result}
         
         # Define routing functions
@@ -194,6 +236,46 @@ class CSChapterOrchestrator:
         
         if not final_state:
             raise RuntimeError("CS Chapter writing failed - no final state returned")
+        
+        # Save comprehensive CS process summary for observability
+        if output_dir := cs_state.get("output_dir"):
+            from deep_sci_fi.deep_sci_fi_writer import save_output
+            
+            summary = f"""# CS Agent Chapter Writing Process Summary
+
+## Process Overview
+- **Total Iterations**: {final_state.get('iteration_count', 0)}
+- **Max Iterations**: {final_state.get('max_iterations', 3)}
+- **Chapter Ready**: {final_state.get('chapter_ready', False)}
+- **Final Status**: {final_state.get('final_decision', 'No decision recorded')}
+
+## Agent Completion Status
+- **Meta-Analysis**: {final_state.get('meta_analysis_complete', False)}
+- **Generation**: {final_state.get('generation_complete', False)}
+- **Reflection**: {final_state.get('reflection_complete', False)}
+- **Evolution**: {final_state.get('evolution_complete', False)}
+- **Meta-Review**: {final_state.get('meta_review_complete', False)}
+
+## Research Conducted
+{len(final_state.get('research_cache', {}))} research queries conducted during chapter writing.
+
+## Iteration History
+- **Needed Improvement**: {final_state.get('needs_improvement', False)}
+- **Improvements Applied**: {final_state.get('improvement_applied', False)}
+- **Iterations Needed**: {final_state.get('needs_iteration', False)}
+
+## Output Files Generated
+- 04a_cs_meta_analysis.md - Chapter requirements analysis
+- 04b_cs_generation.md - Initial chapter generation
+- 04b_cs_research_cache.md - Research conducted during writing
+- 04c_cs_reflection_iter[N].md - Quality evaluations (per iteration)
+- 04d_cs_evolution_iter[N].md - Chapter improvements (per iteration)  
+- 04e_cs_meta_review_iter[N].md - Final decisions (per iteration)
+- 04_cs_generated_chapter.md - Final chapter output
+- 04_cs_final_decision.md - Final meta-review decision
+"""
+            save_output(output_dir, "04_cs_process_summary.md", summary)
+            print("📊 CS process summary saved to 04_cs_process_summary.md")
         
         # Extract results for main workflow
         return {
