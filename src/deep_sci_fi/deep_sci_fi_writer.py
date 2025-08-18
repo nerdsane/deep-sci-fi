@@ -389,40 +389,88 @@ async def user_story_selection(state: AgentState, config: RunnableConfig):
 # All functions below this point will be implemented with CS agents
 # ============================================================================
 
-async def cs_chapter_writing_system(state: AgentState, config: RunnableConfig):
-    """
-    CS Agent-based chapter writing system using iterative, scientifically grounded approach.
-    
-    Coordinates CS agents to write chapters with just-in-time research and quality improvement.
-    """
-    from co_scientist.agents.cs_chapter_orchestrator import cs_chapter_orchestrator
+async def initialize_cs_chapter_state(state: AgentState, config: RunnableConfig):
+    """Initialize state for CS chapter writing subgraph"""
     
     if not (output_dir := state.get("output_dir")) or not (selected_story_concept := state.get("selected_story_concept")):
         raise ValueError("Required state for CS chapter writing is missing.")
     
-    print("🚀 Starting CS Agent-Based Chapter Writing System...")
+    print("🚀 Initializing CS Agent-Based Chapter Writing System...")
     
-    # Use the CS orchestrator to write the chapter
-    result = await cs_chapter_orchestrator.write_chapter(state)
+    # Initialize CS state using the orchestrator
+    cs_state = cs_chapter_orchestrator.initialize_cs_state(state)
     
-    # Save the chapter to output
-    if chapter_content := result.get("current_chapter"):
+    print("✅ CS state initialized - entering CS agent subgraph...")
+    
+    return cs_state
+
+
+async def finalize_cs_chapter_output(state: AgentState, config: RunnableConfig):
+    """Save final CS chapter outputs after subgraph completion"""
+    
+    output_dir = state.get("output_dir", "")
+    
+    # Save the final chapter to output
+    if chapter_content := state.get("current_chapter"):
         save_output(output_dir, "04_cs_generated_chapter.md", chapter_content)
-        print("💾 Chapter saved to 04_cs_generated_chapter.md")
+        print("💾 Final chapter saved to 04_cs_generated_chapter.md")
     
     # Save the final decision
-    if final_decision := result.get("final_decision"):
+    if final_decision := state.get("final_decision"):
         save_output(output_dir, "04_cs_final_decision.md", final_decision)
         print("📋 Final decision saved to 04_cs_final_decision.md")
     
+    # Save comprehensive CS process summary for observability
+    if output_dir:
+        summary = f"""# CS Agent Chapter Writing Process Summary
+
+## Process Overview
+- **Total Iterations**: {state.get('iteration_count', 0)}
+- **Max Iterations**: {state.get('max_iterations', 3)}
+- **Chapter Ready**: {state.get('chapter_ready', False)}
+- **Final Status**: {state.get('final_decision', 'No decision recorded')}
+
+## Agent Completion Status
+- **Meta-Analysis**: {state.get('meta_analysis_complete', False)}
+- **Generation**: {state.get('generation_complete', False)}
+- **Reflection**: {state.get('reflection_complete', False)}
+- **Evolution**: {state.get('evolution_complete', False)}
+- **Meta-Review**: {state.get('meta_review_complete', False)}
+
+## Research Conducted
+{len(state.get('research_cache', {}))} research queries conducted during chapter writing.
+
+## Iteration History
+- **Needed Improvement**: {state.get('needs_improvement', False)}
+- **Improvements Applied**: {state.get('improvement_applied', False)}
+- **Iterations Needed**: {state.get('needs_iteration', False)}
+
+## Output Files Generated
+- 04a_cs_meta_analysis.md - Chapter requirements analysis
+- 04b_cs_generation.md - Initial chapter generation
+- 04b_cs_research_cache.md - Research conducted during writing
+- 04c_cs_reflection_iter[N].md - Quality evaluations (per iteration)
+- 04d_cs_evolution_iter[N].md - Chapter improvements (per iteration)  
+- 04e_cs_meta_review_iter[N].md - Final decisions (per iteration)
+- 04_cs_generated_chapter.md - Final chapter output
+- 04_cs_final_decision.md - Final meta-review decision
+"""
+        save_output(output_dir, "04_cs_process_summary.md", summary)
+        print("📊 CS process summary saved to 04_cs_process_summary.md")
+    
     print("✅ CS Agent-Based Chapter Writing Complete!")
     
-    return result
+    return {
+        "cs_chapter_complete": True
+    }
 
 
 # ============================================================================
 # WORKFLOW SETUP
 # ============================================================================
+
+# Import CS chapter orchestrator
+from co_scientist.agents.cs_chapter_orchestrator import cs_chapter_orchestrator
 
 # Create the workflow
 workflow = StateGraph(AgentState)
@@ -432,15 +480,21 @@ workflow.add_node("parse_user_input", parse_and_complete_user_input)
 workflow.add_node("generate_context", generate_light_future_context)
 workflow.add_node("generate_loglines", generate_competitive_loglines_direct)
 workflow.add_node("user_story_selection", user_story_selection)
-workflow.add_node("cs_chapter_writing", cs_chapter_writing_system)
+workflow.add_node("initialize_cs_state", initialize_cs_chapter_state)
+
+# Add CS chapter writing as a subgraph (this will show individual agents in Studio)
+workflow.add_node("cs_chapter_writing", cs_chapter_orchestrator.graph)
+workflow.add_node("finalize_cs_output", finalize_cs_chapter_output)
 
 # Set up the basic flow
 workflow.add_edge(START, "parse_user_input")
 workflow.add_edge("parse_user_input", "generate_context")
 workflow.add_edge("generate_context", "generate_loglines")
 workflow.add_edge("generate_loglines", "user_story_selection")
-workflow.add_edge("user_story_selection", "cs_chapter_writing")
-workflow.add_edge("cs_chapter_writing", END)
+workflow.add_edge("user_story_selection", "initialize_cs_state")
+workflow.add_edge("initialize_cs_state", "cs_chapter_writing")
+workflow.add_edge("cs_chapter_writing", "finalize_cs_output")
+workflow.add_edge("finalize_cs_output", END)
 
 # Compile the workflow with user selection interrupt
 app = workflow.compile(

@@ -21,20 +21,30 @@ from co_scientist.agents.meta_review_agent import MetaReviewAgent
 
 
 class CSChapterState(TypedDict):
-    """State for CS Chapter Writing System"""
-    # Input from main workflow
-    selected_story_concept: str
+    """State for CS Chapter Writing System - compatible with main AgentState"""
+    # Input from main workflow (required)
+    user_input: str
+    target_year: int
+    human_condition: str
+    technology_context: str
+    constraint: str
+    tone: str
+    setting: str
     light_future_context: str
+    story_seed_options: list
+    selected_story_concept: str
+    story_selection_ready: bool
     output_dir: str
+    starting_year: int
     
-    # CS agent outputs
+    # CS agent outputs (optional)
     chapter_analysis: str
     current_chapter: str
     research_cache: dict
     chapter_evaluation: str
     final_decision: str
     
-    # Control flags
+    # Control flags (optional)
     meta_analysis_complete: bool
     generation_complete: bool
     reflection_complete: bool
@@ -45,7 +55,7 @@ class CSChapterState(TypedDict):
     needs_iteration: bool
     improvement_applied: bool
     
-    # Iteration tracking
+    # Iteration tracking (optional)
     iteration_count: int
     max_iterations: int
 
@@ -196,16 +206,11 @@ class CSChapterOrchestrator:
         
         return workflow.compile()
     
-    async def write_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Main entry point for CS chapter writing"""
+    def initialize_cs_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Initialize CS-specific state variables in the main state"""
         
-        # Prepare CS chapter state
-        cs_state = CSChapterState({
-            # Input from main workflow
-            "selected_story_concept": state.get("selected_story_concept", ""),
-            "light_future_context": state.get("light_future_context", ""),
-            "output_dir": state.get("output_dir", ""),
-            
+        # Add CS-specific state variables with defaults
+        cs_additions = {
             # Initialize CS state
             "research_cache": state.get("research_cache", {}),
             "iteration_count": 0,
@@ -221,70 +226,15 @@ class CSChapterOrchestrator:
             "chapter_ready": False,
             "needs_iteration": False,
             "improvement_applied": False,
-        })
-        
-        print("🚀 Starting CS Chapter Writing System...")
-        
-        # Run the CS chapter writing workflow
-        final_state = None
-        async for chunk in self.graph.astream(cs_state):
-            final_state = chunk
-            # Print progress
-            if chunk:
-                node_name = list(chunk.keys())[0] if chunk else "unknown"
-                print(f"✅ CS Agent completed: {node_name}")
-        
-        if not final_state:
-            raise RuntimeError("CS Chapter writing failed - no final state returned")
-        
-        # Save comprehensive CS process summary for observability
-        if output_dir := cs_state.get("output_dir"):
-            from deep_sci_fi.deep_sci_fi_writer import save_output
             
-            summary = f"""# CS Agent Chapter Writing Process Summary
-
-## Process Overview
-- **Total Iterations**: {final_state.get('iteration_count', 0)}
-- **Max Iterations**: {final_state.get('max_iterations', 3)}
-- **Chapter Ready**: {final_state.get('chapter_ready', False)}
-- **Final Status**: {final_state.get('final_decision', 'No decision recorded')}
-
-## Agent Completion Status
-- **Meta-Analysis**: {final_state.get('meta_analysis_complete', False)}
-- **Generation**: {final_state.get('generation_complete', False)}
-- **Reflection**: {final_state.get('reflection_complete', False)}
-- **Evolution**: {final_state.get('evolution_complete', False)}
-- **Meta-Review**: {final_state.get('meta_review_complete', False)}
-
-## Research Conducted
-{len(final_state.get('research_cache', {}))} research queries conducted during chapter writing.
-
-## Iteration History
-- **Needed Improvement**: {final_state.get('needs_improvement', False)}
-- **Improvements Applied**: {final_state.get('improvement_applied', False)}
-- **Iterations Needed**: {final_state.get('needs_iteration', False)}
-
-## Output Files Generated
-- 04a_cs_meta_analysis.md - Chapter requirements analysis
-- 04b_cs_generation.md - Initial chapter generation
-- 04b_cs_research_cache.md - Research conducted during writing
-- 04c_cs_reflection_iter[N].md - Quality evaluations (per iteration)
-- 04d_cs_evolution_iter[N].md - Chapter improvements (per iteration)  
-- 04e_cs_meta_review_iter[N].md - Final decisions (per iteration)
-- 04_cs_generated_chapter.md - Final chapter output
-- 04_cs_final_decision.md - Final meta-review decision
-"""
-            save_output(output_dir, "04_cs_process_summary.md", summary)
-            print("📊 CS process summary saved to 04_cs_process_summary.md")
-        
-        # Extract results for main workflow
-        return {
-            "current_chapter": final_state.get("current_chapter", ""),
-            "research_cache": final_state.get("research_cache", {}),
-            "chapter_ready": final_state.get("chapter_ready", False),
-            "final_decision": final_state.get("final_decision", ""),
-            "cs_chapter_complete": True
+            # Initialize CS outputs
+            "chapter_analysis": "",
+            "chapter_evaluation": "",
+            "final_decision": "",
         }
+        
+        # Merge with existing state
+        return {**state, **cs_additions}
 
 
 # Global instance for use by main workflow
