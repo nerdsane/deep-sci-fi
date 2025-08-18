@@ -59,7 +59,7 @@ class ModelProvider:
     OPENAI = "openai"
     GOOGLE = "google_vertexai"
     
-
+    
 class ModelConfig:
     """Centralized model configuration with thinking mode and provider flexibility."""
     
@@ -158,8 +158,8 @@ class ModelConfig:
 
 
 # Initialize models
-general_model = ModelConfig.create_model_instance("general_creative")
-
+    general_model = ModelConfig.create_model_instance("general_creative")
+    
 
 # ============================================================================
 # UTILITY FUNCTIONS
