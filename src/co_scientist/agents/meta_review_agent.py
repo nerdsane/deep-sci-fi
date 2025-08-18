@@ -81,7 +81,20 @@ Provide a clear recommendation.""")
         })
         
         # Extract the decision from the result
-        decision = result["messages"][-1].content if result["messages"] else "Decision failed"
+        if result["messages"]:
+            last_message = result["messages"][-1]
+            # Handle different content formats
+            if hasattr(last_message, 'content'):
+                decision = last_message.content
+                # Ensure it's a string
+                if isinstance(decision, list):
+                    decision = "\n".join(str(item) for item in decision)
+                else:
+                    decision = str(decision)
+            else:
+                decision = str(last_message)
+        else:
+            decision = "Decision failed - no messages returned"
         
         # Determine if the chapter is ready
         chapter_ready = "ready" in decision.lower() and "publish" in decision.lower()

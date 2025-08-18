@@ -160,14 +160,25 @@ general_model = ModelConfig.create_model_instance("general_creative")
 # UTILITY FUNCTIONS
 # ============================================================================
 
-def save_output(output_dir: str, filename: str, content: str):
+def save_output(output_dir: str, filename: str, content):
     """Saves content to a markdown file in the specified output directory."""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
+    # Handle different content types
+    if isinstance(content, list):
+        # Convert list to string
+        content_str = "\n".join(str(item) for item in content)
+    elif isinstance(content, dict):
+        # Convert dict to formatted string
+        content_str = "\n".join(f"{key}: {value}" for key, value in content.items())
+    else:
+        # Assume it's already a string or can be converted
+        content_str = str(content)
+    
     file_path = os.path.join(output_dir, filename)
     with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+        f.write(content_str)
 
 
 def get_state_values_with_defaults(state: AgentState) -> tuple[int, str]:

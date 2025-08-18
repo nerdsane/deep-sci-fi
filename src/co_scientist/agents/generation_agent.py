@@ -95,7 +95,20 @@ Write engaging, scientifically grounded prose. When you encounter scientific con
         })
         
         # Extract the chapter content from the result
-        chapter_content = result["messages"][-1].content if result["messages"] else "Chapter generation failed"
+        if result["messages"]:
+            last_message = result["messages"][-1]
+            # Handle different content formats
+            if hasattr(last_message, 'content'):
+                chapter_content = last_message.content
+                # Ensure it's a string
+                if isinstance(chapter_content, list):
+                    chapter_content = "\n".join(str(item) for item in chapter_content)
+                else:
+                    chapter_content = str(chapter_content)
+            else:
+                chapter_content = str(last_message)
+        else:
+            chapter_content = "Chapter generation failed - no messages returned"
         
         return {
             "current_chapter": chapter_content,

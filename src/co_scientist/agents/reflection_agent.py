@@ -92,7 +92,20 @@ Give actionable suggestions for improvement.""")
         })
         
         # Extract the evaluation from the result
-        evaluation = result["messages"][-1].content if result["messages"] else "Evaluation failed"
+        if result["messages"]:
+            last_message = result["messages"][-1]
+            # Handle different content formats
+            if hasattr(last_message, 'content'):
+                evaluation = last_message.content
+                # Ensure it's a string
+                if isinstance(evaluation, list):
+                    evaluation = "\n".join(str(item) for item in evaluation)
+                else:
+                    evaluation = str(evaluation)
+            else:
+                evaluation = str(last_message)
+        else:
+            evaluation = "Evaluation failed - no messages returned"
         
         # Determine if the chapter needs improvement
         needs_improvement = "research gap" in evaluation.lower() or "inaccurate" in evaluation.lower() or "improvement needed" in evaluation.lower()

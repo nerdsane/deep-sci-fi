@@ -78,7 +78,20 @@ Provide specific, actionable requirements.""")
         })
         
         # Extract the analysis from the result
-        analysis = result["messages"][-1].content if result["messages"] else "Analysis failed"
+        if result["messages"]:
+            last_message = result["messages"][-1]
+            # Handle different content formats
+            if hasattr(last_message, 'content'):
+                analysis = last_message.content
+                # Ensure it's a string
+                if isinstance(analysis, list):
+                    analysis = "\n".join(str(item) for item in analysis)
+                else:
+                    analysis = str(analysis)
+            else:
+                analysis = str(last_message)
+        else:
+            analysis = "Analysis failed - no messages returned"
         
         return {
             "chapter_analysis": analysis,

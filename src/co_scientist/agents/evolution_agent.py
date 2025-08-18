@@ -84,7 +84,20 @@ Make specific improvements to address the identified issues while preserving the
         })
         
         # Extract the improved chapter from the result
-        improved_chapter = result["messages"][-1].content if result["messages"] else "Chapter improvement failed"
+        if result["messages"]:
+            last_message = result["messages"][-1]
+            # Handle different content formats
+            if hasattr(last_message, 'content'):
+                improved_chapter = last_message.content
+                # Ensure it's a string
+                if isinstance(improved_chapter, list):
+                    improved_chapter = "\n".join(str(item) for item in improved_chapter)
+                else:
+                    improved_chapter = str(improved_chapter)
+            else:
+                improved_chapter = str(last_message)
+        else:
+            improved_chapter = "Chapter improvement failed - no messages returned"
         
         return {
             "current_chapter": improved_chapter,
