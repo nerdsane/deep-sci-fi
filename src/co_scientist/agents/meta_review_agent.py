@@ -29,7 +29,7 @@ class MetaReviewAgent:
         self.agent = create_react_agent(
             self.model,
             self.tools,
-            system_message="""You are a meta-review agent for scientifically grounded chapter writing.
+            prompt="""You are a meta-review agent for scientifically grounded chapter writing.
 
 Your role is to make final strategic decisions:
 1. Assess overall chapter quality
@@ -42,20 +42,17 @@ Be decisive but fair. Consider both scientific accuracy and narrative quality.""
     @tool
     def _assess_overall_quality(self, chapter_content: str, all_feedback: str) -> str:
         """Assess the overall quality of the chapter"""
-        # This would evaluate the chapter holistically
-        return f"Overall quality assessment completed"
+        raise NotImplementedError(f"Overall quality assessment tool not yet implemented")
     
     @tool
     def _determine_readiness(self, quality_score: str, feedback_summary: str) -> str:
         """Determine if the chapter is ready for publication"""
-        # This would make a go/no-go decision
-        return f"Readiness determination completed"
+        raise NotImplementedError(f"Readiness determination tool not yet implemented")
     
     @tool
     def _recommend_next_steps(self, readiness_status: str, remaining_issues: str) -> str:
         """Recommend next steps for the chapter"""
-        # This would suggest specific actions
-        return f"Next steps recommended"
+        raise NotImplementedError(f"Next steps recommendation tool not yet implemented")
     
     async def review_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for meta-review"""

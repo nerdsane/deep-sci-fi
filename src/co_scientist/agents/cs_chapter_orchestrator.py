@@ -8,7 +8,8 @@ This orchestrates the CS agent-based chapter writing system:
 """
 
 from typing import Dict, Any
-from langgraph.graph import StateGraph, END
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage
 
@@ -19,7 +20,7 @@ from co_scientist.agents.evolution_agent import EvolutionAgent
 from co_scientist.agents.meta_review_agent import MetaReviewAgent
 
 
-class CSChapterState(Dict):
+class CSChapterState(TypedDict):
     """State for CS Chapter Writing System"""
     # Input from main workflow
     selected_story_concept: str
@@ -134,7 +135,7 @@ class CSChapterOrchestrator:
         workflow.add_node("meta_review", meta_review_node)
         
         # Add edges
-        workflow.add_edge("START", "meta_analysis")
+        workflow.add_edge(START, "meta_analysis")
         workflow.add_edge("meta_analysis", "generation")
         workflow.add_edge("generation", "reflection")
         

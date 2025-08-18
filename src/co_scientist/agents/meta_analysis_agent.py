@@ -29,7 +29,7 @@ class MetaAnalysisAgent:
         self.agent = create_react_agent(
             self.model,
             self.tools,
-            system_message="""You are a meta-analysis agent for scientifically grounded chapter writing.
+            prompt="""You are a meta-analysis agent for scientifically grounded chapter writing.
 
 Your role is to analyze story requirements and identify:
 1. What the chapter needs to accomplish narratively
@@ -42,20 +42,17 @@ Be thorough but focused. Identify only what's essential for this specific chapte
     @tool
     def _identify_chapter_goals(self, story_concept: str, chapter_position: str) -> str:
         """Identify what this chapter needs to accomplish narratively"""
-        # This would analyze the story and determine chapter goals
-        return f"Chapter goals identified for {chapter_position}"
+        raise NotImplementedError(f"Chapter goals identification tool not yet implemented for position: {chapter_position}")
     
     @tool  
     def _identify_research_needs(self, story_concept: str, scientific_elements: str) -> str:
         """Identify what scientific research is needed for this chapter"""
-        # This would identify specific research requirements
-        return f"Research needs identified for scientific elements: {scientific_elements}"
+        raise NotImplementedError(f"Research needs identification tool not yet implemented for elements: {scientific_elements}")
     
     @tool
     def _identify_world_building_needs(self, story_concept: str, setting_elements: str) -> str:
         """Identify what world-building development is needed"""
-        # This would identify world-building requirements
-        return f"World-building needs identified for: {setting_elements}"
+        raise NotImplementedError(f"World-building needs identification tool not yet implemented for: {setting_elements}")
     
     async def analyze_chapter_requirements(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for meta-analysis"""

@@ -31,7 +31,7 @@ class EvolutionAgent:
         self.agent = create_react_agent(
             self.model,
             self.tools,
-            system_message="""You are an evolution agent for scientifically grounded chapter writing.
+            prompt="""You are an evolution agent for scientifically grounded chapter writing.
 
 Your role is to improve chapters based on feedback:
 1. Fix scientific accuracy issues
@@ -45,26 +45,22 @@ Make targeted improvements while preserving the chapter's strengths."""
     @tool
     def _improve_scientific_accuracy(self, chapter_content: str, accuracy_issues: str) -> str:
         """Fix scientific accuracy issues in the chapter"""
-        # This would revise scientific content for accuracy
-        return f"Scientific accuracy improved: {accuracy_issues[:100]}..."
+        raise NotImplementedError(f"Scientific accuracy improvement tool not yet implemented")
     
     @tool
     def _enhance_narrative_quality(self, chapter_content: str, quality_issues: str) -> str:
         """Improve narrative quality and story flow"""
-        # This would enhance plot, pacing, character development
-        return f"Narrative quality enhanced: {quality_issues[:100]}..."
+        raise NotImplementedError(f"Narrative quality enhancement tool not yet implemented")
     
     @tool
     def _conduct_additional_research(self, research_query: str) -> str:
         """Conduct additional research to fill gaps"""
-        # This would use deep researcher for missing information
-        return f"Additional research conducted on: {research_query}"
+        raise NotImplementedError(f"Additional research tool not yet implemented for query: {research_query}")
     
     @tool
     def _refine_character_authenticity(self, chapter_content: str, authenticity_issues: str) -> str:
         """Improve character authenticity for the time period"""
-        # This would adjust character behavior and dialogue
-        return f"Character authenticity refined: {authenticity_issues[:100]}..."
+        raise NotImplementedError(f"Character authenticity refinement tool not yet implemented")
     
     async def improve_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for chapter improvement"""

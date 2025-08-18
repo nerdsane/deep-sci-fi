@@ -30,7 +30,7 @@ class ReflectionAgent:
         self.agent = create_react_agent(
             self.model,
             self.tools,
-            system_message="""You are a reflection agent for scientifically grounded chapter writing.
+            prompt="""You are a reflection agent for scientifically grounded chapter writing.
 
 Your role is to critically evaluate chapters and identify:
 1. Scientific accuracy issues
@@ -44,26 +44,22 @@ Be thorough but constructive. Focus on specific, actionable feedback."""
     @tool
     def _evaluate_scientific_accuracy(self, chapter_content: str, research_context: str) -> str:
         """Evaluate the scientific accuracy of the chapter"""
-        # This would analyze scientific claims against research
-        return f"Scientific accuracy evaluation completed"
+        raise NotImplementedError(f"Scientific accuracy evaluation tool not yet implemented")
     
     @tool
     def _evaluate_narrative_quality(self, chapter_content: str, story_goals: str) -> str:
         """Evaluate the narrative quality and story progression"""
-        # This would assess plot, character development, pacing, etc.
-        return f"Narrative quality evaluation completed"
+        raise NotImplementedError(f"Narrative quality evaluation tool not yet implemented")
     
     @tool
     def _identify_research_gaps(self, chapter_content: str, available_research: str) -> str:
         """Identify areas that need additional research"""
-        # This would find scientific claims that lack supporting research
-        return f"Research gaps identified"
+        raise NotImplementedError(f"Research gap identification tool not yet implemented")
     
     @tool
     def _assess_character_authenticity(self, chapter_content: str, future_context: str) -> str:
         """Assess whether characters think and act authentically for their time period"""
-        # This would evaluate character behavior against future context
-        return f"Character authenticity assessment completed"
+        raise NotImplementedError(f"Character authenticity assessment tool not yet implemented")
     
     async def evaluate_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for chapter evaluation"""

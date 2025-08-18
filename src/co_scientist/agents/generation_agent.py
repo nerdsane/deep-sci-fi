@@ -31,7 +31,7 @@ class GenerationAgent:
         self.agent = create_react_agent(
             self.model,
             self.tools,
-            system_message="""You are a generation agent for scientifically grounded chapter writing.
+            prompt="""You are a generation agent for scientifically grounded chapter writing.
 
 Your role is to:
 1. Write engaging chapter content
@@ -45,8 +45,8 @@ Write compelling prose while maintaining scientific accuracy. When you encounter
     @tool
     def _write_chapter_content(self, chapter_goals: str, research_context: str) -> str:
         """Write chapter content based on goals and available research"""
-        # This would generate the actual chapter prose
-        return f"Chapter content written incorporating: {research_context}"
+        # TODO: Implement actual chapter writing logic
+        raise NotImplementedError(f"Chapter writing tool not yet implemented. Goals: {chapter_goals[:100]}...")
     
     @tool
     def _conduct_research(self, research_query: str) -> str:
@@ -55,17 +55,22 @@ Write compelling prose while maintaining scientific accuracy. When you encounter
         if research_query in self.research_cache:
             return self.research_cache[research_query]
         
-        # This would use the deep researcher tool
-        # For now, return a placeholder
-        research_result = f"Research conducted on: {research_query}"
-        self.research_cache[research_query] = research_result
-        return research_result
+        # Actually use the deep researcher - this will fail visibly if broken
+        try:
+            # TODO: This needs to be implemented with actual deep researcher integration
+            # For now, fail visibly rather than return placeholder
+            raise NotImplementedError(f"Deep researcher integration not yet implemented for query: {research_query}")
+        except Exception as e:
+            # Cache the failure so we don't retry immediately
+            error_msg = f"Research failed for '{research_query}': {str(e)}"
+            self.research_cache[research_query] = error_msg
+            return error_msg
     
     @tool
     def _integrate_research(self, research_findings: str, chapter_content: str) -> str:
         """Integrate research findings into chapter content"""
-        # This would blend research naturally into the prose
-        return f"Integrated research into chapter: {research_findings[:100]}..."
+        # TODO: Implement actual research integration logic
+        raise NotImplementedError(f"Research integration tool not yet implemented. Findings: {research_findings[:100]}...")
     
     async def write_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for chapter generation"""
