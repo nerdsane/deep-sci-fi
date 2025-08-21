@@ -240,7 +240,7 @@ Return the improved chapter content."""
                             tool_logs.append(f"TOOL CALL -> {name}: {args}")
                     # Log tool outputs
                     if isinstance(message, ToolMessage):
-                        tool_name = getattr(message, "name", "unknown_tool")
+                        tool_name = getattr(message, "tool", getattr(message, "name", "unknown_tool"))
                         tool_logs.append(f"TOOL RESULT <- {tool_name}:\n{message.content}")
                 if tool_logs:
                     from deep_sci_fi.deep_sci_fi_writer import save_output

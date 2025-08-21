@@ -158,7 +158,7 @@ Make targeted improvements while preserving the chapter's strengths."""
                             args = getattr(call, "args", {})
                             tool_logs.append(f"TOOL CALL -> {name}: {args}")
                     if isinstance(message, ToolMessage):
-                        tool_name = getattr(message, "name", "unknown_tool")
+                        tool_name = getattr(message, "tool", getattr(message, "name", "unknown_tool"))
                         tool_logs.append(f"TOOL RESULT <- {tool_name}:\n{message.content}")
                 if tool_logs:
                     from deep_sci_fi.deep_sci_fi_writer import save_output
