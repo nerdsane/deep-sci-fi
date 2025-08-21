@@ -200,18 +200,18 @@ class CSChapterOrchestrator:
         def route_after_meta_review(state: CSChapterState) -> str:
             """Route after meta-review based on final decision"""
             if state.get("chapter_ready", False):
-                return END
+                return "save_summary"
             elif state.get("needs_iteration", False):
                 # Check if we've exceeded max iterations
                 iteration_count = state.get("iteration_count", 0)
                 max_iterations = state.get("max_iterations", 3)
                 if iteration_count >= max_iterations:
                     print(f"⚠️ Max iterations ({max_iterations}) reached. Finalizing chapter.")
-                    return END
+                    return "save_summary"
                 else:
                     return "reflection"  # Go back for another iteration
             else:
-                return END
+                return "save_summary"
         
         # Build the graph
         workflow = StateGraph(CSChapterState)
@@ -238,8 +238,58 @@ class CSChapterOrchestrator:
         workflow.add_conditional_edges(
             "meta_review", 
             route_after_meta_review,
-            {"reflection": "reflection", END: END}
+            {"reflection": "reflection", "save_summary": "save_summary"}
         )
+        
+        # Add a final summary node that saves the process summary with correct state
+        async def save_process_summary(state: CSChapterState) -> CSChapterState:
+            """Save process summary with final state information"""
+            output_dir = state.get("output_dir")
+            if output_dir:
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                
+                summary = f"""# CS Agent Chapter Writing Process Summary
+
+## Process Overview
+- **Total Iterations**: {state.get('iteration_count', 0)}
+- **Max Iterations**: {state.get('max_iterations', 3)}
+- **Chapter Ready**: {state.get('chapter_ready', False)}
+- **Final Status**: {state.get('final_decision', 'No decision recorded')}
+
+## Agent Completion Status
+- **Meta-Analysis**: {state.get('meta_analysis_complete', False)}
+- **Generation**: {state.get('generation_complete', False)}
+- **Reflection**: {state.get('reflection_complete', False)}
+- **Evolution**: {state.get('evolution_complete', False)}
+- **Meta-Review**: {state.get('meta_review_complete', False)}
+
+## Research Conducted
+{len(state.get('research_cache', {}))} research queries conducted during chapter writing.
+
+## Iteration History
+- **Needed Improvement**: {state.get('needs_improvement', False)}
+- **Improvements Applied**: {state.get('improvement_applied', False)}
+- **Iterations Needed**: {state.get('needs_iteration', False)}
+
+## Output Files Generated
+- 04a_cs_meta_analysis.md - Chapter requirements analysis
+- 04b_cs_generation.md - Initial chapter generation
+- 04b_cs_research_cache.md - Research conducted during writing
+- 04c_cs_reflection_iter[N].md - Quality evaluations (per iteration)
+- 04d_cs_evolution_iter[N].md - Chapter improvements (per iteration)  
+- 04e_cs_meta_review_iter[N].md - Final decisions (per iteration)
+- 04_cs_generated_chapter.md - Final chapter output
+- 04_cs_final_decision.md - Final meta-review decision
+"""
+                save_output(output_dir, "04_cs_process_summary.md", summary)
+                print("📊 CS process summary saved with final state")
+            
+            return state
+        
+        workflow.add_node("save_summary", save_process_summary)
+        
+        # Add the summary node and connect it to END
+        workflow.add_edge("save_summary", END)
         
         return workflow.compile()
     
