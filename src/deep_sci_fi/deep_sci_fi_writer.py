@@ -346,7 +346,7 @@ def parse_direct_loglines_to_winners(loglines_content: str, target_year: int) ->
                     'scenario_content': f"## Top 3 Selected\n" + "\n".join([f"{i+1}. {logline}" for i, logline in enumerate(current_loglines)])
                 })
             current_section = line.strip('#* ')
-                current_loglines = []
+            current_loglines = []
         elif f'In {target_year}' in line and len(line) > 50:
             # This looks like a logline
             current_loglines.append(line.strip('123456789.- '))
