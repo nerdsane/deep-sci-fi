@@ -147,6 +147,11 @@ class CSChapterOrchestrator:
             if output_dir := state.get("output_dir"):
                 from deep_sci_fi.deep_sci_fi_writer import save_output
                 save_output(output_dir, f"04d_cs_evolution_iter{iteration_count}.md", result.get("current_chapter", ""))
+                # Save evolution research cache, if any
+                evo_cache = result.get("research_cache", {})
+                if evo_cache:
+                    cache_content = "\n\n".join([f"## {query}\n{res}" for query, res in evo_cache.items()])
+                    save_output(output_dir, f"04d_cs_research_cache_iter{iteration_count}.md", cache_content)
                 print(f"💾 Evolution output saved to 04d_cs_evolution_iter{iteration_count}.md")
             
             return {**state, **result, "iteration_count": iteration_count}

@@ -13,7 +13,7 @@ import random
 import traceback
 from typing import Dict, Any, List
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.prebuilt import create_react_agent
 from langchain.chat_models import init_chat_model
 from open_deep_research.deep_researcher import deep_researcher, reset_deep_researcher_global_state
@@ -26,6 +26,7 @@ class EvolutionAgent:
     
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.8)
+        self.research_cache: Dict[str, str] = {}
         self.tools = [
             self._conduct_additional_research,
         ]
@@ -46,6 +47,9 @@ Make targeted improvements while preserving the chapter's strengths."""
     @tool
     async def _conduct_additional_research(self, research_query: str) -> str:
         """Conduct additional research to fill gaps using Deep Researcher"""
+        # Check local cache first
+        if research_query in self.research_cache:
+            return self.research_cache[research_query]
         # Reset deep_researcher for fresh research context
         reset_deep_researcher_global_state()
         
@@ -76,6 +80,8 @@ Make targeted improvements while preserving the chapter's strengths."""
             raise RuntimeError(f"Deep researcher returned empty report for evolution: {research_query}")
             
         print(f"✅ Deep research completed for evolution: {research_query[:50]}...")
+        # Cache and return
+        self.research_cache[research_query] = research_content
         return research_content
     
     async def improve_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,6 +89,7 @@ Make targeted improvements while preserving the chapter's strengths."""
         current_chapter = state.get("current_chapter", "")
         chapter_evaluation = state.get("chapter_evaluation", "")
         research_cache = state.get("research_cache", {})
+        output_dir = state.get("output_dir")
         
         # Use the proper prompt from prompts.py
         prompt_content = EVOLUTION_CHAPTER_PROMPT.format(
@@ -135,10 +142,32 @@ Make targeted improvements while preserving the chapter's strengths."""
                 improved_chapter = str(last_message)
         else:
             raise RuntimeError("Evolution failed - no response from agent")
+
+        # Build and save tool usage logs and merge any new research into shared cache
+        try:
+            if output_dir and result and "messages" in result:
+                tool_logs: List[str] = []
+                for message in result["messages"]:
+                    tool_calls = getattr(message, "tool_calls", None)
+                    if tool_calls:
+                        for call in tool_calls:
+                            name = getattr(call, "name", getattr(call, "tool", "unknown_tool"))
+                            args = getattr(call, "args", {})
+                            tool_logs.append(f"TOOL CALL -> {name}: {args}")
+                    if isinstance(message, ToolMessage):
+                        tool_name = getattr(message, "name", "unknown_tool")
+                        tool_logs.append(f"TOOL RESULT <- {tool_name}:\n{message.content}")
+                if tool_logs:
+                    from deep_sci_fi.deep_sci_fi_writer import save_output
+                    save_output(output_dir, "04d_cs_tool_calls.md", "\n\n".join(tool_logs))
+        except Exception as e:
+            print(f"⚠️ Failed to save evolution tool logs: {e}")
         
+        # Merge any new research captured by this agent (if any) into shared cache
+        merged_cache = {**research_cache, **self.research_cache}
         return {
             "current_chapter": improved_chapter,
-            "research_cache": research_cache,  # Keep existing research
+            "research_cache": merged_cache,
             "evolution_complete": True,
             "improvement_applied": True
-        } 
+        }

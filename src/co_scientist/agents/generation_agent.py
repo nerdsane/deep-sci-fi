@@ -12,7 +12,7 @@ import random
 import traceback
 from typing import Dict, Any, List
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.prebuilt import create_react_agent
 from langchain.chat_models import init_chat_model
 from open_deep_research.deep_researcher import deep_researcher, reset_deep_researcher_global_state
@@ -162,6 +162,7 @@ Return the improved chapter content."""
         selected_story_concept = state.get("selected_story_concept", "")
         chapter_analysis = state.get("chapter_analysis", "")
         research_cache = state.get("research_cache", {})
+        output_dir = state.get("output_dir")
         
         # Merge any existing research cache
         self.research_cache.update(research_cache)
@@ -217,6 +218,29 @@ Return the improved chapter content."""
                 chapter_content = str(last_message)
         else:
             raise RuntimeError("Chapter generation failed - no response from agent")
+
+        # Build and save tool usage logs for observability
+        try:
+            if output_dir and result and "messages" in result:
+                tool_logs: List[str] = []
+                for message in result["messages"]:
+                    # Log AI tool calls
+                    tool_calls = getattr(message, "tool_calls", None)
+                    if tool_calls:
+                        for call in tool_calls:
+                            name = getattr(call, "name", getattr(call, "tool", "unknown_tool"))
+                            args = getattr(call, "args", {})
+                            tool_logs.append(f"TOOL CALL -> {name}: {args}")
+                    # Log tool outputs
+                    if isinstance(message, ToolMessage):
+                        tool_name = getattr(message, "name", "unknown_tool")
+                        tool_logs.append(f"TOOL RESULT <- {tool_name}:\n{message.content}")
+                if tool_logs:
+                    from deep_sci_fi.deep_sci_fi_writer import save_output
+                    save_output(output_dir, "04b_cs_tool_calls.md", "\n\n".join(tool_logs))
+        except Exception as e:
+            # Visible but non-fatal for logging
+            print(f"⚠️ Failed to save generation tool logs: {e}")
         
         return {
             "current_chapter": chapter_content,
