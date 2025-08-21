@@ -83,73 +83,58 @@ class CSChapterOrchestrator:
             print("🔍 CS Meta-Analysis: Analyzing chapter requirements...")
             print(f"📊 Input state keys: {list(state.keys())}")
             
-            try:
-                result = await self.meta_analysis_agent.analyze_chapter_requirements(state)
-                print(f"✅ Meta-analysis result: {result}")
-                
-                # Save meta-analysis output for observability
-                if output_dir := state.get("output_dir"):
-                    from deep_sci_fi.deep_sci_fi_writer import save_output
-                    save_output(output_dir, "04a_cs_meta_analysis.md", result.get("chapter_analysis", ""))
-                    print("💾 Meta-analysis saved to 04a_cs_meta_analysis.md")
-                
-                merged_state = {**state, **result}
-                print(f"📊 Output state completion flags: meta_analysis_complete={merged_state.get('meta_analysis_complete')}")
-                return merged_state
-                
-            except Exception as e:
-                print(f"❌ Meta-analysis failed: {str(e)}")
-                return {**state, "meta_analysis_complete": False, "chapter_analysis": f"Meta-analysis failed: {str(e)}"}
+            result = await self.meta_analysis_agent.analyze_chapter_requirements(state)
+            print(f"✅ Meta-analysis result: {result}")
+            
+            # Save meta-analysis output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                save_output(output_dir, "04a_cs_meta_analysis.md", result.get("chapter_analysis", ""))
+                print("💾 Meta-analysis saved to 04a_cs_meta_analysis.md")
+            
+            merged_state = {**state, **result}
+            print(f"📊 Output state completion flags: meta_analysis_complete={merged_state.get('meta_analysis_complete')}")
+            return merged_state
         
         async def generation_node(state: CSChapterState) -> CSChapterState:
             """Generation agent node"""
             print("✍️ CS Generation: Writing chapter with just-in-time research...")
             
-            try:
-                result = await self.generation_agent.write_chapter(state)
-                print(f"✅ Generation result keys: {list(result.keys())}")
-                
-                # Save generation output for observability
-                if output_dir := state.get("output_dir"):
-                    from deep_sci_fi.deep_sci_fi_writer import save_output
-                    save_output(output_dir, "04b_cs_generation.md", result.get("current_chapter", ""))
-                    # Also save research cache updates
-                    research_cache = result.get("research_cache", {})
-                    if research_cache:
-                        cache_content = "\n\n".join([f"## {query}\n{result}" for query, result in research_cache.items()])
-                        save_output(output_dir, "04b_cs_research_cache.md", cache_content)
-                    print("💾 Generation output saved to 04b_cs_generation.md")
-                
-                merged_state = {**state, **result}
-                print(f"📊 Generation completion: {merged_state.get('generation_complete')}")
-                return merged_state
-                
-            except Exception as e:
-                print(f"❌ Generation failed: {str(e)}")
-                return {**state, "generation_complete": False, "current_chapter": f"Generation failed: {str(e)}"}
+            result = await self.generation_agent.write_chapter(state)
+            print(f"✅ Generation result keys: {list(result.keys())}")
+            
+            # Save generation output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                save_output(output_dir, "04b_cs_generation.md", result.get("current_chapter", ""))
+                # Also save research cache updates
+                research_cache = result.get("research_cache", {})
+                if research_cache:
+                    cache_content = "\n\n".join([f"## {query}\n{result}" for query, result in research_cache.items()])
+                    save_output(output_dir, "04b_cs_research_cache.md", cache_content)
+                print("💾 Generation output saved to 04b_cs_generation.md")
+            
+            merged_state = {**state, **result}
+            print(f"📊 Generation completion: {merged_state.get('generation_complete')}")
+            return merged_state
         
         async def reflection_node(state: CSChapterState) -> CSChapterState:
             """Reflection agent node"""
             print("🤔 CS Reflection: Evaluating chapter quality...")
             
-            try:
-                result = await self.reflection_agent.evaluate_chapter(state)
-                print(f"✅ Reflection result: needs_improvement={result.get('needs_improvement')}")
-                
-                # Save reflection output for observability
-                if output_dir := state.get("output_dir"):
-                    from deep_sci_fi.deep_sci_fi_writer import save_output
-                    iteration = state.get("iteration_count", 0)
-                    save_output(output_dir, f"04c_cs_reflection_iter{iteration}.md", result.get("chapter_evaluation", ""))
-                    print(f"💾 Reflection saved to 04c_cs_reflection_iter{iteration}.md")
-                
-                merged_state = {**state, **result}
-                print(f"📊 Reflection routing: needs_improvement={merged_state.get('needs_improvement')}")
-                return merged_state
-                
-            except Exception as e:
-                print(f"❌ Reflection failed: {str(e)}")
-                return {**state, "reflection_complete": False, "needs_improvement": False}
+            result = await self.reflection_agent.evaluate_chapter(state)
+            print(f"✅ Reflection result: needs_improvement={result.get('needs_improvement')}")
+            
+            # Save reflection output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                iteration = state.get("iteration_count", 0)
+                save_output(output_dir, f"04c_cs_reflection_iter{iteration}.md", result.get("chapter_evaluation", ""))
+                print(f"💾 Reflection saved to 04c_cs_reflection_iter{iteration}.md")
+            
+            merged_state = {**state, **result}
+            print(f"📊 Reflection routing: needs_improvement={merged_state.get('needs_improvement')}")
+            return merged_state
         
         async def evolution_node(state: CSChapterState) -> CSChapterState:
             """Evolution agent node"""
@@ -170,24 +155,19 @@ class CSChapterOrchestrator:
             """Meta-review agent node"""
             print("⚖️ CS Meta-Review: Making final quality decision...")
             
-            try:
-                result = await self.meta_review_agent.review_chapter(state)
-                print(f"✅ Meta-review result: chapter_ready={result.get('chapter_ready')}, needs_iteration={result.get('needs_iteration')}")
-                
-                # Save meta-review output for observability
-                if output_dir := state.get("output_dir"):
-                    from deep_sci_fi.deep_sci_fi_writer import save_output
-                    iteration = state.get("iteration_count", 0)
-                    save_output(output_dir, f"04e_cs_meta_review_iter{iteration}.md", result.get("final_decision", ""))
-                    print(f"💾 Meta-review saved to 04e_cs_meta_review_iter{iteration}.md")
-                
-                merged_state = {**state, **result}
-                print(f"📊 Meta-review routing: chapter_ready={merged_state.get('chapter_ready')}")
-                return merged_state
-                
-            except Exception as e:
-                print(f"❌ Meta-review failed: {str(e)}")
-                return {**state, "meta_review_complete": False, "chapter_ready": True}  # Force completion on failure
+            result = await self.meta_review_agent.review_chapter(state)
+            print(f"✅ Meta-review result: chapter_ready={result.get('chapter_ready')}, needs_iteration={result.get('needs_iteration')}")
+            
+            # Save meta-review output for observability
+            if output_dir := state.get("output_dir"):
+                from deep_sci_fi.deep_sci_fi_writer import save_output
+                iteration = state.get("iteration_count", 0)
+                save_output(output_dir, f"04e_cs_meta_review_iter{iteration}.md", result.get("final_decision", ""))
+                print(f"💾 Meta-review saved to 04e_cs_meta_review_iter{iteration}.md")
+            
+            merged_state = {**state, **result}
+            print(f"📊 Meta-review routing: chapter_ready={merged_state.get('chapter_ready')}")
+            return merged_state
         
         # Define routing functions
         def route_after_reflection(state: CSChapterState) -> str:

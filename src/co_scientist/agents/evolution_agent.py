@@ -26,9 +26,8 @@ class EvolutionAgent:
     
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.8)
-        self.tools = [
-            self._conduct_additional_research,
-        ]
+        # Remove async research tool - research handled at agent level
+        self.tools = []
         self.agent = create_react_agent(
             self.model,
             self.tools,
@@ -37,84 +36,41 @@ class EvolutionAgent:
 Your role is to improve chapters based on feedback:
 1. Fix scientific accuracy issues
 2. Enhance narrative quality
-3. Conduct additional research when needed
-4. Improve character authenticity
+3. Improve character authenticity
 
-Make targeted improvements while preserving the chapter's strengths."""
+Make targeted improvements while preserving the chapter's strengths. Research is conducted at the agent level when needed."""
         )
     
-    @tool
-    async def _conduct_additional_research(self, research_query: str) -> str:
+    async def _conduct_additional_research_async(self, research_query: str) -> str:
         """Conduct additional research to fill gaps using Deep Researcher"""
-        try:
-            # Reset deep_researcher for fresh research context
-            reset_deep_researcher_global_state()
-            
-            # Configure deep researcher
-            research_config = {
-                "configurable": {
-                    "research_model": "anthropic:claude-sonnet-4-20250514",
-                    "research_model_max_tokens": 8000,
-                    "summarization_model": "anthropic:claude-sonnet-4-20250514", 
-                    "compression_model": "anthropic:claude-sonnet-4-20250514",
-                    "compression_model_max_tokens": 8000,
-                    "final_report_model": "anthropic:claude-sonnet-4-20250514",
-                    "final_report_model_max_tokens": 8000,
-                    "allow_clarification": False,
-                    "search_api": "tavily"
-                }
+        # Reset deep_researcher for fresh research context
+        reset_deep_researcher_global_state()
+        
+        # Configure deep researcher
+        research_config = {
+            "configurable": {
+                "research_model": "anthropic:claude-sonnet-4-20250514",
+                "research_model_max_tokens": 8000,
+                "summarization_model": "anthropic:claude-sonnet-4-20250514", 
+                "compression_model": "anthropic:claude-sonnet-4-20250514",
+                "compression_model_max_tokens": 8000,
+                "final_report_model": "anthropic:claude-sonnet-4-20250514",
+                "final_report_model_max_tokens": 8000,
+                "allow_clarification": False,
+                "search_api": "tavily"
             }
-            
-            # Use retry logic for deep_researcher call
-            import anthropic
-            
-            for attempt in range(3):
-                try:
-                    research_result = await deep_researcher.ainvoke(
-                        {"messages": [HumanMessage(content=research_query)]},
-                        research_config
-                    )
-                    break  # Success, exit retry loop
-                except anthropic.APIStatusError as e:
-                    error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
-                    if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
-                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)
-                        print(f"  ⏳ Deep researcher API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        raise
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    if any(keyword in error_msg for keyword in ["timeout", "connection", "network"]) and attempt < 2:
-                        delay = 1.0 * (2 ** attempt) + random.uniform(0, 1)
-                        print(f"  ⏳ Deep researcher network error, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        raise
-            
-            # Extract research findings
-            research_content = research_result.get("final_report", "")
-            print(f"✅ Deep research completed for evolution: {research_query[:50]}...")
-            return research_content
-            
-        except Exception as e:
-            print(f"❌ Deep researcher failed for evolution '{research_query}': {e}")
-            print(f"Deep researcher failure traceback:")
-            print(traceback.format_exc())
-            
-            return f"""Evolution Research Error for: {research_query}
-
-Error: {str(e)}
-
-[Deep researcher integration failed. Manual research needed.]
-
-Basic research outline:
-- Scientific principles involved
-- Current technological state  
-- Future development possibilities
-- Implications for chapter improvement"""
+        }
+        
+        # Call deep_researcher directly - let API failures bubble up visibly
+        research_result = await deep_researcher.ainvoke(
+            {"messages": [HumanMessage(content=research_query)]},
+            research_config
+        )
+        
+        # Extract research findings
+        research_content = research_result.get("final_report", "")
+        print(f"✅ Deep research completed for evolution: {research_query[:50]}...")
+        return research_content
     
     async def improve_chapter(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Main entry point for chapter improvement"""
