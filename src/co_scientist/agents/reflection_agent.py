@@ -54,10 +54,27 @@ Be thorough but constructive. Focus on specific, actionable feedback."""
             light_future_context=light_future_context
         )
         
-        # Invoke the agent to evaluate the chapter
-        result = await self.agent.ainvoke({
-            "messages": [HumanMessage(content=reflection_prompt)]
-        })
+        # Invoke the agent with visible retry logic for API overloads
+        import anthropic
+        import asyncio
+        import random
+        
+        for attempt in range(3):  # 3 retry attempts
+            try:
+                result = await self.agent.ainvoke({
+                    "messages": [HumanMessage(content=reflection_prompt)]
+                })
+                break  # Success, exit retry loop
+            except anthropic.APIStatusError as e:
+                error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                    delay = 2.0 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Reflection API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    print(f"❌ Reflection failed after {attempt + 1} attempts: {e}")
+                    raise  # Re-raise the error after all retries exhausted
         
         # Extract the evaluation from the result
         if result["messages"]:

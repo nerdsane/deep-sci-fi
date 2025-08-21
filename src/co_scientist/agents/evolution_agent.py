@@ -91,41 +91,50 @@ Make targeted improvements while preserving the chapter's strengths."""
             research_cache=str(research_cache) if research_cache else "No research context available"
         )
         
-        try:
-            # Invoke the agent with the improvement prompt
-            messages = [HumanMessage(content=prompt_content)]
-            result = await self.agent.ainvoke({"messages": messages})
-            
-            # Extract content from agent response
-            if result and "messages" in result:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, 'content'):
-                    content = last_message.content
-                    # Handle structured content
-                    if isinstance(content, list):
-                        text_parts = []
-                        for item in content:
-                            if isinstance(item, dict) and 'text' in item:
-                                text_parts.append(item['text'])
-                            else:
-                                text_parts.append(str(item))
-                        improved_chapter = "\n".join(text_parts)
-                    elif isinstance(content, dict) and 'text' in content:
-                        improved_chapter = content['text']
-                    else:
-                        improved_chapter = str(content)
+        # Invoke the agent with visible retry logic for API overloads
+        import anthropic
+        import asyncio
+        import random
+        
+        messages = [HumanMessage(content=prompt_content)]
+        
+        for attempt in range(3):  # 3 retry attempts
+            try:
+                result = await self.agent.ainvoke({"messages": messages})
+                break  # Success, exit retry loop
+            except anthropic.APIStatusError as e:
+                error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                    delay = 2.0 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Evolution API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(delay)
+                    continue
                 else:
-                    improved_chapter = str(last_message)
+                    print(f"❌ Evolution failed after {attempt + 1} attempts: {e}")
+                    raise  # Re-raise the error after all retries exhausted
+        
+        # Extract content from agent response
+        if result and "messages" in result:
+            last_message = result["messages"][-1]
+            if hasattr(last_message, 'content'):
+                content = last_message.content
+                # Handle structured content
+                if isinstance(content, list):
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and 'text' in item:
+                            text_parts.append(item['text'])
+                        else:
+                            text_parts.append(str(item))
+                    improved_chapter = "\n".join(text_parts)
+                elif isinstance(content, dict) and 'text' in content:
+                    improved_chapter = content['text']
+                else:
+                    improved_chapter = str(content)
             else:
-                improved_chapter = "Chapter improvement failed - no response from agent"
-            
-        except Exception as e:
-            improved_chapter = f"""Chapter Improvement Failed: {str(e)}
-
-Original Chapter: {current_chapter}
-Evaluation: {chapter_evaluation}
-
-[Agent execution failed. Manual chapter improvement needed.]"""
+                improved_chapter = str(last_message)
+        else:
+            raise RuntimeError("Evolution failed - no response from agent")
         
         return {
             "current_chapter": improved_chapter,

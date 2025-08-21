@@ -56,10 +56,27 @@ Be decisive but fair. Consider both scientific accuracy and narrative quality.""
             improvement_applied=improvement_applied
         )
         
-        # Invoke the agent to make final decision
-        result = await self.agent.ainvoke({
-            "messages": [HumanMessage(content=review_prompt)]
-        })
+        # Invoke the agent with visible retry logic for API overloads
+        import anthropic
+        import asyncio
+        import random
+        
+        for attempt in range(3):  # 3 retry attempts
+            try:
+                result = await self.agent.ainvoke({
+                    "messages": [HumanMessage(content=review_prompt)]
+                })
+                break  # Success, exit retry loop
+            except anthropic.APIStatusError as e:
+                error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                    delay = 2.0 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Meta-review API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    print(f"❌ Meta-review failed after {attempt + 1} attempts: {e}")
+                    raise  # Re-raise the error after all retries exhausted
         
         # Extract the decision from the result
         if result["messages"]:

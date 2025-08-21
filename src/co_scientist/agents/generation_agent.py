@@ -173,9 +173,27 @@ Return the improved chapter content."""
             research_cache=str(self.research_cache) if self.research_cache else "No previous research available"
         )
         
-        # Invoke the agent with the prompt - let API failures bubble up visibly
+        # Invoke the agent with visible retry logic for API overloads
+        import anthropic
+        import asyncio
+        import random
+        
         messages = [HumanMessage(content=prompt_content)]
-        result = await self.agent.ainvoke({"messages": messages})
+        
+        for attempt in range(3):  # 3 retry attempts
+            try:
+                result = await self.agent.ainvoke({"messages": messages})
+                break  # Success, exit retry loop
+            except anthropic.APIStatusError as e:
+                error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                    delay = 2.0 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Generation API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    print(f"❌ Generation failed after {attempt + 1} attempts: {e}")
+                    raise  # Re-raise the error after all retries exhausted
         
         # Extract content from agent response
         if result and "messages" in result:

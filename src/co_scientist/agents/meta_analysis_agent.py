@@ -53,10 +53,27 @@ Be thorough but focused. Identify only what's essential for this specific chapte
             chapter_position="Chapter 1 (Opening)"
         )
         
-        # Invoke the agent with the proper prompt
-        result = await self.agent.ainvoke({
-            "messages": [HumanMessage(content=analysis_prompt)]
-        })
+        # Invoke the agent with visible retry logic for API overloads
+        import anthropic
+        import asyncio
+        import random
+        
+        for attempt in range(3):  # 3 retry attempts
+            try:
+                result = await self.agent.ainvoke({
+                    "messages": [HumanMessage(content=analysis_prompt)]
+                })
+                break  # Success, exit retry loop
+            except anthropic.APIStatusError as e:
+                error_type = e.body.get("error", {}).get("type", "") if hasattr(e, 'body') else ""
+                if error_type in ["overloaded_error", "rate_limit_error"] and attempt < 2:
+                    delay = 2.0 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Meta-analysis API {error_type}, retrying in {delay:.1f}s (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    print(f"❌ Meta-analysis failed after {attempt + 1} attempts: {e}")
+                    raise  # Re-raise the error after all retries exhausted
         
         # Extract the analysis from the result
         if result["messages"]:
