@@ -32,13 +32,16 @@ class GenerationAgent:
 
         async def _conduct_research_tool(research_query: str) -> str:
             return await self._conduct_research_impl(research_query)
+        
+        def _conduct_research_tool_sync(research_query: str) -> str:
+            raise RuntimeError("_conduct_research is async-only; coroutine path should be used")
 
         def _integrate_research_tool(chapter_content: str, research_findings: str) -> str:
             return self._integrate_research_impl(chapter_content, research_findings)
 
         self.tools = [
             Tool.from_function(name="_write_chapter_content", func=_write_chapter_content_tool, description="Write chapter content based on goals and research context"),
-            Tool.from_function(name="_conduct_research", coroutine=_conduct_research_tool, description="Conduct deep research using Deep Researcher"),
+            Tool.from_function(name="_conduct_research", func=_conduct_research_tool_sync, coroutine=_conduct_research_tool, description="Conduct deep research using Deep Researcher"),
             Tool.from_function(name="_integrate_research", func=_integrate_research_tool, description="Integrate research into chapter content"),
         ]
         self.agent = create_react_agent(

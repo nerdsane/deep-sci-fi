@@ -30,9 +30,12 @@ class EvolutionAgent:
         # Wrap tools to avoid passing `self` into tool args
         async def _conduct_additional_research_tool(research_query: str) -> str:
             return await self._conduct_additional_research_impl(research_query)
+        
+        def _conduct_additional_research_tool_sync(research_query: str) -> str:
+            raise RuntimeError("_conduct_additional_research is async-only; coroutine path should be used")
 
         self.tools = [
-            Tool.from_function(name="_conduct_additional_research", coroutine=_conduct_additional_research_tool, description="Conduct additional deep research for improvements"),
+            Tool.from_function(name="_conduct_additional_research", func=_conduct_additional_research_tool_sync, coroutine=_conduct_additional_research_tool, description="Conduct additional deep research for improvements"),
         ]
         self.agent = create_react_agent(
             self.model,
