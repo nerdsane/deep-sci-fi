@@ -160,7 +160,7 @@ class ModelConfig:
 
 
 # Initialize models
-    general_model = ModelConfig.create_model_instance("general_creative")
+general_model = ModelConfig.create_model_instance("general_creative")
     
 
 # ============================================================================
