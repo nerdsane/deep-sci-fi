@@ -26,8 +26,9 @@ class EvolutionAgent:
     
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.8)
-        # Remove async research tool - research handled at agent level
-        self.tools = []
+        self.tools = [
+            self._conduct_additional_research,
+        ]
         self.agent = create_react_agent(
             self.model,
             self.tools,
@@ -36,12 +37,14 @@ class EvolutionAgent:
 Your role is to improve chapters based on feedback:
 1. Fix scientific accuracy issues
 2. Enhance narrative quality
-3. Improve character authenticity
+3. Conduct additional research when needed
+4. Improve character authenticity
 
-Make targeted improvements while preserving the chapter's strengths. Research is conducted at the agent level when needed."""
+Make targeted improvements while preserving the chapter's strengths."""
         )
     
-    async def _conduct_additional_research_async(self, research_query: str) -> str:
+    @tool
+    async def _conduct_additional_research(self, research_query: str) -> str:
         """Conduct additional research to fill gaps using Deep Researcher"""
         # Reset deep_researcher for fresh research context
         reset_deep_researcher_global_state()
@@ -69,6 +72,9 @@ Make targeted improvements while preserving the chapter's strengths. Research is
         
         # Extract research findings
         research_content = research_result.get("final_report", "")
+        if not research_content.strip():
+            raise RuntimeError(f"Deep researcher returned empty report for evolution: {research_query}")
+            
         print(f"✅ Deep research completed for evolution: {research_query[:50]}...")
         return research_content
     

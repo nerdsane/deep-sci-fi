@@ -26,10 +26,9 @@ class GenerationAgent:
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.9)
         self.research_cache = {}
-        # Remove research tool since it needs async deep_researcher integration
-        # Research will be handled at the agent level, not tool level
         self.tools = [
             self._write_chapter_content,
+            self._conduct_research,
             self._integrate_research,
         ]
         self.agent = create_react_agent(
@@ -39,9 +38,11 @@ class GenerationAgent:
 
 Your role is to:
 1. Write engaging chapter content
-2. Integrate research findings naturally into the writing
+2. Identify when scientific research is needed
+3. Conduct research using available tools
+4. Integrate research findings naturally into the writing
 
-Write compelling prose while maintaining scientific accuracy. Research is conducted at the agent level, not through tools."""
+Write compelling prose while maintaining scientific accuracy. When you encounter something that needs research, use your research tool immediately."""
         )
     
     @tool
@@ -74,7 +75,8 @@ Write compelling prose while maintaining scientific accuracy. Research is conduc
         else:
             return str(response)
     
-    async def _conduct_research_async(self, research_query: str) -> str:
+    @tool
+    async def _conduct_research(self, research_query: str) -> str:
         """Conduct deep research on a specific scientific question using Deep Researcher"""
         # Check cache first
         if research_query in self.research_cache:
@@ -106,6 +108,9 @@ Write compelling prose while maintaining scientific accuracy. Research is conduc
         
         # Extract research findings
         research_content = research_result.get("final_report", "")
+        if not research_content.strip():
+            raise RuntimeError(f"Deep researcher returned empty report for: {research_query}")
+            
         print(f"✅ Deep research completed for: {research_query[:50]}...")
         
         # Cache the result
@@ -160,12 +165,6 @@ Return the improved chapter content."""
         
         # Merge any existing research cache
         self.research_cache.update(research_cache)
-        
-        # Conduct initial research if needed based on story concept
-        if "consciousness" in selected_story_concept.lower() or "quantum" in selected_story_concept.lower():
-            research_query = f"Scientific research on consciousness and quantum mechanics for story: {selected_story_concept[:200]}"
-            research_result = await self._conduct_research_async(research_query)
-            print(f"🔬 Conducted initial research for chapter writing")
         
         # Use the proper prompt from prompts.py
         prompt_content = GENERATION_CHAPTER_PROMPT.format(
