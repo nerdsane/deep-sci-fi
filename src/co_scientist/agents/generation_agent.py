@@ -11,7 +11,7 @@ import asyncio
 import random
 import traceback
 from typing import Dict, Any, List
-from langchain_core.tools import tool
+from langchain_core.tools import tool, Tool
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.prebuilt import create_react_agent
 from langchain.chat_models import init_chat_model
@@ -26,10 +26,20 @@ class GenerationAgent:
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.9)
         self.research_cache = {}
+        # Build tools via wrappers that capture `self` to avoid passing `self` into tool args
+        def _write_chapter_content_tool(chapter_goals: str, research_context: str) -> str:
+            return self._write_chapter_content_impl(chapter_goals, research_context)
+
+        async def _conduct_research_tool(research_query: str) -> str:
+            return await self._conduct_research_impl(research_query)
+
+        def _integrate_research_tool(chapter_content: str, research_findings: str) -> str:
+            return self._integrate_research_impl(chapter_content, research_findings)
+
         self.tools = [
-            self._write_chapter_content,
-            self._conduct_research,
-            self._integrate_research,
+            Tool.from_function(name="_write_chapter_content", func=_write_chapter_content_tool, description="Write chapter content based on goals and research context"),
+            Tool.from_function(name="_conduct_research", coroutine=_conduct_research_tool, description="Conduct deep research using Deep Researcher"),
+            Tool.from_function(name="_integrate_research", func=_integrate_research_tool, description="Integrate research into chapter content"),
         ]
         self.agent = create_react_agent(
             self.model,
@@ -45,8 +55,7 @@ Your role is to:
 Write compelling prose while maintaining scientific accuracy. When you encounter something that needs research, use your research tool immediately."""
         )
     
-    @tool
-    def _write_chapter_content(self, chapter_goals: str, research_context: str) -> str:
+    def _write_chapter_content_impl(self, chapter_goals: str, research_context: str) -> str:
         """Write chapter content based on goals and research context"""
         # Use the proper prompt from prompts.py - let failures bubble up visibly
         prompt_content = GENERATION_CHAPTER_PROMPT.format(
@@ -75,8 +84,7 @@ Write compelling prose while maintaining scientific accuracy. When you encounter
         else:
             return str(response)
     
-    @tool
-    async def _conduct_research(self, research_query: str) -> str:
+    async def _conduct_research_impl(self, research_query: str) -> str:
         """Conduct deep research on a specific scientific question using Deep Researcher"""
         # Check cache first
         if research_query in self.research_cache:
@@ -117,8 +125,7 @@ Write compelling prose while maintaining scientific accuracy. When you encounter
         self.research_cache[research_query] = research_content
         return research_content
     
-    @tool
-    def _integrate_research(self, chapter_content: str, research_findings: str) -> str:
+    def _integrate_research_impl(self, chapter_content: str, research_findings: str) -> str:
         """Integrate research findings into chapter content"""
         integration_prompt = f"""Integrate these research findings into the chapter content naturally and seamlessly:
 

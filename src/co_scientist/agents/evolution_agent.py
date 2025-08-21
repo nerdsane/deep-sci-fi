@@ -12,7 +12,7 @@ import asyncio
 import random
 import traceback
 from typing import Dict, Any, List
-from langchain_core.tools import tool
+from langchain_core.tools import tool, Tool
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.prebuilt import create_react_agent
 from langchain.chat_models import init_chat_model
@@ -27,8 +27,12 @@ class EvolutionAgent:
     def __init__(self, model_string: str = "anthropic:claude-opus-4-1-20250805"):
         self.model = init_chat_model(model_string, temperature=0.8)
         self.research_cache: Dict[str, str] = {}
+        # Wrap tools to avoid passing `self` into tool args
+        async def _conduct_additional_research_tool(research_query: str) -> str:
+            return await self._conduct_additional_research_impl(research_query)
+
         self.tools = [
-            self._conduct_additional_research,
+            Tool.from_function(name="_conduct_additional_research", coroutine=_conduct_additional_research_tool, description="Conduct additional deep research for improvements"),
         ]
         self.agent = create_react_agent(
             self.model,
@@ -44,8 +48,7 @@ Your role is to improve chapters based on feedback:
 Make targeted improvements while preserving the chapter's strengths."""
         )
     
-    @tool
-    async def _conduct_additional_research(self, research_query: str) -> str:
+    async def _conduct_additional_research_impl(self, research_query: str) -> str:
         """Conduct additional research to fill gaps using Deep Researcher"""
         # Check local cache first
         if research_query in self.research_cache:
