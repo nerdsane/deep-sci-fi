@@ -18,7 +18,35 @@ This agent demonstrates how to use generic Letta platform tools for specialized 
 
 ## Quick Start
 
-### 1. Start Letta Server (with evaluation tools)
+### Easy Way: Use the Startup Script
+
+```bash
+cd ~/Development/dsf-agent
+
+# Set your API key
+export ANTHROPIC_API_KEY=your_key_here
+
+# Start everything (Letta server + optional letta-code UI)
+./start.sh
+
+# When done, stop everything
+./stop.sh
+```
+
+The script will:
+1. ✓ Check prerequisites (Docker, API keys)
+2. ✓ Switch to evaluation-tools branch
+3. ✓ Build and start Letta server with Docker
+4. ✓ Wait for server to be ready
+5. ✓ Optionally start letta-code UI
+6. ✓ Show you how to test DSF agent
+
+### Manual Way (if you prefer)
+
+<details>
+<summary>Click to expand manual instructions</summary>
+
+#### 1. Start Letta Server (with evaluation tools)
 
 ```bash
 # In ~/Development/letta directory
@@ -27,13 +55,19 @@ cd ~/Development/letta
 # Make sure you're on the evaluation-tools branch
 git checkout evaluation-tools
 
-# Start the server
-letta server
+# Start with Docker (builds from source)
+docker compose -f dev-compose.yaml up -d --build
+
+# Check status
+docker compose -f dev-compose.yaml ps
+
+# View logs
+docker compose -f dev-compose.yaml logs -f
 ```
 
 The server will start on `http://localhost:8283`
 
-### 2. Run DSF Agent
+#### 2. Run DSF Agent
 
 ```bash
 # In ~/Development/dsf-agent directory
@@ -49,7 +83,7 @@ export ANTHROPIC_API_KEY=your_key_here
 python examples/simple_world.py
 ```
 
-### 3. (Optional) Use letta-code UI
+#### 3. (Optional) Use letta-code UI
 
 ```bash
 # In ~/Development/letta-code directory
@@ -61,6 +95,16 @@ bun run dev
 # The CLI will connect to your local Letta server
 # and provide an enhanced UI for interacting with DSF agent
 ```
+
+#### Stop everything
+
+```bash
+# Stop Letta server
+cd ~/Development/letta
+docker compose -f dev-compose.yaml down
+```
+
+</details>
 
 ## Architecture
 
