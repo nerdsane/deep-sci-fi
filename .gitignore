@@ -49,4 +49,7 @@ outputs/
 .DS_Store
 Thumbs.db
 
+# Conversations
+.conversations/
+
 .legacy
