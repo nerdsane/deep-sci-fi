@@ -173,15 +173,17 @@ if [ "$START_LETTA_CODE" = "y" ] || [ "$START_LETTA_CODE" = "Y" ]; then
         cd "$LETTA_CODE_DIR"
 
         # Start in a new terminal if possible, otherwise background
+        # Set LETTA_BASE_URL to connect to local server instead of cloud
         if command_exists gnome-terminal; then
-            gnome-terminal -- bash -c "cd $LETTA_CODE_DIR && bun run dev; exec bash"
-            echo -e "${GREEN}✓ letta-code started in new terminal${NC}"
+            gnome-terminal -- bash -c "cd $LETTA_CODE_DIR && LETTA_BASE_URL=http://localhost:8283 bun run dev; exec bash"
+            echo -e "${GREEN}✓ letta-code started in new terminal (connected to localhost:8283)${NC}"
         elif command_exists xterm; then
-            xterm -e "cd $LETTA_CODE_DIR && bun run dev; exec bash" &
-            echo -e "${GREEN}✓ letta-code started in new terminal${NC}"
+            xterm -e "cd $LETTA_CODE_DIR && LETTA_BASE_URL=http://localhost:8283 bun run dev; exec bash" &
+            echo -e "${GREEN}✓ letta-code started in new terminal (connected to localhost:8283)${NC}"
         else
             echo -e "${YELLOW}⚠ Starting letta-code in background...${NC}"
-            echo -e "${YELLOW}⚠ Run manually in another terminal: cd $LETTA_CODE_DIR && bun run dev${NC}"
+            echo -e "${YELLOW}⚠ Run manually in another terminal:${NC}"
+            echo -e "${YELLOW}   cd $LETTA_CODE_DIR && LETTA_BASE_URL=http://localhost:8283 bun run dev${NC}"
         fi
     fi
 fi
