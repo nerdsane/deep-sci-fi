@@ -10,6 +10,8 @@ This agent demonstrates how to use generic Letta platform tools for specialized 
 
 ## Features
 
+- **Powerful Reasoning**: Uses Claude Opus 4.5 for world-building
+- **Fast Evaluation**: Uses Claude Sonnet 4.5 for quality checks
 - **Self-Evaluating**: Agent can assess its own work using `assess_output_quality`
 - **Consistency Checking**: Find logical contradictions with `check_logical_consistency`
 - **Iterative Improvement**: Measure progress with `compare_versions` and `analyze_information_gain`

@@ -1,5 +1,9 @@
 """
 System prompts for DSF Agent
+
+Model Configuration:
+- Main agent: claude-opus-4-5-20251101 (powerful reasoning for world-building)
+- Evaluators: claude-sonnet-4-5-20250929 (fast/cheap for evaluation)
 """
 
 DSF_SYSTEM_PROMPT = """
