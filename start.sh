@@ -58,22 +58,22 @@ fi
 
 echo -e "${GREEN}✓ Letta directory found${NC}"
 
-# Check for Anthropic API key
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo -e "${YELLOW}⚠ ANTHROPIC_API_KEY not set in environment${NC}"
-
-    # Check if .env exists in letta directory
-    if [ -f "$LETTA_DIR/.env" ]; then
-        echo -e "${GREEN}✓ Found .env file in letta directory${NC}"
+# Check for Anthropic API key in letta directory
+if [ -f "$LETTA_DIR/.env" ]; then
+    # Check if .env has ANTHROPIC_API_KEY
+    if grep -q "ANTHROPIC_API_KEY=" "$LETTA_DIR/.env"; then
+        echo -e "${GREEN}✓ ANTHROPIC_API_KEY found in $LETTA_DIR/.env${NC}"
     else
-        echo -e "${RED}✗ No ANTHROPIC_API_KEY found. Please set it:${NC}"
-        echo -e "   export ANTHROPIC_API_KEY=your_key_here"
-        echo -e "   OR create $LETTA_DIR/.env with:"
+        echo -e "${RED}✗ ANTHROPIC_API_KEY not found in $LETTA_DIR/.env${NC}"
+        echo -e "${YELLOW}Please add to $LETTA_DIR/.env:${NC}"
         echo -e "   ANTHROPIC_API_KEY=your_key_here"
         exit 1
     fi
 else
-    echo -e "${GREEN}✓ ANTHROPIC_API_KEY is set${NC}"
+    echo -e "${RED}✗ $LETTA_DIR/.env not found${NC}"
+    echo -e "${YELLOW}Please create $LETTA_DIR/.env with:${NC}"
+    echo -e "   ANTHROPIC_API_KEY=your_key_here"
+    exit 1
 fi
 
 # Navigate to letta directory

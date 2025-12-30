@@ -18,15 +18,23 @@ This agent demonstrates how to use generic Letta platform tools for specialized 
 
 ## Quick Start
 
-### Easy Way: Use the Startup Script
+### 1. Set up your API key (one time)
+
+```bash
+# Add your Anthropic API key to Letta's .env file
+echo "ANTHROPIC_API_KEY=your_key_here" >> ~/Development/letta/.env
+```
+
+**Important**: The API key goes in `~/Development/letta/.env` (NOT in dsf-agent/.env)
+- The Letta server running in Docker needs it
+- No LETTA_API_KEY needed for local server
+
+### 2. Start everything
 
 ```bash
 cd ~/Development/dsf-agent
 
-# Set your API key
-export ANTHROPIC_API_KEY=your_key_here
-
-# Start everything (Letta server + optional letta-code UI)
+# Start Letta server + letta-code UI
 ./start.sh
 
 # When done, stop everything
@@ -38,8 +46,8 @@ The script will:
 2. ✓ Switch to evaluation-tools branch
 3. ✓ Build and start Letta server with Docker
 4. ✓ Wait for server to be ready
-5. ✓ Optionally start letta-code UI
-6. ✓ Show you how to test DSF agent
+5. ✓ Ask if you want to start letta-code UI (say yes!)
+6. ✓ You're ready to use letta-code normally
 
 ### Manual Way (if you prefer)
 
@@ -67,36 +75,17 @@ docker compose -f dev-compose.yaml logs -f
 
 The server will start on `http://localhost:8283`
 
-#### 2. Run DSF Agent
-
-```bash
-# In ~/Development/dsf-agent directory
-cd ~/Development/dsf-agent
-
-# Install dependencies
-pip install letta-client python-dotenv
-
-# Set up your Anthropic API key
-export ANTHROPIC_API_KEY=your_key_here
-
-# Run the example
-python examples/simple_world.py
-```
-
-#### 3. (Optional) Use letta-code UI
+#### 2. Use letta-code to interact with DSF agent
 
 ```bash
 # In ~/Development/letta-code directory
 cd ~/Development/letta-code
 
-# Start the CLI/TUI
+# Start the CLI/TUI (it will connect to the running Letta server)
 bun run dev
-
-# The CLI will connect to your local Letta server
-# and provide an enhanced UI for interacting with DSF agent
 ```
 
-#### Stop everything
+#### 3. Stop everything
 
 ```bash
 # Stop Letta server
@@ -141,74 +130,42 @@ See [docs/architecture.md](docs/architecture.md) for detailed documentation.
 
 ### Prerequisites
 
-- Python 3.10+
-- Letta server with evaluation-tools branch
+- Docker & docker-compose
+- Letta repo with evaluation-tools branch
 - Anthropic API key (for Claude models)
-
-### Installation
-
-```bash
-# Clone the repository (if not already)
-cd ~/Development/dsf-agent
-
-# Install dependencies
-pip install letta-client pydantic python-dotenv
-```
+- Optional: letta-code for enhanced UI
 
 ### Configuration
 
-Create a `.env` file with:
+Add your API key to Letta's .env file:
 
 ```bash
-# API Keys
-ANTHROPIC_API_KEY=your_anthropic_key_here
-
-# Letta Server (optional, defaults shown)
-LETTA_SERVER_URL=http://localhost:8283
-LETTA_API_KEY=  # Only needed for non-local servers
+# Create/edit ~/Development/letta/.env
+echo "ANTHROPIC_API_KEY=your_key_here" >> ~/Development/letta/.env
 ```
+
+**Note**: No configuration needed in dsf-agent repo itself! Everything is configured in the Letta server.
 
 ## Usage
 
-### Programmatic Usage
-
-```python
-from agents.dsf_agent import DSFAgent
-
-# Connect to local Letta server
-dsf = DSFAgent(base_url="http://localhost:8283")
-dsf.connect()
-
-# Create agent with DSF system prompt
-agent = dsf.create_agent(
-    name="dsf-worldbuilder",
-    model="claude-sonnet-4-5-20250929"
-)
-
-# Create a world
-response = dsf.send_message(
-    "I want to create a hard sci-fi world about a generation ship "
-    "traveling to Proxima Centauri. Focus on the closed ecosystem "
-    "and how society evolves over 3 generations."
-)
-
-# Agent will use evaluation tools as needed:
-# - assess_output_quality() to check world quality
-# - check_logical_consistency() to find contradictions
-# - compare_versions() when iterating
-# - analyze_information_gain() to measure novelty
-```
-
-### Running Examples
+Just use letta-code normally! The DSF agent with evaluation tools is available automatically.
 
 ```bash
-# Simple world creation
-python examples/simple_world.py
+# Start everything
+cd ~/Development/dsf-agent
+./start.sh
 
-# TBD: More examples coming
-# python examples/iterative_refinement.py
-# python examples/character_development.py
+# Say yes to starting letta-code
+# Then use letta-code CLI as usual
+# Your DSF system prompt and evaluation tools are active!
 ```
+
+The agent will automatically have access to:
+- Your custom DSF system prompt (from prompts.py)
+- All 4 evaluation tools from Letta platform
+- Research tools (web_search, run_code)
+- Memory system
+- World manager (via letta-code)
 
 ## Available Tools
 
@@ -254,29 +211,22 @@ See [.planning/letta-experiments/agent_design_philosophy.md](.planning/letta-exp
 
 To test everything works:
 
-1. **Start Letta server** (with evaluation tools):
+1. **Add your API key**:
    ```bash
-   cd ~/Development/letta
-   git checkout evaluation-tools
-   letta server
+   echo "ANTHROPIC_API_KEY=your_key_here" >> ~/Development/letta/.env
    ```
 
-2. **Run DSF agent example**:
+2. **Start the stack**:
    ```bash
    cd ~/Development/dsf-agent
-   python examples/simple_world.py
+   ./start.sh
+   # Say yes to starting letta-code
    ```
 
-3. **Verify evaluation tools work**:
-   - Agent should create world options
-   - Agent can use `assess_output_quality()` to self-evaluate
-   - Agent can use `check_logical_consistency()` to find contradictions
-
-4. **(Optional) Test with letta-code UI**:
-   ```bash
-   cd ~/Development/letta-code
-   bun run dev
-   ```
+3. **Use letta-code normally**:
+   - The DSF agent is active with your custom prompt
+   - Evaluation tools are available automatically
+   - Just chat and build worlds as usual!
 
 ## Status
 
