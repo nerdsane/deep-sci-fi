@@ -20,18 +20,33 @@ This agent demonstrates how to use generic Letta platform tools for specialized 
 
 ## Quick Start
 
-### 1. Set up your API key (one time)
+### 1. Clone with submodules (one time)
+
+```bash
+# Clone dsf-agent with letta and letta-code submodules
+git clone --recurse-submodules https://github.com/nerdsane/dsf-agent.git
+cd dsf-agent
+
+# If you already cloned, initialize submodules:
+git submodule update --init --recursive
+```
+
+**What you get:**
+- `dsf-agent/letta/` - Letta platform with evaluation tools (evaluation-tools branch)
+- `dsf-agent/letta-code/` - letta-code UI with DSF customizations (main branch)
+
+### 2. Set up your API key (one time)
 
 ```bash
 # Add your Anthropic API key to Letta's .env file
-echo "ANTHROPIC_API_KEY=your_key_here" >> ~/Development/letta/.env
+echo "ANTHROPIC_API_KEY=your_key_here" >> letta/.env
 ```
 
-**Important**: The API key goes in `~/Development/letta/.env` (NOT in dsf-agent/.env)
+**Important**: The API key goes in `letta/.env` (inside the submodule)
 - The Letta server running in Docker needs it
 - No LETTA_API_KEY needed for local server
 
-### 2. Start everything
+### 3. Start everything
 
 ```bash
 cd ~/Development/dsf-agent
@@ -244,6 +259,65 @@ To test everything works:
 - [Implementation Plan](.planning/letta-experiments/IMPLEMENTATION_PLAN.md)
 - [Agent Design Philosophy](.planning/letta-experiments/agent_design_philosophy.md)
 - [Tool Designs](.planning/letta-experiments/generic_eval_abm_tools_design.md)
+
+## Working with Submodules
+
+Both `letta` and `letta-code` are git submodules. You can edit them directly from the dsf-agent directory.
+
+### Making Changes to Submodules
+
+**1. Edit files in the submodule:**
+```bash
+cd letta
+# Make changes to evaluation tools
+vim letta/services/tool_executor/evaluation_tool_executor.py
+```
+
+**2. Commit in the submodule:**
+```bash
+git add .
+git commit -m "Fix evaluation tool bug"
+git push origin evaluation-tools
+```
+
+**3. Update parent repo to use new commit:**
+```bash
+cd ..  # back to dsf-agent root
+git add letta
+git commit -m "Update letta submodule: fix evaluation bug"
+git push
+```
+
+### Pulling Latest Changes
+
+**Update submodules to their latest commits:**
+```bash
+# Pull latest for all submodules
+git submodule update --remote
+
+# Or update specific submodule
+cd letta
+git pull origin evaluation-tools
+cd ..
+git add letta
+git commit -m "Update letta submodule to latest"
+```
+
+### Quick Reference
+
+```bash
+# See submodule status
+git submodule status
+
+# See what changed in submodules
+git diff --submodule
+
+# Clone project with submodules
+git clone --recurse-submodules <url>
+
+# Update submodules after clone
+git submodule update --init --recursive
+```
 
 ## Contributing
 

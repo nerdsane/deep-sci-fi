@@ -14,7 +14,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-LETTA_DIR="$HOME/Development/letta"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LETTA_DIR="$SCRIPT_DIR/letta"
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   DSF Stack Stop Script                   ║${NC}"

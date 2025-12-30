@@ -16,8 +16,8 @@ NC='\033[0m' # No Color
 
 # Directories
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-LETTA_DIR="$HOME/Development/letta"
-LETTA_CODE_DIR="$HOME/Development/letta-code"
+LETTA_DIR="$SCRIPT_DIR/letta"
+LETTA_CODE_DIR="$SCRIPT_DIR/letta-code"
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   DSF Stack Startup Script                ║${NC}"
