@@ -36,7 +36,7 @@ port_in_use() {
 }
 
 # Check prerequisites
-echo -e "${PURPLE}[1/7] Checking prerequisites...${NC}"
+echo -e "${PURPLE}[1/8] Checking prerequisites...${NC}"
 
 if ! command_exists docker; then
     echo -e "${RED}✗ Docker not found. Please install Docker first.${NC}"
@@ -64,23 +64,75 @@ fi
 
 echo -e "${CYAN_BRIGHT}✓ Letta directory found${NC}"
 
-# Check for Anthropic API key in letta directory
-if [ -f "$LETTA_DIR/.env" ]; then
-    # Check if .env has ANTHROPIC_API_KEY
-    if grep -q "ANTHROPIC_API_KEY=" "$LETTA_DIR/.env"; then
-        echo -e "${CYAN_BRIGHT}✓ ANTHROPIC_API_KEY found in $LETTA_DIR/.env${NC}"
+# Environment setup
+echo ""
+echo -e "${PURPLE}[2/8] Setting up environment variables...${NC}"
+
+ROOT_ENV="$SCRIPT_DIR/.env"
+ROOT_ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
+
+# Check if root .env exists
+if [ ! -f "$ROOT_ENV" ]; then
+    echo -e "${CYAN}Creating .env from .env.example...${NC}"
+    if [ -f "$ROOT_ENV_EXAMPLE" ]; then
+        cp "$ROOT_ENV_EXAMPLE" "$ROOT_ENV"
+        echo -e "${CYAN_BRIGHT}✓ Created $ROOT_ENV${NC}"
     else
-        echo -e "${RED}✗ ANTHROPIC_API_KEY not found in $LETTA_DIR/.env${NC}"
-        echo -e "${PURPLE}Please add to $LETTA_DIR/.env:${NC}"
-        echo -e "   ANTHROPIC_API_KEY=your_key_here"
+        echo -e "${RED}✗ .env.example not found${NC}"
         exit 1
     fi
+fi
+
+# Check if .env has placeholder values
+if grep -q "ANTHROPIC_API_KEY=sk-ant-\.\.\." "$ROOT_ENV" || grep -q "ANTHROPIC_API_KEY=$" "$ROOT_ENV"; then
+    echo ""
+    echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  ACTION REQUIRED: Configure your API keys                    ║${NC}"
+    echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${PURPLE}Your .env file needs to be configured with real API keys.${NC}"
+    echo ""
+    echo -e "${CYAN}Required:${NC}"
+    echo -e "  • ANTHROPIC_API_KEY - Get from https://console.anthropic.com/${NC}"
+    echo ""
+    echo -e "${CYAN}Optional but recommended:${NC}"
+    echo -e "  • OPENAI_API_KEY - For image generation and GPT models${NC}"
+    echo -e "  • NOTION_TOKEN - For publishing stories to Notion${NC}"
+    echo ""
+    echo -e "${PURPLE}Please edit: $ROOT_ENV${NC}"
+    echo ""
+    read -p "Press Enter after you've configured your .env file..."
+    echo ""
+
+    # Verify they actually filled it out
+    if grep -q "ANTHROPIC_API_KEY=sk-ant-\.\.\." "$ROOT_ENV" || grep -q "ANTHROPIC_API_KEY=$" "$ROOT_ENV"; then
+        echo -e "${RED}✗ ANTHROPIC_API_KEY still not configured${NC}"
+        echo -e "${PURPLE}Please edit $ROOT_ENV and add your Anthropic API key${NC}"
+        exit 1
+    fi
+fi
+
+# Run setup-env.sh to distribute variables to submodules
+echo -e "${CYAN}Distributing environment variables to submodules...${NC}"
+if [ -f "$SCRIPT_DIR/setup-env.sh" ]; then
+    "$SCRIPT_DIR/setup-env.sh"
 else
-    echo -e "${RED}✗ $LETTA_DIR/.env not found${NC}"
-    echo -e "${PURPLE}Please create $LETTA_DIR/.env with:${NC}"
-    echo -e "   ANTHROPIC_API_KEY=your_key_here"
+    echo -e "${RED}✗ setup-env.sh not found${NC}"
     exit 1
 fi
+
+# Verify letta/.env was created and has ANTHROPIC_API_KEY
+if [ ! -f "$LETTA_DIR/.env" ]; then
+    echo -e "${RED}✗ Failed to create $LETTA_DIR/.env${NC}"
+    exit 1
+fi
+
+if ! grep -q "ANTHROPIC_API_KEY=" "$LETTA_DIR/.env" || grep -q "ANTHROPIC_API_KEY=$" "$LETTA_DIR/.env"; then
+    echo -e "${RED}✗ ANTHROPIC_API_KEY not properly configured${NC}"
+    exit 1
+fi
+
+echo -e "${CYAN_BRIGHT}✓ Environment configured successfully${NC}"
 
 # Navigate to letta directory
 cd "$LETTA_DIR"
@@ -95,7 +147,7 @@ fi
 
 # Check current branch
 echo ""
-echo -e "${PURPLE}[2/7] Checking Letta branch...${NC}"
+echo -e "${PURPLE}[3/8] Checking Letta branch...${NC}"
 CURRENT_BRANCH=$(git branch --show-current)
 
 if [ "$CURRENT_BRANCH" != "evaluation-tools" ]; then
@@ -109,7 +161,7 @@ fi
 
 # Stop any existing containers
 echo ""
-echo -e "${PURPLE}[3/7] Stopping existing Letta containers...${NC}"
+echo -e "${PURPLE}[4/8] Stopping existing Letta containers...${NC}"
 if docker compose -f dev-compose.yaml ps -q 2>/dev/null | grep -q .; then
     docker compose -f dev-compose.yaml down
     echo -e "${CYAN_BRIGHT}✓ Stopped existing containers${NC}"
@@ -119,7 +171,7 @@ fi
 
 # Build and start Letta server
 echo ""
-echo -e "${PURPLE}[4/7] Building and starting Letta server with Docker...${NC}"
+echo -e "${PURPLE}[5/8] Building and starting Letta server with Docker...${NC}"
 echo -e "${CYAN}This will:${NC}"
 echo -e "  - Build Letta server from source (evaluation-tools branch)"
 echo -e "  - Start PostgreSQL with pgvector"
@@ -134,7 +186,7 @@ echo -e "${CYAN_BRIGHT}✓ Letta server starting...${NC}"
 
 # Wait for server to be ready
 echo ""
-echo -e "${PURPLE}[5/7] Waiting for Letta server to be ready...${NC}"
+echo -e "${PURPLE}[6/8] Waiting for Letta server to be ready...${NC}"
 MAX_RETRIES=30
 RETRY_COUNT=0
 
@@ -157,7 +209,7 @@ fi
 
 # Start Story Explorer Gallery (optional)
 echo ""
-echo -e "${PURPLE}[6/7] Story Explorer Gallery...${NC}"
+echo -e "${PURPLE}[7/8] Story Explorer Gallery...${NC}"
 
 if command_exists bun && [ -d "$LETTA_CODE_DIR" ]; then
     # Check if port 3030 is available
@@ -191,7 +243,7 @@ fi
 
 # Summary
 echo ""
-echo -e "${PURPLE}[7/7] Startup complete!${NC}"
+echo -e "${PURPLE}[8/8] Startup complete!${NC}"
 echo ""
 echo -e "${CYAN_BRIGHT}╔════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN_BRIGHT}║   Letta Stack Running                     ║${NC}"
