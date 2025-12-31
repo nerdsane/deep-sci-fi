@@ -47,6 +47,8 @@ NOTION_TOKEN=$(get_env_value "NOTION_TOKEN" "$ROOT_ENV")
 NOTION_DATABASE_ID=$(get_env_value "NOTION_DATABASE_ID" "$ROOT_ENV")
 OLLAMA_BASE_URL=$(get_env_value "OLLAMA_BASE_URL" "$ROOT_ENV")
 VLLM_API_BASE=$(get_env_value "VLLM_API_BASE" "$ROOT_ENV")
+OPENLLM_API_KEY=$(get_env_value "OPENLLM_API_KEY" "$ROOT_ENV")
+OPENLLM_AUTH_TYPE=$(get_env_value "OPENLLM_AUTH_TYPE" "$ROOT_ENV")
 EXA_API_KEY=$(get_env_value "EXA_API_KEY" "$ROOT_ENV")
 LETTA_DEBUG=$(get_env_value "LETTA_DEBUG" "$ROOT_ENV")
 LETTA_CODE_TELEM=$(get_env_value "LETTA_CODE_TELEM" "$ROOT_ENV")
@@ -88,6 +90,14 @@ fi
 
 if [ -n "$VLLM_API_BASE" ]; then
     echo "VLLM_API_BASE=$VLLM_API_BASE" >> "$LETTA_ENV"
+fi
+
+if [ -n "$OPENLLM_API_KEY" ]; then
+    echo "OPENLLM_API_KEY=$OPENLLM_API_KEY" >> "$LETTA_ENV"
+fi
+
+if [ -n "$OPENLLM_AUTH_TYPE" ]; then
+    echo "OPENLLM_AUTH_TYPE=$OPENLLM_AUTH_TYPE" >> "$LETTA_ENV"
 fi
 
 if [ -n "$EXA_API_KEY" ]; then
