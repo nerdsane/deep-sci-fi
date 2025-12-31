@@ -1,0 +1,3 @@
+Write a story about Nia.
+Write in first person.
+It is 2035. Nia is a celebrated artist working at the bleeding edge of neural interfaces, generative AI, and world-model systems. She is thriving: pieces command serious commissions, she employs a team that blends technical and artistic talent, and her name carries weight in circles that matter. The art world around her has fractured into territories with different opinions about AI. Nia is pro-AI and innovation, but understands the critical side and thinks AI works best as extension rather than replacement of art and artists.
