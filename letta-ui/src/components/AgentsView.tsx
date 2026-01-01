@@ -81,87 +81,135 @@ export function AgentsView() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="section-title">Agents</h2>
-          <p className="section-subtitle">
-            {agents.length} active {agents.length === 1 ? 'agent' : 'agents'}
-          </p>
-        </div>
+      <div>
+        <h2 className="section-title">Agents</h2>
+        <p className="section-subtitle">
+          {agents.length} active {agents.length === 1 ? 'agent' : 'agents'}
+        </p>
       </div>
 
-      <div className="card-grid">
-        {agents.map((agent) => {
-          const isExpanded = expandedAgent === agent.id;
-          const isLoading = loadingDetails === agent.id;
+      <div style={{ display: 'grid', gridTemplateColumns: expandedAgent ? '1fr 1.5fr' : '1fr', gap: '1.5rem' }}>
+        {/* Agent list */}
+        <div className="card-list">
+          {agents.map((agent) => {
+            const isSelected = expandedAgent === agent.id;
+            const isLoading = loadingDetails === agent.id;
+
+            return (
+              <div
+                key={agent.id}
+                className="card"
+                style={{
+                  cursor: 'pointer',
+                  background: isSelected ? 'rgba(0, 255, 136, 0.05)' : 'rgba(255, 255, 255, 0.02)',
+                  borderColor: isSelected ? 'var(--border-accent)' : 'var(--border-subtle)',
+                }}
+                onClick={() => !isLoading && loadAgentDetails(agent.id)}
+              >
+                <div className="flex justify-between items-start">
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                      {agent.name}
+                    </h3>
+                    {agent.description && (
+                      <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                        {agent.description.slice(0, 120)}{agent.description.length > 120 ? '...' : ''}
+                      </p>
+                    )}
+                    <div className="flex gap-3 items-center text-small" style={{ marginTop: '0.75rem' }}>
+                      <span className="font-mono" style={{ color: 'var(--text-tertiary)' }}>{agent.model}</span>
+                      <span className="badge badge-neutral text-small">{agent.agent_type}</span>
+                    </div>
+                  </div>
+                </div>
+                {isLoading && (
+                  <div className="text-small text-muted" style={{ marginTop: '0.75rem' }}>Loading...</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Agent details panel */}
+        {expandedAgent && (() => {
+          const agent = agents.find(a => a.id === expandedAgent);
+          if (!agent) return null;
 
           return (
-            <div
-              key={agent.id}
-              className="card"
-              style={{ cursor: 'pointer' }}
-              onClick={() => !isLoading && loadAgentDetails(agent.id)}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {agent.name}
-                  </h3>
-                  {agent.description && (
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '1rem', fontSize: '0.9375rem' }}>
-                      {agent.description}
-                    </p>
-                  )}
-                </div>
+            <div className="card" style={{ position: 'sticky', top: '1.5rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                  {agent.name}
+                </h3>
+                {agent.description && (
+                  <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', fontSize: '0.9375rem' }}>
+                    {agent.description}
+                  </p>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div className="flex gap-2 items-center text-small">
-                  <span className="text-muted" style={{ fontWeight: 500 }}>Model:</span>
-                  <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>{agent.model}</span>
-                </div>
-                <div className="flex gap-2 items-center text-small">
-                  <span className="text-muted" style={{ fontWeight: 500 }}>Type:</span>
-                  <span className="badge badge-neutral">{agent.agent_type}</span>
+              {/* Basic Info */}
+              <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div>
+                    <div className="text-small text-muted mb-1">Model</div>
+                    <div className="font-mono" style={{ color: 'var(--neon-teal)' }}>{agent.model}</div>
+                  </div>
+                  <div>
+                    <div className="text-small text-muted mb-1">Type</div>
+                    <span className="badge badge-neutral">{agent.agent_type}</span>
+                  </div>
+                  <div>
+                    <div className="text-small text-muted mb-1">ID</div>
+                    <div className="font-mono text-small" style={{ color: 'var(--text-tertiary)' }}>{agent.id}</div>
+                  </div>
+                  <div>
+                    <div className="text-small text-muted mb-1">Created</div>
+                    <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+                      {new Date(agent.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                  </div>
                 </div>
                 {agent.tags && agent.tags.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {agent.tags.map((tag) => (
-                      <span key={tag} className="badge badge-neutral text-small">
-                        {tag}
-                      </span>
-                    ))}
+                  <div style={{ marginTop: '1rem' }}>
+                    <div className="text-small text-muted mb-2">Tags</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {agent.tags.map((tag) => (
+                        <span key={tag} className="badge badge-neutral text-small">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {isLoading && (
-                <div className="text-small text-muted" style={{ marginTop: '1rem' }}>Loading details...</div>
-              )}
-
-              {isExpanded && agent.memory && (
-                <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-                  <div className="text-small text-muted mb-2">Core Memory</div>
+              {/* Core Memory */}
+              {agent.memory && (
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Core Memory
+                  </h4>
                   {agent.memory.blocks && agent.memory.blocks.length > 0 ? (
-                    <div style={{ display: 'grid', gap: '0.75rem' }}>
-                      {agent.memory.blocks.slice(0, 3).map((block: any) => (
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {agent.memory.blocks.map((block: any) => (
                         <div key={block.id || block.label} style={{
-                          padding: '0.75rem',
-                          background: 'rgba(0, 255, 136, 0.02)',
+                          padding: '1rem',
+                          background: 'rgba(0, 255, 136, 0.03)',
                           border: '1px solid var(--border-subtle)',
-                          fontSize: '0.75rem',
                         }}>
-                          <div className="font-mono text-small" style={{ color: 'var(--neon-green)', marginBottom: '0.5rem' }}>
+                          <div className="font-mono" style={{ color: 'var(--neon-green)', marginBottom: '0.75rem', fontWeight: 600 }}>
                             {block.label || 'Memory Block'}
                           </div>
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.5' }}>
-                            {(block.value || '').slice(0, 150)}{(block.value || '').length > 150 ? '...' : ''}
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
+                            {block.value || 'No content'}
                           </div>
                         </div>
                       ))}
-                      {agent.memory.blocks.length > 3 && (
-                        <div className="text-small text-muted">+ {agent.memory.blocks.length - 3} more blocks</div>
-                      )}
                     </div>
                   ) : (
                     <div className="text-small text-muted">No memory blocks</div>
@@ -169,59 +217,65 @@ export function AgentsView() {
                 </div>
               )}
 
-              {isExpanded && agent.tools && agent.tools.length > 0 && (
-                <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-                  <div className="text-small text-muted mb-2">Tools ({agent.tools.length})</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {agent.tools.slice(0, 8).map((tool: any, idx: number) => (
-                      <span key={tool.id || idx} className="badge badge-neutral text-small font-mono">
-                        {tool.name}
-                      </span>
-                    ))}
-                    {agent.tools.length > 8 && (
-                      <span className="text-small text-muted">+{agent.tools.length - 8} more</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isExpanded && agent.messages && agent.messages.length > 0 && (
-                <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-                  <div className="text-small text-muted mb-2">Recent Messages ({agent.messages.length})</div>
-                  <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    {agent.messages.slice(0, 3).map((msg: any) => (
-                      <div key={msg.id} style={{
+              {/* Tools */}
+              {agent.tools && agent.tools.length > 0 && (
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Tools ({agent.tools.length})
+                  </h4>
+                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    {agent.tools.map((tool: any, idx: number) => (
+                      <div key={tool.id || idx} style={{
                         padding: '0.75rem',
                         background: 'rgba(255, 255, 255, 0.02)',
                         border: '1px solid var(--border-subtle)',
-                        fontSize: '0.75rem',
                       }}>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className={`badge badge-${msg.role === 'user' ? 'neutral' : 'success'}`}>
-                            {msg.role}
-                          </span>
+                        <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)' }}>
+                          {tool.name}
                         </div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.5' }}>
-                          {((msg.text || msg.content || '').slice(0, 100))}{(msg.text || msg.content || '').length > 100 ? '...' : ''}
-                        </div>
+                        {tool.description && (
+                          <div className="text-small" style={{ color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
+                            {tool.description}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)' }}>
-                <span className="text-small text-muted">
-                  Created {new Date(agent.created_at).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
+              {/* Recent Messages */}
+              {agent.messages && agent.messages.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Recent Messages ({agent.messages.length})
+                  </h4>
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    {agent.messages.map((msg: any) => (
+                      <div key={msg.id} style={{
+                        padding: '1rem',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-subtle)',
+                      }}>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className={`badge badge-${msg.role === 'user' ? 'neutral' : 'success'}`}>
+                            {msg.role}
+                          </span>
+                          <span className="text-small text-muted">
+                            {new Date(msg.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
+                          {msg.text || msg.content || 'No content'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
-        })}
+        })()}
       </div>
 
       {agents.length === 0 && (
