@@ -163,7 +163,7 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1;
   margin-left: 240px;
   padding: 3rem;
-  max-width: 1400px;
+  width: calc(100vw - 240px);
   position: relative;
   z-index: 1;
 }
@@ -595,4 +595,40 @@ h1, h2, h3, h4, h5, h6 {
   .search-controls {
     flex-direction: column;
   }
+}
+
+/* Horizontal Tabs (for Resources and Settings views) */
+.tabs-list {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.5rem;
+}
+
+.tab-trigger {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+}
+
+.tab-trigger:hover {
+  color: var(--text-secondary);
+  background: rgba(0, 255, 136, 0.03);
+}
+
+.tab-trigger[data-state="active"] {
+  color: var(--neon-green);
+  background: rgba(0, 255, 136, 0.05);
+  border-bottom: 2px solid var(--neon-green);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
 }

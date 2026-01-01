@@ -22,8 +22,10 @@ export function SidebarNavigation({ value, onValueChange }: SidebarNavigationPro
   const navItems = [
     { id: 'agents', label: 'Agents' },
     { id: 'runs', label: 'Runs' },
+    { id: 'steps', label: 'Steps' },
     { id: 'trajectories', label: 'Trajectories' },
     { id: 'messages', label: 'Messages' },
+    { id: 'jobs', label: 'Jobs' },
     { id: 'resources', label: 'Resources' },
     { id: 'settings', label: 'Settings' },
   ];

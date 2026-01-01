@@ -4,6 +4,11 @@ import { Layout, SidebarNavigation } from './components/Layout';
 import { AgentsView } from './components/AgentsView';
 import { TrajectoriesView } from './components/TrajectoriesView';
 import { RunsView } from './components/RunsView';
+import { MessagesView } from './components/MessagesView';
+import { ResourcesView } from './components/ResourcesView';
+import { StepsView } from './components/StepsView';
+import { JobsView } from './components/JobsView';
+import { SettingsView } from './components/SettingsView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('agents');
@@ -27,24 +32,23 @@ export default function App() {
           </Tabs.Content>
 
           <Tabs.Content value="messages" className="animate-in">
-            <div className="empty-state">
-              <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: 'var(--text)' }}>Messages</h3>
-              <p>Message visualization coming soon</p>
-            </div>
+            <MessagesView />
+          </Tabs.Content>
+
+          <Tabs.Content value="steps" className="animate-in">
+            <StepsView />
+          </Tabs.Content>
+
+          <Tabs.Content value="jobs" className="animate-in">
+            <JobsView />
           </Tabs.Content>
 
           <Tabs.Content value="resources" className="animate-in">
-            <div className="empty-state">
-              <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: 'var(--text)' }}>Resources</h3>
-              <p>Memory blocks, tools, and MCP servers coming soon</p>
-            </div>
+            <ResourcesView />
           </Tabs.Content>
 
           <Tabs.Content value="settings" className="animate-in">
-            <div className="empty-state">
-              <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: 'var(--text)' }}>Settings</h3>
-              <p>Configuration settings coming soon</p>
-            </div>
+            <SettingsView />
           </Tabs.Content>
         </main>
       </Tabs.Root>
