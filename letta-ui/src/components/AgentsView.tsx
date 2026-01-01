@@ -39,10 +39,10 @@ export function AgentsView() {
 
     try {
       setLoadingDetails(agentId);
-      const [tools, memory, messages] = await Promise.allSettled([
-        api.listTools().then(res => (Array.isArray(res) ? res : res.items || [])),
+      const [agentDetails, memory, messages] = await Promise.allSettled([
+        api.getAgent(agentId),
         api.getCoreMemory(agentId),
-        api.getAgentMessages(agentId, 5),
+        api.getAgentMessages(agentId, 20),
       ]);
 
       setAgents(prevAgents =>
@@ -50,7 +50,7 @@ export function AgentsView() {
           agent.id === agentId
             ? {
                 ...agent,
-                tools: tools.status === 'fulfilled' ? tools.value : null,
+                ...(agentDetails.status === 'fulfilled' ? agentDetails.value : {}),
                 memory: memory.status === 'fulfilled' ? memory.value : null,
                 messages: messages.status === 'fulfilled'
                   ? (Array.isArray(messages.value) ? messages.value : messages.value.items || [])
@@ -88,43 +88,63 @@ export function AgentsView() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: expandedAgent ? '1fr 1.5fr' : '1fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: expandedAgent ? '400px 1fr' : '1fr', gap: '1.5rem' }}>
         {/* Agent list */}
-        <div className="card-list">
-          {agents.map((agent) => {
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.01)',
+          border: '1px solid var(--border-subtle)',
+          overflow: 'hidden',
+        }}>
+          {agents.map((agent, index) => {
             const isSelected = expandedAgent === agent.id;
             const isLoading = loadingDetails === agent.id;
 
             return (
               <div
                 key={agent.id}
-                className="card"
                 style={{
+                  padding: '1rem 1.5rem',
                   cursor: 'pointer',
-                  background: isSelected ? 'rgba(0, 255, 136, 0.05)' : 'rgba(255, 255, 255, 0.02)',
-                  borderColor: isSelected ? 'var(--border-accent)' : 'var(--border-subtle)',
+                  background: isSelected ? 'rgba(0, 255, 136, 0.08)' : 'transparent',
+                  borderBottom: index < agents.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                  borderLeft: isSelected ? '3px solid var(--neon-green)' : '3px solid transparent',
+                  transition: 'all 0.2s ease',
                 }}
                 onClick={() => !isLoading && loadAgentDetails(agent.id)}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
               >
-                <div className="flex justify-between items-start">
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                <div className="flex items-center justify-between">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: '0.9375rem',
+                      fontWeight: 600,
+                      color: isSelected ? 'var(--neon-green)' : 'var(--text-primary)',
+                      marginBottom: '0.25rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
                       {agent.name}
-                    </h3>
-                    {agent.description && (
-                      <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-                        {agent.description.slice(0, 120)}{agent.description.length > 120 ? '...' : ''}
-                      </p>
-                    )}
-                    <div className="flex gap-3 items-center text-small" style={{ marginTop: '0.75rem' }}>
-                      <span className="font-mono" style={{ color: 'var(--text-tertiary)' }}>{agent.model}</span>
-                      <span className="badge badge-neutral text-small">{agent.agent_type}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-small" style={{ color: 'var(--text-tertiary)' }}>
+                      <span className="font-mono">{agent.model}</span>
+                      <span>•</span>
+                      <span>{agent.agent_type}</span>
                     </div>
                   </div>
+                  {isLoading && (
+                    <div className="text-small text-muted">Loading...</div>
+                  )}
                 </div>
-                {isLoading && (
-                  <div className="text-small text-muted" style={{ marginTop: '0.75rem' }}>Loading...</div>
-                )}
               </div>
             );
           })}
@@ -225,21 +245,111 @@ export function AgentsView() {
                   </h4>
                   <div style={{ display: 'grid', gap: '0.75rem' }}>
                     {agent.tools.map((tool: any, idx: number) => (
-                      <div key={tool.id || idx} style={{
+                      <div key={tool.id || tool.name || idx} style={{
                         padding: '0.75rem',
                         background: 'rgba(255, 255, 255, 0.02)',
                         border: '1px solid var(--border-subtle)',
                       }}>
                         <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)' }}>
-                          {tool.name}
+                          {tool.name || tool}
                         </div>
                         {tool.description && (
                           <div className="text-small" style={{ color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
                             {tool.description}
                           </div>
                         )}
+                        {tool.tags && tool.tags.length > 0 && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            {tool.tags.map((tag: string) => (
+                              <span key={tag} className="badge badge-neutral" style={{ fontSize: '0.625rem' }}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* System Prompt */}
+              {agent.system && (
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    System Prompt
+                  </h4>
+                  <div style={{
+                    padding: '1rem',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid var(--border-subtle)',
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                  }}>
+                    <pre style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.8125rem',
+                      lineHeight: '1.7',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}>
+                      {agent.system}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* LLM Config */}
+              {agent.llm_config && (
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    LLM Configuration
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                    {agent.llm_config.model && (
+                      <div>
+                        <div className="text-small text-muted">Model</div>
+                        <div className="font-mono text-small" style={{ color: 'var(--text-secondary)' }}>
+                          {agent.llm_config.model}
+                        </div>
+                      </div>
+                    )}
+                    {agent.llm_config.context_window && (
+                      <div>
+                        <div className="text-small text-muted">Context Window</div>
+                        <div className="font-mono text-small" style={{ color: 'var(--text-secondary)' }}>
+                          {agent.llm_config.context_window.toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Embedding Config */}
+              {agent.embedding_config && (
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Embedding Configuration
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                    {agent.embedding_config.embedding_model && (
+                      <div>
+                        <div className="text-small text-muted">Model</div>
+                        <div className="font-mono text-small" style={{ color: 'var(--text-secondary)' }}>
+                          {agent.embedding_config.embedding_model}
+                        </div>
+                      </div>
+                    )}
+                    {agent.embedding_config.embedding_dim && (
+                      <div>
+                        <div className="text-small text-muted">Dimensions</div>
+                        <div className="font-mono text-small" style={{ color: 'var(--text-secondary)' }}>
+                          {agent.embedding_config.embedding_dim}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
