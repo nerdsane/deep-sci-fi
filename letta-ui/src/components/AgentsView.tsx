@@ -6,6 +6,14 @@ interface AgentWithDetails extends Agent {
   tools?: any[];
   memory?: any;
   messages?: any[];
+  llm_config?: {
+    model?: string;
+    context_window?: number;
+  };
+  embedding_config?: {
+    embedding_model?: string;
+    embedding_dim?: number;
+  };
 }
 
 export function AgentsView() {
@@ -14,6 +22,8 @@ export function AgentsView() {
   const [error, setError] = useState<string | null>(null);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
+  const [editingAgent, setEditingAgent] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     loadAgents();
@@ -67,6 +77,35 @@ export function AgentsView() {
     }
   }
 
+  async function handleRename(agentId: string, newName: string) {
+    if (!newName.trim()) return;
+
+    try {
+      await api.updateAgent(agentId, { name: newName });
+      setAgents(prevAgents =>
+        prevAgents.map(agent =>
+          agent.id === agentId ? { ...agent, name: newName } : agent
+        )
+      );
+      setEditingAgent(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to rename agent');
+    }
+  }
+
+  async function handleDelete(agentId: string) {
+    try {
+      await api.deleteAgent(agentId);
+      setAgents(prevAgents => prevAgents.filter(agent => agent.id !== agentId));
+      if (expandedAgent === agentId) {
+        setExpandedAgent(null);
+      }
+      setDeleteConfirm(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete agent');
+    }
+  }
+
   if (loading) {
     return <div className="loading">Loading agents...</div>;
   }
@@ -104,13 +143,11 @@ export function AgentsView() {
                 key={agent.id}
                 style={{
                   padding: '1rem 1.5rem',
-                  cursor: 'pointer',
                   background: isSelected ? 'rgba(0, 255, 136, 0.08)' : 'transparent',
                   borderBottom: index < agents.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                   borderLeft: isSelected ? '3px solid var(--neon-green)' : '3px solid transparent',
                   transition: 'all 0.2s ease',
                 }}
-                onClick={() => !isLoading && loadAgentDetails(agent.id)}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
                     e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
@@ -123,7 +160,7 @@ export function AgentsView() {
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0 }} onClick={() => !isLoading && loadAgentDetails(agent.id)}>
                     <div style={{
                       fontSize: '0.9375rem',
                       fontWeight: 600,
@@ -141,8 +178,41 @@ export function AgentsView() {
                       <span>{agent.agent_type}</span>
                     </div>
                   </div>
-                  {isLoading && (
+                  {isLoading ? (
                     <div className="text-small text-muted">Loading...</div>
+                  ) : (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setEditingAgent({ id: agent.id, name: agent.name })}
+                        className="btn-icon"
+                        title="Rename agent"
+                        style={{
+                          padding: '0.25rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-tertiary)',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(agent.id)}
+                        className="btn-icon"
+                        title="Delete agent"
+                        style={{
+                          padding: '0.25rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-tertiary)',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -390,6 +460,106 @@ export function AgentsView() {
 
       {agents.length === 0 && (
         <div className="empty-state">No agents found</div>
+      )}
+
+      {/* Rename Modal */}
+      {editingAgent && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setEditingAgent(null)}>
+          <div className="card" style={{
+            maxWidth: '400px',
+            width: '100%',
+            margin: '1rem',
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 600 }}>Rename Agent</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const newName = formData.get('name') as string;
+              handleRename(editingAgent.id, newName);
+            }}>
+              <input
+                type="text"
+                name="name"
+                defaultValue={editingAgent.name}
+                className="input"
+                style={{ width: '100%', marginBottom: '1rem' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingAgent(null)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Rename
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setDeleteConfirm(null)}>
+          <div className="card" style={{
+            maxWidth: '400px',
+            width: '100%',
+            margin: '1rem',
+            background: 'rgba(255, 0, 100, 0.05)',
+            borderColor: 'var(--neon-magenta)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 600, color: 'var(--neon-magenta)' }}>
+              Delete Agent?
+            </h3>
+            <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+              Are you sure you want to delete "{agents.find(a => a.id === deleteConfirm)?.name}"? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="btn"
+                style={{
+                  background: 'var(--neon-magenta)',
+                  color: 'var(--bg-primary)',
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

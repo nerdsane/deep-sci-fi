@@ -100,10 +100,20 @@ export interface Trajectory {
       reasoning: string[];
     };
   };
-  summary?: string;
+  searchable_summary?: string;
   outcome_score?: number;
+  score_reasoning?: string;
+  tags?: string[];
+  task_category?: string;
+  complexity_level?: string;
+  metadata?: Record<string, any>;
+  processing_status?: string;
+  processing_started_at?: string;
+  processing_completed_at?: string;
+  processing_error?: string;
   embedding?: number[];
   created_at: string;
+  updated_at?: string;
 }
 
 export interface SearchTrajectoriesResponse {

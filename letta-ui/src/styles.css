@@ -632,3 +632,13 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 2px solid var(--neon-green);
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
 }
+
+/* Loading Skeleton Animation */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

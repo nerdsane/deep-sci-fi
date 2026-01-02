@@ -1,26 +1,62 @@
 import React, { useEffect, useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import { api } from '../lib/api';
 import type { Trajectory } from '../types/letta';
+import { StatsSkeleton, TrajectoryListSkeleton, TrajectoryDetailSkeleton } from './LoadingSkeletons';
+import { AnalyticsView } from './AnalyticsView';
+
+interface Filters {
+  agentId: string;
+  outcomeType: string;
+  minScore: string;
+  maxScore: string;
+  startDate: string;
+  endDate: string;
+}
 
 export function TrajectoriesView() {
+  const [viewTab, setViewTab] = useState('list');
   const [trajectories, setTrajectories] = useState<Trajectory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTrajectory, setSelectedTrajectory] = useState<string | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [filters, setFilters] = useState<Filters>({
+    agentId: '',
+    outcomeType: '',
+    minScore: '',
+    maxScore: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!loading && !searchQuery) {
+        loadTrajectories(true); // silent reload
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [loading, searchQuery]);
 
   useEffect(() => {
     loadTrajectories();
-  }, []);
+  }, [page]);
 
-  async function loadTrajectories() {
+  async function loadTrajectories(silent = false) {
     try {
-      setLoading(true);
-      const response = await api.listTrajectories();
+      if (!silent) setLoading(true);
+      const response = await api.listTrajectories(filters.agentId || undefined, pageSize);
       setTrajectories(Array.isArray(response) ? response : response.items || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load trajectories');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -33,7 +69,8 @@ export function TrajectoriesView() {
 
     try {
       setLoading(true);
-      const response = await api.searchTrajectories(searchQuery);
+      const minScore = filters.minScore ? parseFloat(filters.minScore) : undefined;
+      const response = await api.searchTrajectories(searchQuery, minScore, pageSize);
       setTrajectories(response.trajectories || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
@@ -42,12 +79,43 @@ export function TrajectoriesView() {
     }
   }
 
+  async function selectTrajectory(trajectoryId: string) {
+    if (selectedTrajectory === trajectoryId) {
+      setSelectedTrajectory(null);
+      return;
+    }
+
+    try {
+      setLoadingDetail(true);
+      const details = await api.getTrajectory(trajectoryId);
+      // Update the trajectory in the list with full details
+      setTrajectories(prev =>
+        prev.map(t => (t.id === trajectoryId ? { ...t, ...details } : t))
+      );
+      setSelectedTrajectory(trajectoryId);
+    } catch (err) {
+      console.error('Failed to load trajectory details:', err);
+      setError('Failed to load trajectory details');
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  function applyFilters() {
+    const filtered = trajectories.filter(t => {
+      if (filters.outcomeType && t.data?.outcome?.type !== filters.outcomeType) return false;
+      if (filters.minScore && (t.outcome_score ?? 0) < parseFloat(filters.minScore)) return false;
+      if (filters.maxScore && (t.outcome_score ?? 1) > parseFloat(filters.maxScore)) return false;
+      if (filters.startDate && new Date(t.created_at) < new Date(filters.startDate)) return false;
+      if (filters.endDate && new Date(t.created_at) > new Date(filters.endDate)) return false;
+      return true;
+    });
+    return filtered;
+  }
+
+  const filteredTrajectories = applyFilters();
   const successCount = trajectories.filter((t) => t.data?.outcome?.type === 'success').length;
   const failureCount = trajectories.filter((t) => t.data?.outcome?.type === 'failure').length;
-
-  if (loading && trajectories.length === 0) {
-    return <div className="loading">Loading trajectories...</div>;
-  }
 
   return (
     <div>
@@ -58,8 +126,55 @@ export function TrajectoriesView() {
         </p>
       </div>
 
+      <Tabs.Root value={viewTab} onValueChange={setViewTab}>
+        <Tabs.List style={{
+          display: 'flex',
+          gap: '0.5rem',
+          marginBottom: '1.5rem',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}>
+          <Tabs.Trigger
+            value="list"
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'transparent',
+              border: 'none',
+              color: viewTab === 'list' ? 'var(--neon-teal)' : 'var(--text-muted)',
+              borderBottom: viewTab === 'list' ? '2px solid var(--neon-teal)' : '2px solid transparent',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+          >
+            List View
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="analytics"
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'transparent',
+              border: 'none',
+              color: viewTab === 'analytics' ? 'var(--neon-teal)' : 'var(--text-muted)',
+              borderBottom: viewTab === 'analytics' ? '2px solid var(--neon-teal)' : '2px solid transparent',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+          >
+            Analytics
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="list">
+          <div>
+
       {/* Stats */}
-      <div className="stats-grid">
+      {loading && trajectories.length === 0 ? (
+        <StatsSkeleton />
+      ) : (
+        <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-value color-teal">{trajectories.length}</div>
           <div className="stat-label">Total Trajectories</div>
@@ -81,9 +196,10 @@ export function TrajectoriesView() {
           </div>
           <div className="stat-label">Success Rate</div>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* Search */}
+      {/* Search and Filters */}
       <form onSubmit={handleSearch} className="search-form">
         <div className="search-controls">
           <input
@@ -109,7 +225,130 @@ export function TrajectoriesView() {
               Clear
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className="btn btn-secondary"
+          >
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div style={{
+            marginTop: '1rem',
+            padding: '1.5rem',
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid var(--border-subtle)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+          }}>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Agent ID
+              </label>
+              <input
+                type="text"
+                value={filters.agentId}
+                onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
+                placeholder="Filter by agent..."
+                className="input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Outcome Type
+              </label>
+              <select
+                value={filters.outcomeType}
+                onChange={(e) => setFilters({ ...filters, outcomeType: e.target.value })}
+                className="input"
+                style={{ width: '100%' }}
+              >
+                <option value="">All</option>
+                <option value="success">Success</option>
+                <option value="failure">Failure</option>
+                <option value="partial_success">Partial Success</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Min Score
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={filters.minScore}
+                onChange={(e) => setFilters({ ...filters, minScore: e.target.value })}
+                placeholder="0.0"
+                className="input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Max Score
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={filters.maxScore}
+                onChange={(e) => setFilters({ ...filters, maxScore: e.target.value })}
+                placeholder="1.0"
+                className="input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setFilters({
+                  agentId: '',
+                  outcomeType: '',
+                  minScore: '',
+                  maxScore: '',
+                  startDate: '',
+                  endDate: '',
+                })}
+                className="btn btn-secondary"
+                style={{ width: '100%' }}
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        )}
       </form>
 
       {error && (
@@ -118,79 +357,474 @@ export function TrajectoriesView() {
         </div>
       )}
 
-      {/* Trajectory list */}
-      <div className="card-list">
-        {trajectories.map((trajectory) => {
+      {/* List-Detail Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: selectedTrajectory ? '400px 1fr' : '1fr', gap: '1.5rem' }}>
+        {/* Trajectory list */}
+        {loading && trajectories.length === 0 ? (
+          <TrajectoryListSkeleton count={10} />
+        ) : (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.01)',
+            border: '1px solid var(--border-subtle)',
+            overflow: 'hidden',
+          }}>
+            {filteredTrajectories.map((trajectory, index) => {
+            const outcome = trajectory.data?.outcome;
+            const metadata = trajectory.data?.metadata;
+            const isSelected = selectedTrajectory === trajectory.id;
+
+            return (
+              <div
+                key={trajectory.id}
+                style={{
+                  padding: '1rem 1.5rem',
+                  cursor: 'pointer',
+                  background: isSelected ? 'rgba(0, 255, 136, 0.08)' : 'transparent',
+                  borderBottom: index < filteredTrajectories.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                  borderLeft: isSelected ? '3px solid var(--neon-green)' : '3px solid transparent',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => selectTrajectory(trajectory.id)}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span
+                    className={`badge ${
+                      outcome?.type === 'success'
+                        ? 'badge-success'
+                        : outcome?.type === 'failure'
+                        ? 'badge-failure'
+                        : 'badge-neutral'
+                    }`}
+                  >
+                    {outcome?.type || 'unknown'}
+                  </span>
+                  <span className="text-small text-muted font-mono">
+                    Score: {trajectory.outcome_score?.toFixed(2) || 'N/A'}
+                  </span>
+                </div>
+                {trajectory.searchable_summary && (
+                  <p style={{
+                    color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    lineHeight: '1.6',
+                    fontSize: '0.875rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    marginBottom: trajectory.tags && trajectory.tags.length > 0 ? '0.5rem' : '0',
+                  }}>
+                    {trajectory.searchable_summary}
+                  </p>
+                )}
+                {trajectory.tags && trajectory.tags.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                    {trajectory.tags.slice(0, 3).map((tag, tagIdx) => (
+                      <span key={tagIdx} className="badge badge-neutral" style={{ fontSize: '0.625rem', padding: '0.125rem 0.375rem' }}>
+                        {tag}
+                      </span>
+                    ))}
+                    {trajectory.tags.length > 3 && (
+                      <span className="badge badge-neutral" style={{ fontSize: '0.625rem', padding: '0.125rem 0.375rem' }}>
+                        +{trajectory.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                  <span className="font-mono">
+                    {metadata?.step_count || 0} steps
+                  </span>
+                  <span>
+                    {new Date(trajectory.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        )}
+
+        {/* Trajectory detail panel */}
+        {selectedTrajectory && (loadingDetail ? (
+          <TrajectoryDetailSkeleton />
+        ) : (() => {
+          const trajectory = trajectories.find(t => t.id === selectedTrajectory);
+          if (!trajectory) return null;
+
           const outcome = trajectory.data?.outcome;
           const metadata = trajectory.data?.metadata;
+          const turns = trajectory.data?.turns || [];
 
           return (
-            <div key={trajectory.id} className="card">
-              <div className="flex justify-between items-start mb-3">
-                <div style={{ flex: 1 }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className={`badge ${
-                        outcome?.type === 'success'
-                          ? 'badge-success'
-                          : outcome?.type === 'failure'
-                          ? 'badge-failure'
-                          : 'badge-neutral'
-                      }`}
-                    >
-                      {outcome?.type || 'unknown'}
-                    </span>
-                    <span className="text-small text-muted font-mono">
-                      Score: {trajectory.outcome_score?.toFixed(2) || 'N/A'}
-                    </span>
+            <div className="card" style={{ position: 'sticky', top: '1.5rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
+              <>
+                  {/* Header */}
+                  <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span
+                        className={`badge ${
+                          outcome?.type === 'success'
+                            ? 'badge-success'
+                            : outcome?.type === 'failure'
+                            ? 'badge-failure'
+                            : 'badge-neutral'
+                        }`}
+                      >
+                        {outcome?.type || 'unknown'}
+                      </span>
+                      <span className="font-mono" style={{ color: 'var(--neon-teal)' }}>
+                        Score: {trajectory.outcome_score?.toFixed(2) || 'N/A'}
+                      </span>
+                      {trajectory.processing_status && (
+                        <span className={`badge ${
+                          trajectory.processing_status === 'completed'
+                            ? 'badge-success'
+                            : trajectory.processing_status === 'failed'
+                            ? 'badge-failure'
+                            : 'badge-neutral'
+                        }`}>
+                          {trajectory.processing_status}
+                        </span>
+                      )}
+                    </div>
+                    {trajectory.searchable_summary && (
+                      <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', fontSize: '0.9375rem', marginBottom: '0.75rem' }}>
+                        {trajectory.searchable_summary}
+                      </p>
+                    )}
+
+                    {/* Tags, Category, Complexity */}
+                    {(trajectory.tags || trajectory.task_category || trajectory.complexity_level) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                        {trajectory.task_category && (
+                          <span className="badge" style={{ background: 'rgba(0, 229, 255, 0.1)', color: 'var(--neon-teal)', border: '1px solid rgba(0, 229, 255, 0.3)' }}>
+                            📑 {trajectory.task_category}
+                          </span>
+                        )}
+                        {trajectory.complexity_level && (
+                          <span className="badge" style={{ background: 'rgba(255, 255, 0, 0.1)', color: 'var(--neon-lemon)', border: '1px solid rgba(255, 255, 0, 0.3)' }}>
+                            🎯 {trajectory.complexity_level}
+                          </span>
+                        )}
+                        {trajectory.tags && trajectory.tags.length > 0 && trajectory.tags.map((tag, idx) => (
+                          <span key={idx} className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {trajectory.summary && (
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', fontSize: '0.9375rem' }}>{trajectory.summary}</p>
+
+                  {/* LLM Processing Details */}
+                  {(trajectory.score_reasoning || trajectory.processing_completed_at) && (
+                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ color: 'var(--neon-magenta)' }}>🤖</span> LLM Processing
+                      </h4>
+
+                      <div style={{ display: 'grid', gap: '1rem' }}>
+                        {/* Processing Model */}
+                        <div style={{ padding: '0.75rem', background: 'rgba(255, 0, 255, 0.05)', border: '1px solid var(--border-subtle)' }}>
+                          <div className="text-small text-muted mb-1">Processed by</div>
+                          <div className="font-mono" style={{ color: 'var(--neon-magenta)' }}>gpt-4o-mini</div>
+                          <div className="text-small" style={{ color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
+                            OpenAI's fast model for trajectory analysis
+                          </div>
+                        </div>
+
+                        {/* Processing Duration */}
+                        {trajectory.processing_started_at && trajectory.processing_completed_at && (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                            <div>
+                              <div className="text-small text-muted mb-1">Processing Time</div>
+                              <div className="font-mono text-small" style={{ color: 'var(--text-secondary)' }}>
+                                {(() => {
+                                  const start = new Date(trajectory.processing_started_at!);
+                                  const end = new Date(trajectory.processing_completed_at!);
+                                  const durationMs = end.getTime() - start.getTime();
+                                  return `${(durationMs / 1000).toFixed(1)}s`;
+                                })()}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-small text-muted mb-1">Completed</div>
+                              <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+                                {new Date(trajectory.processing_completed_at).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Score Reasoning */}
+                        {trajectory.score_reasoning && (
+                          <div>
+                            <div className="text-small" style={{ color: 'var(--neon-green)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                              Score Reasoning (Learning Value Assessment)
+                            </div>
+                            <div style={{
+                              padding: '0.75rem',
+                              background: 'rgba(0, 255, 136, 0.05)',
+                              border: '1px solid var(--border-subtle)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.875rem',
+                              lineHeight: '1.7'
+                            }}>
+                              {trajectory.score_reasoning}
+                            </div>
+                            <div className="text-small text-muted" style={{ marginTop: '0.5rem', fontStyle: 'italic' }}>
+                              Scored based on: interaction depth (35%), task complexity (30%), tool usage (20%), learning value (15%)
+                            </div>
+                          </div>
+                        )}
+
+                        {trajectory.processing_error && (
+                          <div style={{ padding: '0.75rem', background: 'rgba(255, 0, 255, 0.1)', border: '1px solid var(--neon-magenta)', color: 'var(--neon-magenta)' }}>
+                            <div className="text-small font-mono">Processing Error:</div>
+                            <div className="text-small" style={{ marginTop: '0.25rem' }}>{trajectory.processing_error}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              {metadata && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.25rem', fontSize: '0.875rem', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-                  <div>
-                    <span className="text-muted">Steps:</span>
-                    <span className="font-mono" style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>{metadata.step_count}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted">Messages:</span>
-                    <span className="font-mono" style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>{metadata.message_count}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted">Tokens:</span>
-                    <span className="font-mono" style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>{metadata.total_tokens}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted">Duration:</span>
-                    <span className="font-mono" style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>
-                      {metadata.duration_ns
-                        ? `${(metadata.duration_ns / 1_000_000_000).toFixed(1)}s`
-                        : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              )}
+                  {/* Metadata */}
+                  {metadata && (
+                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                        Metadata
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                        <div>
+                          <div className="text-small text-muted mb-1">Steps</div>
+                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.step_count}</div>
+                        </div>
+                        <div>
+                          <div className="text-small text-muted mb-1">Messages</div>
+                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.message_count}</div>
+                        </div>
+                        <div>
+                          <div className="text-small text-muted mb-1">Total Tokens</div>
+                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.total_tokens?.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-small text-muted mb-1">Duration</div>
+                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                            {metadata.duration_ns ? `${(metadata.duration_ns / 1_000_000_000).toFixed(1)}s` : 'N/A'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-small text-muted mb-1">Status</div>
+                          <span className="badge badge-neutral">{metadata.status}</span>
+                        </div>
+                        <div>
+                          <div className="text-small text-muted mb-1">Run ID</div>
+                          <div className="font-mono text-small" style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {trajectory.data?.run_id?.slice(0, 12)}...
+                          </div>
+                        </div>
+                      </div>
+                      {metadata.models && metadata.models.length > 0 && (
+                        <div style={{ marginTop: '1rem' }}>
+                          <div className="text-small text-muted mb-2">Models</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {metadata.models.map((model, idx) => (
+                              <span key={idx} className="badge badge-neutral text-small font-mono">
+                                {model}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {metadata.tools_used && metadata.tools_used.length > 0 && (
+                        <div style={{ marginTop: '1rem' }}>
+                          <div className="text-small text-muted mb-2">Tools Used</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {metadata.tools_used.map((tool, idx) => (
+                              <span key={idx} className="badge badge-neutral text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
+                                {tool}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-              <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }} className="flex justify-between items-center text-small">
-                <span className="text-muted font-mono">
-                  Agent: {trajectory.agent_id.slice(0, 12)}
-                </span>
-                <span className="text-muted">
-                  {new Date(trajectory.created_at).toLocaleString()}
-                </span>
-              </div>
+                  {/* Outcome */}
+                  {outcome && (
+                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                        Outcome Analysis
+                      </h4>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div className="text-small text-muted mb-1">Confidence</div>
+                        <div className="font-mono" style={{ color: 'var(--neon-teal)' }}>
+                          {(outcome.confidence * 100).toFixed(0)}%
+                        </div>
+                      </div>
+                      {outcome.reasoning && outcome.reasoning.length > 0 && (
+                        <div>
+                          <div className="text-small text-muted mb-2">Reasoning</div>
+                          <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7' }}>
+                            {outcome.reasoning.map((reason, idx) => (
+                              <li key={idx} style={{ marginBottom: '0.5rem' }}>{reason}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Execution Turns */}
+                  {turns.length > 0 && (
+                    <div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                        Execution Trace ({turns.length} turns)
+                      </h4>
+                      <div style={{ display: 'grid', gap: '1rem' }}>
+                        {turns.map((turn, idx) => (
+                          <div key={turn.step_id || idx} style={{
+                            padding: '1rem',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid var(--border-subtle)',
+                          }}>
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="font-mono" style={{ color: 'var(--neon-green)' }}>
+                                Turn {idx + 1}
+                              </span>
+                              <div className="flex items-center gap-3 text-small" style={{ color: 'var(--text-tertiary)' }}>
+                                <span className="font-mono">{turn.model}</span>
+                                <span>•</span>
+                                <span className="font-mono">{turn.input_tokens + turn.output_tokens} tokens</span>
+                              </div>
+                            </div>
+                            {turn.messages && turn.messages.length > 0 && (
+                              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                {turn.messages.map((msg, msgIdx) => (
+                                  <div key={msgIdx} style={{
+                                    padding: '0.75rem',
+                                    background: msg.role === 'user' ? 'rgba(0, 229, 255, 0.05)' : 'rgba(0, 255, 136, 0.05)',
+                                    border: `1px solid ${msg.role === 'user' ? 'rgba(0, 229, 255, 0.2)' : 'rgba(0, 255, 136, 0.2)'}`,
+                                  }}>
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className={`badge ${msg.role === 'user' ? 'badge-neutral' : 'badge-success'}`}>
+                                        {msg.role}
+                                      </span>
+                                      {msg.tool_calls && msg.tool_calls.length > 0 && (
+                                        <span className="text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
+                                          {msg.tool_calls.length} tool call{msg.tool_calls.length > 1 ? 's' : ''}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {msg.text && (
+                                      <div style={{
+                                        color: 'var(--text-secondary)',
+                                        fontSize: '0.875rem',
+                                        lineHeight: '1.7',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-word',
+                                      }}>
+                                        {msg.text}
+                                      </div>
+                                    )}
+                                    {msg.tool_calls && msg.tool_calls.length > 0 && (
+                                      <div style={{ marginTop: '0.75rem' }}>
+                                        {msg.tool_calls.map((tc, tcIdx) => (
+                                          <div key={tcIdx} style={{
+                                            padding: '0.5rem',
+                                            background: 'rgba(0, 0, 0, 0.3)',
+                                            border: '1px solid var(--border-subtle)',
+                                            marginBottom: tcIdx < msg.tool_calls!.length - 1 ? '0.5rem' : 0,
+                                          }}>
+                                            <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.25rem' }}>
+                                              {tc.function.name}
+                                            </div>
+                                            <pre style={{
+                                              fontSize: '0.75rem',
+                                              color: 'var(--text-tertiary)',
+                                              whiteSpace: 'pre-wrap',
+                                              wordBreak: 'break-word',
+                                              margin: 0,
+                                            }}>
+                                              {tc.function.arguments}
+                                            </pre>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+                    <div className="text-small text-muted font-mono">
+                      ID: {trajectory.id}
+                    </div>
+                    <div className="text-small text-muted" style={{ marginTop: '0.25rem' }}>
+                      Created: {new Date(trajectory.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                </>
             </div>
           );
-        })}
+        })())}
       </div>
 
-      {trajectories.length === 0 && !loading && (
+      {/* Pagination */}
+      <div style={{
+        marginTop: '1.5rem',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '1rem',
+      }}>
+        <button
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="btn btn-secondary"
+        >
+          Previous
+        </button>
+        <span className="text-small text-muted font-mono">
+          Page {page}
+        </span>
+        <button
+          onClick={() => setPage(p => p + 1)}
+          disabled={filteredTrajectories.length < pageSize}
+          className="btn btn-secondary"
+        >
+          Next
+        </button>
+      </div>
+
+      {filteredTrajectories.length === 0 && !loading && (
         <div className="empty-state">No trajectories found</div>
       )}
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="analytics">
+          <AnalyticsView />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }
