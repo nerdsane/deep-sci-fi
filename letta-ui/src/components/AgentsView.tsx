@@ -184,33 +184,32 @@ export function AgentsView() {
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setEditingAgent({ id: agent.id, name: agent.name })}
-                        className="btn-icon"
+                        className="btn-secondary"
                         title="Rename agent"
                         style={{
-                          padding: '0.25rem',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-tertiary)',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
+                          padding: '0.375rem 0.75rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
                         }}
                       >
-                        ✏️
+                        Edit
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(agent.id)}
-                        className="btn-icon"
+                        className="btn-secondary"
                         title="Delete agent"
                         style={{
-                          padding: '0.25rem',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-tertiary)',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
+                          padding: '0.375rem 0.75rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--error)',
                         }}
                       >
-                        🗑️
+                        Delete
                       </button>
                     </div>
                   )}
