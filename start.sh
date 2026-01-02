@@ -207,9 +207,45 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     exit 1
 fi
 
+# Start Letta Web UI
+echo ""
+echo -e "${PURPLE}[7/9] Starting Letta Web UI...${NC}"
+
+LETTA_UI_DIR="$SCRIPT_DIR/letta-ui"
+
+if command_exists bun && [ -d "$LETTA_UI_DIR" ]; then
+    # Check if port 3000 is available
+    if port_in_use 3000; then
+        echo -e "${PURPLE}⚠ Port 3000 already in use. Web UI might already be running.${NC}"
+    else
+        cd "$LETTA_UI_DIR"
+        echo -e "${CYAN_BRIGHT}✓ Starting Letta Web UI on http://localhost:3000${NC}"
+
+        # Start web UI in background
+        LETTA_BASE_URL=http://localhost:8283 nohup bun run dev > "$LETTA_UI_DIR/.ui.log" 2>&1 &
+        UI_PID=$!
+        echo $UI_PID > "$LETTA_UI_DIR/.ui.pid"
+
+        # Wait a moment for it to start
+        sleep 2
+
+        if kill -0 $UI_PID 2>/dev/null; then
+            echo -e "${CYAN_BRIGHT}✓ Letta Web UI running (PID: $UI_PID)${NC}"
+        else
+            echo -e "${RED}✗ Failed to start web UI. Check $LETTA_UI_DIR/.ui.log${NC}"
+        fi
+    fi
+else
+    if ! command_exists bun; then
+        echo -e "${PURPLE}⚠ Bun not installed - Web UI unavailable${NC}"
+    else
+        echo -e "${PURPLE}⚠ letta-ui directory not found - Web UI unavailable${NC}"
+    fi
+fi
+
 # Start Story Explorer Gallery (optional)
 echo ""
-echo -e "${PURPLE}[7/8] Story Explorer Gallery...${NC}"
+echo -e "${PURPLE}[8/9] Story Explorer Gallery...${NC}"
 
 if command_exists bun && [ -d "$LETTA_CODE_DIR" ]; then
     # Check if port 3030 is available
@@ -243,21 +279,27 @@ fi
 
 # Summary
 echo ""
-echo -e "${PURPLE}[8/8] Startup complete!${NC}"
+echo -e "${PURPLE}[9/9] Startup complete!${NC}"
 echo ""
 echo -e "${CYAN_BRIGHT}╔════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN_BRIGHT}║   Letta Stack Running                     ║${NC}"
 echo -e "${CYAN_BRIGHT}╚════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}Services:${NC}"
-echo -e "  • Letta Server:  ${CYAN_BRIGHT}http://localhost:8283${NC}"
-echo -e "  • PostgreSQL:    ${CYAN_BRIGHT}localhost:5432${NC}"
+echo -e "  • Letta Server:     ${CYAN_BRIGHT}http://localhost:8283${NC}"
+echo -e "  • Letta Web UI:     ${CYAN_BRIGHT}http://localhost:3000${NC} ${PURPLE}(dashboard, trajectories, analytics)${NC}"
+echo -e "  • Story Gallery:    ${CYAN_BRIGHT}http://localhost:3030${NC} ${PURPLE}(browse worlds & stories)${NC}"
+echo -e "  • PostgreSQL:       ${CYAN_BRIGHT}localhost:5432${NC}"
 echo ""
 echo -e "${CYAN}Logs:${NC}"
-echo -e "  docker compose -f dev-compose.yaml logs -f"
+echo -e "  • Server:    docker compose -f dev-compose.yaml logs -f"
+echo -e "  • Web UI:    tail -f letta-ui/.ui.log"
+echo -e "  • Gallery:   tail -f letta-code/.gallery.log"
 echo ""
 echo -e "${CYAN}Stop:${NC}"
-echo -e "  docker compose -f dev-compose.yaml down"
+echo -e "  • Server:    docker compose -f dev-compose.yaml down"
+echo -e "  • Web UI:    kill \$(cat letta-ui/.ui.pid)"
+echo -e "  • Gallery:   kill \$(cat letta-code/.gallery.pid)"
 echo ""
 
 # Start letta-code UI
