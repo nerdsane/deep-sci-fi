@@ -95,9 +95,16 @@ export interface Trajectory {
       messages: Message[];
     }>;
     outcome: {
-      type: 'success' | 'failure' | 'partial_success';
-      confidence: number;
-      reasoning: string[];
+      // New format (preferred)
+      execution?: {
+        status: 'completed' | 'failed' | 'incomplete' | 'error' | 'unknown';
+        confidence: number;
+        reasoning: string[];
+      };
+      // Old format (deprecated, kept for backward compatibility)
+      type?: 'success' | 'failure' | 'partial_success' | 'unknown';
+      confidence?: number;
+      reasoning?: string[];
     };
   };
   searchable_summary?: string;

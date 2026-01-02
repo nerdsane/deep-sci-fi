@@ -103,7 +103,10 @@ export function TrajectoriesView() {
 
   function applyFilters() {
     const filtered = trajectories.filter(t => {
-      if (filters.outcomeType && t.data?.outcome?.type !== filters.outcomeType) return false;
+      if (filters.outcomeType) {
+        const status = t.data?.outcome?.execution?.status || t.data?.outcome?.type;
+        if (status !== filters.outcomeType) return false;
+      }
       if (filters.minScore && (t.outcome_score ?? 0) < parseFloat(filters.minScore)) return false;
       if (filters.maxScore && (t.outcome_score ?? 1) > parseFloat(filters.maxScore)) return false;
       if (filters.startDate && new Date(t.created_at) < new Date(filters.startDate)) return false;
@@ -114,8 +117,14 @@ export function TrajectoriesView() {
   }
 
   const filteredTrajectories = applyFilters();
-  const successCount = trajectories.filter((t) => t.data?.outcome?.type === 'success').length;
-  const failureCount = trajectories.filter((t) => t.data?.outcome?.type === 'failure').length;
+  const successCount = trajectories.filter((t) => {
+    const status = t.data?.outcome?.execution?.status || t.data?.outcome?.type;
+    return status === 'completed' || status === 'success';
+  }).length;
+  const failureCount = trajectories.filter((t) => {
+    const status = t.data?.outcome?.execution?.status || t.data?.outcome?.type;
+    return status === 'failed' || status === 'failure';
+  }).length;
 
   return (
     <div>
@@ -397,19 +406,28 @@ export function TrajectoriesView() {
                 }}
               >
                 <div className="flex items-center gap-3 mb-2">
+                  {/* Execution Status (did it complete?) */}
                   <span
                     className={`badge ${
-                      outcome?.type === 'success'
+                      (outcome?.execution?.status || outcome?.type) === 'completed' || outcome?.type === 'success'
                         ? 'badge-success'
-                        : outcome?.type === 'failure'
+                        : (outcome?.execution?.status || outcome?.type) === 'failed' || outcome?.type === 'failure'
                         ? 'badge-failure'
                         : 'badge-neutral'
                     }`}
+                    title={`Execution status: ${outcome?.execution?.status || outcome?.type || 'unknown'}`}
                   >
-                    {outcome?.type || 'unknown'}
+                    {outcome?.execution?.status || outcome?.type || 'unknown'}
                   </span>
-                  <span className="text-small text-muted font-mono">
-                    Score: {trajectory.outcome_score?.toFixed(2) || 'N/A'}
+                  {/* Learning Value (quality score) */}
+                  <span
+                    className="text-small font-mono"
+                    style={{ color: 'var(--neon-teal)' }}
+                    title="Learning value: How valuable is this trajectory for continual learning (0-1)"
+                  >
+                    {trajectory.outcome_score !== null && trajectory.outcome_score !== undefined
+                      ? `${['⭐'.repeat(Math.round(trajectory.outcome_score * 5))].join('')} ${trajectory.outcome_score.toFixed(2)}`
+                      : 'N/A'}
                   </span>
                 </div>
                 {trajectory.searchable_summary && (
@@ -472,19 +490,22 @@ export function TrajectoriesView() {
                   {/* Header */}
                   <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div className="flex items-center gap-3 mb-3">
+                      {/* Execution Status */}
                       <span
                         className={`badge ${
-                          outcome?.type === 'success'
+                          (outcome?.execution?.status || outcome?.type) === 'completed' || outcome?.type === 'success'
                             ? 'badge-success'
-                            : outcome?.type === 'failure'
+                            : (outcome?.execution?.status || outcome?.type) === 'failed' || outcome?.type === 'failure'
                             ? 'badge-failure'
                             : 'badge-neutral'
                         }`}
+                        title="Execution status (did it complete?)"
                       >
-                        {outcome?.type || 'unknown'}
+                        Exec: {outcome?.execution?.status || outcome?.type || 'unknown'}
                       </span>
-                      <span className="font-mono" style={{ color: 'var(--neon-teal)' }}>
-                        Score: {trajectory.outcome_score?.toFixed(2) || 'N/A'}
+                      {/* Learning Value */}
+                      <span className="font-mono" style={{ color: 'var(--neon-teal)' }} title="Learning value (quality score 0-1)">
+                        Learning: {trajectory.outcome_score?.toFixed(2) || 'N/A'} {trajectory.outcome_score !== null && trajectory.outcome_score !== undefined ? `${'⭐'.repeat(Math.round(trajectory.outcome_score * 5))}` : ''}
                       </span>
                       {trajectory.processing_status && (
                         <span className={`badge ${
