@@ -1,0 +1,283 @@
+/* Visual Novel Reader - Full-screen VN experience */
+
+.vn-reader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.vn-reader--paused {
+  cursor: default;
+}
+
+/* Background Layer */
+.vn-reader__background {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 1s ease;
+  z-index: 1;
+}
+
+/* Dark gradient overlay for readability */
+.vn-reader__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.5) 30%,
+    rgba(0, 0, 0, 0.2) 60%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  z-index: 5;
+}
+
+/* Dialogue Box */
+.vn-reader__dialogue-box {
+  position: relative;
+  z-index: 20;
+  padding: 1.5rem 2rem 2rem;
+  margin: 0 2rem 2rem;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.85),
+    rgba(0, 0, 0, 0.95)
+  );
+  border: 1px solid rgba(0, 255, 204, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  min-height: 150px;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  width: calc(100% - 4rem);
+}
+
+.vn-reader__dialogue-box::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 204, 0.3),
+    transparent 50%,
+    rgba(0, 255, 204, 0.1)
+  );
+  z-index: -1;
+  opacity: 0.5;
+}
+
+/* Advance Indicator */
+.vn-reader__advance-indicator {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 1rem;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.vn-reader__advance-arrow {
+  color: #00ffcc;
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+/* Choices */
+.vn-reader__choices {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 2rem 1.5rem;
+  max-width: 600px;
+  margin: 0 auto 1rem;
+}
+
+.vn-reader__choice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(0, 255, 204, 0.3);
+  border-radius: 8px;
+  color: #e0e0e0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  animation: choice-appear 0.3s ease-out backwards;
+}
+
+.vn-reader__choice:hover {
+  background: rgba(0, 255, 204, 0.1);
+  border-color: #00ffcc;
+  transform: translateX(8px);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+}
+
+.vn-reader__choice:active {
+  transform: translateX(4px) scale(0.98);
+}
+
+@keyframes choice-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vn-reader__choice-icon {
+  color: #00ffcc;
+  font-size: 1.25rem;
+}
+
+.vn-reader__choice-label {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.vn-reader__choice-preview {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* Controls */
+.vn-reader__controls {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 30;
+}
+
+.vn-reader__control {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vn-reader__control:hover {
+  background: rgba(0, 255, 204, 0.2);
+  border-color: #00ffcc;
+}
+
+.vn-reader__progress {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+}
+
+/* Pause Overlay */
+.vn-reader__pause-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  backdrop-filter: blur(5px);
+}
+
+.vn-reader__pause-menu {
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(0, 255, 204, 0.3);
+  border-radius: 12px;
+  padding: 2rem 3rem;
+  text-align: center;
+}
+
+.vn-reader__pause-menu h2 {
+  color: #00ffcc;
+  margin: 0 0 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.1em;
+}
+
+.vn-reader__pause-menu button {
+  padding: 0.75rem 2rem;
+  background: rgba(0, 255, 204, 0.1);
+  border: 1px solid #00ffcc;
+  border-radius: 6px;
+  color: #00ffcc;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.vn-reader__pause-menu button:hover {
+  background: rgba(0, 255, 204, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .vn-reader__dialogue-box {
+    margin: 0 1rem 1rem;
+    padding: 1rem 1.25rem 1.5rem;
+    min-height: 120px;
+    width: calc(100% - 2rem);
+  }
+
+  .vn-reader__choices {
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .vn-reader__choice {
+    padding: 0.75rem 1rem;
+  }
+
+  .vn-reader__controls {
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .vn-reader__advance-indicator {
+    animation: none;
+  }
+
+  .vn-reader__choice {
+    animation: none;
+    transition: none;
+  }
+
+  .vn-reader__background {
+    transition: none;
+  }
+}
