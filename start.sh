@@ -243,9 +243,43 @@ else
     fi
 fi
 
+# Start Agent Bus (required for bidirectional communication)
+echo ""
+echo -e "${PURPLE}[8/10] Starting Agent Bus...${NC}"
+
+if command_exists bun && [ -d "$LETTA_CODE_DIR" ]; then
+    # Check if port 8284 is available
+    if port_in_use 8284; then
+        echo -e "${PURPLE}⚠ Port 8284 already in use. Agent Bus might already be running.${NC}"
+    else
+        cd "$LETTA_CODE_DIR"
+        echo -e "${CYAN_BRIGHT}✓ Starting Agent Bus on ws://localhost:8284${NC}"
+
+        # Start Agent Bus in background
+        nohup bun run agent-bus > "$LETTA_CODE_DIR/.agent-bus.log" 2>&1 &
+        AGENT_BUS_PID=$!
+        echo $AGENT_BUS_PID > "$LETTA_CODE_DIR/.agent-bus.pid"
+
+        # Wait a moment for it to start
+        sleep 1
+
+        if kill -0 $AGENT_BUS_PID 2>/dev/null; then
+            echo -e "${CYAN_BRIGHT}✓ Agent Bus running (PID: $AGENT_BUS_PID)${NC}"
+        else
+            echo -e "${RED}✗ Failed to start Agent Bus. Check $LETTA_CODE_DIR/.agent-bus.log${NC}"
+        fi
+    fi
+else
+    if ! command_exists bun; then
+        echo -e "${PURPLE}⚠ Bun not installed - Agent Bus unavailable${NC}"
+    else
+        echo -e "${PURPLE}⚠ letta-code directory not found - Agent Bus unavailable${NC}"
+    fi
+fi
+
 # Start Story Explorer Gallery (optional)
 echo ""
-echo -e "${PURPLE}[8/9] Story Explorer Gallery...${NC}"
+echo -e "${PURPLE}[9/10] Story Explorer Gallery...${NC}"
 
 if command_exists bun && [ -d "$LETTA_CODE_DIR" ]; then
     # Check if port 3030 is available
@@ -256,7 +290,7 @@ if command_exists bun && [ -d "$LETTA_CODE_DIR" ]; then
         echo -e "${CYAN_BRIGHT}✓ Starting Story Explorer gallery on http://localhost:3030${NC}"
 
         # Start gallery in background
-        nohup bun run gallery > "$LETTA_CODE_DIR/.gallery.log" 2>&1 &
+        nohup bun run canvas > "$LETTA_CODE_DIR/.gallery.log" 2>&1 &
         GALLERY_PID=$!
         echo $GALLERY_PID > "$LETTA_CODE_DIR/.gallery.pid"
 
@@ -279,27 +313,30 @@ fi
 
 # Summary
 echo ""
-echo -e "${PURPLE}[9/9] Startup complete!${NC}"
+echo -e "${PURPLE}[10/10] Startup complete!${NC}"
 echo ""
 echo -e "${CYAN_BRIGHT}╔════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN_BRIGHT}║   Letta Stack Running                     ║${NC}"
+echo -e "${CYAN_BRIGHT}║   DSF Stack Running                       ║${NC}"
 echo -e "${CYAN_BRIGHT}╚════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}Services:${NC}"
 echo -e "  • Letta Server:     ${CYAN_BRIGHT}http://localhost:8283${NC}"
 echo -e "  • Letta Web UI:     ${CYAN_BRIGHT}http://localhost:3000${NC} ${PURPLE}(dashboard, trajectories, analytics)${NC}"
+echo -e "  • Agent Bus:        ${CYAN_BRIGHT}ws://localhost:8284${NC} ${PURPLE}(bidirectional canvas<->agent)${NC}"
 echo -e "  • Story Gallery:    ${CYAN_BRIGHT}http://localhost:3030${NC} ${PURPLE}(browse worlds & stories)${NC}"
 echo -e "  • PostgreSQL:       ${CYAN_BRIGHT}localhost:5432${NC}"
 echo ""
 echo -e "${CYAN}Logs:${NC}"
-echo -e "  • Server:    docker compose -f dev-compose.yaml logs -f"
-echo -e "  • Web UI:    tail -f letta-ui/.ui.log"
-echo -e "  • Gallery:   tail -f letta-code/.gallery.log"
+echo -e "  • Server:     docker compose -f dev-compose.yaml logs -f"
+echo -e "  • Web UI:     tail -f letta-ui/.ui.log"
+echo -e "  • Agent Bus:  tail -f letta-code/.agent-bus.log"
+echo -e "  • Gallery:    tail -f letta-code/.gallery.log"
 echo ""
 echo -e "${CYAN}Stop:${NC}"
-echo -e "  • Server:    docker compose -f dev-compose.yaml down"
-echo -e "  • Web UI:    kill \$(cat letta-ui/.ui.pid)"
-echo -e "  • Gallery:   kill \$(cat letta-code/.gallery.pid)"
+echo -e "  • Server:     docker compose -f dev-compose.yaml down"
+echo -e "  • Web UI:     kill \$(cat letta-ui/.ui.pid)"
+echo -e "  • Agent Bus:  kill \$(cat letta-code/.agent-bus.pid)"
+echo -e "  • Gallery:    kill \$(cat letta-code/.gallery.pid)"
 echo ""
 
 # Start letta-code UI
