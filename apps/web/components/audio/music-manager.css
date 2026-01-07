@@ -1,0 +1,67 @@
+/* Music Control - Floating background music UI */
+
+.music-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  backdrop-filter: blur(5px);
+}
+
+.music-control__btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.music-control__btn:hover {
+  opacity: 1;
+}
+
+.music-control__volume {
+  width: 50px;
+  height: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.music-control__volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #00ffcc;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.music-control__volume::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: #00ffcc;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Positioned in corner */
+.music-control--corner {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 1000;
+}
