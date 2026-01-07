@@ -150,13 +150,13 @@ echo ""
 echo -e "${PURPLE}[3/8] Checking Letta branch...${NC}"
 CURRENT_BRANCH=$(git branch --show-current)
 
-if [ "$CURRENT_BRANCH" != "evaluation-tools" ]; then
+if [ "$CURRENT_BRANCH" != "main" ]; then
     echo -e "${PURPLE}⚠ Currently on branch: $CURRENT_BRANCH${NC}"
-    echo -e "${PURPLE}⚠ Switching to evaluation-tools branch...${NC}"
-    git checkout evaluation-tools
-    echo -e "${CYAN_BRIGHT}✓ Switched to evaluation-tools branch${NC}"
+    echo -e "${PURPLE}⚠ Switching to main branch...${NC}"
+    git checkout main
+    echo -e "${CYAN_BRIGHT}✓ Switched to main branch${NC}"
 else
-    echo -e "${CYAN_BRIGHT}✓ Already on evaluation-tools branch${NC}"
+    echo -e "${CYAN_BRIGHT}✓ Already on main branch${NC}"
 fi
 
 # Stop any existing containers
@@ -173,7 +173,7 @@ fi
 echo ""
 echo -e "${PURPLE}[5/8] Building and starting Letta server with Docker...${NC}"
 echo -e "${CYAN}This will:${NC}"
-echo -e "  - Build Letta server from source (evaluation-tools branch)"
+echo -e "  - Build Letta server from source (main branch)"
 echo -e "  - Start PostgreSQL with pgvector"
 echo -e "  - Expose server on http://localhost:8283"
 echo ""
