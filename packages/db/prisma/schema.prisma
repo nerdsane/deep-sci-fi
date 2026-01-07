@@ -1,0 +1,223 @@
+// Deep Sci-Fi Database Schema
+// Multi-user world-building and storytelling platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Users & Authentication
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  provider      String    @default("email") // 'email' or 'google'
+  providerId    String?
+  password      String? // Hashed password for email auth
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  preferences   Json? // User preferences (theme, etc.)
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  worlds        World[]
+  stories       Story[]
+  collaborations WorldCollaborator[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// Worlds
+// ============================================================================
+
+model World {
+  id         String   @id @default(cuid())
+  name       String
+  ownerId    String
+  visibility String   @default("private") // 'private', 'shared', 'public'
+
+  // World data (JSONB for flexibility)
+  foundation Json // Foundation (premise, rules, deep focus)
+  surface    Json // Surface (elements, revealed info)
+  constraints Json @default("[]") // Constraints array
+  changelog  Json @default("[]") // Changelog array
+
+  // Development metadata
+  state      String   @default("sketch") // 'sketch', 'draft', 'detailed'
+  version    Int      @default(1)
+
+  // Agent association
+  worldAgentId String? // Letta agent ID
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  owner        User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators WorldCollaborator[]
+  stories      Story[]
+  assets       Asset[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("worlds")
+}
+
+model WorldCollaborator {
+  worldId   String
+  userId    String
+  role      String   @default("viewer") // 'owner', 'editor', 'viewer'
+  addedAt   DateTime @default(now())
+
+  world World @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([worldId, userId])
+  @@map("world_collaborators")
+}
+
+// ============================================================================
+// Stories
+// ============================================================================
+
+model Story {
+  id      String @id @default(cuid())
+  worldId String
+  authorId String
+
+  title             String
+  metadata          Json // StoryMetadata (status, tags, etc.)
+  worldContributions Json? // WorldContributions (characters, rules tested, etc.)
+
+  // Agent association
+  storyAgentId String? // Letta agent ID
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  world    World           @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  segments StorySegment[]
+  assets   Asset[]
+
+  @@index([worldId])
+  @@index([authorId])
+  @@map("stories")
+}
+
+model StorySegment {
+  id              String  @id @default(cuid())
+  storyId         String
+  parentSegmentId String?
+
+  content        String  @db.Text // Story content (text)
+  wordCount      Int     @default(0)
+  worldEvolution Json?   // SegmentWorldEvolution (elements introduced, rules applied, etc.)
+  branches       Json    @default("[]") // StoryBranch array
+
+  // Immersive features
+  vnScene       Json? // VNSceneData (visual novel scene)
+  uiComponents  Json? // ComponentSpec array (agent-created UI)
+  audioTracks   Json? // Audio data (bgm, sfx)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  story         Story          @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  parentSegment StorySegment?  @relation("SegmentHierarchy", fields: [parentSegmentId], references: [id])
+  childSegments StorySegment[] @relation("SegmentHierarchy")
+  assets        Asset[]
+
+  @@index([storyId])
+  @@index([parentSegmentId])
+  @@map("story_segments")
+}
+
+// ============================================================================
+// Assets (Images, Audio, etc.)
+// ============================================================================
+
+model Asset {
+  id        String  @id @default(cuid())
+  worldId   String?
+  storyId   String?
+  segmentId String?
+
+  type        String // 'image', 'audio', 'video'
+  category    String? // 'character', 'background', 'music', 'sfx', 'ui'
+  storagePath String // S3/R2 key
+  url         String? // CDN URL (generated)
+  description String? @db.Text
+  metadata    Json? // Character emotion, music duration, dimensions, etc.
+
+  generated Boolean @default(false) // AI-generated?
+  prompt    String? @db.Text // Generation prompt
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  world   World?        @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  story   Story?        @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  segment StorySegment? @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@index([worldId])
+  @@index([storyId])
+  @@index([segmentId])
+  @@index([category])
+  @@map("assets")
+}
