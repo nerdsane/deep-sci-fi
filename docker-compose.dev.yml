@@ -1,0 +1,35 @@
+# Development environment for Deep Sci-Fi
+# PostgreSQL + pgvector for local development
+
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: deep-sci-fi-db
+    environment:
+      POSTGRES_USER: deepscifi
+      POSTGRES_PASSWORD: dev_password_change_in_production
+      POSTGRES_DB: deep_sci_fi_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepscifi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching (optional, for later)
+  redis:
+    image: redis:7-alpine
+    container_name: deep-sci-fi-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:
