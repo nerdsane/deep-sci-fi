@@ -71,44 +71,65 @@ echo -e "${PURPLE}[2/8] Setting up environment variables...${NC}"
 ROOT_ENV="$SCRIPT_DIR/.env"
 ROOT_ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 
-# Check if root .env exists
+# Create .env from example if it doesn't exist
 if [ ! -f "$ROOT_ENV" ]; then
-    echo -e "${CYAN}Creating .env from .env.example...${NC}"
     if [ -f "$ROOT_ENV_EXAMPLE" ]; then
         cp "$ROOT_ENV_EXAMPLE" "$ROOT_ENV"
-        echo -e "${CYAN_BRIGHT}✓ Created $ROOT_ENV${NC}"
+        echo -e "${CYAN_BRIGHT}✓ Created .env from .env.example${NC}"
     else
         echo -e "${RED}✗ .env.example not found${NC}"
         exit 1
     fi
 fi
 
-# Check if .env has placeholder values
-if grep -q "ANTHROPIC_API_KEY=sk-ant-\.\.\." "$ROOT_ENV" || grep -q "ANTHROPIC_API_KEY=$" "$ROOT_ENV"; then
+# Helper function to check if a key has a value (not empty)
+key_is_empty() {
+    local key="$1"
+    local value=$(grep "^${key}=" "$ROOT_ENV" | cut -d'=' -f2-)
+    [ -z "$value" ]
+}
+
+# Check if required keys are configured
+ANTHROPIC_EMPTY=$(key_is_empty "ANTHROPIC_API_KEY" && echo "yes" || echo "no")
+GOOGLE_EMPTY=$(key_is_empty "GOOGLE_API_KEY" && echo "yes" || echo "no")
+OPENAI_EMPTY=$(key_is_empty "OPENAI_API_KEY" && echo "yes" || echo "no")
+
+# Prompt user if keys are missing
+if [ "$ANTHROPIC_EMPTY" = "yes" ] || ([ "$GOOGLE_EMPTY" = "yes" ] && [ "$OPENAI_EMPTY" = "yes" ]); then
     echo ""
-    echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║  ACTION REQUIRED: Configure your API keys                    ║${NC}"
-    echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${CYAN_BRIGHT}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN_BRIGHT}║  Configure API Keys                                            ║${NC}"
+    echo -e "${CYAN_BRIGHT}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${PURPLE}Your .env file needs to be configured with real API keys.${NC}"
+    echo -e "${CYAN}REQUIRED:${NC}"
+    echo -e "  ${PURPLE}ANTHROPIC_API_KEY${NC} - For Claude models (main reasoning)"
+    echo -e "  Get from: ${CYAN_BRIGHT}https://console.anthropic.com/${NC}"
     echo ""
-    echo -e "${CYAN}Required:${NC}"
-    echo -e "  • ANTHROPIC_API_KEY - Get from https://console.anthropic.com/${NC}"
+    echo -e "${CYAN}FOR IMAGE GENERATION (one of these):${NC}"
+    echo -e "  ${PURPLE}GOOGLE_API_KEY${NC} - Preferred (Gemini Nano Banana Pro)"
+    echo -e "  Get from: ${CYAN_BRIGHT}https://aistudio.google.com/apikey${NC}"
     echo ""
-    echo -e "${CYAN}Optional but recommended:${NC}"
-    echo -e "  • OPENAI_API_KEY - For image generation and GPT models${NC}"
-    echo -e "  • NOTION_TOKEN - For publishing stories to Notion${NC}"
+    echo -e "  ${PURPLE}OPENAI_API_KEY${NC} - Alternative (GPT-Image)"
+    echo -e "  Get from: ${CYAN_BRIGHT}https://platform.openai.com/api-keys${NC}"
     echo ""
-    echo -e "${PURPLE}Please edit: $ROOT_ENV${NC}"
+    echo -e "${CYAN}Opening .env file for editing...${NC}"
+    open "$ROOT_ENV"
     echo ""
-    read -p "Press Enter after you've configured your .env file..."
+    read -p "Press Enter after you've added your API keys..."
     echo ""
 
-    # Verify they actually filled it out
-    if grep -q "ANTHROPIC_API_KEY=sk-ant-\.\.\." "$ROOT_ENV" || grep -q "ANTHROPIC_API_KEY=$" "$ROOT_ENV"; then
-        echo -e "${RED}✗ ANTHROPIC_API_KEY still not configured${NC}"
-        echo -e "${PURPLE}Please edit $ROOT_ENV and add your Anthropic API key${NC}"
+    # Re-check after user input
+    if key_is_empty "ANTHROPIC_API_KEY"; then
+        echo -e "${RED}✗ ANTHROPIC_API_KEY is required but not set${NC}"
+        echo -e "${PURPLE}Please add your Anthropic API key to: $ROOT_ENV${NC}"
         exit 1
+    fi
+
+    # Warn if no image generation key
+    if key_is_empty "GOOGLE_API_KEY" && key_is_empty "OPENAI_API_KEY"; then
+        echo -e "${PURPLE}⚠ No image generation API key set (GOOGLE_API_KEY or OPENAI_API_KEY)${NC}"
+        echo -e "${PURPLE}  Image generation features will not work.${NC}"
+        echo ""
     fi
 fi
 

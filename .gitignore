@@ -58,4 +58,8 @@ Thumbs.db
 .letta/
 .planning/
 
-.ui.pid
+.ui.pidletta-ui/.ui.pid
+letta-code/.ui.pid
+letta-code/.gallery.pid
+letta-code/.agent-bus.pid
+*.pid
