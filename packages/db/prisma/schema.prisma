@@ -87,10 +87,11 @@ model VerificationToken {
 // ============================================================================
 
 model World {
-  id         String   @id @default(cuid())
-  name       String
-  ownerId    String
-  visibility String   @default("private") // 'private', 'shared', 'public'
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text // Brief world description
+  ownerId     String
+  visibility  String   @default("private") // 'private', 'shared', 'public'
 
   // World data (JSONB for flexibility)
   foundation Json // Foundation (premise, rules, deep focus)
@@ -139,12 +140,13 @@ model WorldCollaborator {
 // ============================================================================
 
 model Story {
-  id      String @id @default(cuid())
-  worldId String
+  id       String @id @default(cuid())
+  worldId  String
   authorId String
 
-  title             String
-  metadata          Json // StoryMetadata (status, tags, etc.)
+  title              String
+  description        String?  @db.Text // Brief story description
+  metadata           Json // StoryMetadata (status, tags, etc.)
   worldContributions Json? // WorldContributions (characters, rules tested, etc.)
 
   // Agent association
@@ -170,6 +172,8 @@ model StorySegment {
   storyId         String
   parentSegmentId String?
 
+  title          String? // Optional segment title/heading
+  order          Int     @default(0) // Ordering within story
   content        String  @db.Text // Story content (text)
   wordCount      Int     @default(0)
   worldEvolution Json?   // SegmentWorldEvolution (elements introduced, rules applied, etc.)

@@ -348,13 +348,14 @@ export class LettaOrchestrator {
             thoughtProcess += chunk.reasoning_message;
             console.log('[Reasoning]:', chunk.reasoning_message);
           } else if ('assistant_message' in chunk && chunk.assistant_message) {
+            const assistantMsg = chunk.assistant_message as string;
             messages.push({
               role: 'agent',
-              content: chunk.assistant_message,
+              content: assistantMsg,
             });
-            console.log('[Assistant]:', chunk.assistant_message);
+            console.log('[Assistant]:', assistantMsg);
           } else if ('tool_call_message' in chunk && chunk.tool_call_message) {
-            const toolCall = chunk.tool_call_message;
+            const toolCall = chunk.tool_call_message as { name?: string; arguments?: string };
             console.log('[Tool Call]:', toolCall.name, toolCall.arguments);
             toolCalls.push({
               name: toolCall.name || 'unknown',

@@ -103,10 +103,11 @@ export async function getAgentMemoryBlocks(
   try {
     // Retrieve agent with memory blocks included
     const agent = await client.agents.retrieve(agentId, {
-      include: ['agent.memory_blocks'],
+      include: ['agent.blocks'],
     });
 
-    return agent.memory?.blocks || [];
+    // Access blocks from the agent response
+    return (agent as any).blocks || [];
   } catch (error) {
     console.error(`Failed to get memory blocks for agent ${agentId}:`, error);
     throw new Error(

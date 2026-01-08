@@ -113,7 +113,8 @@ export async function story_manager(
 async function createStory(
   params: StoryManagerParams,
   db: PrismaClient,
-  world: any
+  world: any,
+  userId?: string
 ): Promise<StoryManagerResult> {
   if (!params.title) {
     return {
@@ -129,6 +130,7 @@ async function createStory(
         title: params.title,
         description: params.description || null,
         worldId: params.world_id,
+        authorId: world.ownerId, // Use world owner as author
         metadata: {}, // Empty metadata initially
       },
       select: {
@@ -215,7 +217,8 @@ async function saveSegment(
         title: params.segment.title || null,
         content: params.segment.content,
         order: story._count.segments + 1, // Next order number
-        metadata: params.segment.metadata || {},
+        wordCount: params.segment.content.split(/\s+/).length,
+        worldEvolution: params.segment.metadata || null, // Store metadata in worldEvolution for now
       },
       select: {
         id: true,
@@ -271,14 +274,6 @@ async function loadStory(
       include: {
         segments: {
           orderBy: { order: 'asc' },
-          select: {
-            id: true,
-            title: true,
-            content: true,
-            order: true,
-            metadata: true,
-            createdAt: true,
-          },
         },
         world: {
           select: {
@@ -329,14 +324,6 @@ async function listStories(
         },
       },
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: true,
-      },
     });
 
     console.log(`[story_manager] Listed ${stories.length} stories for world ${params.world_id}`);
