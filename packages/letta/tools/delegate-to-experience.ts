@@ -5,7 +5,13 @@
  * specialized Experience Agent for image generation, UI, and multimedia.
  */
 
+import type Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
+import {
+  getOrCreateExperienceAgent,
+  type ExperienceAgentConfig,
+  type ExperienceAgentContext,
+} from '../agents/experience-agent';
 
 // ============================================================================
 // Types
@@ -95,6 +101,18 @@ export function updateDelegation(
 // ============================================================================
 
 /**
+ * Extended context with Letta client for delegation
+ */
+export interface DelegationContext {
+  userId: string;
+  db: PrismaClient;
+  worldId?: string;
+  storyId?: string;
+  lettaClient?: Letta;
+  worldName?: string;
+}
+
+/**
  * Delegate a task to the Experience Agent.
  *
  * Use this when you need:
@@ -105,7 +123,7 @@ export function updateDelegation(
  */
 export async function delegate_to_experience(
   params: DelegateToExperienceParams,
-  context: { userId: string; db: PrismaClient; worldId: string; storyId?: string }
+  context: DelegationContext
 ): Promise<DelegateToExperienceResult> {
   try {
     if (!params.task) {
@@ -125,7 +143,23 @@ export async function delegate_to_experience(
       };
     }
 
-    // Create delegation record
+    if (!context.worldId) {
+      return {
+        success: false,
+        message: 'Cannot delegate to Experience Agent: no world context available',
+        delegation_id: '',
+      };
+    }
+
+    if (!context.lettaClient) {
+      return {
+        success: false,
+        message: 'Cannot delegate to Experience Agent: Letta client not available',
+        delegation_id: '',
+      };
+    }
+
+    // Create delegation record for tracking
     const delegationId = `del-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const delegation: PendingDelegation = {
@@ -136,26 +170,82 @@ export async function delegate_to_experience(
       taskType: params.task_type,
       context: params.context || {},
       priority: params.priority || 'medium',
-      status: 'pending',
+      status: 'in_progress',
       createdAt: new Date(),
     };
 
     delegationQueue.set(delegationId, delegation);
 
     console.log(
-      `[delegate_to_experience] Created delegation ${delegationId}: ${params.task_type}`
+      `[delegate_to_experience] Starting delegation ${delegationId}: ${params.task_type}`
     );
 
-    // In a full implementation, this would:
-    // 1. Look up or create the Experience Agent for this world
-    // 2. Send the task to the Experience Agent
-    // 3. Wait for or stream the response back
-    // For now, we queue the delegation for the orchestrator to handle
+    // Get world name for Experience Agent context
+    let worldName = context.worldName || 'Unknown World';
+    if (!context.worldName) {
+      const world = await context.db.world.findUnique({
+        where: { id: context.worldId },
+        select: { name: true },
+      });
+      worldName = world?.name || worldName;
+    }
+
+    // Get or create Experience Agent for this world
+    const experienceConfig: ExperienceAgentConfig = {
+      lettaClient: context.lettaClient,
+      db: context.db,
+      userId: context.userId,
+    };
+
+    const experienceContext: ExperienceAgentContext = {
+      worldId: context.worldId,
+      worldName,
+      storyId: context.storyId,
+      storyTitle: undefined, // Could be populated if needed
+    };
+
+    const experienceAgentId = await getOrCreateExperienceAgent(
+      experienceConfig,
+      experienceContext
+    );
+
+    console.log(
+      `[delegate_to_experience] Experience Agent created/found: ${experienceAgentId}`
+    );
+
+    // Build message for Experience Agent
+    const taskMessage = buildTaskMessage(params);
+
+    // Send task to Experience Agent and wait for response
+    const response = await context.lettaClient.agents.messages.create(experienceAgentId, {
+      messages: [{ role: 'user', content: taskMessage }],
+      streaming: false,
+    });
+
+    console.log(`[delegate_to_experience] Experience Agent responded`);
+
+    // Extract response content
+    let responseText = '';
+    if (response && 'messages' in response && Array.isArray(response.messages)) {
+      for (const msg of response.messages) {
+        if (msg && typeof msg === 'object' && 'message_type' in msg) {
+          if (msg.message_type === 'assistant_message' && 'assistant_message' in msg) {
+            responseText += msg.assistant_message + '\n';
+          }
+        }
+      }
+    }
+
+    // Update delegation status
+    delegation.status = 'completed';
+    delegation.result = responseText;
+    delegationQueue.set(delegationId, delegation);
 
     return {
       success: true,
-      message: `Delegated "${params.task_type}" task to Experience Agent.\nDelegation ID: ${delegationId}\nThe Experience Agent will handle: ${params.task}`,
+      message: `Experience Agent completed "${params.task_type}" task.\n\nResult:\n${responseText.trim() || 'Task completed successfully.'}`,
       delegation_id: delegationId,
+      experience_agent_id: experienceAgentId,
     };
   } catch (error) {
     console.error('[delegate_to_experience] Error:', error);
@@ -165,6 +255,42 @@ export async function delegate_to_experience(
       delegation_id: '',
     };
   }
+}
+
+/**
+ * Build a task message for the Experience Agent
+ */
+function buildTaskMessage(params: DelegateToExperienceParams): string {
+  let message = `Task Type: ${params.task_type}\n\n`;
+  message += `Task: ${params.task}\n`;
+
+  if (params.context) {
+    message += '\nContext:\n';
+    if (params.context.scene_description) {
+      message += `- Scene: ${params.context.scene_description}\n`;
+    }
+    if (params.context.character_names && params.context.character_names.length > 0) {
+      message += `- Characters: ${params.context.character_names.join(', ')}\n`;
+    }
+    if (params.context.location) {
+      message += `- Location: ${params.context.location}\n`;
+    }
+    if (params.context.mood) {
+      message += `- Mood: ${params.context.mood}\n`;
+    }
+    if (params.context.style_hints) {
+      message += `- Style: ${params.context.style_hints}\n`;
+    }
+    if (params.context.story_segment_id) {
+      message += `- Story Segment ID: ${params.context.story_segment_id}\n`;
+    }
+  }
+
+  if (params.priority) {
+    message += `\nPriority: ${params.priority}\n`;
+  }
+
+  return message;
 }
 
 // ============================================================================

@@ -5,6 +5,7 @@
  * Handles tool calls, context passing, and error handling.
  */
 
+import type Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
 import { world_draft_generator, worldDraftGeneratorTool } from './world-draft-generator';
 import { list_worlds, listWorldsTool } from './list-worlds';
@@ -24,6 +25,11 @@ import { delegate_to_experience, delegateToExperienceTool } from './delegate-to-
 export interface ToolContext {
   userId: string;
   db: PrismaClient;
+  // Extended context for World Agent tools
+  worldId?: string;
+  storyId?: string;
+  worldName?: string;
+  lettaClient?: Letta;
 }
 
 /**
