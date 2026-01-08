@@ -27,8 +27,6 @@ export const chatRouter = router({
       }),
     }))
     .mutation(async ({ ctx, input }) => {
-      const orchestrator = getLettaOrchestrator();
-
       // Verify access if world context is provided
       if (input.context.worldId) {
         const world = await ctx.db.world.findUnique({
