@@ -3,15 +3,47 @@ import { router, protectedProcedure } from '../trpc';
 import { getLettaOrchestrator } from '@deep-sci-fi/letta';
 
 /**
- * Agent management router
- * Handles creation and management of world and story agents
+ * Agent management router - Two-Tier Architecture
+ *
+ * User Agent (Orchestrator): ONE per user - handles world creation and routing
+ * World Agent: ONE per world - handles world AND all stories in that world
  */
 export const agentsRouter = router({
   /**
-   * Create a world agent for a world
-   * NOTE: Agent creation is not yet fully implemented
+   * Get or create User Agent (Orchestrator) for the current user
+   * This is the equivalent of letta-code's createAgent()
+   *
+   * Universal API - works for both Web UI and CLI clients
    */
-  createWorldAgent: protectedProcedure
+  getUserAgent: protectedProcedure
+    .query(async ({ ctx }) => {
+      const user = await ctx.db.user.findUnique({
+        where: { id: ctx.session.user.id },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // TODO: Call orchestrator to get or create user agent
+      // Currently throws "Not yet implemented" error
+      throw new Error(
+        'getUserAgent: Not yet implemented. ' +
+        'Letta SDK integration in progress. ' +
+        `User exists: ${user.email}`
+      );
+
+      // Future implementation:
+      // const orchestrator = getLettaOrchestrator();
+      // const userAgentId = await orchestrator.getOrCreateUserAgent(user.id, user);
+      // return { agentId: userAgentId };
+    }),
+
+  /**
+   * Get or create World Agent for a specific world
+   * World Agent handles BOTH world management AND all stories in the world
+   */
+  getOrCreateWorldAgent: protectedProcedure
     .input(z.object({
       worldId: z.string(),
     }))
@@ -39,39 +71,33 @@ export const agentsRouter = router({
         }
       }
 
-      // TODO: Create agent via Letta Orchestrator
+      // TODO: Call orchestrator to get or create world agent
       // Currently throws "Not yet implemented" error
       throw new Error(
-        'Agent creation not yet implemented. ' +
-        'Letta SDK integration is in progress. ' +
-        'World exists and can be used without an agent for now.'
+        'getOrCreateWorldAgent: Not yet implemented. ' +
+        'Letta SDK integration in progress. ' +
+        `World exists: ${world.name}`
       );
 
       // Future implementation:
       // const orchestrator = getLettaOrchestrator();
-      // const agentId = await orchestrator.createWorldAgent(world);
-      // await ctx.db.world.update({
-      //   where: { id: input.worldId },
-      //   data: { worldAgentId: agentId },
-      // });
-      // return { agentId };
+      // const worldAgentId = await orchestrator.getOrCreateWorldAgent(input.worldId, world);
+      // return { agentId: worldAgentId };
     }),
 
   /**
-   * Create a story agent for a story
-   * NOTE: Agent creation is not yet fully implemented
+   * Set story context in world agent memory
+   * Updates the current_story memory block so agent knows which story is active
    */
-  createStoryAgent: protectedProcedure
+  setStoryContext: protectedProcedure
     .input(z.object({
+      agentId: z.string(),
       storyId: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Get story and associated world
+      // Get story to set as context
       const story = await ctx.db.story.findUnique({
         where: { id: input.storyId },
-        include: {
-          world: true,
-        },
       });
 
       if (!story) {
@@ -83,43 +109,43 @@ export const agentsRouter = router({
         throw new Error('Unauthorized');
       }
 
-      // TODO: Create story agent via Letta Orchestrator
-      // Currently not implemented
+      // TODO: Call orchestrator to set story context
+      // Currently throws "Not yet implemented" error
       throw new Error(
-        'Agent creation not yet implemented. ' +
-        'Letta SDK integration is in progress. ' +
-        'Story exists and can be used without an agent for now.'
+        'setStoryContext: Not yet implemented. ' +
+        'Letta SDK integration in progress. ' +
+        `Story exists: ${story.title}`
       );
 
       // Future implementation:
-      // Ensure world agent exists first
       // const orchestrator = getLettaOrchestrator();
-      // if (!story.world.worldAgentId) {
-      //   const worldAgentId = await orchestrator.createWorldAgent(story.world);
-      //   await ctx.db.world.update({
-      //     where: { id: story.worldId },
-      //     data: { worldAgentId },
-      //   });
-      // }
-      // const agentId = await orchestrator.createStoryAgent(story, story.world);
-      // await ctx.db.story.update({
-      //   where: { id: input.storyId },
-      //   data: { storyAgentId: agentId },
-      // });
-      // return { agentId };
+      // await orchestrator.setStoryContext(input.agentId, story);
+      // return { success: true };
     }),
 
   /**
    * Get agent status
+   * Check if an agent exists and what it's associated with
    */
   getAgentStatus: protectedProcedure
     .input(z.object({
       agentId: z.string(),
     }))
     .query(async ({ ctx, input }) => {
-      // TODO: Implement agent status check via Letta API
-      // For now, just check if agent exists in database
+      // Check if this is a user agent
+      const user = await ctx.db.user.findFirst({
+        where: { userAgentId: input.agentId },
+      });
 
+      if (user) {
+        return {
+          exists: true,
+          type: 'user' as const,
+          userId: user.id,
+        };
+      }
+
+      // Check if this is a world agent
       const world = await ctx.db.world.findFirst({
         where: { worldAgentId: input.agentId },
       });
@@ -127,23 +153,12 @@ export const agentsRouter = router({
       if (world) {
         return {
           exists: true,
-          type: 'world',
+          type: 'world' as const,
           worldId: world.id,
         };
       }
 
-      const story = await ctx.db.story.findFirst({
-        where: { storyAgentId: input.agentId },
-      });
-
-      if (story) {
-        return {
-          exists: true,
-          type: 'story',
-          storyId: story.id,
-        };
-      }
-
+      // Agent doesn't exist in database
       return {
         exists: false,
       };
