@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@deep-sci-fi/db', '@deep-sci-fi/types'],
   images: {
     remotePatterns: [
       {

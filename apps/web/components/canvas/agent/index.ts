@@ -1,1 +1,1 @@
-export { AgentSuggestions, type AgentSuggestionsProps, type Suggestion } from './AgentSuggestions';
+export { AgentSuggestions, type AgentSuggestionsProps, type Suggestion, type AgentSuggestion } from './AgentSuggestions';

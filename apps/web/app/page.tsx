@@ -11,7 +11,7 @@ import { WelcomeSpace } from '@/components/canvas/welcome';
 import { FeedbackProvider, useFeedbackSafe } from '@/components/canvas/context/FeedbackContext';
 import { ToastContainer, AgentStatus } from '@/components/canvas/feedback';
 import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType } from '@/components/canvas/interaction';
-import { AgentSuggestions, type Suggestion } from '@/components/canvas/agent';
+import { AgentSuggestions, type AgentSuggestion, type Suggestion } from '@/components/canvas/agent';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 
 // ============================================================================
@@ -40,7 +40,7 @@ interface AppState {
   agentAction?: string;
   useImmersiveWorld: boolean;
   pendingExperience: { storyId: string; spec: any } | null;
-  agentSuggestions: Suggestion[];
+  agentSuggestions: AgentSuggestion[];
 }
 
 // ============================================================================
