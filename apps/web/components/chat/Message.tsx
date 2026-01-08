@@ -1,23 +1,27 @@
 'use client';
 
-import type { MessageType } from './ChatPanel';
 import { MessageAction } from './MessageAction';
 
 interface MessageProps {
-  message: MessageType;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: Date;
+  type?: 'text' | 'action';
+  action?: any;
+  data?: any;
 }
 
-export function Message({ message }: MessageProps) {
-  const isAgent = message.role === 'agent';
-  const isSystem = message.role === 'system';
+export function Message({ role, content, timestamp, type = 'text', action, data }: MessageProps) {
+  const isAgent = role === 'agent';
+  const isSystem = role === 'system';
 
   if (isSystem) {
     return (
       <div className="message message--system">
         <div className="message__content">
-          <p className="message__text">{message.content}</p>
+          <p className="message__text">{content}</p>
           <span className="message__timestamp">
-            {formatTime(message.timestamp)}
+            {formatTime(timestamp)}
           </span>
         </div>
       </div>
@@ -33,16 +37,16 @@ export function Message({ message }: MessageProps) {
       )}
 
       <div className="message__content">
-        {message.type === 'text' && (
-          <p className="message__text">{message.content}</p>
+        {type === 'text' && (
+          <p className="message__text">{content}</p>
         )}
 
-        {message.type === 'action' && (
-          <MessageAction action={message.action} data={message.data} />
+        {type === 'action' && (
+          <MessageAction action={action} data={data} />
         )}
 
         <span className="message__timestamp">
-          {formatTime(message.timestamp)}
+          {formatTime(timestamp)}
         </span>
       </div>
 

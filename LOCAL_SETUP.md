@@ -42,7 +42,7 @@
 - **Git** (with submodules)
 
 ### 2. API Keys
-- **Letta API Key** (from Letta server, generated on first run)
+- **Letta API Key** (OPTIONAL - not needed for local Letta servers)
 - **Anthropic API Key** (for world_draft_generator tool)
 - **Google OAuth** (optional, for Google sign-in)
 
@@ -139,7 +139,8 @@ NEXTAUTH_SECRET="your-random-secret-here"
 
 # Letta Server
 LETTA_BASE_URL="http://localhost:8283"
-LETTA_API_KEY="sk_your_letta_api_key_here"  # From Step 3
+# LETTA_API_KEY is optional for local servers - only needed for Letta Cloud
+LETTA_API_KEY=""  # Leave empty for local development
 
 # Anthropic API - get from https://console.anthropic.com/
 ANTHROPIC_API_KEY="sk-ant-your-key-here"

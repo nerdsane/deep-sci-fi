@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
-import { ChatPanelContainer } from '@/components/chat/ChatPanelContainer';
 import './worlds.css';
 
 export default function WorldsPage() {
@@ -99,12 +98,6 @@ export default function WorldsPage() {
           </div>
         )}
       </div>
-
-      {/* User Agent Chat Panel - Active when no world is selected */}
-      <ChatPanelContainer
-        viewMode="canvas"
-        placeholder="Ask me to create a world, or select a world to work on..."
-      />
     </div>
   );
 }

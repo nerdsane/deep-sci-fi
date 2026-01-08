@@ -5,7 +5,6 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
-import { ChatPanelContainer } from '@/components/chat/ChatPanelContainer';
 import './world.css';
 
 export default function WorldPage() {
@@ -163,13 +162,6 @@ export default function WorldPage() {
           )}
         </section>
       </div>
-
-      {/* World Agent Chat Panel */}
-      <ChatPanelContainer
-        worldId={worldId}
-        viewMode="canvas"
-        placeholder="Ask me about this world or create a story..."
-      />
     </div>
   );
 }

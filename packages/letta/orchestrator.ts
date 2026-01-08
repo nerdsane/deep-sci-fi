@@ -43,17 +43,23 @@ export class LettaOrchestrator {
     const lettaApiKey = apiKey || process.env.LETTA_API_KEY;
     const lettaBaseUrl = baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283';
 
+    // Check if using local Letta server (localhost or 127.0.0.1)
+    const isLocalServer = lettaBaseUrl.includes('localhost') || lettaBaseUrl.includes('127.0.0.1');
+
     // Validate required configuration
-    if (!lettaApiKey) {
+    // API key is only required for Letta Cloud, not for local servers
+    if (!lettaApiKey && !isLocalServer) {
       throw new Error(
-        'LettaOrchestrator: LETTA_API_KEY is required. ' +
-        'Set it via environment variable or pass as constructor parameter.'
+        'LettaOrchestrator: LETTA_API_KEY is required for Letta Cloud. ' +
+        'Set it via environment variable or pass as constructor parameter. ' +
+        'For local Letta servers, no API key is needed.'
       );
     }
 
     // Initialize Letta client with custom headers for tracking
+    // Use 'local-dev' placeholder for local servers without API key
     this.client = new Letta({
-      apiKey: lettaApiKey,
+      apiKey: lettaApiKey || 'local-dev',
       baseURL: lettaBaseUrl,
       defaultHeaders: {
         'X-Letta-Source': 'deep-sci-fi',

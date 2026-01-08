@@ -116,7 +116,15 @@ export function ChatPanel({
 
       <div className="message-list">
         {messages.map((message) => (
-          <Message key={message.id} message={message} />
+          <Message
+            key={message.id}
+            role={message.role}
+            content={message.content}
+            timestamp={message.timestamp}
+            type={message.type}
+            action={message.action}
+            data={message.data}
+          />
         ))}
 
         {agentStatus === 'thinking' && (
