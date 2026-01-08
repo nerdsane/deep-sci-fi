@@ -155,3 +155,25 @@ resource "aws_security_group_rule" "rds_from_ecs" {
   security_group_id        = module.database.db_security_group_id
   description              = "PostgreSQL from ECS"
 }
+
+# ============================================================================
+# Letta UI Module (Observability Dashboard)
+# ============================================================================
+module "letta_ui" {
+  source = "./modules/letta-ui"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = var.aws_region
+  vpc_id             = module.networking.vpc_id
+  public_subnet_ids  = module.networking.public_subnet_ids
+  private_subnet_ids = module.networking.private_subnet_ids
+
+  ecs_cluster_id         = module.compute.ecs_cluster_id
+  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+  ecs_task_role_arn      = module.iam.ecs_task_role_arn
+
+  letta_api_url = "http://${module.compute.alb_dns_name}"
+
+  depends_on = [module.networking, module.compute]
+}
