@@ -1,4 +1,5 @@
-import type { Letta } from 'letta';
+// TODO: Import actual Letta client type when implementing
+// import type { Letta } from '@letta-ai/letta-client';
 
 /**
  * Create a world_query tool for story agents to query world agents
@@ -7,8 +8,10 @@ import type { Letta } from 'letta';
  * 1. Check if story elements contradict world rules
  * 2. Query for existing world elements (characters, locations, tech, etc.)
  * 3. Verify consistency of proposed story content
+ *
+ * TODO: Implement with @letta-ai/letta-client
  */
-export function createWorldQueryTool(worldAgentId: string, lettaClient: Letta) {
+export function createWorldQueryTool(worldAgentId: string, lettaClient: any) {
   return async (params: {
     query_type: 'rules' | 'elements' | 'consistency_check';
     query: string;

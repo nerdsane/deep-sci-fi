@@ -4,11 +4,18 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { trpc } from '@/lib/trpc';
 import './worlds.css';
 
 export default function WorldsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Fetch worlds using tRPC
+  const { data: worldsData, isLoading: worldsLoading } = trpc.worlds.list.useQuery(
+    undefined,
+    { enabled: status === 'authenticated' }
+  );
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -16,7 +23,7 @@ export default function WorldsPage() {
     }
   }, [status, router]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || worldsLoading) {
     return (
       <div className="worlds-page worlds-page--loading">
         <div className="loading-indicator">
@@ -31,8 +38,7 @@ export default function WorldsPage() {
     return null;
   }
 
-  // TODO: Fetch worlds from tRPC
-  const worlds: any[] = [];
+  const worlds = worldsData?.worlds || [];
 
   return (
     <div className="worlds-page">
@@ -81,7 +87,7 @@ export default function WorldsPage() {
                 </p>
                 <div className="world-card__footer">
                   <span className="world-card__meta">
-                    {world.storyCount || 0} stories
+                    {world._count?.stories || 0} stories
                   </span>
                   <span className="world-card__meta">
                     {world.worldAgentId ? '✓ Agent' : '○ No agent'}

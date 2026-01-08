@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { trpc } from '@/lib/trpc';
 import '../worlds.css';
 import './new-world.css';
 
 export default function NewWorldPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const createWorldMutation = trpc.worlds.create.useMutation();
 
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
@@ -45,15 +47,22 @@ export default function NewWorldPage() {
     setLoading(true);
 
     try {
-      // TODO: Create world via tRPC
-      console.log('Creating world:', { name, summary, visibility, foundation });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await createWorldMutation.mutateAsync({
+        name,
+        visibility,
+        foundation: {
+          summary,
+          physics: foundation.physics,
+          technology: foundation.technology,
+          society: foundation.society,
+          history: foundation.history,
+        },
+        surface: {},
+      });
 
       router.push('/worlds');
     } catch (err) {
-      setError('Failed to create world');
+      setError(err instanceof Error ? err.message : 'Failed to create world');
       setLoading(false);
     }
   };

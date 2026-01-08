@@ -1,4 +1,5 @@
-import { Letta } from 'letta';
+// TODO: Import actual Letta client when implementing
+// import { Letta } from '@letta-ai/letta-client';
 import type { World, Story } from '@deep-sci-fi/types';
 import type {
   AgentConfig,
@@ -10,56 +11,61 @@ import type {
   AgentResponse,
 } from './types';
 import { generateWorldSystemPrompt, generateStorySystemPrompt } from './prompts';
-import { createWorldQueryTool } from './tools/world-query';
 
+/**
+ * LettaOrchestrator - Agent management service
+ *
+ * CURRENT STATUS: Stub implementation
+ *
+ * This class provides the architecture for managing Letta agents but does not
+ * yet have a complete integration with the @letta-ai/letta-client SDK.
+ *
+ * TODO: Implement actual Letta SDK integration
+ * - Initialize Letta client in constructor
+ * - Implement agent creation with proper SDK calls
+ * - Implement tool registration
+ * - Implement message sending and streaming
+ * - Handle error cases and retries
+ */
 export class LettaOrchestrator {
-  private client: Letta;
+  // TODO: Add Letta client when implementing
+  // private client: Letta;
   private activeSessions: Map<string, ChatSession>;
   private worldAgents: Map<string, string>; // worldId -> agentId
   private storyAgents: Map<string, string>; // storyId -> agentId
 
   constructor(apiKey?: string, baseUrl?: string) {
-    this.client = new Letta({
-      apiKey: apiKey || process.env.LETTA_API_KEY,
-      baseURL: baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283',
-    });
+    // TODO: Initialize Letta client with actual SDK
+    // this.client = new Letta({
+    //   apiKey: apiKey || process.env.LETTA_API_KEY,
+    //   baseURL: baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283',
+    // });
     this.activeSessions = new Map();
     this.worldAgents = new Map();
     this.storyAgents = new Map();
+
+    console.warn('LettaOrchestrator: Using stub implementation. Letta SDK integration not yet complete.');
   }
 
   /**
    * Create a world agent for managing world state and rules
+   * TODO: Implement with @letta-ai/letta-client
    */
   async createWorldAgent(world: World): Promise<string> {
+    // Generate system prompt (this works)
     const systemPrompt = generateWorldSystemPrompt(world);
 
-    const agent = await this.client.agents.create({
-      name: `world-agent-${world.id}`,
-      system: systemPrompt,
-      tools: [
-        'update_world_rules',
-        'check_consistency',
-        'query_world_elements',
-        'create_world_element',
-      ],
-      memory: {
-        core_memory: {
-          world_id: world.id,
-          world_name: world.name,
-          foundation: JSON.stringify(world.foundation),
-          surface: JSON.stringify(world.surface),
-          constraints: JSON.stringify(world.constraints || []),
-        },
-      },
-    });
-
-    this.worldAgents.set(world.id, agent.id);
-    return agent.id;
+    // TODO: Implement actual agent creation with Letta SDK
+    throw new Error(
+      'LettaOrchestrator.createWorldAgent: Not yet implemented. ' +
+      'Need to integrate with @letta-ai/letta-client SDK. ' +
+      'System prompt generated successfully for world: ' + world.name
+    );
   }
 
   /**
    * Create a story agent with read-only access to world context
+   * TODO: Implement with @letta-ai/letta-client
    */
   async createStoryAgent(story: Story, world: World): Promise<string> {
     const systemPrompt = generateStorySystemPrompt(story, world);
@@ -69,64 +75,17 @@ export class LettaOrchestrator {
       throw new Error(`World agent not found for world ${world.id}. Create world agent first.`);
     }
 
-    // Create custom world_query tool for this story agent
-    const worldQueryTool = createWorldQueryTool(worldAgentId, this.client);
-
-    const agent = await this.client.agents.create({
-      name: `story-agent-${story.id}`,
-      system: systemPrompt,
-      tools: [
-        'world_query', // Custom tool for querying world agent
-        'create_story_segment',
-        'generate_vn_scene',
-        'create_ui_component',
-        'check_story_consistency',
-      ],
-      memory: {
-        core_memory: {
-          story_id: story.id,
-          story_title: story.title,
-          world_id: world.id,
-          world_name: world.name,
-          // Read-only world context
-          world_foundation: JSON.stringify(world.foundation),
-          world_surface: JSON.stringify(world.surface),
-        },
-      },
-    });
-
-    // Register the world_query tool for this agent
-    await this.client.tools.create({
-      name: 'world_query',
-      description: 'Query the world agent for rules, constraints, and elements. Use this before creating story content to ensure consistency.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query_type: {
-            type: 'string',
-            enum: ['rules', 'elements', 'consistency_check'],
-            description: 'Type of query to perform',
-          },
-          query: {
-            type: 'string',
-            description: 'Natural language query about world rules or elements',
-          },
-          context: {
-            type: 'object',
-            description: 'Optional context for the query (e.g., story element being created)',
-          },
-        },
-        required: ['query_type', 'query'],
-      },
-      handler: worldQueryTool,
-    });
-
-    this.storyAgents.set(story.id, agent.id);
-    return agent.id;
+    // TODO: Implement actual agent creation with Letta SDK
+    throw new Error(
+      'LettaOrchestrator.createStoryAgent: Not yet implemented. ' +
+      'Need to integrate with @letta-ai/letta-client SDK. ' +
+      'System prompt generated successfully for story: ' + story.title
+    );
   }
 
   /**
    * Start a chat session with an agent
+   * TODO: Implement actual session management
    */
   async startChatSession(
     userId: string,
@@ -144,11 +103,13 @@ export class LettaOrchestrator {
     };
 
     this.activeSessions.set(sessionId, session);
+    console.log(`Started chat session ${sessionId} for agent ${agentId}`);
     return sessionId;
   }
 
   /**
    * Send a message to an agent in a chat session
+   * TODO: Implement with @letta-ai/letta-client
    */
   async sendMessage(
     sessionId: string,
@@ -165,30 +126,16 @@ export class LettaOrchestrator {
       content: message,
     });
 
-    // Send to Letta agent
-    const response = await this.client.agents.messages.send({
-      agentId: session.agentId,
-      message,
-      streamSteps: false,
-    });
-
-    // Parse agent response
-    const agentResponse = this.parseAgentResponse(response);
-
-    // Add agent message to session
-    session.messages.push({
-      role: 'agent',
-      content: agentResponse.message,
-      metadata: {
-        actions: agentResponse.actions,
-      },
-    });
-
-    return agentResponse;
+    // TODO: Send to actual Letta agent
+    throw new Error(
+      'LettaOrchestrator.sendMessage: Not yet implemented. ' +
+      'Need to integrate with @letta-ai/letta-client SDK to send messages to agents.'
+    );
   }
 
   /**
    * Query world agent from story agent (world_query tool implementation)
+   * TODO: Implement with @letta-ai/letta-client
    */
   async queryWorldAgent(
     worldAgentId: string,
@@ -196,14 +143,11 @@ export class LettaOrchestrator {
     query: string,
     context?: any
   ): Promise<WorldQueryResult> {
-    const response = await this.client.agents.messages.send({
-      agentId: worldAgentId,
-      message: `Query Type: ${queryType}\nQuery: ${query}\nContext: ${JSON.stringify(context || {})}`,
-      streamSteps: false,
-    });
-
-    // Parse world agent response into structured result
-    return this.parseWorldQueryResponse(response);
+    // TODO: Implement actual world query
+    throw new Error(
+      'LettaOrchestrator.queryWorldAgent: Not yet implemented. ' +
+      'Need to integrate with @letta-ai/letta-client SDK for agent-to-agent communication.'
+    );
   }
 
   /**
@@ -219,62 +163,7 @@ export class LettaOrchestrator {
    */
   endChatSession(sessionId: string): void {
     this.activeSessions.delete(sessionId);
-  }
-
-  /**
-   * Parse Letta agent response into structured format
-   */
-  private parseAgentResponse(response: any): AgentResponse {
-    // Extract message content
-    const message = response.messages?.[0]?.content || '';
-
-    // Extract actions from function calls
-    const actions = response.function_calls?.map((call: any) => {
-      return {
-        type: this.mapFunctionToActionType(call.name),
-        data: call.arguments,
-      };
-    }) || [];
-
-    // Extract thought process from internal monologue
-    const thoughtProcess = response.internal_monologue || undefined;
-
-    return {
-      message,
-      actions,
-      thoughtProcess,
-    };
-  }
-
-  /**
-   * Parse world query response into structured result
-   */
-  private parseWorldQueryResponse(response: any): WorldQueryResult {
-    // TODO: Implement proper parsing based on Letta response format
-    const content = response.messages?.[0]?.content || '';
-
-    return {
-      rules: [],
-      constraints: [],
-      elements: [],
-      reasoning: content,
-    };
-  }
-
-  /**
-   * Map Letta function names to action types
-   */
-  private mapFunctionToActionType(functionName: string): string {
-    const mapping: Record<string, string> = {
-      create_world_element: 'created_element',
-      update_world_rules: 'updated_world',
-      generate_vn_scene: 'created_vn_scene',
-      create_ui_component: 'created_element',
-      check_consistency: 'checked_consistency',
-      check_story_consistency: 'checked_consistency',
-    };
-
-    return mapping[functionName] || 'created_element';
+    console.log(`Ended chat session ${sessionId}`);
   }
 
   /**
@@ -297,9 +186,7 @@ export class LettaOrchestrator {
   async cleanup(): Promise<void> {
     // End all active sessions
     this.activeSessions.clear();
-
-    // TODO: Optionally archive or delete agents
-    // For now, we keep agents persistent
+    console.log('LettaOrchestrator: Cleaned up all sessions');
   }
 }
 

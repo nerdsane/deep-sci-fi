@@ -9,6 +9,7 @@ import { getLettaOrchestrator } from '@deep-sci-fi/letta';
 export const agentsRouter = router({
   /**
    * Create a world agent for a world
+   * NOTE: Agent creation is not yet fully implemented
    */
   createWorldAgent: protectedProcedure
     .input(z.object({
@@ -38,21 +39,27 @@ export const agentsRouter = router({
         }
       }
 
-      // Create agent via Letta Orchestrator
-      const orchestrator = getLettaOrchestrator();
-      const agentId = await orchestrator.createWorldAgent(world);
+      // TODO: Create agent via Letta Orchestrator
+      // Currently throws "Not yet implemented" error
+      throw new Error(
+        'Agent creation not yet implemented. ' +
+        'Letta SDK integration is in progress. ' +
+        'World exists and can be used without an agent for now.'
+      );
 
-      // Update world with agent ID
-      await ctx.db.world.update({
-        where: { id: input.worldId },
-        data: { worldAgentId: agentId },
-      });
-
-      return { agentId };
+      // Future implementation:
+      // const orchestrator = getLettaOrchestrator();
+      // const agentId = await orchestrator.createWorldAgent(world);
+      // await ctx.db.world.update({
+      //   where: { id: input.worldId },
+      //   data: { worldAgentId: agentId },
+      // });
+      // return { agentId };
     }),
 
   /**
    * Create a story agent for a story
+   * NOTE: Agent creation is not yet fully implemented
    */
   createStoryAgent: protectedProcedure
     .input(z.object({
@@ -76,31 +83,30 @@ export const agentsRouter = router({
         throw new Error('Unauthorized');
       }
 
-      // Ensure world agent exists
-      if (!story.world.worldAgentId) {
-        // Create world agent first
-        const orchestrator = getLettaOrchestrator();
-        const worldAgentId = await orchestrator.createWorldAgent(story.world);
+      // TODO: Create story agent via Letta Orchestrator
+      // Currently not implemented
+      throw new Error(
+        'Agent creation not yet implemented. ' +
+        'Letta SDK integration is in progress. ' +
+        'Story exists and can be used without an agent for now.'
+      );
 
-        await ctx.db.world.update({
-          where: { id: story.worldId },
-          data: { worldAgentId },
-        });
-
-        story.world.worldAgentId = worldAgentId;
-      }
-
-      // Create story agent via Letta Orchestrator
-      const orchestrator = getLettaOrchestrator();
-      const agentId = await orchestrator.createStoryAgent(story, story.world);
-
-      // Update story with agent ID
-      await ctx.db.story.update({
-        where: { id: input.storyId },
-        data: { storyAgentId: agentId },
-      });
-
-      return { agentId };
+      // Future implementation:
+      // Ensure world agent exists first
+      // const orchestrator = getLettaOrchestrator();
+      // if (!story.world.worldAgentId) {
+      //   const worldAgentId = await orchestrator.createWorldAgent(story.world);
+      //   await ctx.db.world.update({
+      //     where: { id: story.worldId },
+      //     data: { worldAgentId },
+      //   });
+      // }
+      // const agentId = await orchestrator.createStoryAgent(story, story.world);
+      // await ctx.db.story.update({
+      //   where: { id: input.storyId },
+      //   data: { storyAgentId: agentId },
+      // });
+      // return { agentId };
     }),
 
   /**
