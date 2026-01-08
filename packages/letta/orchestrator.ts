@@ -1,6 +1,6 @@
 // TODO: Import actual Letta client when implementing
 // import { Letta } from '@letta-ai/letta-client';
-import type { World, Story, User } from '@deep-sci-fi/types';
+import type { World, Story, User } from '@deep-sci-fi/db';
 import type {
   AgentMessage,
   ChatSession,

@@ -1,30 +1,6 @@
-import type { World, Story } from '@deep-sci-fi/types';
-
-export interface AgentConfig {
-  id: string;
-  name: string;
-  type: 'world' | 'story';
-  systemPrompt: string;
-  tools: string[];
-  memoryConfig: {
-    coreMemory: Record<string, any>;
-    archivalMemoryEnabled: boolean;
-    recallMemoryEnabled: boolean;
-  };
-}
-
-export interface WorldAgentConfig extends AgentConfig {
-  type: 'world';
-  worldId: string;
-  world: World;
-}
-
-export interface StoryAgentConfig extends AgentConfig {
-  type: 'story';
-  storyId: string;
-  worldId: string;
-  story: Story;
-}
+/**
+ * Letta Agent Type Definitions
+ */
 
 export interface AgentMessage {
   role: 'user' | 'agent' | 'system';
@@ -46,18 +22,15 @@ export interface ChatSession {
   };
 }
 
-export interface WorldQueryResult {
-  rules: string[];
-  constraints: string[];
-  elements: any[];
-  reasoning: string;
-}
-
 export interface AgentResponse {
-  message: string;
-  actions?: Array<{
-    type: 'created_element' | 'updated_world' | 'generated_image' | 'checked_consistency' | 'created_vn_scene';
-    data: any;
+  messages: AgentMessage[];
+  toolCalls?: Array<{
+    name: string;
+    args: any;
+    result?: any;
   }>;
-  thoughtProcess?: string;
+  metadata?: {
+    thoughtProcess?: string;
+    [key: string]: any;
+  };
 }
