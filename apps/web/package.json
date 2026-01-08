@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@babel/standalone": "^7.28.5",
+    "@deep-sci-fi/db": "*",
+    "@deep-sci-fi/letta": "*",
     "@radix-ui/react-dialog": "^1.1.15",
     "next": "^14.2.0",
     "react": "^18.3.1",

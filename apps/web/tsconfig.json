@@ -24,7 +24,13 @@
       "@/lib/*": ["./lib/*"],
       "@/server/*": ["./server/*"],
       "@/styles/*": ["./styles/*"],
-      "@/types/*": ["./types/*"]
+      "@/types/*": ["./types/*"],
+      "@deep-sci-fi/db": ["../../packages/db/index.ts"],
+      "@deep-sci-fi/db/*": ["../../packages/db/*"],
+      "@deep-sci-fi/letta": ["../../packages/letta/index.ts"],
+      "@deep-sci-fi/letta/*": ["../../packages/letta/*"],
+      "@deep-sci-fi/types": ["../../packages/types/index.ts"],
+      "@deep-sci-fi/types/*": ["../../packages/types/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
