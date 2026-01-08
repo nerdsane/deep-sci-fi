@@ -8,6 +8,7 @@ import { trpc } from '@/lib/trpc';
 import { Message } from '../chat/Message';
 import { ChatInput } from '../chat/ChatInput';
 import type { AgentStatus } from '../chat/ChatPanel';
+import '../chat/chat-canvas.css';
 
 /**
  * PersistentChatSidebar - Left sidebar chat that persists across all navigation
@@ -167,7 +168,22 @@ export function PersistentChatSidebar() {
   return (
     <aside className="persistent-chat-sidebar">
       <div className="chat-header">
-        <div className="chat-header-title">Deep Sci-Fi Assistant</div>
+        <div className="chat-header-logo">
+          <pre className="logo-ascii">
+{`██████╗ ███████╗███████╗██████╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗
+██║  ██║█████╗  █████╗  ██████╔╝
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
+██████╔╝███████╗███████╗██║
+╚═════╝ ╚══════╝╚══════╝╚═╝
+███████╗ ██████╗██╗      ███████╗██╗
+██╔════╝██╔════╝██║      ██╔════╝██║
+███████╗██║     ██║█████╗█████╗  ██║
+╚════██║██║     ██║╚════╝██╔══╝  ██║
+███████║╚██████╗██║      ██║     ██║
+╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`}
+          </pre>
+        </div>
         <div className="chat-header-agent">
           <span className="agent-indicator"></span>
           {currentAgent ? (

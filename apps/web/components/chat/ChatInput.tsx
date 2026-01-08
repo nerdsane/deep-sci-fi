@@ -17,7 +17,7 @@ export function ChatInput({
   disabled = false,
   placeholder = 'Message the agent...',
 }: ChatInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -25,7 +25,7 @@ export function ChatInput({
       // Cmd/Ctrl + K to focus input
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        inputRef.current?.focus();
+        textareaRef.current?.focus();
       }
     };
 
@@ -40,7 +40,7 @@ export function ChatInput({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -50,16 +50,15 @@ export function ChatInput({
   return (
     <div className="chat-input">
       <form className="chat-input__form" onSubmit={handleSubmit}>
-        <input
-          ref={inputRef}
-          type="text"
+        <textarea
+          ref={textareaRef}
           className="chat-input__field"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          autoComplete="off"
+          rows={1}
         />
         <button
           type="submit"

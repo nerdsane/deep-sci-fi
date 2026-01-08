@@ -2,10 +2,11 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
-import './worlds.css';
+import { WelcomeSpace } from '@/components/canvas/layout/WelcomeSpace';
+import { FeedbackProvider } from '@/components/canvas/context/FeedbackContext';
+import '@/app/canvas.css';
 
 export default function WorldsPage() {
   const { data: session, status } = useSession();
@@ -17,17 +18,39 @@ export default function WorldsPage() {
     { enabled: status === 'authenticated' }
   );
 
+  // Fetch stories using tRPC
+  const { data: storiesData, isLoading: storiesLoading } = trpc.stories.list.useQuery(
+    {},
+    { enabled: status === 'authenticated' }
+  );
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
     }
   }, [status, router]);
 
-  if (status === 'loading' || worldsLoading) {
+  if (status === 'loading' || worldsLoading || storiesLoading) {
     return (
-      <div className="worlds-page worlds-page--loading">
-        <div className="loading-indicator">
-          <div className="loading-spinner"></div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: 'var(--bg-primary, #000)',
+        color: 'var(--text-primary, #c8c8c8)',
+        fontFamily: 'var(--font-mono)',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '2px solid var(--neon-cyan, #00ffcc)',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            margin: '0 auto 1rem',
+            animation: 'spin 1s linear infinite',
+          }} />
           <p>Loading...</p>
         </div>
       </div>
@@ -39,65 +62,23 @@ export default function WorldsPage() {
   }
 
   const worlds = worldsData?.worlds || [];
+  const stories = storiesData || [];
 
   return (
-    <div className="worlds-page">
-      <div className="worlds-container">
-        <header className="worlds-header">
-          <div className="worlds-header__content">
-            <h1 className="worlds-header__title">
-              <span className="worlds-header__accent">◈</span> Your Worlds
-            </h1>
-            <p className="worlds-header__subtitle">
-              Manage your sci-fi universes and world-building projects
-            </p>
-          </div>
-          <Link href="/worlds/new" className="worlds-header__button">
-            + Create World
-          </Link>
-        </header>
-
-        {worlds.length === 0 ? (
-          <div className="worlds-empty">
-            <div className="worlds-empty__icon">🌌</div>
-            <h2 className="worlds-empty__title">No worlds yet</h2>
-            <p className="worlds-empty__description">
-              Create your first sci-fi universe to start building immersive stories
-            </p>
-            <Link href="/worlds/new" className="worlds-empty__button">
-              Create Your First World
-            </Link>
-          </div>
-        ) : (
-          <div className="worlds-grid">
-            {worlds.map((world) => (
-              <Link
-                key={world.id}
-                href={`/worlds/${world.id}`}
-                className="world-card"
-              >
-                <div className="world-card__header">
-                  <h3 className="world-card__title">{world.name}</h3>
-                  <span className="world-card__badge">
-                    {world.visibility === 'public' ? '🌐' : '🔒'}
-                  </span>
-                </div>
-                <p className="world-card__description">
-                  {world.foundation?.summary || 'No description'}
-                </p>
-                <div className="world-card__footer">
-                  <span className="world-card__meta">
-                    {world._count?.stories || 0} stories
-                  </span>
-                  <span className="world-card__meta">
-                    {world.worldAgentId ? '✓ Agent' : '○ No agent'}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <FeedbackProvider>
+      <WelcomeSpace
+        worlds={worlds}
+        stories={stories}
+        onSelectWorld={(world) => {
+          router.push(`/worlds/${world.id}`);
+        }}
+        onSelectStory={(story) => {
+          router.push(`/worlds/${story.worldId}/stories/${story.id}`);
+        }}
+        onStartNewWorld={() => {
+          router.push('/worlds/new');
+        }}
+      />
+    </FeedbackProvider>
   );
 }

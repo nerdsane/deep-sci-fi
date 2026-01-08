@@ -62,7 +62,7 @@ export function Message({ role, content, timestamp, type = 'text', action, data 
 function AgentIcon() {
   return (
     <div className="avatar avatar--agent">
-      <span className="avatar__icon">🤖</span>
+      ◇
     </div>
   );
 }
@@ -70,7 +70,7 @@ function AgentIcon() {
 function UserAvatar() {
   return (
     <div className="avatar avatar--user">
-      <span className="avatar__icon">👤</span>
+      ◈
     </div>
   );
 }
