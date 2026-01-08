@@ -25,18 +25,10 @@ export const agentsRouter = router({
         throw new Error('User not found');
       }
 
-      // TODO: Call orchestrator to get or create user agent
-      // Currently throws "Not yet implemented" error
-      throw new Error(
-        'getUserAgent: Not yet implemented. ' +
-        'Letta SDK integration in progress. ' +
-        `User exists: ${user.email}`
-      );
+      const orchestrator = getLettaOrchestrator(ctx.db);
+      const userAgentId = await orchestrator.getOrCreateUserAgent(user.id, user);
 
-      // Future implementation:
-      // const orchestrator = getLettaOrchestrator();
-      // const userAgentId = await orchestrator.getOrCreateUserAgent(user.id, user);
-      // return { agentId: userAgentId };
+      return { agentId: userAgentId };
     }),
 
   /**
@@ -51,6 +43,7 @@ export const agentsRouter = router({
       // Get world from database
       const world = await ctx.db.world.findUnique({
         where: { id: input.worldId },
+        include: { owner: true },
       });
 
       if (!world) {
@@ -71,18 +64,10 @@ export const agentsRouter = router({
         }
       }
 
-      // TODO: Call orchestrator to get or create world agent
-      // Currently throws "Not yet implemented" error
-      throw new Error(
-        'getOrCreateWorldAgent: Not yet implemented. ' +
-        'Letta SDK integration in progress. ' +
-        `World exists: ${world.name}`
-      );
+      const orchestrator = getLettaOrchestrator(ctx.db);
+      const worldAgentId = await orchestrator.getOrCreateWorldAgent(input.worldId, world, world.owner);
 
-      // Future implementation:
-      // const orchestrator = getLettaOrchestrator();
-      // const worldAgentId = await orchestrator.getOrCreateWorldAgent(input.worldId, world);
-      // return { agentId: worldAgentId };
+      return { agentId: worldAgentId };
     }),
 
   /**
@@ -109,18 +94,10 @@ export const agentsRouter = router({
         throw new Error('Unauthorized');
       }
 
-      // TODO: Call orchestrator to set story context
-      // Currently throws "Not yet implemented" error
-      throw new Error(
-        'setStoryContext: Not yet implemented. ' +
-        'Letta SDK integration in progress. ' +
-        `Story exists: ${story.title}`
-      );
+      const orchestrator = getLettaOrchestrator(ctx.db);
+      await orchestrator.setStoryContext(input.agentId, story);
 
-      // Future implementation:
-      // const orchestrator = getLettaOrchestrator();
-      // await orchestrator.setStoryContext(input.agentId, story);
-      // return { success: true };
+      return { success: true };
     }),
 
   /**
