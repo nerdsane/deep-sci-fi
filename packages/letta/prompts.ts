@@ -1,4 +1,4 @@
-import type { World, Story } from '@deep-sci-fi/types';
+import type { World, Story } from '@deep-sci-fi/db';
 
 /**
  * Generate system prompt for User Agent (Orchestrator)
