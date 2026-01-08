@@ -48,13 +48,13 @@ export function WorldSpace({
   const worldEra = foundation.history?.eras?.[0] || development.state || 'Active';
 
   // Get world cover image if available
-  const coverImage = world.asset?.path ? \`/api/assets/\${world.asset.path}\` : undefined;
+  const coverImage = world.asset?.path ? `/api/assets/${world.asset.path}` : undefined;
 
   // Build timeline from changelog
   const changelog = world?.changelog || [];
   const timelineEvents = changelog.slice(0, 5).map((entry, i) => ({
-    id: \`v\${entry.version}\`,
-    title: \`Version \${entry.version}\`,
+    id: `v${entry.version}`,
+    title: `Version ${entry.version}`,
     description: entry.changes.join(', '),
     date: new Date(entry.timestamp).toLocaleDateString(),
     status: i === 0 ? 'current' as const : 'completed' as const,
@@ -74,7 +74,7 @@ export function WorldSpace({
       variant: 'primary' as const,
     }] : []),
     ...stories.slice(0, 3).map(story => ({
-      id: \`story-\${story.id}\`,
+      id: `story-${story.id}`,
       label: story.metadata.title,
       description: story.metadata.status === 'active' ? 'Continue reading' : 'Completed',
       variant: 'branch' as const,
@@ -92,9 +92,9 @@ export function WorldSpace({
         backgroundImage={coverImage}
         badge={worldEra}
         meta={[
-          \`\${visibleElements.length} Elements\`,
-          \`\${stories.length} Stories\`,
-          \`v\${development.version || 0}\`,
+          `${visibleElements.length} Elements`,
+          `${stories.length} Stories`,
+          `v${development.version || 0}`,
         ]}
         height="full"
         overlay="gradient"
@@ -239,7 +239,7 @@ export function WorldSpace({
             <div className="world-space__timeline">
               {timelineEvents.map((event, i) => (
                 <ScrollSection key={event.id} animation="slide-right" delay={i * 100}>
-                  <div className={\`world-space__timeline-item \${event.status === 'current' ? 'world-space__timeline-item--current' : ''}\`}>
+                  <div className={`world-space__timeline-item ${event.status === 'current' ? 'world-space__timeline-item--current' : ''}`}>
                     <div className="world-space__timeline-marker" />
                     <div className="world-space__timeline-content">
                       <span className="world-space__timeline-date">{event.date}</span>

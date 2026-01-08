@@ -1,15 +1,200 @@
-/* Import the full letta-code design system */
-@import './canvas.css';
+/* Global styles - extends canvas.css */
 
-/* Tailwind (if needed for specific utilities) */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Next.js specific overrides only */
-html, body {
-  margin: 0;
-  padding: 0;
+/* Chat sidebar specific styles */
+.app-layout {
+  display: flex;
   min-height: 100vh;
-  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif);
+  width: 100%;
+}
+
+.chat-sidebar {
+  width: 380px;
+  min-width: 380px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+}
+
+.chat-sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, var(--neon-cyan) 0%, transparent 30%, transparent 70%, var(--neon-cyan) 100%);
+  opacity: 0.2;
+}
+
+.chat-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chat-header__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.chat-header__status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.chat-header__status--connected {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chat-message {
+  padding: var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.chat-message--user {
+  background: rgba(0, 255, 204, 0.05);
+  border-color: rgba(0, 255, 204, 0.2);
+  margin-left: var(--space-4);
+}
+
+.chat-message--agent {
+  background: rgba(170, 0, 255, 0.05);
+  border-color: rgba(170, 0, 255, 0.2);
+  margin-right: var(--space-4);
+}
+
+.chat-message__role {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+
+.chat-message--user .chat-message__role {
+  color: var(--neon-cyan);
+}
+
+.chat-message--agent .chat-message__role {
+  color: var(--neon-purple);
+}
+
+.chat-message__content {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.chat-input-container {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
+}
+
+.chat-input-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chat-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color 0.2s ease;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+}
+
+.chat-input:focus {
+  border-color: var(--border-accent);
+}
+
+.chat-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.chat-send-btn {
+  padding: var(--space-2) var(--space-3);
+  background: var(--neon-cyan);
+  border: none;
+  color: var(--bg-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-send-btn:hover:not(:disabled) {
+  background: var(--neon-cyan-bright);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+}
+
+.chat-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.canvas-container {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Responsive - collapse chat on smaller screens */
+@media (max-width: 1024px) {
+  .chat-sidebar {
+    width: 320px;
+    min-width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .chat-sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: 40vh;
+    position: relative;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .canvas-container {
+    height: 60vh;
+    overflow-y: auto;
+  }
 }
