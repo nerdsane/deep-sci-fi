@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@deep-sci-fi/db": "*",
     "@deep-sci-fi/types": "*",
     "@letta-ai/letta-client": "^1.6.5",
