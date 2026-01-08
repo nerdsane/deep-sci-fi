@@ -27,6 +27,11 @@ export {
   worldManagerTool,
 } from './world-manager';
 
+export {
+  story_manager,
+  storyManagerTool,
+} from './story-manager';
+
 // Tool Executor
 export {
   getUserAgentClientTools,
@@ -38,7 +43,6 @@ export {
 
 // World Agent Tools (remaining to be implemented)
 // TODO: Implement these tools by porting from letta-code:
-// - story_manager (create/save stories and segments)
 // - image_generator (generate images for scenes, characters, locations)
 // - canvas_ui (create agent-driven UI components)
 // - send_suggestion (proactive suggestions to user)
