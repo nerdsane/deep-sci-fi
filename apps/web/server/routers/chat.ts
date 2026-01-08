@@ -75,25 +75,18 @@ export const chatRouter = router({
         }
       }
 
-      // TODO: Route message to appropriate agent
-      // Currently throws "Not yet implemented" error
-      throw new Error(
-        'sendMessage: Not yet implemented. ' +
-        'Letta SDK integration in progress. ' +
-        `Context: ${JSON.stringify(input.context)}`
+      const orchestrator = getLettaOrchestrator(ctx.db);
+
+      const response = await orchestrator.sendMessage(
+        ctx.session.user.id,
+        input.message,
+        input.context
       );
 
-      // Future implementation:
-      // const response = await orchestrator.sendMessage(
-      //   ctx.session.user.id,
-      //   input.message,
-      //   input.context
-      // );
-      //
-      // // Optionally store message in database for persistence
-      // // ...
-      //
-      // return response;
+      // TODO: Optionally store message in database for persistence
+      // This would enable chat history across sessions
+
+      return response;
     }),
 
   /**

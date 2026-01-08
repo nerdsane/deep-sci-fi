@@ -1,5 +1,5 @@
-// TODO: Import actual Letta client when implementing
-// import { Letta } from '@letta-ai/letta-client';
+import Letta from '@letta-ai/letta-client';
+import type { PrismaClient } from '@deep-sci-fi/db';
 import type { World, Story, User } from '@deep-sci-fi/db';
 import type {
   AgentMessage,
@@ -7,6 +7,16 @@ import type {
   AgentResponse,
 } from './types';
 import { generateUserAgentSystemPrompt, generateWorldSystemPrompt } from './prompts';
+import {
+  getUserAgentMemoryBlocks,
+  getWorldAgentMemoryBlocks,
+} from './memory/blocks';
+import {
+  createMemoryBlocks,
+  updateMemoryBlock,
+  cacheMemoryBlocks,
+} from './memory/manager';
+import { userAgentTools, worldAgentTools } from './tools';
 
 /**
  * LettaOrchestrator - Two-Tier Agent Management Service
@@ -15,32 +25,41 @@ import { generateUserAgentSystemPrompt, generateWorldSystemPrompt } from './prom
  * - User Agent (Orchestrator): ONE per user - handles world creation and routing
  * - World Agents: ONE per world - handles world AND all stories in that world
  *
- * CURRENT STATUS: Stub implementation
- *
- * This class provides the architecture for the two-tier agent system but does not
- * yet have a complete integration with the @letta-ai/letta-client SDK.
- *
- * TODO: Implement actual Letta SDK integration
- * - Initialize Letta client in constructor
- * - Implement agent creation with proper SDK calls
- * - Implement tool registration
- * - Implement message sending and streaming
- * - Handle error cases and retries
+ * This class provides the full implementation of the two-tier agent system
+ * with complete integration with the @letta-ai/letta-client SDK.
  */
 export class LettaOrchestrator {
-  // TODO: Add Letta client when implementing
-  // private client: Letta;
+  private client: Letta;
+  private db: PrismaClient | null;
   private activeSessions: Map<string, ChatSession>;
 
-  constructor(apiKey?: string, baseUrl?: string) {
-    // TODO: Initialize Letta client with actual SDK
-    // this.client = new Letta({
-    //   apiKey: apiKey || process.env.LETTA_API_KEY,
-    //   baseURL: baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283',
-    // });
+  constructor(apiKey?: string, baseUrl?: string, db?: PrismaClient) {
+    // Get API configuration from environment or parameters
+    const lettaApiKey = apiKey || process.env.LETTA_API_KEY;
+    const lettaBaseUrl = baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283';
+
+    // Validate required configuration
+    if (!lettaApiKey) {
+      throw new Error(
+        'LettaOrchestrator: LETTA_API_KEY is required. ' +
+        'Set it via environment variable or pass as constructor parameter.'
+      );
+    }
+
+    // Initialize Letta client with custom headers for tracking
+    this.client = new Letta({
+      apiKey: lettaApiKey,
+      baseURL: lettaBaseUrl,
+      defaultHeaders: {
+        'X-Letta-Source': 'deep-sci-fi',
+        'User-Agent': 'deep-sci-fi/0.1.0',
+      },
+    });
+
+    this.db = db || null;
     this.activeSessions = new Map();
 
-    console.warn('LettaOrchestrator: Using stub implementation. Letta SDK integration not yet complete.');
+    console.log(`LettaOrchestrator: Initialized with Letta SDK at ${lettaBaseUrl}`);
   }
 
   /**
@@ -51,8 +70,6 @@ export class LettaOrchestrator {
    * - User is at worlds list
    * - User has no worlds
    * - User is creating a new world
-   *
-   * TODO: Implement with @letta-ai/letta-client
    */
   async getOrCreateUserAgent(userId: string, user: User): Promise<string> {
     // Check if user already has an agent
@@ -61,40 +78,61 @@ export class LettaOrchestrator {
       return user.userAgentId;
     }
 
+    console.log(`Creating User Agent for user ${userId} (${user.email})`);
+
     // Generate system prompt
     const systemPrompt = generateUserAgentSystemPrompt();
 
-    // TODO: Create agent with Letta SDK
-    // const agent = await this.client.agents.create({
-    //   name: `user-agent-${userId}`,
-    //   system: systemPrompt,
-    //   tools: [
-    //     'world_draft_generator',
-    //     'list_worlds',
-    //     'user_preferences'
-    //   ],
-    //   memory: {
-    //     persona: userAgentPersona,
-    //     human: {
-    //       userId: user.id,
-    //       name: user.name,
-    //       preferences: user.preferences || {}
-    //     },
-    //     active_world: null
-    //   }
-    // });
+    // Create memory blocks
+    const memoryBlockDefinitions = getUserAgentMemoryBlocks({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    });
 
-    // TODO: Save agent ID to database
-    // await db.user.update({
-    //   where: { id: userId },
-    //   data: { userAgentId: agent.id }
-    // });
+    const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
+    const blockIds = createdBlocks.map(b => b.id);
 
-    throw new Error(
-      'LettaOrchestrator.getOrCreateUserAgent: Not yet implemented. ' +
-      'Need to integrate with @letta-ai/letta-client SDK. ' +
-      'System prompt generated successfully for user: ' + user.email
-    );
+    // Get tool names for User Agent
+    const toolNames = userAgentTools.map(tool => tool.name);
+
+    // Create agent with Letta SDK
+    const agent = await this.client.agents.create({
+      agent_type: 'letta_v1_agent',
+      system: systemPrompt,
+      name: `user-agent-${userId}`,
+      description: `Deep Sci-Fi User Agent (Orchestrator) for ${user.email}`,
+      embedding: 'openai/text-embedding-3-small',
+      model: 'anthropic/claude-opus-4-5-20251101',
+      context_window_limit: 200000,
+      tools: toolNames,
+      block_ids: blockIds,
+      include_base_tools: false,
+      parallel_tool_calls: true,
+      enable_sleeptime: false,
+      tags: ['origin:deep-sci-fi', 'type:user-agent'],
+    });
+
+    if (!agent.id) {
+      throw new Error('Created User Agent has no ID');
+    }
+
+    console.log(`Created User Agent: ${agent.id} for user ${userId}`);
+
+    // Save agent ID to database if db is available
+    if (this.db) {
+      await this.db.user.update({
+        where: { id: userId },
+        data: { userAgentId: agent.id },
+      });
+
+      // Cache memory blocks
+      await cacheMemoryBlocks(this.db, agent.id, userId, null, createdBlocks);
+    } else {
+      console.warn('No database client available - agent ID not saved to database');
+    }
+
+    return agent.id;
   }
 
   /**
@@ -107,49 +145,77 @@ export class LettaOrchestrator {
    * World Agent handles BOTH:
    * - World management (rules, elements, consistency)
    * - Story creation (all stories in this world)
-   *
-   * TODO: Implement with @letta-ai/letta-client
    */
-  async getOrCreateWorldAgent(worldId: string, world: World): Promise<string> {
+  async getOrCreateWorldAgent(worldId: string, world: World, owner: User): Promise<string> {
     // Check if world already has an agent
     if (world.worldAgentId) {
       console.log(`World Agent exists for world ${worldId}: ${world.worldAgentId}`);
       return world.worldAgentId;
     }
 
+    console.log(`Creating World Agent for world ${worldId} (${world.name})`);
+
     // Generate system prompt
     const systemPrompt = generateWorldSystemPrompt(world);
 
-    // TODO: Create agent with Letta SDK
-    // const agent = await this.client.agents.create({
-    //   name: `world-agent-${worldId}`,
-    //   system: systemPrompt,
-    //   tools: [
-    //     'world_manager',
-    //     'story_manager',
-    //     'image_generator',
-    //     'canvas_ui',
-    //     'send_suggestion'
-    //   ],
-    //   memory: {
-    //     persona: worldAgentPersona,
-    //     project: world.foundation,
-    //     human: await getUserPreferences(world.ownerId),
-    //     current_story: null
-    //   }
-    // });
-
-    // TODO: Save agent ID to database
-    // await db.world.update({
-    //   where: { id: worldId },
-    //   data: { worldAgentId: agent.id }
-    // });
-
-    throw new Error(
-      'LettaOrchestrator.getOrCreateWorldAgent: Not yet implemented. ' +
-      'Need to integrate with @letta-ai/letta-client SDK. ' +
-      'System prompt generated successfully for world: ' + world.name
+    // Create memory blocks
+    const memoryBlockDefinitions = getWorldAgentMemoryBlocks(
+      {
+        name: world.name,
+        description: world.description,
+        foundation: world.foundation,
+      },
+      {
+        id: owner.id,
+        name: owner.name,
+        preferences: owner.preferences,
+      }
     );
+
+    const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
+    const blockIds = createdBlocks.map(b => b.id);
+
+    // Get tool names for World Agent
+    // TODO: World agent tools are not yet implemented, so this will be an empty array for now
+    const toolNames = worldAgentTools.map(tool => tool.name);
+
+    // Create agent with Letta SDK
+    const agent = await this.client.agents.create({
+      agent_type: 'letta_v1_agent',
+      system: systemPrompt,
+      name: `world-agent-${worldId}`,
+      description: `Deep Sci-Fi World Agent for "${world.name}" (${worldId})`,
+      embedding: 'openai/text-embedding-3-small',
+      model: 'anthropic/claude-opus-4-5-20251101',
+      context_window_limit: 200000,
+      tools: toolNames,
+      block_ids: blockIds,
+      include_base_tools: false,
+      parallel_tool_calls: true,
+      enable_sleeptime: false,
+      tags: ['origin:deep-sci-fi', 'type:world-agent', `world:${worldId}`],
+    });
+
+    if (!agent.id) {
+      throw new Error('Created World Agent has no ID');
+    }
+
+    console.log(`Created World Agent: ${agent.id} for world ${worldId}`);
+
+    // Save agent ID to database if db is available
+    if (this.db) {
+      await this.db.world.update({
+        where: { id: worldId },
+        data: { worldAgentId: agent.id },
+      });
+
+      // Cache memory blocks
+      await cacheMemoryBlocks(this.db, agent.id, null, worldId, createdBlocks);
+    } else {
+      console.warn('No database client available - agent ID not saved to database');
+    }
+
+    return agent.id;
   }
 
   /**
@@ -158,8 +224,6 @@ export class LettaOrchestrator {
    * Routing logic:
    * - If worldId is present → route to World Agent
    * - If worldId is absent → route to User Agent (orchestrator)
-   *
-   * TODO: Implement with @letta-ai/letta-client
    */
   async sendMessage(
     userId: string,
@@ -169,74 +233,156 @@ export class LettaOrchestrator {
       storyId?: string;
     }
   ): Promise<AgentResponse> {
-    // TODO: Implement routing logic
-    // if (context.worldId) {
-    //   // Route to World Agent
-    //   const world = await db.world.findUnique({ where: { id: context.worldId } });
-    //   const worldAgentId = await this.getOrCreateWorldAgent(context.worldId, world);
-    //
-    //   // Set story context if in a story
-    //   if (context.storyId) {
-    //     const story = await db.story.findUnique({ where: { id: context.storyId } });
-    //     await this.setStoryContext(worldAgentId, story);
-    //   }
-    //
-    //   return await this.sendToAgent(worldAgentId, message);
-    // }
-    //
-    // // Otherwise, route to User Agent (orchestrator)
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    // const userAgentId = await this.getOrCreateUserAgent(userId, user);
-    //
-    // return await this.sendToAgent(userAgentId, message);
+    if (!this.db) {
+      throw new Error('Database client is required for sendMessage');
+    }
 
-    throw new Error(
-      'LettaOrchestrator.sendMessage: Not yet implemented. ' +
-      'Need to integrate with @letta-ai/letta-client SDK for message routing. ' +
-      'Context: ' + JSON.stringify(context)
-    );
+    // If user is in a world, route to World Agent
+    if (context.worldId) {
+      const world = await this.db.world.findUnique({
+        where: { id: context.worldId },
+        include: { owner: true },
+      });
+
+      if (!world) {
+        throw new Error(`World not found: ${context.worldId}`);
+      }
+
+      const worldAgentId = await this.getOrCreateWorldAgent(context.worldId, world, world.owner);
+
+      // Set story context if in a story
+      if (context.storyId) {
+        const story = await this.db.story.findUnique({ where: { id: context.storyId } });
+        if (!story) {
+          throw new Error(`Story not found: ${context.storyId}`);
+        }
+        await this.setStoryContext(worldAgentId, story);
+      }
+
+      return await this.sendToAgent(worldAgentId, message);
+    }
+
+    // Otherwise, route to User Agent (orchestrator)
+    const user = await this.db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error(`User not found: ${userId}`);
+    }
+
+    const userAgentId = await this.getOrCreateUserAgent(userId, user);
+    return await this.sendToAgent(userAgentId, message);
   }
 
   /**
-   * Send message to a specific agent
-   *
-   * TODO: Implement with @letta-ai/letta-client
+   * Send message to a specific agent with streaming
    */
   private async sendToAgent(agentId: string, message: string): Promise<AgentResponse> {
-    // TODO: Send to actual Letta agent
-    // const response = await this.client.agents.messages.send({
-    //   agentId,
-    //   message,
-    //   streamSteps: true
-    // });
-    //
-    // return this.parseResponse(response);
+    console.log(`Sending message to agent ${agentId}: ${message.substring(0, 50)}...`);
 
-    throw new Error(
-      'LettaOrchestrator.sendToAgent: Not yet implemented. ' +
-      'Need to integrate with @letta-ai/letta-client SDK.'
-    );
+    const messages: AgentMessage[] = [];
+    const toolCalls: Array<{ name: string; args: any; result?: any }> = [];
+    let thoughtProcess = '';
+
+    try {
+      // Send message with streaming
+      const stream = await this.client.agents.messages.create(agentId, {
+        messages: [{ role: 'user', content: message }],
+        streaming: true,
+        stream_tokens: true,
+      });
+
+      // Process stream chunks
+      for await (const chunk of stream) {
+        if (!chunk || typeof chunk !== 'object') {
+          continue;
+        }
+
+        // Handle different message types
+        if ('reasoning_message' in chunk && chunk.reasoning_message) {
+          thoughtProcess += chunk.reasoning_message;
+          console.log('[Reasoning]:', chunk.reasoning_message);
+        } else if ('assistant_message' in chunk && chunk.assistant_message) {
+          messages.push({
+            role: 'agent',
+            content: chunk.assistant_message,
+          });
+          console.log('[Assistant]:', chunk.assistant_message);
+        } else if ('tool_call_message' in chunk && chunk.tool_call_message) {
+          const toolCall = chunk.tool_call_message;
+          console.log('[Tool Call]:', toolCall.name, toolCall.arguments);
+          toolCalls.push({
+            name: toolCall.name || 'unknown',
+            args: toolCall.arguments,
+          });
+        } else if ('tool_return_message' in chunk && chunk.tool_return_message) {
+          const toolReturn = chunk.tool_return_message;
+          console.log('[Tool Return]:', toolReturn);
+
+          // Find the corresponding tool call and add the result
+          const lastToolCall = toolCalls[toolCalls.length - 1];
+          if (lastToolCall) {
+            lastToolCall.result = toolReturn;
+          }
+        }
+      }
+
+      console.log(`Received ${messages.length} messages, ${toolCalls.length} tool calls from agent ${agentId}`);
+
+      return {
+        messages,
+        toolCalls,
+        metadata: {
+          thoughtProcess,
+        },
+      };
+    } catch (error) {
+      console.error(`Failed to send message to agent ${agentId}:`, error);
+      throw new Error(
+        `Failed to send message to agent: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   /**
    * Set story context in world agent memory
    * Updates the current_story memory block to give the agent context
-   *
-   * TODO: Implement with @letta-ai/letta-client
    */
   async setStoryContext(worldAgentId: string, story: Story): Promise<void> {
-    // TODO: Update agent memory
-    // await this.client.agents.blocks.update({
-    //   agentId: worldAgentId,
-    //   blockName: 'current_story',
-    //   value: {
-    //     storyId: story.id,
-    //     title: story.title,
-    //     description: story.description
-    //   }
-    // });
+    console.log(`Setting story context for agent ${worldAgentId}: ${story.title}`);
 
-    console.log(`Set story context for agent ${worldAgentId}: ${story.title}`);
+    const storyContextValue = `# ${story.title}
+
+Story ID: ${story.id}
+
+${story.description || 'No description provided'}
+
+## Story Progress
+(Updated as story segments are created)
+
+## Active Characters
+(Populated from story segments)
+
+## Current Scene
+(Updated with latest segment)`;
+
+    try {
+      await updateMemoryBlock(
+        this.client,
+        worldAgentId,
+        'current_story',
+        storyContextValue
+      );
+
+      console.log(`Updated story context for agent ${worldAgentId}: ${story.title}`);
+    } catch (error) {
+      console.error(`Failed to set story context for agent ${worldAgentId}:`, error);
+      throw new Error(
+        `Failed to set story context: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   /**
@@ -306,9 +452,22 @@ export class LettaOrchestrator {
 // Singleton instance for server-side use
 let orchestratorInstance: LettaOrchestrator | null = null;
 
-export function getLettaOrchestrator(): LettaOrchestrator {
+/**
+ * Get or create singleton LettaOrchestrator instance
+ *
+ * @param db - Prisma client (optional, but recommended for database operations)
+ * @returns LettaOrchestrator instance
+ */
+export function getLettaOrchestrator(db?: PrismaClient): LettaOrchestrator {
   if (!orchestratorInstance) {
-    orchestratorInstance = new LettaOrchestrator();
+    orchestratorInstance = new LettaOrchestrator(
+      process.env.LETTA_API_KEY,
+      process.env.LETTA_BASE_URL,
+      db
+    );
+  } else if (db && !orchestratorInstance['db']) {
+    // If instance exists but doesn't have a db client, update it
+    orchestratorInstance['db'] = db;
   }
   return orchestratorInstance;
 }
