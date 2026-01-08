@@ -100,10 +100,26 @@ else
 fi
 cd ..
 
-# 3. Install dependencies if needed
+# 3. Link local packages and install dependencies
 echo ""
 echo "📚 Checking dependencies..."
 if [ ! -d "apps/web/node_modules" ]; then
+    print_warning "Setting up local packages..."
+
+    # Create symlinks for local packages (workaround for npm workspace issues)
+    mkdir -p apps/web/node_modules/@deep-sci-fi
+    cd apps/web/node_modules/@deep-sci-fi
+
+    # Remove existing symlinks if any
+    rm -f letta types db
+
+    # Create symlinks
+    ln -s ../../../../packages/letta letta
+    ln -s ../../../../packages/types types
+    ln -s ../../../../packages/db db
+
+    cd ../../../..
+
     print_warning "Installing dependencies (this may take a few minutes)..."
     cd apps/web
     npm install --legacy-peer-deps
@@ -116,23 +132,25 @@ fi
 # 4. Setup database
 echo ""
 echo "🗄️  Setting up database..."
-cd packages/db
+
+# Run Prisma commands from apps/web where .env exists
+cd apps/web
 
 # Check if database is already set up
-if npx prisma db execute --stdin <<< "SELECT 1 FROM \"User\" LIMIT 1;" 2>/dev/null; then
+if npx prisma db execute --stdin --schema=../../packages/db/prisma/schema.prisma <<< "SELECT 1 FROM \"User\" LIMIT 1;" 2>/dev/null; then
     print_success "Database already set up"
 else
     print_warning "Pushing database schema..."
-    npx prisma db push --skip-generate
+    npx prisma db push --skip-generate --schema=../../packages/db/prisma/schema.prisma
     print_success "Database schema created"
 fi
 
 # Always generate Prisma client
 print_warning "Generating Prisma client..."
+cd ../../packages/db
 npx prisma generate
-print_success "Prisma client generated"
-
 cd ../..
+print_success "Prisma client generated"
 
 # 5. Start the web app
 echo ""
