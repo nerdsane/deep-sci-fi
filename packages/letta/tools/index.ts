@@ -5,34 +5,33 @@
  * They are registered with the Letta SDK when creating agents.
  */
 
-// User Agent Tools (Orchestrator)
-export {
+// Import all tools first to ensure they're available for arrays
+import {
   world_draft_generator,
   worldDraftGeneratorTool,
 } from './world-draft-generator';
 
-export {
+import {
   list_worlds,
   listWorldsTool,
 } from './list-worlds';
 
-export {
+import {
   user_preferences,
   userPreferencesTool,
 } from './user-preferences';
 
-// World Agent Tools
-export {
+import {
   world_manager,
   worldManagerTool,
 } from './world-manager';
 
-export {
+import {
   story_manager,
   storyManagerTool,
 } from './story-manager';
 
-// Tool Executor
+// Tool Executor imports
 export {
   getUserAgentClientTools,
   getWorldAgentClientTools,
@@ -40,6 +39,20 @@ export {
   type ToolContext,
   type ClientTool,
 } from './executor';
+
+// Export all tool functions and definitions
+export {
+  world_draft_generator,
+  worldDraftGeneratorTool,
+  list_worlds,
+  listWorldsTool,
+  user_preferences,
+  userPreferencesTool,
+  world_manager,
+  worldManagerTool,
+  story_manager,
+  storyManagerTool,
+};
 
 // World Agent Tools (remaining to be implemented)
 // TODO: Implement these tools by porting from letta-code:
