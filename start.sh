@@ -149,8 +149,13 @@ fi
 print_warning "Generating Prisma client..."
 cd ../../packages/db
 npx prisma generate
+
+# Copy Prisma binary to web app (needed for Next.js with symlinked packages)
+print_warning "Copying Prisma binary to web app..."
+mkdir -p ../../apps/web/node_modules/.prisma/client
+cp -r node_modules/.prisma/client/* ../../apps/web/node_modules/.prisma/client/
 cd ../..
-print_success "Prisma client generated"
+print_success "Prisma client generated and binary copied"
 
 # 5. Start the web app
 echo ""
