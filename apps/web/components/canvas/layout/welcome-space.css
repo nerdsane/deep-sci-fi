@@ -1,0 +1,231 @@
+/* ============================================================================
+   WELCOME SPACE
+   Immersive welcome experience for returning users
+   DSF brand: teal #00ffcc, cyan #00ffff only
+   ============================================================================ */
+
+.welcome-space {
+  min-height: 100vh;
+  background: var(--bg-primary, #000000);
+  color: var(--text-primary, #c8c8c8);
+}
+
+/* ============================================================================
+   SECTIONS
+   ============================================================================ */
+
+.welcome-space__section {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+
+.welcome-space__section--empty {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-space__section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #8a8a8a);
+  margin: 0 0 2rem;
+}
+
+.welcome-space__section-icon {
+  color: var(--neon-cyan, #00ffcc);
+}
+
+/* ============================================================================
+   STORIES
+   ============================================================================ */
+
+.welcome-space__stories {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.welcome-space__story-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 1.5rem;
+  background: var(--bg-secondary, #0a0a0a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 2px solid var(--neon-cyan, #00ffcc);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.welcome-space__story-card:hover {
+  background: var(--bg-tertiary, #0f0f0f);
+  border-color: rgba(0, 255, 204, 0.3);
+  border-left-color: var(--neon-cyan, #00ffcc);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+}
+
+.welcome-space__story-info {
+  flex: 1;
+}
+
+.welcome-space__story-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text-primary, #c8c8c8);
+}
+
+.welcome-space__story-meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #5a5a5a);
+}
+
+.welcome-space__story-arrow {
+  color: var(--text-tertiary, #5a5a5a);
+  font-size: 1.5rem;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.welcome-space__story-card:hover .welcome-space__story-arrow {
+  transform: translateX(4px);
+  color: var(--neon-cyan, #00ffcc);
+}
+
+/* ============================================================================
+   WORLDS GRID
+   ============================================================================ */
+
+.welcome-space__worlds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.welcome-space__world-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  padding: 1.5rem;
+  background: var(--bg-secondary, #0a0a0a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.welcome-space__world-card:hover {
+  background: var(--bg-tertiary, #0f0f0f);
+  border-color: rgba(0, 255, 204, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+}
+
+.welcome-space__world-header {
+  margin-bottom: 1rem;
+}
+
+.welcome-space__world-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 255, 204, 0.1);
+  border: 1px solid rgba(0, 255, 204, 0.2);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--neon-cyan, #00ffcc);
+}
+
+.welcome-space__world-name {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text-primary, #c8c8c8);
+}
+
+.welcome-space__world-premise {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #8a8a8a);
+  flex: 1;
+
+  /* Truncate long premises */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.welcome-space__world-stats {
+  display: flex;
+  gap: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary, #5a5a5a);
+}
+
+/* ============================================================================
+   EMPTY STATE
+   ============================================================================ */
+
+.welcome-space__empty {
+  text-align: center;
+  padding: 3rem;
+}
+
+.welcome-space__empty-icon {
+  display: block;
+  font-size: 3rem;
+  color: var(--neon-cyan, #00ffcc);
+  opacity: 0.3;
+  margin-bottom: 1.5rem;
+}
+
+.welcome-space__empty-title {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: var(--text-primary, #c8c8c8);
+}
+
+.welcome-space__empty-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #8a8a8a);
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 600px) {
+  .welcome-space__section {
+    padding: 3rem 1.25rem;
+  }
+
+  .welcome-space__worlds-grid {
+    grid-template-columns: 1fr;
+  }
+}
