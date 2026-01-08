@@ -2,11 +2,27 @@ import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { storage } from '@/lib/storage';
 
-// Point to letta-code .dsf directory
+// Point to letta-code .dsf directory for local mode
 const ASSETS_DIR = process.cwd().includes('/apps/web')
   ? '../../letta-code/.dsf/assets'
   : 'letta-code/.dsf/assets';
+
+// Content type mapping
+function getContentType(path: string): string {
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.gif')) return 'image/gif';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.mp3')) return 'audio/mpeg';
+  if (path.endsWith('.wav')) return 'audio/wav';
+  if (path.endsWith('.ogg')) return 'audio/ogg';
+  if (path.endsWith('.mp4')) return 'video/mp4';
+  if (path.endsWith('.webm')) return 'video/webm';
+  return 'application/octet-stream';
+}
 
 export async function GET(
   request: Request,
@@ -14,6 +30,14 @@ export async function GET(
 ) {
   try {
     const assetPath = params.path.join('/');
+
+    // Cloud mode: redirect to CloudFront/S3
+    if (storage.isConfigured()) {
+      const url = storage.getPublicUrl(assetPath);
+      return NextResponse.redirect(url, { status: 302 });
+    }
+
+    // Local mode: serve from filesystem
     const fullPath = join(ASSETS_DIR, assetPath);
 
     if (!existsSync(fullPath)) {
@@ -21,14 +45,7 @@ export async function GET(
     }
 
     const file = await readFile(fullPath);
-
-    // Determine content type
-    let contentType = 'application/octet-stream';
-    if (assetPath.endsWith('.png')) contentType = 'image/png';
-    else if (assetPath.endsWith('.jpg') || assetPath.endsWith('.jpeg')) contentType = 'image/jpeg';
-    else if (assetPath.endsWith('.gif')) contentType = 'image/gif';
-    else if (assetPath.endsWith('.webp')) contentType = 'image/webp';
-    else if (assetPath.endsWith('.svg')) contentType = 'image/svg+xml';
+    const contentType = getContentType(assetPath);
 
     return new NextResponse(file, {
       headers: {
