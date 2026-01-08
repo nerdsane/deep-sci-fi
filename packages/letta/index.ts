@@ -24,6 +24,23 @@ export {
   worldManagerTool,
   story_manager,
   storyManagerTool,
+  image_generator,
+  imageGeneratorTool,
+  asset_manager,
+  assetManagerTool,
+  canvas_ui,
+  canvasUiTool,
+  broadcastStateChange,
+  get_canvas_interactions,
+  getCanvasInteractionsTool,
+  send_suggestion,
+  sendSuggestionTool,
+  // Delegation
+  delegate_to_experience,
+  delegateToExperienceTool,
+  getPendingDelegations,
+  getDelegation,
+  updateDelegation,
   // Tool Arrays
   userAgentTools,
   worldAgentTools,
@@ -34,6 +51,32 @@ export {
   type ToolContext,
   type ClientTool,
 } from './tools';
+
+// Agents
+export {
+  generateExperienceAgentSystemPrompt,
+  getExperienceAgentMemoryBlocks,
+  getExperienceAgentTools,
+  getOrCreateExperienceAgent,
+  type ExperienceAgentContext,
+  type ExperienceAgentConfig,
+} from './agents';
+
+// WebSocket Manager (for Canvas UI communication)
+export {
+  queueInteraction,
+  getInteractions,
+  peekInteractions,
+  getInteractionCount,
+  broadcast,
+  getPendingMessages,
+  sendCanvasUI,
+  sendStateChange,
+  sendSuggestion as sendSuggestionToCanvas,
+  type QueuedInteraction,
+  type WebSocketMessage,
+  type ComponentSpec,
+} from './websocket';
 
 // Memory
 export {

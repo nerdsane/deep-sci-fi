@@ -31,6 +31,40 @@ import {
   storyManagerTool,
 } from './story-manager';
 
+import {
+  image_generator,
+  imageGeneratorTool,
+} from './image-generator';
+
+import {
+  asset_manager,
+  assetManagerTool,
+} from './asset-manager';
+
+import {
+  canvas_ui,
+  canvasUiTool,
+  broadcastStateChange,
+} from './canvas-ui';
+
+import {
+  get_canvas_interactions,
+  getCanvasInteractionsTool,
+} from './get-canvas-interactions';
+
+import {
+  send_suggestion,
+  sendSuggestionTool,
+} from './send-suggestion';
+
+import {
+  delegate_to_experience,
+  delegateToExperienceTool,
+  getPendingDelegations,
+  getDelegation,
+  updateDelegation,
+} from './delegate-to-experience';
+
 // Tool Executor imports
 export {
   getUserAgentClientTools,
@@ -42,23 +76,36 @@ export {
 
 // Export all tool functions and definitions
 export {
+  // User Agent Tools
   world_draft_generator,
   worldDraftGeneratorTool,
   list_worlds,
   listWorldsTool,
   user_preferences,
   userPreferencesTool,
+  // World Agent Tools
   world_manager,
   worldManagerTool,
   story_manager,
   storyManagerTool,
+  image_generator,
+  imageGeneratorTool,
+  asset_manager,
+  assetManagerTool,
+  canvas_ui,
+  canvasUiTool,
+  broadcastStateChange,
+  get_canvas_interactions,
+  getCanvasInteractionsTool,
+  send_suggestion,
+  sendSuggestionTool,
+  // Delegation
+  delegate_to_experience,
+  delegateToExperienceTool,
+  getPendingDelegations,
+  getDelegation,
+  updateDelegation,
 };
-
-// World Agent Tools (remaining to be implemented)
-// TODO: Implement these tools by porting from letta-code:
-// - image_generator (generate images for scenes, characters, locations)
-// - canvas_ui (create agent-driven UI components)
-// - send_suggestion (proactive suggestions to user)
 
 /**
  * All User Agent tool definitions for Letta SDK registration
@@ -75,8 +122,10 @@ export const userAgentTools = [
 export const worldAgentTools = [
   worldManagerTool,
   storyManagerTool,
-  // TODO: Add remaining world agent tools:
-  // - imageGeneratorTool
-  // - canvasUiTool
-  // - sendSuggestionTool
+  imageGeneratorTool,
+  assetManagerTool,
+  canvasUiTool,
+  getCanvasInteractionsTool,
+  sendSuggestionTool,
+  delegateToExperienceTool,
 ];
