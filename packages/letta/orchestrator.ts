@@ -277,19 +277,11 @@ export class LettaOrchestrator {
   /**
    * Send message to a specific agent with streaming
    *
-   * NOTE: Client-side tool execution is partially implemented.
-   * Tools are passed to Letta, but approval handling (tool execution loop)
-   * is not yet implemented. This means:
-   * - User Agent tools will not execute (world_draft_generator, list_worlds, etc.)
-   * - World Agent tools will not execute (when implemented)
-   *
-   * For full tool support, we need to implement the approval handling loop:
-   * 1. Receive approval_request messages from stream
-   * 2. Execute tools with executeTool()
-   * 3. Send approval with tool results back to Letta
-   * 4. Continue streaming
-   *
-   * This is complex for HTTP/tRPC and will be implemented in a future phase.
+   * Implements full client-side tool execution with approval handling loop:
+   * 1. Stream messages until stop_reason === "requires_approval"
+   * 2. Execute all pending approval requests
+   * 3. Send approval results back to Letta
+   * 4. Continue streaming (repeat until stop_reason === "end_turn")
    */
   private async sendToAgent(
     agentId: string,
@@ -314,63 +306,151 @@ export class LettaOrchestrator {
     const toolCalls: Array<{ name: string; args: any; result?: any }> = [];
     let thoughtProcess = '';
 
-    try {
-      // Send message with streaming and client_tools
-      const stream = await this.client.agents.messages.create(agentId, {
-        messages: [{ role: 'user', content: message }],
-        streaming: true,
-        stream_tokens: true,
-        // Pass client tools so Letta knows about them
-        client_tools: clientTools,
-      });
+    // Current input for the loop (starts with user message, then becomes approval results)
+    let currentInput: any = [{ role: 'user', content: message }];
 
-      // Process stream chunks
-      for await (const chunk of stream) {
-        if (!chunk || typeof chunk !== 'object') {
+    try {
+      // Approval handling loop - continue until agent completes turn
+      while (true) {
+        // Accumulate approval requests from this stream
+        const approvalRequests = new Map<string, { toolName: string; args: string }>();
+        let stopReason: string | undefined;
+
+        // Send message with streaming and client_tools
+        const stream = await this.client.agents.messages.create(agentId, {
+          messages: currentInput,
+          streaming: true,
+          stream_tokens: true,
+          // Pass client tools so Letta knows about them
+          client_tools: clientTools,
+        });
+
+        // Process stream chunks
+        for await (const chunk of stream) {
+          if (!chunk || typeof chunk !== 'object') {
+            continue;
+          }
+
+          // Check for stop_reason
+          if ('stop_reason' in chunk && typeof chunk.stop_reason === 'string') {
+            stopReason = chunk.stop_reason;
+            console.log('[Stop Reason]:', stopReason);
+          }
+
+          // Handle different message types
+          if ('reasoning_message' in chunk && chunk.reasoning_message) {
+            thoughtProcess += chunk.reasoning_message;
+            console.log('[Reasoning]:', chunk.reasoning_message);
+          } else if ('assistant_message' in chunk && chunk.assistant_message) {
+            messages.push({
+              role: 'agent',
+              content: chunk.assistant_message,
+            });
+            console.log('[Assistant]:', chunk.assistant_message);
+          } else if ('tool_call_message' in chunk && chunk.tool_call_message) {
+            const toolCall = chunk.tool_call_message;
+            console.log('[Tool Call]:', toolCall.name, toolCall.arguments);
+            toolCalls.push({
+              name: toolCall.name || 'unknown',
+              args: toolCall.arguments,
+            });
+          } else if ('tool_return_message' in chunk && chunk.tool_return_message) {
+            const toolReturn = chunk.tool_return_message;
+            console.log('[Tool Return]:', toolReturn);
+
+            // Find the corresponding tool call and add the result
+            const lastToolCall = toolCalls[toolCalls.length - 1];
+            if (lastToolCall) {
+              lastToolCall.result = toolReturn;
+            }
+          } else if ('approval_request_message' in chunk) {
+            // Accumulate approval requests (stream-aware: accumulate by tool_call_id)
+            const approvalChunk = chunk as any;
+            const toolCall = approvalChunk.tool_call;
+
+            if (toolCall?.tool_call_id && toolCall?.name) {
+              const existing = approvalRequests.get(toolCall.tool_call_id);
+              approvalRequests.set(toolCall.tool_call_id, {
+                toolName: toolCall.name,
+                args: (existing?.args || '') + (toolCall.arguments || ''),
+              });
+              console.log('[Approval Request]:', toolCall.name, 'for tool_call_id:', toolCall.tool_call_id);
+            }
+          }
+        }
+
+        // Stream complete - check stop reason
+        console.log(`Stream complete. Stop reason: ${stopReason}, Approval requests: ${approvalRequests.size}`);
+
+        // Case 1: Turn ended normally - break out of loop
+        if (stopReason === 'end_turn') {
+          break;
+        }
+
+        // Case 2: Requires approval - execute tools and continue
+        if (stopReason === 'requires_approval') {
+          if (approvalRequests.size === 0) {
+            console.warn('Stop reason is requires_approval but no approval requests found');
+            break;
+          }
+
+          // Execute all approval requests
+          const approvalResults = [];
+
+          for (const [toolCallId, { toolName, args }] of approvalRequests.entries()) {
+            console.log(`Executing tool: ${toolName} (call_id: ${toolCallId})`);
+
+            try {
+              // Parse arguments
+              const parsedArgs = args ? JSON.parse(args) : {};
+
+              // Execute tool
+              const result = await executeTool(
+                toolName,
+                parsedArgs,
+                { userId, db: this.db }
+              );
+
+              console.log(`Tool ${toolName} completed successfully`);
+
+              // Format result for Letta
+              approvalResults.push({
+                type: 'tool',
+                tool_call_id: toolCallId,
+                tool_return: JSON.stringify(result),
+                status: 'success',
+              });
+            } catch (error) {
+              console.error(`Tool ${toolName} failed:`, error);
+
+              // Format error for Letta
+              approvalResults.push({
+                type: 'tool',
+                tool_call_id: toolCallId,
+                tool_return: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                status: 'error',
+              });
+            }
+          }
+
+          // Send approval results back to Letta and continue streaming
+          currentInput = [{
+            type: 'approval',
+            approvals: approvalResults,
+          }] as any;
+
+          console.log(`Sending ${approvalResults.length} approval results back to agent`);
+
+          // Continue loop to process the next stream
           continue;
         }
 
-        // Handle different message types
-        if ('reasoning_message' in chunk && chunk.reasoning_message) {
-          thoughtProcess += chunk.reasoning_message;
-          console.log('[Reasoning]:', chunk.reasoning_message);
-        } else if ('assistant_message' in chunk && chunk.assistant_message) {
-          messages.push({
-            role: 'agent',
-            content: chunk.assistant_message,
-          });
-          console.log('[Assistant]:', chunk.assistant_message);
-        } else if ('tool_call_message' in chunk && chunk.tool_call_message) {
-          const toolCall = chunk.tool_call_message;
-          console.log('[Tool Call]:', toolCall.name, toolCall.arguments);
-          toolCalls.push({
-            name: toolCall.name || 'unknown',
-            args: toolCall.arguments,
-          });
-        } else if ('tool_return_message' in chunk && chunk.tool_return_message) {
-          const toolReturn = chunk.tool_return_message;
-          console.log('[Tool Return]:', toolReturn);
-
-          // Find the corresponding tool call and add the result
-          const lastToolCall = toolCalls[toolCalls.length - 1];
-          if (lastToolCall) {
-            lastToolCall.result = toolReturn;
-          }
-        } else if ('approval_request_message' in chunk && chunk as any) {
-          // TODO: Handle approval requests (tool execution)
-          //const approval = chunk as any;
-          console.warn('[Approval Request]: Tool execution not yet implemented');
-          console.warn('  Tools will not execute until approval handling is implemented');
-
-          // TODO: Implement tool execution:
-          // 1. Extract tool name and params from approval
-          // 2. Execute: const result = await executeTool(toolName, params, { userId, db: this.db })
-          // 3. Send approval back to Letta with result
-          // 4. Continue stream
-        }
+        // Other stop reasons - break
+        console.log(`Unknown stop reason: ${stopReason} - ending loop`);
+        break;
       }
 
-      console.log(`Received ${messages.length} messages, ${toolCalls.length} tool calls from agent ${agentId}`);
+      console.log(`Conversation complete. Messages: ${messages.length}, Tool calls: ${toolCalls.length}`);
 
       return {
         messages,
