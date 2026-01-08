@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { storage } from '@/lib/storage';
 
 // Point to letta-code .dsf directory for local mode
 const ASSETS_DIR = process.cwd().includes('/apps/web')
@@ -31,10 +30,10 @@ export async function GET(
   try {
     const assetPath = params.path.join('/');
 
-    // Cloud mode: redirect to CloudFront/S3
-    if (storage.isConfigured()) {
-      const url = storage.getPublicUrl(assetPath);
-      return NextResponse.redirect(url, { status: 302 });
+    // In production with CloudFront configured, redirect to CDN
+    const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+    if (cloudfrontDomain) {
+      return NextResponse.redirect(`https://${cloudfrontDomain}/${assetPath}`, { status: 302 });
     }
 
     // Local mode: serve from filesystem
