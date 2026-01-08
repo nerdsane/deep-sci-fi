@@ -10,6 +10,7 @@ import { world_draft_generator, worldDraftGeneratorTool } from './world-draft-ge
 import { list_worlds, listWorldsTool } from './list-worlds';
 import { user_preferences, userPreferencesTool } from './user-preferences';
 import { world_manager, worldManagerTool } from './world-manager';
+import { story_manager, storyManagerTool } from './story-manager';
 
 /**
  * Tool execution context
@@ -41,6 +42,7 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
   ['list_worlds', list_worlds as ToolExecutor],
   ['user_preferences', user_preferences as ToolExecutor],
   ['world_manager', world_manager as ToolExecutor],
+  ['story_manager', story_manager as ToolExecutor],
 ]);
 
 /**
@@ -60,8 +62,8 @@ export function getUserAgentClientTools(): ClientTool[] {
 export function getWorldAgentClientTools(): ClientTool[] {
   return [
     worldManagerTool,
+    storyManagerTool,
     // TODO: Add remaining world agent tools
-    // - story_manager
     // - image_generator
     // - canvas_ui
   ];
