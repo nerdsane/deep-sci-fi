@@ -21,6 +21,15 @@ export {
   userPreferencesTool,
 } from './user-preferences';
 
+// Tool Executor
+export {
+  getUserAgentClientTools,
+  getWorldAgentClientTools,
+  executeTool,
+  type ToolContext,
+  type ClientTool,
+} from './executor';
+
 // World Agent Tools (to be implemented)
 // TODO: Implement these tools by porting from letta-code:
 // - world_manager (save/load/diff/update world data)

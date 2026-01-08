@@ -16,7 +16,12 @@ import {
   updateMemoryBlock,
   cacheMemoryBlocks,
 } from './memory/manager';
-import { userAgentTools, worldAgentTools } from './tools';
+import {
+  getUserAgentClientTools,
+  getWorldAgentClientTools,
+  executeTool,
+  type ToolContext,
+} from './tools/executor';
 
 /**
  * LettaOrchestrator - Two-Tier Agent Management Service
@@ -93,10 +98,9 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
-    // Get tool names for User Agent
-    const toolNames = userAgentTools.map(tool => tool.name);
-
     // Create agent with Letta SDK
+    // NOTE: We don't pass tool names here because we use client-side tools
+    // Client tools are passed with each message, not registered with the agent
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -105,7 +109,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: toolNames,
+      tools: [], // No server-side tools, only client-side tools
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
@@ -175,11 +179,9 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
-    // Get tool names for World Agent
-    // TODO: World agent tools are not yet implemented, so this will be an empty array for now
-    const toolNames = worldAgentTools.map(tool => tool.name);
-
     // Create agent with Letta SDK
+    // NOTE: We don't pass tool names here because we use client-side tools
+    // Client tools are passed with each message, not registered with the agent
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -188,7 +190,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: toolNames,
+      tools: [], // No server-side tools, only client-side tools
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
@@ -259,7 +261,7 @@ export class LettaOrchestrator {
         await this.setStoryContext(worldAgentId, story);
       }
 
-      return await this.sendToAgent(worldAgentId, message);
+      return await this.sendToAgent(worldAgentId, message, userId, 'world');
     }
 
     // Otherwise, route to User Agent (orchestrator)
@@ -269,25 +271,57 @@ export class LettaOrchestrator {
     }
 
     const userAgentId = await this.getOrCreateUserAgent(userId, user);
-    return await this.sendToAgent(userAgentId, message);
+    return await this.sendToAgent(userAgentId, message, userId, 'user');
   }
 
   /**
    * Send message to a specific agent with streaming
+   *
+   * NOTE: Client-side tool execution is partially implemented.
+   * Tools are passed to Letta, but approval handling (tool execution loop)
+   * is not yet implemented. This means:
+   * - User Agent tools will not execute (world_draft_generator, list_worlds, etc.)
+   * - World Agent tools will not execute (when implemented)
+   *
+   * For full tool support, we need to implement the approval handling loop:
+   * 1. Receive approval_request messages from stream
+   * 2. Execute tools with executeTool()
+   * 3. Send approval with tool results back to Letta
+   * 4. Continue streaming
+   *
+   * This is complex for HTTP/tRPC and will be implemented in a future phase.
    */
-  private async sendToAgent(agentId: string, message: string): Promise<AgentResponse> {
-    console.log(`Sending message to agent ${agentId}: ${message.substring(0, 50)}...`);
+  private async sendToAgent(
+    agentId: string,
+    message: string,
+    userId: string,
+    agentType: 'user' | 'world'
+  ): Promise<AgentResponse> {
+    console.log(`Sending message to agent ${agentId} (${agentType}): ${message.substring(0, 50)}...`);
+
+    if (!this.db) {
+      throw new Error('Database client is required for tool execution');
+    }
+
+    // Get client tools based on agent type
+    const clientTools = agentType === 'user'
+      ? getUserAgentClientTools()
+      : getWorldAgentClientTools();
+
+    console.log(`Using ${clientTools.length} client tools for ${agentType} agent`);
 
     const messages: AgentMessage[] = [];
     const toolCalls: Array<{ name: string; args: any; result?: any }> = [];
     let thoughtProcess = '';
 
     try {
-      // Send message with streaming
+      // Send message with streaming and client_tools
       const stream = await this.client.agents.messages.create(agentId, {
         messages: [{ role: 'user', content: message }],
         streaming: true,
         stream_tokens: true,
+        // Pass client tools so Letta knows about them
+        client_tools: clientTools,
       });
 
       // Process stream chunks
@@ -322,6 +356,17 @@ export class LettaOrchestrator {
           if (lastToolCall) {
             lastToolCall.result = toolReturn;
           }
+        } else if ('approval_request_message' in chunk && chunk as any) {
+          // TODO: Handle approval requests (tool execution)
+          //const approval = chunk as any;
+          console.warn('[Approval Request]: Tool execution not yet implemented');
+          console.warn('  Tools will not execute until approval handling is implemented');
+
+          // TODO: Implement tool execution:
+          // 1. Extract tool name and params from approval
+          // 2. Execute: const result = await executeTool(toolName, params, { userId, db: this.db })
+          // 3. Send approval back to Letta with result
+          // 4. Continue stream
         }
       }
 
