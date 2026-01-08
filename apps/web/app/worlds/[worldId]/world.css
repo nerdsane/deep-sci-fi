@@ -1,17 +1,14 @@
 /* World Detail Page Styles */
 
 .world-page {
-  display: grid;
-  grid-template-columns: 1fr 400px;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a0f1e 0%, #1a1f35 100%);
   color: #e8eaf0;
 }
 
 .world-container {
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 2rem 3rem;
-  overflow-y: auto;
-  max-height: 100vh;
 }
 
 /* Header */

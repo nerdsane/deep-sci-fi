@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 import { VisualNovelReader } from '@/components/story/VisualNovelReader';
-import { ChatPanelContainer } from '@/components/chat/ChatPanelContainer';
 import './story.css';
 
 export default function StoryPage() {
@@ -97,14 +96,6 @@ export default function StoryPage() {
           )}
         </div>
       </div>
-
-      {/* World Agent Chat Panel with Story Context */}
-      <ChatPanelContainer
-        worldId={worldId}
-        storyId={storyId}
-        viewMode="visual-novel"
-        placeholder="Continue the story, or ask about the world..."
-      />
     </div>
   );
 }

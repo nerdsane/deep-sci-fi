@@ -25,7 +25,8 @@
     "bcrypt": "^5.1.1",
     "@prisma/client": "^5.11.0",
     "@deep-sci-fi/types": "*",
-    "@deep-sci-fi/letta": "*"
+    "@deep-sci-fi/letta": "*",
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
