@@ -10,6 +10,21 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 - **Letta-Code** (TypeScript submodule): Memory-first CLI harness with DSF-specific tools
 - **Letta-UI** (TypeScript): Observability dashboard for agent monitoring
 
+## Post-Task Verification (CRITICAL)
+
+**After completing ANY implementation task, always automatically verify:**
+- No hacks or temporary workarounds left in code
+- No placeholder implementations (TODO, FIXME, stub functions that don't actually work)
+- No code that appears to work but doesn't actually function properly
+- No silent failures (errors caught but not logged or handled)
+- All error handling is explicit and appropriate
+- All edge cases are properly handled
+- No console.log statements left for debugging
+- No commented-out code blocks
+- All TypeScript types are properly defined (no `any` unless absolutely necessary)
+
+**This verification happens automatically after task completion. User can also trigger it manually with `/no-cap` command.**
+
 ## Git Workflow (IMPORTANT)
 
 **After implementing any fix, change, or feature that has been discussed and completed:**
