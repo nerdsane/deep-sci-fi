@@ -39,23 +39,28 @@ export function ChatPanelContainer({
   // Get World Agent if in world context
   const { mutate: getWorldAgent } = trpc.agents.getOrCreateWorldAgent.useMutation();
 
+  // Set story context mutation
+  const { mutate: setStoryContext } = trpc.agents.setStoryContext.useMutation();
+
   // Send message mutation
   const sendMessageMutation = trpc.chat.sendMessage.useMutation({
     onMutate: () => {
       setAgentStatus('thinking');
     },
     onSuccess: (response) => {
-      // Add agent response to messages
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `agent-${Date.now()}`,
-          role: 'agent',
-          content: response.message,
+      // Add agent response messages to chat
+      // Note: response.messages is an array of AgentMessage objects
+      const agentMessages = response.messages
+        .filter(msg => msg.role === 'agent')
+        .map((msg, idx) => ({
+          id: `agent-${Date.now()}-${idx}`,
+          role: msg.role as 'agent',
+          content: msg.content,
           timestamp: new Date(),
-          type: 'text',
-        },
-      ]);
+          type: 'text' as const,
+        }));
+
+      setMessages((prev) => [...prev, ...agentMessages]);
       setAgentStatus('idle');
     },
     onError: (error) => {
@@ -83,12 +88,22 @@ export function ChatPanelContainer({
       // Get world agent first
       getWorldAgent({ worldId }, {
         onSuccess: (worldAgent) => {
-          // Then set story context
-          // TODO: Call setStoryContext mutation
+          // Then set story context in the world agent's memory
+          setStoryContext({
+            agentId: worldAgent.agentId,
+            storyId: storyId,
+          }, {
+            onSuccess: () => {
+              console.log(`Story context set for agent ${worldAgent.agentId}: ${storyId}`);
+            },
+            onError: (error) => {
+              console.error('Failed to set story context:', error);
+            },
+          });
         },
       });
     }
-  }, [storyId, worldId, getWorldAgent]);
+  }, [storyId, worldId, getWorldAgent, setStoryContext]);
 
   const handleSendMessage = async (message: string, context: ChatContext) => {
     // Add user message to UI immediately
