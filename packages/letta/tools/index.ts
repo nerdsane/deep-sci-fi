@@ -31,6 +31,16 @@ import {
   storyManagerTool,
 } from './story-manager';
 
+import {
+  image_generator,
+  imageGeneratorTool,
+} from './image-generator';
+
+import {
+  asset_manager,
+  assetManagerTool,
+} from './asset-manager';
+
 // Tool Executor imports
 export {
   getUserAgentClientTools,
@@ -52,13 +62,17 @@ export {
   worldManagerTool,
   story_manager,
   storyManagerTool,
+  image_generator,
+  imageGeneratorTool,
+  asset_manager,
+  assetManagerTool,
 };
 
 // World Agent Tools (remaining to be implemented)
 // TODO: Implement these tools by porting from letta-code:
-// - image_generator (generate images for scenes, characters, locations)
 // - canvas_ui (create agent-driven UI components)
 // - send_suggestion (proactive suggestions to user)
+// - get_canvas_interactions (poll for user interactions from Canvas UI)
 
 /**
  * All User Agent tool definitions for Letta SDK registration
@@ -75,8 +89,10 @@ export const userAgentTools = [
 export const worldAgentTools = [
   worldManagerTool,
   storyManagerTool,
+  imageGeneratorTool,
+  assetManagerTool,
   // TODO: Add remaining world agent tools:
-  // - imageGeneratorTool
   // - canvasUiTool
   // - sendSuggestionTool
+  // - getCanvasInteractionsTool
 ];

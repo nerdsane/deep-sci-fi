@@ -11,6 +11,8 @@ import { list_worlds, listWorldsTool } from './list-worlds';
 import { user_preferences, userPreferencesTool } from './user-preferences';
 import { world_manager, worldManagerTool } from './world-manager';
 import { story_manager, storyManagerTool } from './story-manager';
+import { image_generator, imageGeneratorTool } from './image-generator';
+import { asset_manager, assetManagerTool } from './asset-manager';
 
 /**
  * Tool execution context
@@ -43,6 +45,8 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
   ['user_preferences', user_preferences as ToolExecutor],
   ['world_manager', world_manager as ToolExecutor],
   ['story_manager', story_manager as ToolExecutor],
+  ['image_generator', image_generator as ToolExecutor],
+  ['asset_manager', asset_manager as ToolExecutor],
 ]);
 
 /**
@@ -63,9 +67,8 @@ export function getWorldAgentClientTools(): ClientTool[] {
   return [
     worldManagerTool,
     storyManagerTool,
-    // TODO: Add remaining world agent tools
-    // - image_generator
-    // - canvas_ui
+    imageGeneratorTool,
+    assetManagerTool,
   ];
 }
 

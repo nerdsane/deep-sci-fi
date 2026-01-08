@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@deep-sci-fi/db": "*",
     "@deep-sci-fi/types": "*",
     "@letta-ai/letta-client": "^1.6.5",
