@@ -1,5 +1,5 @@
 import React from 'react';
-import type { World, Story } from '../../../types/dsf';
+import type { World, Story } from '@/types/dsf';
 import { Hero, ScrollSection, ActionBar } from '../experience';
 import { InteractiveElement, type ElementType } from '../interaction';
 import './welcome-space.css';
