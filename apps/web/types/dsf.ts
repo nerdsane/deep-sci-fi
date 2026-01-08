@@ -77,6 +77,7 @@ export interface Element {
   last_modified_version: number;
   relationships?: Relationship[];
   properties: Record<string, any>;
+  first_appearance?: string; // Story segment where first introduced
 }
 
 export interface Relationship {

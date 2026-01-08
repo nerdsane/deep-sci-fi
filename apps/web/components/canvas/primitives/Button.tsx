@@ -1,9 +1,9 @@
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, type ReactNode, type MouseEvent } from 'react';
 
 interface ButtonProps {
   label: string;
   variant?: 'primary' | 'secondary';
-  onClick?: () => void;
+  onClick?: (e?: MouseEvent<HTMLButtonElement>) => void;
   children?: ReactNode;
 }
 
