@@ -1,6 +1,6 @@
 # Deep Sci-Fi - Implementation Status
 
-Last Updated: 2026-01-07
+Last Updated: 2026-01-08
 
 ## ✅ Fully Implemented & Working
 
@@ -8,6 +8,10 @@ Last Updated: 2026-01-07
 - ✅ Complete Prisma schema with all models
 - ✅ PostgreSQL with pgvector support
 - ✅ User, World, Story, StorySegment, WorldCollaborator, Asset models
+- ✅ **Two-Tier Agent Support** (NEW):
+  - User.userAgentId - Letta User Agent ID (orchestrator)
+  - World.worldAgentId - Letta World Agent ID
+  - AgentSession model - Cache for agent state and memory
 - ✅ Relations and constraints properly defined
 - **Status**: Ready for use with `prisma db push`
 
@@ -96,44 +100,71 @@ Last Updated: 2026-01-07
 
 ## ⚠️ Partially Implemented / In Progress
 
-### 1. **Agent System** (@deep-sci-fi/letta)
-- ✅ Package structure created
-- ✅ Agent architecture defined
-- ✅ System prompts (world & story agents)
-- ✅ Tool definitions (worldAgentTools, storyAgentTools)
-- ❌ **Letta SDK integration NOT implemented**
-- ❌ Agent creation throws "Not yet implemented" error
-- ❌ Chat sessions throw errors
-- **Status**: Architecture ready, SDK integration needed
+### 1. **Two-Tier Agent System** (@deep-sci-fi/letta) - **NEW ARCHITECTURE**
 
-**What works:**
-- System prompt generation
-- Session tracking (in-memory Map)
-- Type definitions
+**Architecture Complete:**
+- ✅ **User Agent (Orchestrator)**: ONE per user
+  - Role: World creation, routing, navigation
+  - Active: When no world is selected (at /worlds)
+  - Direct equivalent to letta-code's createAgent()
+  - System prompt: generateUserAgentSystemPrompt()
+  - Tools: world_draft_generator, list_worlds, user_preferences
 
-**What doesn't work:**
-- createWorldAgent() - throws error
-- createStoryAgent() - throws error
-- sendMessage() - throws error
-- queryWorldAgent() - throws error
+- ✅ **World Agent**: ONE per world
+  - Role: Manages world AND all stories in that world
+  - Active: When user is working in a specific world
+  - System prompt: generateWorldSystemPrompt(world)
+  - Tools: world_manager, story_manager, image_generator, canvas_ui
 
-**To implement:**
-1. Install `@letta-ai/letta-client` package
-2. Initialize Letta client in constructor
-3. Implement actual SDK calls for agent creation
-4. Implement tool registration
-5. Implement message streaming
+**Implementation Status:**
+- ✅ LettaOrchestrator class with two-tier routing
+  - getOrCreateUserAgent(userId, user)
+  - getOrCreateWorldAgent(worldId, world)
+  - sendMessage(userId, message, context) - routes based on worldId
+  - setStoryContext(worldAgentId, story)
 
-### 2. **Agents Router** (apps/web/server/routers/agents.ts)
-- ✅ Router structure created
-- ✅ Auth checks implemented
-- ❌ **Agent creation throws clear error messages**
-- **Status**: Intentionally disabled until Letta SDK is integrated
+- ✅ Type system corrections
+  - Fixed: Import Prisma types from @deep-sci-fi/db (not @deep-sci-fi/types)
+  - Cleaned up: Removed old three-tier architecture types
+  - Updated: AgentResponse, AgentMessage, ChatSession types
 
-### 3. **Chat Router** (apps/web/server/routers/chat.ts)
-- ✅ Router structure created
-- ❌ **All methods throw errors (Letta SDK not integrated)**
-- **Status**: Waiting for Letta SDK implementation
+- ✅ User Agent Tools (fully defined):
+  - world_draft_generator - Generate world concept drafts from prompts
+  - list_worlds - List user's worlds with metadata
+  - user_preferences - Save/retrieve user preferences
+
+- ⚠️ World Agent Tools (to be ported from letta-code):
+  - world_manager - Save/load/diff/update world data
+  - story_manager - Create/save stories and segments
+  - image_generator - Generate images for scenes
+  - canvas_ui - Create agent-driven UI components
+
+- ❌ **Letta SDK integration NOT implemented** (final step)
+  - All methods throw clear "Not yet implemented" errors
+  - Commented future implementation code shows exactly what's needed
+  - Error messages guide toward Letta SDK integration
+
+**Status**: Architecture 100% complete, awaiting Letta SDK integration
+
+### 2. **Agents Router** (apps/web/server/routers/agents.ts) - **UPDATED**
+- ✅ getUserAgent - Get/create user's orchestrator agent
+- ✅ getOrCreateWorldAgent - Get/create world agent for a world
+- ✅ setStoryContext - Set active story in world agent memory
+- ✅ getAgentStatus - Check agent type (user/world) and associations
+- ✅ Full authorization checks (ownership, collaboration, visibility)
+- ❌ **All endpoints throw clear errors** (Letta SDK integration needed)
+- **Status**: Universal API ready (works for Web UI and CLI)
+
+### 3. **Chat Router** (apps/web/server/routers/chat.ts) - **REWRITTEN**
+- ✅ sendMessage - Context-based routing
+  - No worldId → routes to User Agent (orchestrator)
+  - With worldId → routes to World Agent
+  - With worldId + storyId → routes to World Agent with story context
+- ✅ streamMessages - Placeholder for real-time responses
+- ✅ getChatHistory, clearChatHistory - Simplified for context-based approach
+- ✅ Full authorization and validation
+- ❌ **All endpoints throw clear errors** (Letta SDK integration needed)
+- **Status**: Routing logic complete, awaiting Letta SDK
 
 ---
 
