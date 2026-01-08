@@ -1,18 +1,14 @@
+/* Import the full letta-code design system */
+@import './canvas.css';
+
+/* Tailwind (if needed for specific utilities) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --cyan: #00ffcc;
-  --cyan-bright: #00ffff;
-  --purple: #aa00ff;
-  --dark-bg: #0a0a0f;
-  --dark-surface: #12121a;
-  --text-primary: #e0e0e0;
-  --text-secondary: #8080a0;
-}
-
-body {
-  background-color: var(--dark-bg);
-  color: var(--text-primary);
+/* Next.js specific overrides only */
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
