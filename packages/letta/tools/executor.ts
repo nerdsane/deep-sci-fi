@@ -9,6 +9,7 @@ import type { PrismaClient } from '@deep-sci-fi/db';
 import { world_draft_generator, worldDraftGeneratorTool } from './world-draft-generator';
 import { list_worlds, listWorldsTool } from './list-worlds';
 import { user_preferences, userPreferencesTool } from './user-preferences';
+import { world_manager, worldManagerTool } from './world-manager';
 
 /**
  * Tool execution context
@@ -39,6 +40,7 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
   ['world_draft_generator', world_draft_generator as ToolExecutor],
   ['list_worlds', list_worlds as ToolExecutor],
   ['user_preferences', user_preferences as ToolExecutor],
+  ['world_manager', world_manager as ToolExecutor],
 ]);
 
 /**
@@ -56,12 +58,13 @@ export function getUserAgentClientTools(): ClientTool[] {
  * Get client tools for World Agent
  */
 export function getWorldAgentClientTools(): ClientTool[] {
-  // TODO: Add world agent tools when implemented
-  // - world_manager
-  // - story_manager
-  // - image_generator
-  // - canvas_ui
-  return [];
+  return [
+    worldManagerTool,
+    // TODO: Add remaining world agent tools
+    // - story_manager
+    // - image_generator
+    // - canvas_ui
+  ];
 }
 
 /**
