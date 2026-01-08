@@ -177,3 +177,26 @@ module "letta_ui" {
 
   depends_on = [module.networking, module.compute]
 }
+
+# ============================================================================
+# Web App Module (Chat + Canvas UI)
+# ============================================================================
+module "web_app" {
+  source = "./modules/web-app"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = var.aws_region
+  vpc_id             = module.networking.vpc_id
+  public_subnet_ids  = module.networking.public_subnet_ids
+  private_subnet_ids = module.networking.private_subnet_ids
+
+  ecs_cluster_id         = module.compute.ecs_cluster_id
+  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+  ecs_task_role_arn      = module.iam.ecs_task_role_arn
+
+  letta_api_url     = "http://${module.compute.alb_dns_name}"
+  cloudfront_domain = module.storage.cloudfront_domain
+
+  depends_on = [module.networking, module.compute, module.storage]
+}
