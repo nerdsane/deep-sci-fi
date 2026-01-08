@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx watch server.ts",
+    "dev:next": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx server.ts",
+    "start:next": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
@@ -14,9 +16,11 @@
     "@deep-sci-fi/db": "*",
     "@deep-sci-fi/letta": "*",
     "@radix-ui/react-dialog": "^1.1.15",
+    "nanoid": "^5.0.9",
     "next": "^14.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "ws": "^8.18.0",
     "zod": "^3.22.4",
     "zustand": "^4.5.0"
   },
@@ -25,9 +29,11 @@
     "@types/node": "^20.11.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.5.13",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.4.0"
   }
 }
