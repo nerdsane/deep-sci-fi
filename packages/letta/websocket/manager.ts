@@ -153,34 +153,87 @@ export function getInteractionCount(): number {
 // Connected Clients Registry
 // ============================================================================
 
-// In a real implementation, this would hold WebSocket connections
-// For now, we use a simple in-memory queue since Next.js API routes
-// don't maintain persistent connections. The actual WebSocket server
-// will be implemented as a separate process.
+/**
+ * Polling-based message delivery system.
+ *
+ * How it works:
+ * 1. Tools call broadcast() to queue messages
+ * 2. Clients poll via /api/ws/poll endpoint (or SSE stream)
+ * 3. getPendingMessages() returns and clears queued messages
+ *
+ * This is intentionally simple for the initial implementation.
+ * For production, consider:
+ * - Redis pub/sub for multi-instance support
+ * - Server-Sent Events (SSE) for real-time without WebSocket complexity
+ * - WebSocket via socket.io or ws for true bidirectional communication
+ */
 
 interface ConnectedClient {
   id: string;
   connectedAt: number;
-  // In production, would hold the actual WebSocket connection
+  lastPollAt: number;
 }
 
 const connectedClients = new Map<string, ConnectedClient>();
 
-// Messages pending delivery to clients (for when we add real WebSocket)
+// Messages pending delivery to clients via polling
 const pendingMessages: WebSocketMessage[] = [];
 const MAX_PENDING_MESSAGES = 1000;
+const CLIENT_TIMEOUT_MS = 60000; // Consider client disconnected after 60s without polling
 
 /**
- * Register a new client connection
+ * Register a new client connection (or update last poll time)
  */
 export function registerClient(clientId: string): void {
+  const now = Date.now();
+  const existing = connectedClients.get(clientId);
+
   connectedClients.set(clientId, {
     id: clientId,
-    connectedAt: Date.now(),
+    connectedAt: existing?.connectedAt || now,
+    lastPollAt: now,
   });
-  console.log(
-    `[WebSocket Manager] Client connected: ${clientId} (total: ${connectedClients.size})`
-  );
+
+  if (!existing) {
+    console.log(
+      `[WebSocket Manager] Client connected: ${clientId} (total: ${connectedClients.size})`
+    );
+  }
+}
+
+/**
+ * Update client's last poll time (called on each poll)
+ */
+export function updateClientPoll(clientId: string): void {
+  const existing = connectedClients.get(clientId);
+  if (existing) {
+    existing.lastPollAt = Date.now();
+  } else {
+    registerClient(clientId);
+  }
+}
+
+/**
+ * Clean up stale clients that haven't polled recently
+ */
+export function cleanupStaleClients(): number {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [clientId, client] of connectedClients.entries()) {
+    if (now - client.lastPollAt > CLIENT_TIMEOUT_MS) {
+      connectedClients.delete(clientId);
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(
+      `[WebSocket Manager] Cleaned up ${removed} stale clients (remaining: ${connectedClients.size})`
+    );
+  }
+
+  return removed;
 }
 
 /**
@@ -205,8 +258,10 @@ export function getClientCount(): number {
 // ============================================================================
 
 /**
- * Broadcast a message to all connected clients
- * In the current implementation, this queues messages for polling
+ * Broadcast a message to all connected clients.
+ *
+ * Messages are queued in memory and delivered when clients poll via getPendingMessages().
+ * The browser client should poll regularly (e.g., every 500ms) to receive updates.
  */
 export function broadcast(message: WebSocketMessage): void {
   pendingMessages.push(message);
@@ -216,18 +271,42 @@ export function broadcast(message: WebSocketMessage): void {
     pendingMessages.shift();
   }
 
+  // Also cleanup stale clients periodically
+  if (Math.random() < 0.1) {
+    cleanupStaleClients();
+  }
+
   console.log(
-    `[WebSocket Manager] Broadcast ${message.type} (pending: ${pendingMessages.length})`
+    `[WebSocket Manager] Queued ${message.type} message (pending: ${pendingMessages.length}, clients: ${connectedClients.size})`
   );
 }
 
 /**
- * Get pending messages (for polling-based fallback)
+ * Get pending messages for a client (clears queue after retrieval).
+ *
+ * Call this from a polling endpoint. The client should:
+ * 1. Generate a unique clientId on first connect
+ * 2. Poll this endpoint every 500ms (or use SSE stream)
+ * 3. Process received messages to update UI
+ *
+ * @param clientId - Optional client ID to track polling activity
  */
-export function getPendingMessages(): WebSocketMessage[] {
+export function getPendingMessages(clientId?: string): WebSocketMessage[] {
+  // Track that client is still connected
+  if (clientId) {
+    updateClientPoll(clientId);
+  }
+
   const messages = [...pendingMessages];
   pendingMessages.length = 0;
   return messages;
+}
+
+/**
+ * Check if there are pending messages without clearing
+ */
+export function hasPendingMessages(): boolean {
+  return pendingMessages.length > 0;
 }
 
 // ============================================================================

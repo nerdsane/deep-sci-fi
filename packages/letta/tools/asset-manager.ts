@@ -201,7 +201,7 @@ async function saveAsset(
       storagePath,
       url: assetUrl || null,
       description: params.description || null,
-      metadata: params.metadata || null,
+      metadata: params.metadata || undefined,
       generated: false,
       worldId: params.world_id || null,
       storyId: params.story_id || null,

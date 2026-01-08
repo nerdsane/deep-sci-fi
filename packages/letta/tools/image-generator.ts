@@ -120,8 +120,22 @@ export async function image_generator(
     // Optionally save as asset to S3
     let asset: ImageGeneratorResult['asset'];
     if (params.save_as_asset) {
-      asset = await saveAsAsset(imageUrl, params, context);
+      const saveResult = await saveAsAsset(imageUrl, params, context);
+      asset = {
+        id: saveResult.id,
+        url: saveResult.url,
+        storagePath: saveResult.storagePath,
+      };
       message += `\n\nSaved as asset: ${asset.id}\nURL: ${asset.url}`;
+
+      // Explicitly warn if S3 upload failed (image is stored as data URL instead)
+      if (saveResult.s3UploadFailed) {
+        message += `\n\n⚠️ WARNING: S3 upload failed - image stored as data URL only.`;
+        message += `\nError: ${saveResult.s3UploadError}`;
+        message += `\nThis image is NOT persisted to cloud storage. It may be lost on server restart.`;
+      } else if (!process.env.AWS_S3_BUCKET) {
+        message += `\n\nNote: AWS_S3_BUCKET not configured - image stored as data URL only.`;
+      }
     }
 
     // Broadcast state change for reactive UI
@@ -310,7 +324,13 @@ async function saveAsAsset(
   imageUrl: string,
   params: ImageGeneratorParams,
   context: { userId: string; db: PrismaClient }
-): Promise<{ id: string; url: string; storagePath: string }> {
+): Promise<{
+  id: string;
+  url: string;
+  storagePath: string;
+  s3UploadFailed: boolean;
+  s3UploadError?: string;
+}> {
   // Extract base64 data
   let base64Data: string;
   let mimeType = 'image/png';
@@ -347,6 +367,8 @@ async function saveAsAsset(
 
   // Upload to S3 if configured
   let assetUrl = imageUrl; // Fallback to data URL
+  let s3UploadFailed = false;
+  let s3UploadError: string | undefined;
   const s3Bucket = process.env.AWS_S3_BUCKET;
   const awsRegion = process.env.AWS_REGION || 'us-east-1';
 
@@ -380,8 +402,12 @@ async function saveAsAsset(
       console.log(`[image_generator] Uploaded to S3: ${storagePath}`);
     } catch (error) {
       console.error('[image_generator] S3 upload failed:', error);
-      // Continue with data URL fallback
+      s3UploadFailed = true;
+      s3UploadError = error instanceof Error ? error.message : String(error);
+      // Continue with data URL fallback but track the failure
     }
+  } else {
+    console.warn('[image_generator] AWS_S3_BUCKET not configured, using data URL');
   }
 
   // Create asset record in database
@@ -410,6 +436,8 @@ async function saveAsAsset(
     id: asset.id,
     url: asset.url || assetUrl,
     storagePath: asset.storagePath,
+    s3UploadFailed,
+    s3UploadError,
   };
 }
 

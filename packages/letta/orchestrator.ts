@@ -267,7 +267,11 @@ export class LettaOrchestrator {
         await this.setStoryContext(worldAgentId, story);
       }
 
-      return await this.sendToAgent(worldAgentId, message, userId, 'world');
+      return await this.sendToAgent(worldAgentId, message, userId, 'world', {
+        worldId: context.worldId,
+        storyId: context.storyId,
+        worldName: world.name,
+      });
     }
 
     // Otherwise, route to User Agent (orchestrator)
@@ -293,7 +297,12 @@ export class LettaOrchestrator {
     agentId: string,
     message: string,
     userId: string,
-    agentType: 'user' | 'world'
+    agentType: 'user' | 'world',
+    worldContext?: {
+      worldId: string;
+      storyId?: string;
+      worldName: string;
+    }
   ): Promise<AgentResponse> {
     console.log(`Sending message to agent ${agentId} (${agentType}): ${message.substring(0, 50)}...`);
 
@@ -411,11 +420,18 @@ export class LettaOrchestrator {
               // Parse arguments
               const parsedArgs = args ? JSON.parse(args) : {};
 
-              // Execute tool
+              // Execute tool with full context
               const result = await executeTool(
                 toolName,
                 parsedArgs,
-                { userId, db: this.db }
+                {
+                  userId,
+                  db: this.db,
+                  worldId: worldContext?.worldId,
+                  storyId: worldContext?.storyId,
+                  worldName: worldContext?.worldName,
+                  lettaClient: this.client,
+                }
               );
 
               console.log(`Tool ${toolName} completed successfully`);

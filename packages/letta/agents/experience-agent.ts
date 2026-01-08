@@ -183,6 +183,47 @@ export function getExperienceAgentTools() {
 }
 
 // ============================================================================
+// Agent Cache (in-memory, could use Redis in production)
+// ============================================================================
+
+// Cache Experience Agent IDs by world ID to avoid recreation
+const experienceAgentCache = new Map<string, {
+  agentId: string;
+  createdAt: number;
+}>();
+
+// Cache TTL: 1 hour (agents are stateful, so we want some persistence)
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * Check if a cached agent is still valid
+ */
+function getCachedAgentId(worldId: string): string | null {
+  const cached = experienceAgentCache.get(worldId);
+  if (!cached) {
+    return null;
+  }
+
+  // Check if cache has expired
+  if (Date.now() - cached.createdAt > CACHE_TTL_MS) {
+    experienceAgentCache.delete(worldId);
+    return null;
+  }
+
+  return cached.agentId;
+}
+
+/**
+ * Cache an agent ID for a world
+ */
+function cacheAgentId(worldId: string, agentId: string): void {
+  experienceAgentCache.set(worldId, {
+    agentId,
+    createdAt: Date.now(),
+  });
+}
+
+// ============================================================================
 // Agent Creation
 // ============================================================================
 
@@ -192,10 +233,25 @@ export async function getOrCreateExperienceAgent(
 ): Promise<string> {
   const { lettaClient, db, userId } = config;
 
-  // Check if we have a cached experience agent for this world
-  const agentKey = `experience_${context.worldId}`;
+  // Check cache first
+  const cachedAgentId = getCachedAgentId(context.worldId);
+  if (cachedAgentId) {
+    console.log(
+      `[ExperienceAgent] Using cached agent for world ${context.worldName}: ${cachedAgentId}`
+    );
 
-  // For now, create a new agent each time (can add caching later)
+    // Verify agent still exists on Letta server
+    try {
+      await lettaClient.agents.retrieve(cachedAgentId);
+      return cachedAgentId;
+    } catch (error) {
+      // Agent no longer exists, remove from cache
+      console.log(`[ExperienceAgent] Cached agent no longer exists, creating new one`);
+      experienceAgentCache.delete(context.worldId);
+    }
+  }
+
+  // Create new agent
   const systemPrompt = generateExperienceAgentSystemPrompt(context);
   const memoryBlocks = getExperienceAgentMemoryBlocks(context);
 
@@ -215,17 +271,22 @@ export async function getOrCreateExperienceAgent(
 
     // Create the agent
     const agent = await lettaClient.agents.create({
+      agent_type: 'letta_v1_agent',
       name: `experience-${context.worldId.substring(0, 8)}`,
       description: `Experience Agent for world "${context.worldName}"`,
       system: systemPrompt,
-      llm: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-sonnet-4-20250514',
       embedding: 'openai/text-embedding-3-small',
       block_ids: createdBlocks.filter((id): id is string => id !== undefined),
+      include_base_tools: false,
     });
 
     if (!agent.id) {
       throw new Error('Failed to create Experience Agent - no ID returned');
     }
+
+    // Cache the new agent ID
+    cacheAgentId(context.worldId, agent.id);
 
     console.log(
       `[ExperienceAgent] Created for world ${context.worldName}: ${agent.id}`
