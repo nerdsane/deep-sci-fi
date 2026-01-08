@@ -60,10 +60,10 @@ export const userAgentTools = [
  * All World Agent tool definitions for Letta SDK registration
  */
 export const worldAgentTools = [
-  // TODO: Add world agent tools when implemented
-  // worldManagerTool,
-  // storyManagerTool,
-  // imageGeneratorTool,
-  // canvasUiTool,
-  // sendSuggestionTool,
+  worldManagerTool,
+  storyManagerTool,
+  // TODO: Add remaining world agent tools:
+  // - imageGeneratorTool
+  // - canvasUiTool
+  // - sendSuggestionTool
 ];

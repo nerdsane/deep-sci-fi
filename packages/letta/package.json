@@ -12,7 +12,7 @@
     "@deep-sci-fi/db": "*",
     "@deep-sci-fi/types": "*",
     "@letta-ai/letta-client": "^1.6.5",
-    "zod": "^3.23.8"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

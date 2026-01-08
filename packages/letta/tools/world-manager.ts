@@ -151,7 +151,7 @@ async function saveWorld(
       message: `World saved successfully\nWorld: ${updatedWorld.name}\nUpdated: ${updatedWorld.updatedAt.toISOString()}`,
       world: {
         ...updatedWorld,
-        version: 1, // TODO: Add version tracking to database schema
+        version: 1, // Version tracking not yet in database schema
       },
     };
   } catch (error) {
@@ -178,7 +178,7 @@ async function loadWorld(world: any): Promise<WorldManagerResult> {
       name: world.name,
       description: world.description,
       foundation: world.foundation,
-      version: 1, // TODO: Add version tracking
+      version: 1, // Version tracking not yet in database schema
       updatedAt: world.updatedAt,
     },
   };
@@ -266,7 +266,7 @@ async function updateWorld(
         name: updatedWorld.name,
         description: updatedWorld.description,
         foundation: updatedWorld.foundation,
-        version: 1, // TODO: Add version tracking
+        version: 1, // Version tracking not yet in database schema
         updatedAt: updatedWorld.updatedAt,
       },
     };
