@@ -80,3 +80,4 @@ packages/db/prisma/migrations/
 
 # Vercel
 .vercel
+apps/web/package-lock.json
