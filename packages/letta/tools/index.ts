@@ -21,6 +21,12 @@ export {
   userPreferencesTool,
 } from './user-preferences';
 
+// World Agent Tools
+export {
+  world_manager,
+  worldManagerTool,
+} from './world-manager';
+
 // Tool Executor
 export {
   getUserAgentClientTools,
@@ -30,9 +36,8 @@ export {
   type ClientTool,
 } from './executor';
 
-// World Agent Tools (to be implemented)
+// World Agent Tools (remaining to be implemented)
 // TODO: Implement these tools by porting from letta-code:
-// - world_manager (save/load/diff/update world data)
 // - story_manager (create/save stories and segments)
 // - image_generator (generate images for scenes, characters, locations)
 // - canvas_ui (create agent-driven UI components)
