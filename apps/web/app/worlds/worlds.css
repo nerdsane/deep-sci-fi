@@ -76,6 +76,19 @@
   margin: 0;
 }
 
+.worlds-header__breadcrumb {
+  display: inline-block;
+  font-size: 0.9rem;
+  color: var(--cyan);
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.worlds-header__breadcrumb:hover {
+  text-shadow: 0 0 10px rgba(0, 255, 204, 0.6);
+}
+
 .worlds-header__button {
   padding: 0.875rem 1.75rem;
   background: var(--cyan);
