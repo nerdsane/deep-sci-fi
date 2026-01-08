@@ -511,60 +511,6 @@ ${story.description || 'No description provided'}
   }
 
   /**
-   * Parse agent response (tool calls, messages, etc.)
-   *
-   * TODO: Implement actual response parsing
-   */
-  private parseResponse(response: any): AgentResponse {
-    // TODO: Parse Letta SDK response
-    return {
-      messages: [],
-      toolCalls: [],
-      metadata: {},
-    };
-  }
-
-  /**
-   * Start a chat session with an agent
-   * TODO: Implement actual session management
-   */
-  async startChatSession(
-    userId: string,
-    agentId: string,
-    context: { worldId?: string; storyId?: string }
-  ): Promise<string> {
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    const session: ChatSession = {
-      id: sessionId,
-      agentId,
-      userId,
-      messages: [],
-      context,
-    };
-
-    this.activeSessions.set(sessionId, session);
-    console.log(`Started chat session ${sessionId} for agent ${agentId}`);
-    return sessionId;
-  }
-
-  /**
-   * Get chat session history
-   */
-  getSessionHistory(sessionId: string): AgentMessage[] | null {
-    const session = this.activeSessions.get(sessionId);
-    return session ? session.messages : null;
-  }
-
-  /**
-   * End a chat session
-   */
-  endChatSession(sessionId: string): void {
-    this.activeSessions.delete(sessionId);
-    console.log(`Ended chat session ${sessionId}`);
-  }
-
-  /**
    * Clean up resources
    */
   async cleanup(): Promise<void> {
