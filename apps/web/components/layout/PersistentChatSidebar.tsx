@@ -25,6 +25,7 @@ export function PersistentChatSidebar() {
   const context = useNavigationContext();
 
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
+  const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get User Agent (always fetch)
@@ -127,7 +128,13 @@ export function PersistentChatSidebar() {
     }
   }, [currentAgent, messages.length, context.type, addMessage]);
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async () => {
+    const message = inputValue.trim();
+    if (!message) return;
+
+    // Clear input immediately
+    setInputValue('');
+
     // Add user message to store immediately
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -190,19 +197,9 @@ export function PersistentChatSidebar() {
 
       <div className="chat-input-container">
         <ChatInput
-          value=""
-          onChange={() => {}}
+          value={inputValue}
+          onChange={setInputValue}
           onSend={handleSendMessage}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              const input = (e.target as HTMLTextAreaElement).value;
-              if (input.trim()) {
-                handleSendMessage(input);
-                (e.target as HTMLTextAreaElement).value = '';
-              }
-            }
-          }}
           disabled={agentStatus === 'thinking'}
           placeholder={getPlaceholder(context.type)}
         />
