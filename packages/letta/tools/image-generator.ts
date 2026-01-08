@@ -5,8 +5,9 @@
  * Automatically saves generated images to S3 and creates database records.
  *
  * Providers:
- * - Google Gemini Imagen 3 (preferred): Best quality, conversational editing
- * - OpenAI DALL-E 3 (fallback): Alternative provider
+ * - Google Gemini 2.5 Flash Image (preferred): Highest quality, conversational editing
+ *   Also known as "Nano Banana Pro"
+ * - OpenAI GPT-Image 1.5 (fallback): Fast, precise image generation
  */
 
 import type { PrismaClient } from '@deep-sci-fi/db';
@@ -169,7 +170,7 @@ function buildEnhancedPrompt(params: ImageGeneratorParams): string {
 }
 
 // ============================================================================
-// Google Gemini Image Generation
+// Google Gemini 2.5 Flash Image Generation (Nano Banana Pro)
 // ============================================================================
 
 async function generateWithGoogle(
@@ -181,29 +182,23 @@ async function generateWithGoogle(
     throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY is required');
   }
 
-  // Use Imagen 3 model for high-quality image generation
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+  // Use Gemini 2.5 Flash Image model (Nano Banana Pro) for high-quality image generation
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
 
-  // Map aspect ratio to Imagen format
-  const aspectRatioMap: Record<string, string> = {
-    '1:1': '1:1',
-    '16:9': '16:9',
-    '9:16': '9:16',
-    '4:3': '4:3',
-    '3:4': '3:4',
-  };
-
+  // Build the request for generateContent API
   const requestBody = {
-    instances: [
+    contents: [
       {
-        prompt: prompt,
+        parts: [
+          {
+            text: prompt,
+          },
+        ],
       },
     ],
-    parameters: {
-      sampleCount: 1,
-      aspectRatio: aspectRatioMap[params.aspect_ratio || '1:1'] || '1:1',
-      personGeneration: 'allow_adult',
-      safetySetting: 'block_only_high',
+    generationConfig: {
+      responseModalities: ['IMAGE', 'TEXT'],
+      responseMimeType: 'image/png',
     },
   };
 
@@ -217,30 +212,39 @@ async function generateWithGoogle(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Imagen API error (${response.status}): ${errorText}`);
+    throw new Error(`Gemini API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
 
   // Extract base64 image from response
-  const predictions = data.predictions;
-  if (!predictions || predictions.length === 0) {
-    throw new Error('No image generated - empty predictions');
+  const candidates = data.candidates;
+  if (!candidates || candidates.length === 0) {
+    throw new Error('No image generated - empty candidates');
   }
 
-  const imageBytes = predictions[0].bytesBase64Encoded;
-  if (!imageBytes) {
-    throw new Error('No image data in response');
+  const parts = candidates[0]?.content?.parts;
+  if (!parts || parts.length === 0) {
+    throw new Error('No parts in response');
+  }
+
+  // Find the image part (inlineData with image mime type)
+  const imagePart = parts.find(
+    (part: any) => part.inlineData && part.inlineData.mimeType?.startsWith('image/')
+  );
+
+  if (!imagePart || !imagePart.inlineData?.data) {
+    throw new Error('No image data in Gemini response');
   }
 
   return {
-    base64: imageBytes,
-    mimeType: 'image/png',
+    base64: imagePart.inlineData.data,
+    mimeType: imagePart.inlineData.mimeType || 'image/png',
   };
 }
 
 // ============================================================================
-// OpenAI DALL-E Image Generation
+// OpenAI GPT-Image 1.5 Generation
 // ============================================================================
 
 async function generateWithOpenAI(
@@ -252,13 +256,14 @@ async function generateWithOpenAI(
     throw new Error('OPENAI_API_KEY is required');
   }
 
-  // Map aspect ratio to DALL-E size
+  // Map aspect ratio to GPT-Image 1.5 size
+  // GPT-Image 1.5 supports: 1024x1024, 1536x1024, 1024x1536, auto
   const sizeMap: Record<string, string> = {
     '1:1': '1024x1024',
-    '16:9': '1792x1024',
-    '9:16': '1024x1792',
-    '4:3': '1024x1024', // DALL-E 3 doesn't support 4:3, fallback to 1:1
-    '3:4': '1024x1024', // DALL-E 3 doesn't support 3:4, fallback to 1:1
+    '16:9': '1536x1024',
+    '9:16': '1024x1536',
+    '4:3': '1536x1024', // Closest approximation
+    '3:4': '1024x1536', // Closest approximation
   };
 
   const response = await fetch('https://api.openai.com/v1/images/generations', {
@@ -268,12 +273,13 @@ async function generateWithOpenAI(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'dall-e-3',
+      model: 'gpt-image-1.5',
       prompt: prompt,
       n: 1,
       size: sizeMap[params.aspect_ratio || '1:1'] || '1024x1024',
-      quality: 'hd',
-      response_format: 'b64_json',
+      quality: 'high',
+      output_format: 'png',
+      output_compression: 100,
     }),
   });
 
@@ -284,12 +290,18 @@ async function generateWithOpenAI(
 
   const data = await response.json();
 
-  if (!data.data || data.data.length === 0 || !data.data[0].b64_json) {
+  if (!data.data || data.data.length === 0) {
     throw new Error('No image data in OpenAI response');
   }
 
+  // GPT-Image 1.5 returns base64 in b64_json field
+  const imageData = data.data[0].b64_json;
+  if (!imageData) {
+    throw new Error('No base64 image data in response');
+  }
+
   return {
-    base64: data.data[0].b64_json,
+    base64: imageData,
     mimeType: 'image/png',
   };
 }
@@ -408,7 +420,7 @@ async function saveAsset(
 export const imageGeneratorTool = {
   name: 'image_generator',
   description:
-    'Generate AI images for worlds, stories, and scenes. Uses Google Imagen 3 (preferred) or OpenAI DALL-E 3. Images are automatically saved to storage and associated with the specified world/story/segment.',
+    'Generate AI images for worlds, stories, and scenes. Uses Google Gemini 2.5 Flash Image (preferred) or OpenAI GPT-Image 1.5. Images are automatically saved to storage and associated with the specified world/story/segment.',
   parameters: {
     type: 'object',
     properties: {
