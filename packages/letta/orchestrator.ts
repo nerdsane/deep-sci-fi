@@ -5,6 +5,7 @@ import type {
   AgentMessage,
   ChatSession,
   AgentResponse,
+  StreamChunk,
 } from './types';
 import { generateUserAgentSystemPrompt, generateWorldSystemPrompt } from './prompts';
 import {
@@ -567,6 +568,261 @@ ${story.description || 'No description provided'}
     // End all active sessions
     this.activeSessions.clear();
     console.log('LettaOrchestrator: Cleaned up all sessions');
+  }
+
+  /**
+   * Stream message to appropriate agent with real-time chunk yielding
+   * Returns an async generator that yields StreamChunk objects
+   */
+  async *sendMessageStreaming(
+    userId: string,
+    message: string,
+    context: {
+      worldId?: string;
+      storyId?: string;
+    }
+  ): AsyncGenerator<StreamChunk> {
+    if (!this.db) {
+      yield { type: 'error', content: 'Database client is required' };
+      return;
+    }
+
+    let agentId: string;
+    let agentType: 'user' | 'world';
+    let worldContext: { worldId: string; storyId?: string; worldName: string } | undefined;
+
+    // Determine which agent to use
+    if (context.worldId) {
+      const world = await this.db.world.findUnique({
+        where: { id: context.worldId },
+        include: { owner: true },
+      });
+
+      if (!world) {
+        yield { type: 'error', content: `World not found: ${context.worldId}` };
+        return;
+      }
+
+      agentId = await this.getOrCreateWorldAgent(context.worldId, world, world.owner);
+      agentType = 'world';
+      worldContext = {
+        worldId: context.worldId,
+        storyId: context.storyId,
+        worldName: world.name,
+      };
+
+      if (context.storyId) {
+        const story = await this.db.story.findUnique({ where: { id: context.storyId } });
+        if (story) {
+          await this.setStoryContext(agentId, story);
+        }
+      }
+    } else {
+      const user = await this.db.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        yield { type: 'error', content: `User not found: ${userId}` };
+        return;
+      }
+
+      agentId = await this.getOrCreateUserAgent(userId, user);
+      agentType = 'user';
+    }
+
+    // Stream from agent
+    yield* this.streamFromAgent(agentId, message, userId, agentType, worldContext);
+  }
+
+  /**
+   * Internal streaming implementation that yields chunks as they arrive
+   */
+  private async *streamFromAgent(
+    agentId: string,
+    message: string,
+    userId: string,
+    agentType: 'user' | 'world',
+    worldContext?: {
+      worldId: string;
+      storyId?: string;
+      worldName: string;
+    }
+  ): AsyncGenerator<StreamChunk> {
+    const clientTools = agentType === 'user'
+      ? getUserAgentClientTools()
+      : getWorldAgentClientTools();
+
+    let currentInput: any = [{ role: 'user', content: message }];
+    let loopCount = 0;
+    const maxLoops = 10; // Prevent infinite loops
+
+    try {
+      while (loopCount < maxLoops) {
+        loopCount++;
+        const approvalRequests = new Map<string, { toolName: string; args: string }>();
+        let stopReason: string | undefined;
+
+        const stream = await this.client.agents.messages.create(agentId, {
+          messages: currentInput,
+          streaming: true,
+          stream_tokens: true,
+          client_tools: clientTools,
+        });
+
+        for await (const chunk of stream) {
+          if (!chunk || typeof chunk !== 'object') continue;
+
+          // Extract stop reason
+          if ('stop_reason' in chunk && typeof chunk.stop_reason === 'string') {
+            stopReason = chunk.stop_reason;
+          }
+
+          // Yield reasoning chunks
+          if ('reasoning_message' in chunk && chunk.reasoning_message) {
+            yield {
+              type: 'reasoning',
+              content: chunk.reasoning_message as string,
+            };
+          }
+
+          // Yield assistant message chunks
+          if ('assistant_message' in chunk && chunk.assistant_message) {
+            yield {
+              type: 'assistant',
+              content: chunk.assistant_message as string,
+            };
+          }
+
+          // Yield tool call chunks
+          if ('tool_call_message' in chunk && chunk.tool_call_message) {
+            const tc = chunk.tool_call_message as any;
+            yield {
+              type: 'tool_call',
+              toolCallId: tc.id || tc.tool_call_id,
+              toolName: tc.name,
+              toolArgs: tc.arguments,
+              toolStatus: 'pending',
+            };
+          }
+
+          // Yield tool return chunks
+          if ('tool_return_message' in chunk && chunk.tool_return_message) {
+            const tr = chunk.tool_return_message as any;
+            yield {
+              type: 'tool_result',
+              toolCallId: tr.tool_call_id,
+              toolResult: typeof tr === 'string' ? tr : JSON.stringify(tr),
+              toolStatus: 'success',
+            };
+          }
+
+          // Accumulate approval requests
+          if ('approval_request_message' in chunk) {
+            const approvalChunk = chunk as any;
+            const toolCall = approvalChunk.tool_call;
+            if (toolCall?.tool_call_id && toolCall?.name) {
+              const existing = approvalRequests.get(toolCall.tool_call_id);
+              approvalRequests.set(toolCall.tool_call_id, {
+                toolName: toolCall.name,
+                args: (existing?.args || '') + (toolCall.arguments || ''),
+              });
+
+              // Yield tool call as running
+              yield {
+                type: 'tool_call',
+                toolCallId: toolCall.tool_call_id,
+                toolName: toolCall.name,
+                toolArgs: toolCall.arguments,
+                toolStatus: 'running',
+              };
+            }
+          }
+
+          // Yield usage statistics
+          if ('usage' in chunk && chunk.usage) {
+            const usage = chunk.usage as any;
+            yield {
+              type: 'usage',
+              usage: {
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+                totalTokens: usage.total_tokens,
+              },
+            };
+          }
+        }
+
+        // End of stream - check stop reason
+        if (stopReason === 'end_turn') {
+          yield { type: 'done', stopReason: 'end_turn' };
+          break;
+        }
+
+        if (stopReason === 'requires_approval' && approvalRequests.size > 0) {
+          // Execute tools and send results back
+          const approvalResults = [];
+
+          for (const [toolCallId, { toolName, args }] of approvalRequests.entries()) {
+            try {
+              const parsedArgs = args ? JSON.parse(args) : {};
+              const result = await executeTool(toolName, parsedArgs, {
+                userId,
+                db: this.db!,
+                worldId: worldContext?.worldId,
+                storyId: worldContext?.storyId,
+                worldName: worldContext?.worldName,
+                lettaClient: this.client,
+              });
+
+              // Yield successful tool result
+              yield {
+                type: 'tool_result',
+                toolCallId,
+                toolName,
+                toolResult: JSON.stringify(result),
+                toolStatus: 'success',
+              };
+
+              approvalResults.push({
+                type: 'tool',
+                tool_call_id: toolCallId,
+                tool_return: JSON.stringify(result),
+                status: 'success',
+              });
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+
+              // Yield error result
+              yield {
+                type: 'tool_result',
+                toolCallId,
+                toolName,
+                toolResult: `Error: ${errorMsg}`,
+                toolStatus: 'error',
+              };
+
+              approvalResults.push({
+                type: 'tool',
+                tool_call_id: toolCallId,
+                tool_return: `Error: ${errorMsg}`,
+                status: 'error',
+              });
+            }
+          }
+
+          // Send approval results back and continue loop
+          currentInput = [{ type: 'approval', approvals: approvalResults }] as any;
+          continue;
+        }
+
+        // Unknown stop reason or no approval requests
+        yield { type: 'done', stopReason: stopReason || 'unknown' };
+        break;
+      }
+    } catch (error) {
+      yield {
+        type: 'error',
+        content: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
 
