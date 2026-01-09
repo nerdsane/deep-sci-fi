@@ -1,8 +1,9 @@
 # WebSocket Server Dockerfile
 # Bun-based WebSocket server for real-time communication
 # Build context: project root
+# Note: Using Debian instead of Alpine for Prisma/OpenSSL compatibility
 
-FROM oven/bun:1-alpine AS base
+FROM oven/bun:1-debian AS base
 WORKDIR /workspace
 
 # Install dependencies - preserve directory structure for file: dependencies
@@ -14,13 +15,13 @@ COPY apps/web/package.json apps/web/bun.lockb* ./apps/web/
 
 # Install workspace package dependencies first
 WORKDIR /workspace/packages/db
-RUN bun install || true
+RUN bun install && bunx prisma generate
 
 WORKDIR /workspace/packages/types
 RUN bun install || true
 
 WORKDIR /workspace/packages/letta
-RUN bun install || true
+RUN bun install
 
 # Now install web app dependencies
 WORKDIR /workspace/apps/web
@@ -34,7 +35,7 @@ COPY apps/web/server ./apps/web/server
 COPY apps/web/package.json ./apps/web/
 
 # Runtime
-FROM base AS runner
+FROM oven/bun:1-debian AS runner
 WORKDIR /workspace/apps/web
 
 ENV NODE_ENV=production
@@ -47,14 +48,14 @@ COPY --from=builder /workspace/apps/web/server ./server
 COPY --from=builder /workspace/apps/web/package.json ./
 
 # Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 wsuser
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs wsuser
 USER wsuser
 
 EXPOSE 8284
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8284/health || exit 1
+    CMD curl -f http://localhost:8284/health || exit 1
 
 CMD ["bun", "run", "server/ws-server.ts"]
