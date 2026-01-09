@@ -1,59 +1,57 @@
 import { NextResponse } from 'next/server';
-import { readdir, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-
-// Point to letta-code .dsf directory for local mode
-const WORLDS_DIR = process.cwd().includes('/apps/web')
-  ? '../../letta-code/.dsf/worlds'
-  : 'letta-code/.dsf/worlds';
-const ASSETS_DIR = process.cwd().includes('/apps/web')
-  ? '../../letta-code/.dsf/assets'
-  : 'letta-code/.dsf/assets';
+import { db } from '@deep-sci-fi/db';
 
 export async function GET() {
   try {
-    // In production, this would fetch from Letta's API
-    // For now, read from local filesystem
-    if (!existsSync(WORLDS_DIR)) {
-      return NextResponse.json([]);
-    }
+    // Fetch worlds from database
+    const worlds = await db.world.findMany({
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        foundation: true,
+        surface: true,
+        constraints: true,
+        changelog: true,
+        state: true,
+        version: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
-    const worlds = [];
-    const files = await readdir(WORLDS_DIR);
+    // Transform to match expected frontend format
+    const transformedWorlds = worlds.map((world) => ({
+      id: world.id,
+      checkpoint_name: world.id, // Use ID as checkpoint name for compatibility
+      foundation: {
+        core_premise: (world.foundation as any)?.premise || world.description || '',
+        rules: (world.foundation as any)?.rules || [],
+        deep_focus_areas: (world.foundation as any)?.deep_focus_areas || {},
+        history: (world.foundation as any)?.history || {},
+        technology: (world.foundation as any)?.technology || '',
+        society: (world.foundation as any)?.society || '',
+      },
+      surface: world.surface || {
+        visible_elements: [],
+        opening_scene: null,
+        revealed_in_story: [],
+      },
+      constraints: world.constraints || [],
+      changelog: world.changelog || [],
+      development: {
+        version: world.version,
+        state: world.state,
+        last_modified: world.updatedAt.toISOString(),
+      },
+      // Include name for display
+      name: world.name,
+    }));
 
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const content = await readFile(join(WORLDS_DIR, file), 'utf-8');
-        const world = JSON.parse(content);
-        const checkpoint = file.replace('.json', '');
-
-        world.checkpoint_name = checkpoint;
-
-        // Auto-discover cover image
-        if (!world.asset) {
-          const coverPath = join(ASSETS_DIR, 'worlds', checkpoint, 'cover.png');
-          if (existsSync(coverPath)) {
-            world.asset = {
-              id: `cover_${checkpoint}`,
-              type: 'image',
-              path: `worlds/${checkpoint}/cover.png`,
-              description: 'World cover image',
-            };
-          }
-        }
-
-        worlds.push(world);
-      }
-    }
-
-    // Sort by last modified (most recent first)
-    worlds.sort((a, b) =>
-      new Date(b.development.last_modified).getTime() -
-      new Date(a.development.last_modified).getTime()
-    );
-
-    return NextResponse.json(worlds);
+    return NextResponse.json(transformedWorlds);
   } catch (error) {
     console.error('Error loading worlds:', error);
     return NextResponse.json({ error: 'Failed to load worlds' }, { status: 500 });
