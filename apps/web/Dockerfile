@@ -7,15 +7,27 @@ WORKDIR /workspace
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 
-# Copy packages first (for file: dependencies)
+# Copy ALL package files first
 COPY packages ./packages
-# Copy web app package files
 COPY apps/web/package.json ./apps/web/
+
+# Install dependencies for workspace packages first
+WORKDIR /workspace/packages/db
+RUN npm install --production=false
+
+WORKDIR /workspace/packages/types
+RUN npm install --production=false || true
+
+WORKDIR /workspace/packages/letta
+RUN npm install --production=false
+
+# Now install web app dependencies
 WORKDIR /workspace/apps/web
 RUN npm install
 
 # Build the application
 FROM base AS builder
+# Copy packages WITH their node_modules (for @prisma/client etc)
 COPY --from=deps /workspace/packages ./packages
 COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
 COPY apps/web ./apps/web
