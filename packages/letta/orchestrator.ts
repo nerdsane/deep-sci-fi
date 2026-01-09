@@ -670,83 +670,113 @@ ${story.description || 'No description provided'}
         for await (const chunk of stream) {
           if (!chunk || typeof chunk !== 'object') continue;
 
-          // Extract stop reason
-          if ('stop_reason' in chunk && typeof chunk.stop_reason === 'string') {
-            stopReason = chunk.stop_reason;
-          }
+          const chunkAny = chunk as any;
+          const messageType = chunkAny.message_type;
 
-          // Yield reasoning chunks
-          if ('reasoning_message' in chunk && chunk.reasoning_message) {
-            yield {
-              type: 'reasoning',
-              content: chunk.reasoning_message as string,
-            };
-          }
-
-          // Yield assistant message chunks
-          if ('assistant_message' in chunk && chunk.assistant_message) {
-            yield {
-              type: 'assistant',
-              content: chunk.assistant_message as string,
-            };
-          }
-
-          // Yield tool call chunks
-          if ('tool_call_message' in chunk && chunk.tool_call_message) {
-            const tc = chunk.tool_call_message as any;
-            yield {
-              type: 'tool_call',
-              toolCallId: tc.id || tc.tool_call_id,
-              toolName: tc.name,
-              toolArgs: tc.arguments,
-              toolStatus: 'pending',
-            };
-          }
-
-          // Yield tool return chunks
-          if ('tool_return_message' in chunk && chunk.tool_return_message) {
-            const tr = chunk.tool_return_message as any;
-            yield {
-              type: 'tool_result',
-              toolCallId: tr.tool_call_id,
-              toolResult: typeof tr === 'string' ? tr : JSON.stringify(tr),
-              toolStatus: 'success',
-            };
-          }
-
-          // Accumulate approval requests
-          if ('approval_request_message' in chunk) {
-            const approvalChunk = chunk as any;
-            const toolCall = approvalChunk.tool_call;
-            if (toolCall?.tool_call_id && toolCall?.name) {
-              const existing = approvalRequests.get(toolCall.tool_call_id);
-              approvalRequests.set(toolCall.tool_call_id, {
-                toolName: toolCall.name,
-                args: (existing?.args || '') + (toolCall.arguments || ''),
-              });
-
-              // Yield tool call as running
-              yield {
-                type: 'tool_call',
-                toolCallId: toolCall.tool_call_id,
-                toolName: toolCall.name,
-                toolArgs: toolCall.arguments,
-                toolStatus: 'running',
-              };
+          // Handle chunks based on message_type
+          switch (messageType) {
+            case 'stop_reason': {
+              // Stop reason comes as its own message type
+              stopReason = chunkAny.stop_reason;
+              break;
             }
-          }
 
-          // Yield usage statistics
-          if ('usage' in chunk && chunk.usage) {
-            const usage = chunk.usage as any;
-            yield {
-              type: 'usage',
-              usage: {
-                promptTokens: usage.prompt_tokens,
-                completionTokens: usage.completion_tokens,
-                totalTokens: usage.total_tokens,
-              },
-            };
+            case 'reasoning_message': {
+              // Content is in chunk.reasoning
+              const reasoning = chunkAny.reasoning;
+              if (reasoning) {
+                yield {
+                  type: 'reasoning',
+                  content: reasoning,
+                };
+              }
+              break;
+            }
+
+            case 'assistant_message': {
+              // Content is in chunk.content (may be string or array)
+              let content = '';
+              if (typeof chunkAny.content === 'string') {
+                content = chunkAny.content;
+              } else if (Array.isArray(chunkAny.content)) {
+                // Extract text from content parts
+                for (const part of chunkAny.content) {
+                  if (part?.type === 'text' && part.text) {
+                    content += part.text;
+                  }
+                }
+              }
+              if (content) {
+                yield {
+                  type: 'assistant',
+                  content,
+                };
+              }
+              break;
+            }
+
+            case 'tool_call_message': {
+              // Tool call data in chunk.tool_call or chunk.tool_calls
+              const toolCall = chunkAny.tool_call ||
+                (Array.isArray(chunkAny.tool_calls) && chunkAny.tool_calls[0]);
+              if (toolCall) {
+                yield {
+                  type: 'tool_call',
+                  toolCallId: toolCall.tool_call_id || toolCall.id,
+                  toolName: toolCall.name,
+                  toolArgs: toolCall.arguments,
+                  toolStatus: 'pending',
+                };
+              }
+              break;
+            }
+
+            case 'tool_return_message': {
+              // Tool return data
+              const toolReturn = chunkAny.tool_return || chunkAny.content;
+              yield {
+                type: 'tool_result',
+                toolCallId: chunkAny.tool_call_id,
+                toolResult: typeof toolReturn === 'string' ? toolReturn : JSON.stringify(toolReturn),
+                toolStatus: chunkAny.status === 'error' ? 'error' : 'success',
+              };
+              break;
+            }
+
+            case 'approval_request_message': {
+              // Client tool needs approval - accumulate and yield as running
+              const toolCall = chunkAny.tool_call ||
+                (Array.isArray(chunkAny.tool_calls) && chunkAny.tool_calls[0]);
+              if (toolCall?.tool_call_id && toolCall?.name) {
+                const existing = approvalRequests.get(toolCall.tool_call_id);
+                approvalRequests.set(toolCall.tool_call_id, {
+                  toolName: toolCall.name,
+                  args: (existing?.args || '') + (toolCall.arguments || ''),
+                });
+
+                yield {
+                  type: 'tool_call',
+                  toolCallId: toolCall.tool_call_id,
+                  toolName: toolCall.name,
+                  toolArgs: toolCall.arguments,
+                  toolStatus: 'running',
+                };
+              }
+              break;
+            }
+
+            case 'usage_statistics': {
+              // Usage stats
+              yield {
+                type: 'usage',
+                usage: {
+                  promptTokens: chunkAny.prompt_tokens || chunkAny.usage?.prompt_tokens,
+                  completionTokens: chunkAny.completion_tokens || chunkAny.usage?.completion_tokens,
+                  totalTokens: chunkAny.total_tokens || chunkAny.usage?.total_tokens,
+                },
+              };
+              break;
+            }
           }
         }
 
