@@ -160,11 +160,17 @@ async function createWorld(
     }
 
     // Create world in database
+    // surface field is required by schema - initialize with empty structure
     const world = await context.db.world.create({
       data: {
         name: params.name.trim(),
         description: params.description || `A sci-fi world: ${foundation.premise.substring(0, 100)}...`,
         foundation: foundation,
+        surface: params.world_data.surface || {
+          opening_scene: null,
+          visible_elements: [],
+          revealed_in_story: [],
+        },
         ownerId: context.userId,
       },
       select: {
