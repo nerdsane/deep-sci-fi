@@ -69,32 +69,38 @@ export interface Tool {
   tags?: string[];
 }
 
+export type TrajectoryVisibility = 'full' | 'anonymized';
+
 export interface Trajectory {
   id: string;
   agent_id: string;
+  domain_type?: string;
+  share_cross_org?: boolean;
   data: {
-    run_id: string;
-    metadata: {
+    run_id?: string;
+    metadata?: {
       start_time?: string;
       end_time?: string;
       duration_ns?: number;
-      status: string;
-      step_count: number;
-      message_count: number;
-      input_tokens: number;
-      output_tokens: number;
-      total_tokens: number;
-      models: string[];
-      tools_used: string[];
+      status?: string;
+      step_count?: number;
+      message_count?: number;
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      models?: string[];
+      tools_used?: string[];
     };
-    turns: Array<{
-      step_id: string;
-      model: string;
-      input_tokens: number;
-      output_tokens: number;
-      messages: Message[];
+    turns?: Array<{
+      step_id?: string;
+      model?: string;
+      input_tokens?: number;
+      output_tokens?: number;
+      messages?: Message[] | string;  // string for anonymized "[REDACTED]"
+      message_count?: number;  // For anonymized trajectories
+      tool_calls_count?: number;  // For anonymized trajectories
     }>;
-    outcome: {
+    outcome?: {
       // New format (preferred)
       execution?: {
         status: 'completed' | 'failed' | 'incomplete' | 'error' | 'unknown';
@@ -121,6 +127,9 @@ export interface Trajectory {
   embedding?: number[];
   created_at: string;
   updated_at?: string;
+  organization_id?: string;
+  // For search results
+  visibility?: TrajectoryVisibility;
 }
 
 export interface SearchTrajectoriesResponse {

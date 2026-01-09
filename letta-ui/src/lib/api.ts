@@ -110,9 +110,39 @@ export const api = {
     fetchApi<any>(`/v1/trajectories/${trajectoryId}`),
   getTrajectoriesWithEmbeddings: () =>
     fetchApi<any>('/v1/trajectories?include_embeddings=true'),
-  searchTrajectories: (query: string) =>
+  searchTrajectories: (
+    query: string,
+    minScore?: number,
+    limit?: number,
+    domainType?: string,
+    includeCrossOrg?: boolean
+  ) =>
     fetchApi<any>(
-      `/v1/trajectories/search?query=${encodeURIComponent(query)}`
+      `/v1/trajectories/search`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          query,
+          min_score: minScore,
+          limit: limit || 20,
+          domain_type: domainType,
+          include_cross_org: includeCrossOrg || false,
+        }),
+      }
+    ),
+
+  updateTrajectorySharing: (trajectoryId: string, shareCrossOrg: boolean) =>
+    fetchApi<any>(
+      `/v1/trajectories/${trajectoryId}/sharing`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ share_cross_org: shareCrossOrg }),
+      }
+    ),
+
+  listTrajectoriesByDomain: (domainType: string, includeCrossOrg?: boolean, limit?: number) =>
+    fetchApi<any>(
+      `/v1/trajectories/by-domain/${encodeURIComponent(domainType)}?include_cross_org=${includeCrossOrg || false}&limit=${limit || 50}`
     ),
 
   // Analytics

@@ -12,6 +12,8 @@ interface Filters {
   maxScore: string;
   startDate: string;
   endDate: string;
+  domainType: string;
+  includeCrossOrg: boolean;
 }
 
 export function TrajectoriesView() {
@@ -29,6 +31,8 @@ export function TrajectoriesView() {
     maxScore: '',
     startDate: '',
     endDate: '',
+    domainType: '',
+    includeCrossOrg: false,
   });
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
@@ -70,8 +74,16 @@ export function TrajectoriesView() {
     try {
       setLoading(true);
       const minScore = filters.minScore ? parseFloat(filters.minScore) : undefined;
-      const response = await api.searchTrajectories(searchQuery, minScore, pageSize);
-      setTrajectories(response.trajectories || []);
+      const response = await api.searchTrajectories(
+        searchQuery,
+        minScore,
+        pageSize,
+        filters.domainType || undefined,
+        filters.includeCrossOrg
+      );
+      // Handle both array and object response formats
+      const results = response.results || response.trajectories || [];
+      setTrajectories(results.map((r: any) => r.trajectory || r));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
     } finally {
@@ -339,6 +351,47 @@ export function TrajectoriesView() {
                 style={{ width: '100%' }}
               />
             </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Domain Type
+              </label>
+              <select
+                value={filters.domainType}
+                onChange={(e) => setFilters({ ...filters, domainType: e.target.value })}
+                className="input"
+                style={{ width: '100%' }}
+              >
+                <option value="">All domains</option>
+                <option value="story_agent">Story Agent</option>
+                <option value="code_agent">Code Agent</option>
+                <option value="research_agent">Research Agent</option>
+                <option value="chat_agent">Chat Agent</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
+                Cross-Org Sharing
+              </label>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem',
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '4px',
+                cursor: filters.domainType ? 'pointer' : 'not-allowed',
+                opacity: filters.domainType ? 1 : 0.5,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={filters.includeCrossOrg}
+                  onChange={(e) => setFilters({ ...filters, includeCrossOrg: e.target.checked })}
+                  disabled={!filters.domainType}
+                />
+                <span className="text-small">Include cross-org (anonymized)</span>
+              </label>
+            </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
               <button
                 type="button"
@@ -349,6 +402,8 @@ export function TrajectoriesView() {
                   maxScore: '',
                   startDate: '',
                   endDate: '',
+                  domainType: '',
+                  includeCrossOrg: false,
                 })}
                 className="btn btn-secondary"
                 style={{ width: '100%' }}
