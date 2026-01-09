@@ -186,6 +186,49 @@ const SERVER_TOOL_NAMES = [
   'check_logical_consistency',
 ];
 
+/** Cached tool names after registration (includes both server-side and client-side) */
+let cachedExperienceToolNames: string[] | null = null;
+
+/**
+ * Register Experience Agent's client-side tools on Letta server
+ * Similar to orchestrator's registerClientTools but for Experience Agent tools
+ */
+async function registerExperienceAgentTools(client: Letta): Promise<string[]> {
+  if (cachedExperienceToolNames) return cachedExperienceToolNames;
+
+  console.log('[ExperienceAgent] Registering client-side tools on server...');
+
+  const clientTools = getExperienceAgentTools();
+  const registeredNames: string[] = [];
+
+  for (const tool of clientTools) {
+    try {
+      // Create Python stub that raises exception (execution happens client-side)
+      const sourceCode = `def ${tool.name}(**kwargs):
+    """${(tool.description || '').replace(/"/g, '\\"')}"""
+    raise Exception("This tool executes client-side only")`;
+
+      await client.tools.upsert({
+        source_code: sourceCode,
+        description: tool.description || `Client-side tool: ${tool.name}`,
+        default_requires_approval: true,
+        args_json_schema: tool.parameters,
+      });
+
+      registeredNames.push(tool.name);
+      console.log(`  Registered: ${tool.name}`);
+    } catch (error) {
+      console.warn(`  Failed to register ${tool.name}:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Combine with server-side tools
+  cachedExperienceToolNames = [...SERVER_TOOL_NAMES, ...registeredNames];
+  console.log(`[ExperienceAgent] Registered ${registeredNames.length} client-side tools`);
+
+  return cachedExperienceToolNames;
+}
+
 export async function getOrCreateExperienceAgent(
   config: ExperienceAgentConfig,
   context: ExperienceAgentContext
@@ -210,24 +253,14 @@ export async function getOrCreateExperienceAgent(
     }
   }
 
+  // Register client-side tools on server (idempotent, cached after first call)
+  const allToolNames = await registerExperienceAgentTools(lettaClient);
+
   // Create new agent
   const systemPrompt = generateExperienceAgentSystemPrompt(context);
   const memoryBlocks = getExperienceAgentMemoryBlocks(context);
 
   try {
-    // Fetch server-side tool IDs
-    const toolIds: string[] = [];
-    for (const name of SERVER_TOOL_NAMES) {
-      try {
-        const result = await lettaClient.tools.list({ name });
-        if (result.items?.[0]?.id) {
-          toolIds.push(result.items[0].id);
-        }
-      } catch {
-        // Tool not available
-      }
-    }
-
     // Create memory blocks
     const createdBlocks = await Promise.all(
       memoryBlocks.map(async (block) => {
@@ -241,7 +274,7 @@ export async function getOrCreateExperienceAgent(
       })
     );
 
-    // Create the agent
+    // Create the agent with ALL tools (server-side + client-side)
     const agent = await lettaClient.agents.create({
       agent_type: 'letta_v1_agent',
       name: `experience-${context.worldId.substring(0, 8)}`,
@@ -250,7 +283,7 @@ export async function getOrCreateExperienceAgent(
       model: 'anthropic/claude-sonnet-4-20250514',
       embedding: 'openai/text-embedding-3-small',
       block_ids: createdBlocks.filter((id): id is string => id !== undefined),
-      tool_ids: toolIds,
+      tools: allToolNames, // Both server-side AND client-side tools
       include_base_tools: false,
       parallel_tool_calls: true,
       tags: ['origin:deep-sci-fi', 'type:experience-agent', `world:${context.worldId}`],
