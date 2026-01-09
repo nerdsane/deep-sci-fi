@@ -201,7 +201,49 @@ done
 
 cd ../..
 
-# 6. Start the web app
+# 6. Start Letta UI (observability dashboard)
+echo ""
+echo "📊 Starting Letta UI..."
+cd letta-ui
+
+# Install dependencies if needed
+if [ ! -d "node_modules" ]; then
+    print_warning "Installing Letta UI dependencies..."
+    bun install
+fi
+
+# Kill any existing Letta UI server
+if [ -f ".ui.pid" ]; then
+    OLD_PID=$(cat .ui.pid)
+    if kill -0 $OLD_PID 2>/dev/null; then
+        print_warning "Stopping existing Letta UI (PID: $OLD_PID)..."
+        kill $OLD_PID 2>/dev/null || true
+        sleep 1
+    fi
+    rm -f .ui.pid
+fi
+
+# Start Letta UI in background on port 3001
+LETTA_BASE_URL=http://localhost:8283 PORT=3001 bun run dev > .ui.log 2>&1 &
+UI_PID=$!
+echo $UI_PID > .ui.pid
+print_success "Letta UI starting (PID: $UI_PID)..."
+
+# Wait for Letta UI to be ready
+for i in {1..10}; do
+    if curl -s http://localhost:3001 > /dev/null 2>&1; then
+        print_success "Letta UI ready on localhost:3001"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        print_warning "Letta UI may still be starting..."
+    fi
+    sleep 0.5
+done
+
+cd ..
+
+# 7. Start the web app
 echo ""
 echo "🚀 Starting web app..."
 echo ""
@@ -211,6 +253,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  🌌 Deep Sci-Fi is starting..."
 echo ""
 echo "  Web App:        http://localhost:3000"
+echo "  Letta UI:       http://localhost:3001"
 echo "  WebSocket:      ws://localhost:8284"
 echo "  Letta Server:   http://localhost:8283"
 echo "  PostgreSQL:     localhost:5432"
