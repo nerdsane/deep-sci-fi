@@ -14,6 +14,7 @@ import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType }
 import { AgentSuggestions, type AgentSuggestion, type Suggestion } from '@/components/canvas/agent';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import {
+  getDefaultWSClient,
   UnifiedWSClient,
   type StreamChunk,
   type CanvasUIMessage,
@@ -95,8 +96,8 @@ function App() {
   // ============================================================================
 
   useEffect(() => {
-    // Create WebSocket client
-    const wsClient = new UnifiedWSClient();
+    // Use singleton WebSocket client to avoid reconnection on StrictMode double-mount
+    const wsClient = getDefaultWSClient();
     wsClientRef.current = wsClient;
 
     // Connection handlers
@@ -192,14 +193,28 @@ function App() {
       }));
     };
 
-    // Connect
-    wsClient.connect().catch((err) => {
-      console.error('[App] Failed to connect:', err);
-    });
+    // Connect only if not already connected
+    if (!wsClient.isConnected()) {
+      wsClient.connect().catch((err) => {
+        console.error('[App] Failed to connect:', err);
+      });
+    } else {
+      // Already connected, update state
+      setState((s) => ({ ...s, wsConnected: true }));
+    }
 
-    // Cleanup
+    // Cleanup: Don't disconnect the singleton, just clear handlers
+    // The WebSocket stays alive across React StrictMode remounts
     return () => {
-      wsClient.disconnect();
+      // Only clear handlers, don't disconnect the singleton
+      wsClient.onConnect = null;
+      wsClient.onDisconnect = null;
+      wsClient.onError = null;
+      wsClient.onClientJoined = null;
+      wsClient.onClientLeft = null;
+      wsClient.onStateChange = null;
+      wsClient.onCanvasUI = null;
+      wsClient.onSuggestion = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency - WebSocket should only connect once on mount
