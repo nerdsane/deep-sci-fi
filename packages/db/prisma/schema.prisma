@@ -39,6 +39,7 @@ model User {
   stories       Story[]
   collaborations WorldCollaborator[]
   agentSession  AgentSession?
+  chatMessages  ChatMessage[]
 
   @@map("users")
 }
@@ -116,6 +117,7 @@ model World {
   stories      Story[]
   assets       Asset[]
   agentSession AgentSession?
+  chatMessages ChatMessage[]
 
   @@index([ownerId])
   @@index([visibility])
@@ -157,10 +159,11 @@ model Story {
   updatedAt DateTime @updatedAt
 
   // Relations
-  world    World           @relation(fields: [worldId], references: [id], onDelete: Cascade)
-  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  segments StorySegment[]
-  assets   Asset[]
+  world        World           @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  segments     StorySegment[]
+  assets       Asset[]
+  chatMessages ChatMessage[]
 
   @@index([worldId])
   @@index([authorId])
@@ -229,6 +232,41 @@ model Asset {
   @@index([segmentId])
   @@index([category])
   @@map("assets")
+}
+
+// ============================================================================
+// Chat Messages
+// ============================================================================
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+
+  // Context - who and where
+  userId    String
+  worldId   String?              // null = User Agent context
+  storyId   String?              // optional story context
+
+  // Message content
+  role      String               // 'user' | 'assistant' | 'system'
+  content   String   @db.Text
+
+  // Metadata
+  messageType String @default("assistant")  // 'user' | 'reasoning' | 'tool_call' | 'assistant' | 'error' | 'warning' | 'info'
+  toolName    String?
+  toolArgs    String?  @db.Text
+  toolResult  String?  @db.Text
+  toolStatus  String?            // 'pending' | 'running' | 'success' | 'error'
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  world World? @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  story Story? @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, worldId, createdAt])
+  @@index([userId, createdAt])
+  @@map("chat_messages")
 }
 
 // ============================================================================
