@@ -1,11 +1,12 @@
 # Web App - Next.js Chat + Canvas UI
 # Build context: project root (for monorepo workspace packages)
-FROM node:20-alpine AS base
+# Note: Using Debian slim instead of Alpine for Prisma compatibility
+FROM node:20-slim AS base
 WORKDIR /workspace
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy ALL package files first
 COPY packages ./packages
@@ -13,7 +14,7 @@ COPY apps/web/package.json ./apps/web/
 
 # Install dependencies for workspace packages first
 WORKDIR /workspace/packages/db
-RUN npm install --production=false
+RUN npm install --production=false && npx prisma generate
 
 WORKDIR /workspace/packages/types
 RUN npm install --production=false || true
@@ -27,6 +28,7 @@ RUN npm install
 
 # Build the application
 FROM base AS builder
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 # Copy packages WITH their node_modules (for @prisma/client etc)
 COPY --from=deps /workspace/packages ./packages
 COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
@@ -40,19 +42,24 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Production image
-FROM base AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs nextjs
 
 # Copy built assets from standalone output
 COPY --from=builder /workspace/apps/web/public ./public
 COPY --from=builder --chown=nextjs:nodejs /workspace/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /workspace/apps/web/.next/static ./.next/static
+
+# Copy Prisma engine files for standalone build
+COPY --from=builder /workspace/packages/db/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /workspace/packages/db/node_modules/@prisma ./node_modules/@prisma
 
 USER nextjs
 
