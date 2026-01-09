@@ -29,6 +29,8 @@ export interface ExperienceAgentConfig {
   lettaClient: Letta;
   db: PrismaClient;
   userId: string;
+  /** Server-side tool IDs to attach (passed from orchestrator) */
+  serverToolIds?: string[];
 }
 
 // ============================================================================
@@ -182,7 +184,7 @@ export async function getOrCreateExperienceAgent(
   config: ExperienceAgentConfig,
   context: ExperienceAgentContext
 ): Promise<string> {
-  const { lettaClient, db, userId } = config;
+  const { lettaClient, db, userId, serverToolIds = [] } = config;
 
   // Check cache first
   const cachedAgentId = getCachedAgentId(context.worldId);
@@ -220,6 +222,11 @@ export async function getOrCreateExperienceAgent(
       })
     );
 
+    // Log server-side tools
+    if (serverToolIds.length > 0) {
+      console.log(`[ExperienceAgent] Including ${serverToolIds.length} server-side tools`);
+    }
+
     // Create the agent
     const agent = await lettaClient.agents.create({
       agent_type: 'letta_v1_agent',
@@ -229,7 +236,10 @@ export async function getOrCreateExperienceAgent(
       model: 'anthropic/claude-sonnet-4-20250514',
       embedding: 'openai/text-embedding-3-small',
       block_ids: createdBlocks.filter((id): id is string => id !== undefined),
+      tool_ids: serverToolIds, // Server-side tools (passed from orchestrator)
       include_base_tools: false,
+      parallel_tool_calls: true,
+      tags: ['origin:deep-sci-fi', 'type:experience-agent', `world:${context.worldId}`],
     });
 
     if (!agent.id) {

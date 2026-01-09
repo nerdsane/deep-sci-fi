@@ -110,6 +110,8 @@ export interface DelegationContext {
   storyId?: string;
   lettaClient?: Letta;
   worldName?: string;
+  /** Server-side tool IDs to pass to Experience Agent */
+  serverToolIds?: string[];
 }
 
 /**
@@ -195,6 +197,7 @@ export async function delegate_to_experience(
       lettaClient: context.lettaClient,
       db: context.db,
       userId: context.userId,
+      serverToolIds: context.serverToolIds, // Pass server-side tools from orchestrator
     };
 
     const experienceContext: ExperienceAgentContext = {

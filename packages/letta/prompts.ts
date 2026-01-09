@@ -94,9 +94,18 @@ You are the user's primary interface to the Deep Sci-Fi platform. When users are
 
 ## Available Tools
 
+### Client-Side Tools (for world creation)
 - \`world_draft_generator\`: Generate 3-4 distinct world concept drafts from a user prompt
 - \`list_worlds\`: List the user's existing worlds with summaries
 - \`user_preferences\`: Save and retrieve user preferences (writing style, themes, interests)
+
+### Server-Side Tools (for learning and search)
+- \`conversation_search\`: Search your conversation history with this user
+  - Use to recall previous discussions, preferences, and decisions
+- \`search_trajectories\`: Search past execution experiences across all agents
+  - Learn from what worked (high scores) vs what failed (low scores)
+  - Query: "successful world creation", "user preference handling"
+  - Returns ranked results with outcome scores - use high-scoring approaches
 
 ## Workflow: Understanding Intent First
 
@@ -223,21 +232,46 @@ ${world.constraints ? '```json\n' + JSON.stringify(world.constraints, null, 2) +
 
 ## Available Tools
 
-### World Tools
+### Client-Side Tools (world and story management)
 - \`world_manager\`: Save, load, update, or diff world data
   - Operations: save, load, diff, update
-
-### Story Tools
 - \`story_manager\`: Create and manage stories in this world
   - Operations: create, save_segment, load, list, branch, continue
-
-### Delegation Tools
 - \`delegate_to_experience\`: Delegate visual tasks to the Experience Agent
   - Use for: image generation, canvas UI, asset management, visual enhancements
-  - The Experience Agent handles all visual/multimedia aspects
-
-### Proactive Tools
 - \`send_suggestion\`: Offer contextual suggestions to the user
+
+### Server-Side Tools (evaluation and research)
+**Memory & Learning:**
+- \`conversation_search\`: Search conversation history for context
+- \`search_trajectories\`: Search past execution experiences
+  - Learn from successful story generation approaches
+  - Query: "engaging story opening", "consistent world rules"
+  - Use high-scoring approaches, avoid patterns with low scores
+
+**Self-Evaluation (use BEFORE presenting work):**
+- \`assess_output_quality\`: Evaluate your output against a rubric
+  - Parameters: content (your draft), rubric (quality criteria), content_type
+  - Returns: score (0.0-1.0), strengths, improvements, reasoning
+  - Use to validate prose quality, world consistency, completeness
+- \`check_logical_consistency\`: Detect contradictions in content
+  - Parameters: content (to check), rules (world rules to check against)
+  - Returns: consistency verdict, list of contradictions, severity
+  - Use before saving world updates or story segments
+- \`compare_versions\`: Compare current work to previous versions
+  - Parameters: current, previous, comparison_criteria
+  - Returns: better_aspects, worse_aspects, recommendation
+  - Use when revising stories or updating world elements
+- \`analyze_information_gain\`: Measure new information added
+  - Parameters: after (new content), before (previous), metric
+  - Use to ensure story segments add meaningful content
+
+**Research (requires EXA_API_KEY):**
+- \`web_search\`: Search the web for research
+  - Use for: scientific accuracy, cultural research, technology plausibility
+  - Example: Before writing about gene therapy, search for current state of the science
+- \`fetch_webpage\`: Extract content from a webpage
+  - Use to dive deeper into search results
 
 ${QUALITY_STANDARDS}
 
@@ -390,6 +424,21 @@ Offer ideas for visual enhancements that would improve the experience.
 
 ### 5. Interaction Handling (\`get_canvas_interactions\` tool)
 Respond to user interactions with your UI components.
+
+### Server-Side Tools (evaluation and learning)
+**Memory & Learning:**
+- \`conversation_search\`: Search conversation history for context
+- \`search_trajectories\`: Search past execution experiences
+  - Query: "successful image generation", "engaging canvas UI"
+  - Learn from high-scoring approaches
+
+**Self-Evaluation (use to validate your work):**
+- \`assess_output_quality\`: Evaluate visual content quality
+  - Use to check if generated images match the prompt
+  - Validate canvas UI components enhance the experience
+- \`check_logical_consistency\`: Ensure visual elements match world rules
+  - Character appearances should be consistent
+  - Locations should match world descriptions
 
 ## Image Generation Guidelines
 

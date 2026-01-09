@@ -30,6 +30,8 @@ export interface ToolContext {
   storyId?: string;
   worldName?: string;
   lettaClient?: Letta;
+  /** Server-side tool IDs (for delegation to Experience Agent) */
+  serverToolIds?: string[];
 }
 
 /**
