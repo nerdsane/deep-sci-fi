@@ -25,43 +25,49 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 
 **This verification happens automatically after task completion. User can also trigger it manually with `/no-cap` command.**
 
-## Vision-Aligned Planning (CRITICAL)
+## Vision-Aligned Planning (MANDATORY)
 
-**For ANY non-trivial task (3+ steps, multi-file, or research required), use the vision-aligned planning workflow:**
+**STOP. Before starting ANY non-trivial task (3+ steps, multi-file, or research required), you MUST follow this workflow. No exceptions.**
 
 ### Directories
 
 ```
-.vision/     → Project vision documents (long-lived north star)
-.progress/   → Timestamped task plans (per-task tracking)
+.vision/     → Project vision documents (long-lived north star) - READ FIRST
+.progress/   → Timestamped task plans (per-task tracking) - CREATE BEFORE CODING
 ```
 
-### Workflow
+### Before Starting - DO THIS FIRST
 
-1. **Check vision** - Read `.vision/*.md` if exists before planning
-2. **Create plan** - `.progress/YYYYMMDD_HHMMSS_task-name.md`
-3. **Execute with checkpoints** - Update plan after each phase
-4. **Verify** - Run `/no-cap` before marking complete
-5. **Update status** - Mark complete, document deviations if any
+1. **Check `.vision/`** - If exists, READ ALL vision files before doing anything else
+2. **Check `.progress/`** - Read existing plans to understand current state
+3. **Create plan** - ALWAYS save `.progress/YYYYMMDD_HHMMSS_task-name.md` BEFORE writing any code
+4. **If no `.vision/`** and task is significant: ASK user if they want a vision interview
 
-### Vision Interview
+**DO NOT skip planning. DO NOT start coding without a plan file. This is non-negotiable.**
 
-If no `.vision/` folder exists and user starts a significant project:
-- Offer to interview them to create vision files
-- Ask about product goals, technical approach, constraints
-- Create structured `.vision/` files from responses
+### During Execution
+
+1. **Update plan after each phase** - Mark complete, log findings
+2. **Re-read plan before major decisions** - Keeps goals in attention window
+3. **Document deviations** - If implementation differs from plan, note why
+
+### Before Completion
+
+1. **Run `/no-cap`** - MANDATORY for any code changes
+2. **Check vision alignment** - Does result match vision constraints?
+3. **Update plan status** - Mark complete with verification status
 
 ### Multi-Instance Coordination
 
 When multiple Claude instances collaborate:
-- Read `.progress/` before starting
-- Claim phases in Instance Log section
-- Update status frequently
+- Read `.progress/` FIRST before starting any work
+- Claim phases explicitly in Instance Log section
+- Update status frequently to avoid conflicts
 - Share discoveries in findings section
 
 ### Commands
 
-- `/vision-aligned-planning` - Start planning workflow for current task
+- `/vision-aligned-planning` - Full workflow details
 - `/no-cap` - Verify implementation quality
 
 ## Git Workflow (IMPORTANT)
