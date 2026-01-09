@@ -53,6 +53,29 @@ else
     fi
 fi
 
+# Stop Letta UI
+echo ""
+echo -e "${YELLOW}Stopping Letta UI...${NC}"
+UI_PID_FILE="$SCRIPT_DIR/letta-ui/.ui.pid"
+if [ -f "$UI_PID_FILE" ]; then
+    UI_PID=$(cat "$UI_PID_FILE")
+    if kill -0 $UI_PID 2>/dev/null; then
+        kill $UI_PID 2>/dev/null
+        echo -e "${GREEN}✓ Letta UI stopped (PID: $UI_PID)${NC}"
+    else
+        echo -e "${YELLOW}⚠ Letta UI was not running${NC}"
+    fi
+    rm -f "$UI_PID_FILE"
+else
+    # Try to find and kill by process name
+    if pgrep -f "letta-ui.*server.ts" > /dev/null; then
+        pkill -f "letta-ui.*server.ts" 2>/dev/null
+        echo -e "${GREEN}✓ Letta UI stopped${NC}"
+    else
+        echo -e "${YELLOW}⚠ Letta UI was not running${NC}"
+    fi
+fi
+
 # Stop Letta containers
 echo ""
 echo -e "${YELLOW}Stopping Letta server containers...${NC}"
