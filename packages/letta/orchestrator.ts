@@ -233,6 +233,21 @@ export class LettaOrchestrator {
           });
         }
 
+        // Sync client-side tools - attach any missing tools
+        const existingToolIds = new Set(existingAgent.tool_ids || []);
+        const clientToolIds = await this.registerClientToolsForUserAgent();
+        for (const toolId of clientToolIds) {
+          if (!existingToolIds.has(toolId)) {
+            try {
+              await this.client.agents.tools.attach(user.userAgentId, { tool_id: toolId });
+              console.log(`Attached tool ${toolId} to User Agent ${user.userAgentId}`);
+            } catch (e) {
+              // Tool might already be attached or not available
+              console.warn(`Could not attach tool ${toolId}:`, e);
+            }
+          }
+        }
+
         return { agentId: user.userAgentId, wasRecreated: false };
       } catch (error: any) {
         // Agent was deleted from Letta - clear from DB and create new one
@@ -340,6 +355,21 @@ export class LettaOrchestrator {
           await this.client.agents.update(world.worldAgentId, {
             system: currentSystemPrompt,
           });
+        }
+
+        // Sync client-side tools - attach any missing tools
+        const existingToolIds = new Set(existingAgent.tool_ids || []);
+        const clientToolIds = await this.registerClientToolsForWorldAgent();
+        for (const toolId of clientToolIds) {
+          if (!existingToolIds.has(toolId)) {
+            try {
+              await this.client.agents.tools.attach(world.worldAgentId, { tool_id: toolId });
+              console.log(`Attached tool ${toolId} to World Agent ${world.worldAgentId}`);
+            } catch (e) {
+              // Tool might already be attached or not available
+              console.warn(`Could not attach tool ${toolId}:`, e);
+            }
+          }
         }
 
         return world.worldAgentId;
