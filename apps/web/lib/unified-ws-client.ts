@@ -12,7 +12,7 @@
 export type ClientType = 'browser' | 'cli';
 
 export interface StreamChunk {
-  type: 'reasoning' | 'reasoning_end' | 'tool_call' | 'tool_result' | 'assistant' | 'assistant_end' | 'error' | 'done' | 'usage';
+  type: 'reasoning' | 'reasoning_end' | 'tool_call' | 'tool_result' | 'assistant' | 'assistant_end' | 'error' | 'warning' | 'info' | 'done' | 'usage';
   id?: string;
   content?: string;
   toolCallId?: string;
