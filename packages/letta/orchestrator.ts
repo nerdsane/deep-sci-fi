@@ -40,8 +40,12 @@ const SERVER_TOOL_NAMES = [
   'fetch_webpage',
 ];
 
-/** Cached tool IDs (fetched once on first agent creation) */
-let cachedToolIds: string[] | null = null;
+/** Cached server-side tool IDs */
+let cachedServerToolIds: string[] | null = null;
+
+/** Cached client-side tool IDs (registered with defaultRequiresApproval: true) */
+let cachedUserAgentClientToolIds: string[] | null = null;
+let cachedWorldAgentClientToolIds: string[] | null = null;
 
 /**
  * LettaOrchestrator - Two-Tier Agent Management Service
@@ -60,7 +64,7 @@ export class LettaOrchestrator {
 
   /** Fetch server-side tool IDs (cached after first call) */
   private async getServerToolIds(): Promise<string[]> {
-    if (cachedToolIds) return cachedToolIds;
+    if (cachedServerToolIds) return cachedServerToolIds;
 
     console.log('Fetching server-side tool IDs...');
     const ids: string[] = [];
@@ -76,8 +80,93 @@ export class LettaOrchestrator {
       }
     }
 
-    cachedToolIds = ids;
+    cachedServerToolIds = ids;
     console.log(`Cached ${ids.length} server-side tool IDs`);
+    return ids;
+  }
+
+  /**
+   * Register client-side tools on Letta server with defaultRequiresApproval: true
+   * This makes the tools visible in the agent's tool list while keeping execution client-side
+   */
+  private async registerClientToolsForUserAgent(): Promise<string[]> {
+    if (cachedUserAgentClientToolIds) return cachedUserAgentClientToolIds;
+
+    console.log('Registering User Agent client-side tools...');
+    const clientTools = getUserAgentClientTools();
+    const ids: string[] = [];
+
+    for (const tool of clientTools) {
+      try {
+        const registered = await this.client.tools.upsert({
+          name: tool.name,
+          description: tool.description || `Client-side tool: ${tool.name}`,
+          defaultRequiresApproval: true,
+          jsonSchema: {
+            type: 'function',
+            function: {
+              name: tool.name,
+              description: tool.description || `Client-side tool: ${tool.name}`,
+              parameters: tool.parameters || { type: 'object', properties: {} },
+            },
+          },
+          // Stub implementation - actual execution happens client-side
+          sourceCode: `def ${tool.name}(**kwargs):\n    raise Exception("This tool executes client-side only")`,
+        });
+
+        if (registered.id) {
+          ids.push(registered.id);
+          console.log(`  Registered: ${tool.name} -> ${registered.id}`);
+        }
+      } catch (error) {
+        console.warn(`  Failed to register ${tool.name}:`, error);
+      }
+    }
+
+    cachedUserAgentClientToolIds = ids;
+    console.log(`Registered ${ids.length} User Agent client-side tools`);
+    return ids;
+  }
+
+  /**
+   * Register client-side tools on Letta server for World Agent
+   */
+  private async registerClientToolsForWorldAgent(): Promise<string[]> {
+    if (cachedWorldAgentClientToolIds) return cachedWorldAgentClientToolIds;
+
+    console.log('Registering World Agent client-side tools...');
+    const clientTools = getWorldAgentClientTools();
+    const ids: string[] = [];
+
+    for (const tool of clientTools) {
+      try {
+        const registered = await this.client.tools.upsert({
+          name: tool.name,
+          description: tool.description || `Client-side tool: ${tool.name}`,
+          defaultRequiresApproval: true,
+          jsonSchema: {
+            type: 'function',
+            function: {
+              name: tool.name,
+              description: tool.description || `Client-side tool: ${tool.name}`,
+              parameters: tool.parameters || { type: 'object', properties: {} },
+            },
+          },
+          // Stub implementation - actual execution happens client-side
+          sourceCode: `def ${tool.name}(**kwargs):\n    raise Exception("This tool executes client-side only")`,
+        });
+
+        if (registered.id) {
+          ids.push(registered.id);
+          console.log(`  Registered: ${tool.name} -> ${registered.id}`);
+        }
+      } catch (error) {
+        console.warn(`  Failed to register ${tool.name}:`, error);
+      }
+    }
+
+    cachedWorldAgentClientToolIds = ids;
+    console.log(`Registered ${ids.length} World Agent client-side tools`);
     return ids;
   }
 
@@ -181,7 +270,11 @@ export class LettaOrchestrator {
     });
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
-    const toolIds = await this.getServerToolIds();
+
+    // Get both server-side and client-side tool IDs
+    const serverToolIds = await this.getServerToolIds();
+    const clientToolIds = await this.registerClientToolsForUserAgent();
+    const allToolIds = [...serverToolIds, ...clientToolIds];
 
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
@@ -191,7 +284,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tool_ids: toolIds,
+      tool_ids: allToolIds,
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
@@ -284,7 +377,11 @@ export class LettaOrchestrator {
     );
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
-    const toolIds = await this.getServerToolIds();
+
+    // Get both server-side and client-side tool IDs
+    const serverToolIds = await this.getServerToolIds();
+    const clientToolIds = await this.registerClientToolsForWorldAgent();
+    const allToolIds = [...serverToolIds, ...clientToolIds];
 
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
@@ -294,7 +391,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tool_ids: toolIds,
+      tool_ids: allToolIds,
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
