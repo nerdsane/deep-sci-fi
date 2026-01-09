@@ -67,7 +67,7 @@ When multiple Claude instances collaborate:
 
 ### Commands
 
-- `/vision-aligned-planning` - Full workflow details
+- `/planning-with-files` - Full workflow details (vision interview, multi-instance, etc.)
 - `/no-cap` - Verify implementation quality
 
 ## Git Workflow (IMPORTANT)
