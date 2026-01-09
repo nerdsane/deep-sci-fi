@@ -9,11 +9,14 @@ WORKDIR /app
 FROM base AS deps
 COPY apps/web/package.json ./
 COPY apps/web/bun.lockb* ./
+# Copy workspace packages for @deep-sci-fi/* dependencies
+COPY packages ./packages
 RUN bun install --frozen-lockfile --production 2>/dev/null || bun install --production
 
 # Build stage (if needed)
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
 COPY apps/web/server ./server
 COPY apps/web/package.json ./
 
@@ -26,6 +29,7 @@ ENV WS_PORT=8284
 
 # Copy only what's needed for the WebSocket server
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/package.json ./
 
