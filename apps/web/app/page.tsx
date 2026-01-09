@@ -77,7 +77,13 @@ function App() {
   });
 
   const feedback = useFeedbackSafe();
+  const feedbackRef = useRef(feedback);
   const wsClientRef = useRef<UnifiedWSClient | null>(null);
+
+  // Keep feedbackRef current
+  useEffect(() => {
+    feedbackRef.current = feedback;
+  }, [feedback]);
 
   // ============================================================================
   // WebSocket Connection
@@ -93,7 +99,7 @@ function App() {
       console.log('[App] WebSocket connected:', clientId);
       const hasCli = clients.some((c) => c.type === 'cli');
       setState((s) => ({ ...s, wsConnected: true, cliConnected: hasCli }));
-      feedback?.showToast('Connected to agent', 'success');
+      feedbackRef.current?.showToast('Connected to agent', 'success');
     };
 
     wsClient.onDisconnect = () => {
@@ -103,7 +109,7 @@ function App() {
 
     wsClient.onError = (error) => {
       console.error('[App] WebSocket error:', error);
-      feedback?.showToast(`Connection error: ${error}`, 'warning');
+      feedbackRef.current?.showToast(`Connection error: ${error}`, 'warning');
     };
 
     // Client join/leave handlers
@@ -111,7 +117,7 @@ function App() {
       console.log('[App] Client joined:', client);
       if (client.type === 'cli') {
         setState((s) => ({ ...s, cliConnected: true }));
-        feedback?.showToast('CLI connected - chat sidebar hidden', 'info');
+        feedbackRef.current?.showToast('CLI connected - chat sidebar hidden', 'info');
       }
     };
 
@@ -119,7 +125,7 @@ function App() {
       console.log('[App] Client left:', clientId, clientType);
       if (clientType === 'cli') {
         setState((s) => ({ ...s, cliConnected: false }));
-        feedback?.showToast('CLI disconnected', 'info');
+        feedbackRef.current?.showToast('CLI disconnected', 'info');
       }
     };
 
@@ -180,7 +186,8 @@ function App() {
     return () => {
       wsClient.disconnect();
     };
-  }, [feedback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency - WebSocket should only connect once on mount
 
   // ============================================================================
   // Canvas UI Handling
