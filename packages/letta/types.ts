@@ -47,6 +47,8 @@ export type StreamChunkType =
   | 'assistant'
   | 'assistant_end'
   | 'error'
+  | 'warning'
+  | 'info'
   | 'done'
   | 'usage';
 

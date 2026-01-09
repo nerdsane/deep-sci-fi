@@ -51,6 +51,9 @@ interface AppState {
   // WebSocket state
   wsConnected: boolean;
   cliConnected: boolean;
+  // Agent type tracking
+  agentType: 'user' | 'world' | null;
+  agentWorldName: string | null;
 }
 
 // ============================================================================
@@ -74,6 +77,8 @@ function App() {
     agentSuggestions: [],
     wsConnected: false,
     cliConnected: false,
+    agentType: null,
+    agentWorldName: null,
   });
 
   const feedback = useFeedbackSafe();
@@ -382,6 +387,15 @@ function App() {
     }));
   }
 
+  function handleAgentTypeChange(agentType: 'user' | 'world', worldName?: string) {
+    console.log('[App] Agent type changed:', agentType, worldName);
+    setState((s) => ({
+      ...s,
+      agentType,
+      agentWorldName: worldName || null,
+    }));
+  }
+
   // ============================================================================
   // Render
   // ============================================================================
@@ -390,7 +404,12 @@ function App() {
     return (
       <div className="app-layout">
         {!state.cliConnected && (
-          <ChatSidebar wsClient={wsClientRef.current} />
+          <ChatSidebar
+            wsClient={wsClientRef.current}
+            onAgentTypeChange={handleAgentTypeChange}
+            agentType={state.agentType}
+            agentWorldName={state.agentWorldName}
+          />
         )}
         <div className="canvas-container">
           <LoadingScreen />
@@ -403,7 +422,12 @@ function App() {
     return (
       <div className="app-layout">
         {!state.cliConnected && (
-          <ChatSidebar wsClient={wsClientRef.current} />
+          <ChatSidebar
+            wsClient={wsClientRef.current}
+            onAgentTypeChange={handleAgentTypeChange}
+            agentType={state.agentType}
+            agentWorldName={state.agentWorldName}
+          />
         )}
         <div className="canvas-container">
           <ErrorScreen error={state.error} onRetry={loadData} />
@@ -416,7 +440,12 @@ function App() {
     <div className="app-layout">
       {/* Chat sidebar - hidden when CLI is connected */}
       {!state.cliConnected && (
-        <ChatSidebar wsClient={wsClientRef.current} />
+        <ChatSidebar
+            wsClient={wsClientRef.current}
+            onAgentTypeChange={handleAgentTypeChange}
+            agentType={state.agentType}
+            agentWorldName={state.agentWorldName}
+          />
       )}
 
       {/* CLI connected indicator */}

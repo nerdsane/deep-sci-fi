@@ -6,7 +6,7 @@ import type { UnifiedWSClient, StreamChunk } from '@/lib/unified-ws-client';
 /**
  * Message types for terminal-style rendering
  */
-type MessageType = 'user' | 'agent' | 'reasoning' | 'tool_call' | 'tool_result' | 'error' | 'system';
+type MessageType = 'user' | 'agent' | 'reasoning' | 'tool_call' | 'tool_result' | 'error' | 'warning' | 'info' | 'system';
 
 interface Message {
   id: string;
@@ -24,9 +24,12 @@ interface Message {
 
 interface ChatSidebarProps {
   wsClient: UnifiedWSClient | null;
+  onAgentTypeChange?: (agentType: 'user' | 'world', worldName?: string) => void;
+  agentType?: 'user' | 'world' | null;
+  agentWorldName?: string | null;
 }
 
-export function ChatSidebar({ wsClient }: ChatSidebarProps) {
+export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorldName }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -179,6 +182,31 @@ export function ChatSidebar({ wsClient }: ChatSidebarProps) {
         setIsLoading(false);
         break;
 
+      case 'warning':
+        upsertMessage(`warning-${Date.now()}`, {
+          type: 'warning',
+          content: chunk.content || 'Warning',
+        });
+        break;
+
+      case 'info': {
+        const content = chunk.content || '';
+        // Check for agent_type info (format: "agent_type:user" or "agent_type:world:WorldName")
+        if (content.startsWith('agent_type:')) {
+          const parts = content.split(':');
+          const agentType = parts[1] as 'user' | 'world';
+          const worldName = parts[2];
+          onAgentTypeChange?.(agentType, worldName);
+          // Don't display agent_type as a message
+        } else {
+          upsertMessage(`info-${Date.now()}`, {
+            type: 'info',
+            content,
+          });
+        }
+        break;
+      }
+
       case 'done':
         // Mark all streaming messages as complete
         if (reasoningIdRef.current) {
@@ -317,6 +345,22 @@ export function ChatSidebar({ wsClient }: ChatSidebarProps) {
           </div>
         );
 
+      case 'warning':
+        return (
+          <div className="terminal-line terminal-warning">
+            <span className="terminal-icon">⚠</span>
+            <span className="terminal-content">{message.content}</span>
+          </div>
+        );
+
+      case 'info':
+        return (
+          <div className="terminal-line terminal-info">
+            <span className="terminal-icon">ℹ</span>
+            <span className="terminal-content">{message.content}</span>
+          </div>
+        );
+
       case 'system':
         return (
           <div className="terminal-line terminal-system">
@@ -335,8 +379,25 @@ export function ChatSidebar({ wsClient }: ChatSidebarProps) {
 
   const isConnected = wsClient?.isConnected() ?? false;
 
+  // Compute header subtitle based on agent type
+  const getAgentSubtitle = () => {
+    if (!agentType) return 'Deep Sci-Fi Agent Ready';
+    if (agentType === 'user') return 'User Agent (Orchestrator)';
+    if (agentType === 'world' && agentWorldName) return `World Agent: ${agentWorldName}`;
+    return 'World Agent';
+  };
+
   return (
     <aside className="chat-sidebar terminal-container">
+      {/* Header with agent type indicator */}
+      <div className="terminal-header">
+        <div className="terminal-header-title">
+          <span className={`terminal-status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
+          <span>AGENT TERMINAL</span>
+        </div>
+        <div className="terminal-header-subtitle">{getAgentSubtitle()}</div>
+      </div>
+
       <div className="terminal-output">
         {messages.map((message) => (
           <div key={message.id} className="terminal-message">

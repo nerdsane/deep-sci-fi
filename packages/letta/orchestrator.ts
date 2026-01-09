@@ -124,14 +124,43 @@ export class LettaOrchestrator {
    * - User is at worlds list
    * - User has no worlds
    * - User is creating a new world
+   *
+   * Returns: { agentId, wasRecreated } - wasRecreated is true if the agent was deleted and recreated
    */
-  async getOrCreateUserAgent(userId: string, user: User): Promise<string> {
+  async getOrCreateUserAgent(userId: string, user: User): Promise<{ agentId: string; wasRecreated: boolean }> {
     // Check if user already has an agent
     if (user.userAgentId) {
-      console.log(`User Agent exists for user ${userId}: ${user.userAgentId}`);
-      return user.userAgentId;
+      // Verify the agent actually exists in Letta
+      try {
+        await this.client.agents.retrieve(user.userAgentId);
+        console.log(`User Agent exists for user ${userId}: ${user.userAgentId}`);
+        return { agentId: user.userAgentId, wasRecreated: false };
+      } catch (error: any) {
+        // Agent was deleted from Letta - clear from DB and create new one
+        if (error?.status === 404 || error?.message?.includes('not found')) {
+          console.warn(`User Agent ${user.userAgentId} not found in Letta, will create new one`);
+          if (this.db) {
+            await this.db.user.update({
+              where: { id: userId },
+              data: { userAgentId: null },
+            });
+          }
+          // Fall through to create new agent, with wasRecreated flag
+          const result = await this.createUserAgent(userId, user);
+          return { agentId: result, wasRecreated: true };
+        }
+        throw error;
+      }
     }
 
+    const agentId = await this.createUserAgent(userId, user);
+    return { agentId, wasRecreated: false };
+  }
+
+  /**
+   * Create a new User Agent (internal helper)
+   */
+  private async createUserAgent(userId: string, user: User): Promise<string> {
     console.log(`Creating User Agent for user ${userId} (${user.email})`);
 
     const systemPrompt = generateUserAgentSystemPrompt();
@@ -311,7 +340,7 @@ export class LettaOrchestrator {
       throw new Error(`User not found: ${userId}`);
     }
 
-    const userAgentId = await this.getOrCreateUserAgent(userId, user);
+    const { agentId: userAgentId } = await this.getOrCreateUserAgent(userId, user);
     return await this.sendToAgent(userAgentId, message, userId, 'user');
   }
 
@@ -624,9 +653,24 @@ ${story.description || 'No description provided'}
         return;
       }
 
-      agentId = await this.getOrCreateUserAgent(userId, user);
+      const { agentId: userAgentId, wasRecreated } = await this.getOrCreateUserAgent(userId, user);
+      agentId = userAgentId;
       agentType = 'user';
+
+      // Warn if agent was recreated (e.g., deleted from Letta)
+      if (wasRecreated) {
+        yield {
+          type: 'warning',
+          content: 'Your previous agent was not found. A new agent has been created. Your conversation history has been reset.',
+        };
+      }
     }
+
+    // Notify about agent type
+    yield {
+      type: 'info',
+      content: `agent_type:${agentType}${worldContext ? `:${worldContext.worldName}` : ''}`,
+    };
 
     // Stream from agent
     yield* this.streamFromAgent(agentId, message, userId, agentType, worldContext);
