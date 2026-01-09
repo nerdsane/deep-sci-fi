@@ -34,7 +34,7 @@ function getWorldId(world: World): string {
   return premise.toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 30) || 'world';
 }
 
-export function WelcomeSpace({
+export const WelcomeSpace = React.memo(function WelcomeSpace({
   worlds,
   stories,
   onSelectWorld,
@@ -181,4 +181,4 @@ export function WelcomeSpace({
       )}
     </div>
   );
-}
+});

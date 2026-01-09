@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import type { World, Story } from '@/types/dsf';
 import type { ComponentSpec } from '@/components/canvas/types';
 import { DynamicRenderer } from '@/components/canvas/DynamicRenderer';
@@ -284,39 +284,42 @@ function App() {
   }, [state.fullscreenUI]);
 
   // ============================================================================
-  // Navigation
+  // Navigation (memoized to prevent canvas re-renders)
   // ============================================================================
 
-  function selectWorld(world: World) {
+  const selectWorld = useCallback((world: World) => {
     setState((s) => ({
       ...s,
       view: 'world',
       selectedWorld: world,
     }));
-  }
+  }, []);
 
-  function selectStory(story: Story) {
+  const selectStory = useCallback((story: Story) => {
     setState((s) => ({
       ...s,
       view: 'story',
       selectedStory: story,
     }));
-  }
+  }, []);
 
-  function goBack() {
-    if (state.view === 'story') {
-      setState((s) => ({
-        ...s,
-        view: 'world',
-        pendingExperience: null,
-        agentThinking: false,
-      }));
-    } else if (state.view === 'world') {
-      setState((s) => ({ ...s, view: 'canvas', selectedWorld: null }));
-    }
-  }
+  const goBack = useCallback(() => {
+    setState((s) => {
+      if (s.view === 'story') {
+        return {
+          ...s,
+          view: 'world' as View,
+          pendingExperience: null,
+          agentThinking: false,
+        };
+      } else if (s.view === 'world') {
+        return { ...s, view: 'canvas' as View, selectedWorld: null };
+      }
+      return s;
+    });
+  }, []);
 
-  function goHome() {
+  const goHome = useCallback(() => {
     setState((s) => ({
       ...s,
       view: 'canvas',
@@ -325,76 +328,64 @@ function App() {
       pendingExperience: null,
       agentThinking: false,
     }));
-  }
+  }, []);
 
   // ============================================================================
-  // Interaction Handlers
+  // Interaction Handlers (memoized to prevent canvas re-renders)
   // ============================================================================
 
-  function handleDynamicUIInteraction(
-    componentId: string,
-    interactionType: string,
-    data: any,
-    target?: string
-  ) {
-    console.log('[Dynamic UI] Interaction:', { componentId, interactionType, data, target });
+  const handleDynamicUIInteraction = useCallback(
+    (componentId: string, interactionType: string, data: any, target?: string) => {
+      console.log('[Dynamic UI] Interaction:', { componentId, interactionType, data, target });
+      wsClientRef.current?.sendInteraction(componentId, interactionType, data, target);
+    },
+    []
+  );
 
-    // Send interaction via WebSocket
-    wsClientRef.current?.sendInteraction(componentId, interactionType, data, target);
-  }
+  const handleElementAction = useCallback(
+    (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => {
+      console.log('[Canvas] Element action:', { actionId, elementId, elementType });
+      feedbackRef.current?.showToast(`Action: ${actionId}`, 'agent');
+      wsClientRef.current?.sendInteraction(elementId, 'element_action', {
+        actionId,
+        elementType,
+        ...elementData,
+      });
+    },
+    []
+  );
 
-  function handleElementAction(
-    actionId: string,
-    elementId: string,
-    elementType: ElementType,
-    elementData?: any
-  ) {
-    console.log('[Canvas] Element action:', { actionId, elementId, elementType });
-    feedback?.showToast(`Action: ${actionId}`, 'agent');
-
-    // Send as interaction
-    wsClientRef.current?.sendInteraction(elementId, 'element_action', {
-      actionId,
-      elementType,
-      ...elementData,
-    });
-  }
-
-  function handleSuggestionAccept(suggestion: Suggestion) {
+  const handleSuggestionAccept = useCallback((suggestion: Suggestion) => {
     console.log('[Canvas] Suggestion accepted:', suggestion);
-    feedback?.showToast(`Working on: ${suggestion.title}`, 'agent');
-
-    // Send as interaction
+    feedbackRef.current?.showToast(`Working on: ${suggestion.title}`, 'agent');
     wsClientRef.current?.sendInteraction('suggestions', 'suggestion_accept', {
       suggestionId: suggestion.id || suggestion.title,
       action: suggestion.action,
     });
-
-    // Remove from list
     setState((s) => ({
       ...s,
       agentSuggestions: s.agentSuggestions.filter(
         (sug) => sug.id !== suggestion.id && sug.title !== suggestion.title
       ),
     }));
-  }
+  }, []);
 
-  function handleSuggestionDismiss(suggestionId: string) {
+  const handleSuggestionDismiss = useCallback((suggestionId: string) => {
     console.log('[Canvas] Suggestion dismissed:', suggestionId);
     setState((s) => ({
       ...s,
       agentSuggestions: s.agentSuggestions.filter((sug) => sug.id !== suggestionId),
     }));
-  }
+  }, []);
 
-  function handleAgentTypeChange(agentType: 'user' | 'world', worldName?: string) {
+  const handleAgentTypeChange = useCallback((agentType: 'user' | 'world', worldName?: string) => {
     console.log('[App] Agent type changed:', agentType, worldName);
     setState((s) => ({
       ...s,
       agentType,
       agentWorldName: worldName || null,
     }));
-  }
+  }, []);
 
   // ============================================================================
   // Render
@@ -633,15 +624,10 @@ function Header({
 }
 
 // ============================================================================
-// Story View (simplified)
+// Story View (simplified, memoized)
 // ============================================================================
 
-function StoryView({
-  story,
-  agentUI,
-  onInteraction,
-  onElementAction,
-}: {
+interface StoryViewProps {
   story: Story;
   agentUI: Map<string, AgentUIEntry>;
   onInteraction: (componentId: string, interactionType: string, data: any, target?: string) => void;
@@ -651,7 +637,14 @@ function StoryView({
     elementType: ElementType,
     elementData?: any
   ) => void;
-}) {
+}
+
+const StoryView = React.memo(function StoryView({
+  story,
+  agentUI,
+  onInteraction,
+  onElementAction,
+}: StoryViewProps) {
   const segments = story.segments || [];
   const [activeSegmentIndex, setActiveSegmentIndex] = useState(Math.max(0, segments.length - 1));
   const segment = segments[activeSegmentIndex];
@@ -698,7 +691,7 @@ function StoryView({
       )}
     </div>
   );
-}
+});
 
 // ============================================================================
 // Utility Components
