@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { UnifiedWSClient, StreamChunk } from '@/lib/unified-ws-client';
+import type { UnifiedWSClient, StreamChunk, HistoryMessage } from '@/lib/unified-ws-client';
 
 /**
  * Message types for terminal-style rendering
@@ -232,6 +232,34 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
       wsClient.onChatChunk = originalHandler;
     };
   }, [wsClient, handleChatChunk]);
+
+  // Set up WebSocket message history handler
+  useEffect(() => {
+    if (!wsClient) return;
+
+    const originalHistoryHandler = wsClient.onMessageHistory;
+
+    wsClient.onMessageHistory = (history: HistoryMessage[]) => {
+      if (history.length === 0) return;
+
+      const mappedMessages: Message[] = history.map((msg) => ({
+        id: msg.id,
+        type: msg.messageType as MessageType,
+        content: msg.content,
+        timestamp: new Date(msg.createdAt),
+        toolName: msg.toolName ?? undefined,
+        toolArgs: msg.toolArgs ?? undefined,
+        toolResult: msg.toolResult ?? undefined,
+        toolStatus: msg.toolStatus as Message['toolStatus'],
+      }));
+
+      setMessages(mappedMessages);
+    };
+
+    return () => {
+      wsClient.onMessageHistory = originalHistoryHandler;
+    };
+  }, [wsClient]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

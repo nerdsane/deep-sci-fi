@@ -15,9 +15,11 @@ import type {
   ClientJoinedMessage,
   ClientLeftMessage,
   PongMessage,
+  MessageHistoryMessage,
 } from './types';
 import {
   getOrCreateSession,
+  getSession,
   joinSession,
   leaveSession,
   getHealthStatus,
@@ -25,6 +27,10 @@ import {
   getClientsInSession,
 } from './session-manager';
 import { handleMessage } from './message-handler';
+import { db, getMessages } from '@deep-sci-fi/db';
+
+// Development test user email (same as message-handler)
+const DEV_USER_EMAIL = 'dev@deep-sci-fi.local';
 
 // ============================================================================
 // Configuration
@@ -97,7 +103,7 @@ const server = Bun.serve<WSData>({
   },
 
   websocket: {
-    open(ws: ServerWebSocket<WSData>) {
+    async open(ws: ServerWebSocket<WSData>) {
       const { clientId, clientType, sessionId } = ws.data;
 
       console.log(`[WS Server] Client connected: ${clientId} (${clientType}) to session ${sessionId}`);
@@ -134,6 +140,46 @@ const server = Bun.serve<WSData>({
         },
       };
       ws.send(JSON.stringify(agentTypeMessage));
+
+      // Load and send message history
+      try {
+        const user = await db.user.findUnique({
+          where: { email: DEV_USER_EMAIL },
+        });
+
+        if (user) {
+          // Get session context to determine worldId filter
+          const session = getSession(sessionId);
+          const worldId = session?.worldContext?.worldId ?? null;
+
+          const history = await getMessages(db, {
+            userId: user.id,
+            worldId, // null = User Agent context, string = World Agent context
+            limit: 50,
+          });
+
+          if (history.length > 0) {
+            const historyMessage: MessageHistoryMessage = {
+              type: 'message_history',
+              messages: history.map((msg) => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                messageType: msg.messageType,
+                toolName: msg.toolName,
+                toolArgs: msg.toolArgs,
+                toolResult: msg.toolResult,
+                toolStatus: msg.toolStatus,
+                createdAt: msg.createdAt.toISOString(),
+              })),
+            };
+            ws.send(JSON.stringify(historyMessage));
+          }
+        }
+      } catch (error) {
+        console.error('[WS Server] Failed to load message history:', error);
+        // Continue even if history loading fails
+      }
 
       // Notify other clients that this client joined
       const joinedMessage: ClientJoinedMessage = {

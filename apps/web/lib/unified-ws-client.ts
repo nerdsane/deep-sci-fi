@@ -66,6 +66,18 @@ export interface SuggestionPayload {
   actionData?: any;
 }
 
+export interface HistoryMessage {
+  id: string;
+  role: string;
+  content: string;
+  messageType: string;
+  toolName?: string | null;
+  toolArgs?: string | null;
+  toolResult?: string | null;
+  toolStatus?: string | null;
+  createdAt: string;
+}
+
 // ============================================================================
 // Client Options
 // ============================================================================
@@ -107,6 +119,7 @@ export class UnifiedWSClient {
   public onSuggestion: ((suggestion: SuggestionPayload) => void) | null = null;
   public onClientJoined: ((client: ConnectedClient) => void) | null = null;
   public onClientLeft: ((clientId: string, clientType: ClientType) => void) | null = null;
+  public onMessageHistory: ((messages: HistoryMessage[]) => void) | null = null;
 
   constructor(options: UnifiedWSClientOptions = {}) {
     const wsHost = typeof window !== 'undefined'
@@ -299,6 +312,11 @@ export class UnifiedWSClient {
 
       case 'pong':
         // Heartbeat response, ignore
+        break;
+
+      case 'message_history':
+        console.log('[WS Client] Received message history:', message.messages?.length, 'messages');
+        this.onMessageHistory?.(message.messages || []);
         break;
 
       default:

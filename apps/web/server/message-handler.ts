@@ -5,7 +5,7 @@
  * Integrates with the Letta orchestrator for agent communication.
  */
 
-import { db } from '@deep-sci-fi/db';
+import { db, saveMessage } from '@deep-sci-fi/db';
 import { getLettaOrchestrator, setActiveBroadcastHandler } from '@deep-sci-fi/letta';
 import type { StreamChunk } from '@deep-sci-fi/letta';
 import type {
@@ -122,11 +122,29 @@ async function handleChatMessage(
     // Get user
     const user = await getOrCreateDevUser();
 
+    // Save user message to database
+    try {
+      await saveMessage(db, {
+        userId: user.id,
+        worldId: effectiveContext?.worldId ?? null,
+        storyId: effectiveContext?.storyId ?? null,
+        role: 'user',
+        content: content,
+        messageType: 'user',
+      });
+    } catch (saveError) {
+      console.error('[Message Handler] Failed to save user message:', saveError);
+      // Continue even if save fails - don't block the chat
+    }
+
     // Stream response from agent
     const generator = orchestrator.sendMessageStreaming(user.id, content, {
       worldId: effectiveContext?.worldId,
       storyId: effectiveContext?.storyId,
     });
+
+    // Accumulate assistant response content
+    let assistantContent = '';
 
     // Process each chunk and broadcast to session
     for await (const chunk of generator) {
@@ -135,7 +153,29 @@ async function handleChatMessage(
         chunk,
       };
 
+      // Accumulate assistant content for persistence
+      if (chunk.type === 'assistant' && chunk.content) {
+        assistantContent += chunk.content;
+      }
+
       broadcastToSession(session.id, chatChunk);
+    }
+
+    // Save assistant response to database if we have content
+    if (assistantContent) {
+      try {
+        await saveMessage(db, {
+          userId: user.id,
+          worldId: effectiveContext?.worldId ?? null,
+          storyId: effectiveContext?.storyId ?? null,
+          role: 'assistant',
+          content: assistantContent,
+          messageType: 'assistant',
+        });
+      } catch (saveError) {
+        console.error('[Message Handler] Failed to save assistant message:', saveError);
+        // Continue even if save fails
+      }
     }
 
     // Notify agent is done

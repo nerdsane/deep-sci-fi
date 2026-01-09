@@ -88,7 +88,7 @@ export interface ClientLeftMessage {
 export interface ChatChunkMessage {
   type: 'chat_chunk';
   chunk: {
-    type: 'reasoning' | 'reasoning_end' | 'tool_call' | 'tool_result' | 'assistant' | 'assistant_end' | 'error' | 'done' | 'usage';
+    type: 'reasoning' | 'reasoning_end' | 'tool_call' | 'tool_result' | 'assistant' | 'assistant_end' | 'error' | 'warning' | 'info' | 'done' | 'usage';
     id?: string;
     content?: string;
     toolCallId?: string;
@@ -150,6 +150,21 @@ export interface PongMessage {
   type: 'pong';
 }
 
+export interface MessageHistoryMessage {
+  type: 'message_history';
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    messageType: string;
+    toolName?: string | null;
+    toolArgs?: string | null;
+    toolResult?: string | null;
+    toolStatus?: string | null;
+    createdAt: string;
+  }>;
+}
+
 export type ServerToClientMessage =
   | ConnectMessage
   | ClientJoinedMessage
@@ -159,7 +174,8 @@ export type ServerToClientMessage =
   | StateChangeMessage
   | SuggestionMessage
   | ErrorMessage
-  | PongMessage;
+  | PongMessage
+  | MessageHistoryMessage;
 
 // ============================================================================
 // Combined Message Type
