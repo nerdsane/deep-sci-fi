@@ -30,14 +30,7 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorldName }: ChatSidebarProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'system',
-      content: 'Deep Sci-Fi Agent Ready',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -379,10 +372,10 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
 
   const isConnected = wsClient?.isConnected() ?? false;
 
-  // Compute header subtitle based on agent type
-  const getAgentSubtitle = () => {
-    if (!agentType) return 'Deep Sci-Fi Agent Ready';
-    if (agentType === 'user') return 'User Agent (Orchestrator)';
+  // Compute header title based on agent type
+  const getAgentTitle = () => {
+    if (!agentType) return 'Connecting...';
+    if (agentType === 'user') return 'User Agent';
     if (agentType === 'world' && agentWorldName) return `World Agent: ${agentWorldName}`;
     return 'World Agent';
   };
@@ -393,9 +386,8 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
       <div className="terminal-header">
         <div className="terminal-header-title">
           <span className={`terminal-status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
-          <span>AGENT TERMINAL</span>
+          <span>{getAgentTitle()}</span>
         </div>
-        <div className="terminal-header-subtitle">{getAgentSubtitle()}</div>
       </div>
 
       <div className="terminal-output">

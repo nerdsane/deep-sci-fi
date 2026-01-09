@@ -26,6 +26,7 @@ export interface DelegateToExperienceParams {
     | 'enhance_scene'
     | 'create_gallery'
     | 'other';
+  world_id?: string; // Optional - can be passed explicitly if not in context (e.g., from User Agent)
   context?: {
     scene_description?: string;
     character_names?: string[];
@@ -143,10 +144,13 @@ export async function delegate_to_experience(
       };
     }
 
-    if (!context.worldId) {
+    // Use world_id from params if not in context (e.g., User Agent after creating a world)
+    const worldId = context.worldId || params.world_id;
+
+    if (!worldId) {
       return {
         success: false,
-        message: 'Cannot delegate to Experience Agent: no world context available',
+        message: 'Cannot delegate to Experience Agent: no world context available. Either provide world_id parameter or enter a world first.',
         delegation_id: '',
       };
     }
@@ -164,7 +168,7 @@ export async function delegate_to_experience(
 
     const delegation: PendingDelegation = {
       id: delegationId,
-      worldId: context.worldId,
+      worldId: worldId,
       storyId: context.storyId,
       task: params.task,
       taskType: params.task_type,
@@ -184,7 +188,7 @@ export async function delegate_to_experience(
     let worldName = context.worldName || 'Unknown World';
     if (!context.worldName) {
       const world = await context.db.world.findUnique({
-        where: { id: context.worldId },
+        where: { id: worldId },
         select: { name: true },
       });
       worldName = world?.name || worldName;
@@ -198,7 +202,7 @@ export async function delegate_to_experience(
     };
 
     const experienceContext: ExperienceAgentContext = {
-      worldId: context.worldId,
+      worldId: worldId,
       worldName,
       storyId: context.storyId,
       storyTitle: undefined, // Could be populated if needed
@@ -320,6 +324,10 @@ export const delegateToExperienceTool = {
           'other',
         ],
         description: 'Type of task being delegated',
+      },
+      world_id: {
+        type: 'string',
+        description: 'World ID to delegate for. Required if not already in a world context (e.g., when using from User Agent after creating a world)',
       },
       context: {
         type: 'object',
