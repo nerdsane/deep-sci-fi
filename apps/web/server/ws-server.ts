@@ -124,6 +124,17 @@ const server = Bun.serve<WSData>({
       };
       ws.send(JSON.stringify(connectMessage));
 
+      // Send initial agent type info (User Agent by default at session start)
+      // This will be updated when user enters a world
+      const agentTypeMessage = {
+        type: 'chat_chunk',
+        chunk: {
+          type: 'info',
+          content: 'agent_type:user',
+        },
+      };
+      ws.send(JSON.stringify(agentTypeMessage));
+
       // Notify other clients that this client joined
       const joinedMessage: ClientJoinedMessage = {
         type: 'client_joined',
