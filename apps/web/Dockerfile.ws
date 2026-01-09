@@ -1,18 +1,21 @@
 # WebSocket Server Dockerfile
 # Bun-based WebSocket server for real-time communication
+# Build context: project root
 
 FROM oven/bun:1-alpine AS base
 WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY package.json bun.lockb* ./
+COPY apps/web/package.json ./
+COPY apps/web/bun.lockb* ./
 RUN bun install --frozen-lockfile --production 2>/dev/null || bun install --production
 
 # Build stage (if needed)
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY apps/web/server ./server
+COPY apps/web/package.json ./
 
 # Runtime
 FROM base AS runner

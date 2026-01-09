@@ -1,4 +1,5 @@
 # Web App - Next.js Chat + Canvas UI
+# Build context: project root (for monorepo workspace packages)
 FROM node:20-alpine AS base
 
 # Install dependencies only when needed
@@ -6,15 +7,19 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
-RUN npm ci
+# Copy package files from web app
+COPY apps/web/package.json ./
+# Copy workspace packages
+COPY packages ./packages
+
+RUN npm install
 
 # Build the application
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /app/packages ./packages
+COPY apps/web .
 
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
