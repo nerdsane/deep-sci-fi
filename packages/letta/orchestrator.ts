@@ -98,11 +98,16 @@ export class LettaOrchestrator {
 
     for (const tool of clientTools) {
       try {
+        // Create stub Python function - name is derived from the function definition
+        const sourceCode = `def ${tool.name}(**kwargs):
+    """${tool.description || `Client-side tool: ${tool.name}`}"""
+    raise Exception("This tool executes client-side only")`;
+
         const registered = await this.client.tools.upsert({
-          name: tool.name,
+          source_code: sourceCode,
           description: tool.description || `Client-side tool: ${tool.name}`,
-          defaultRequiresApproval: true,
-          jsonSchema: {
+          default_requires_approval: true,
+          json_schema: {
             type: 'function',
             function: {
               name: tool.name,
@@ -110,8 +115,6 @@ export class LettaOrchestrator {
               parameters: tool.parameters || { type: 'object', properties: {} },
             },
           },
-          // Stub implementation - actual execution happens client-side
-          sourceCode: `def ${tool.name}(**kwargs):\n    raise Exception("This tool executes client-side only")`,
         });
 
         if (registered.id) {
@@ -140,11 +143,16 @@ export class LettaOrchestrator {
 
     for (const tool of clientTools) {
       try {
+        // Create stub Python function - name is derived from the function definition
+        const sourceCode = `def ${tool.name}(**kwargs):
+    """${tool.description || `Client-side tool: ${tool.name}`}"""
+    raise Exception("This tool executes client-side only")`;
+
         const registered = await this.client.tools.upsert({
-          name: tool.name,
+          source_code: sourceCode,
           description: tool.description || `Client-side tool: ${tool.name}`,
-          defaultRequiresApproval: true,
-          jsonSchema: {
+          default_requires_approval: true,
+          json_schema: {
             type: 'function',
             function: {
               name: tool.name,
@@ -152,8 +160,6 @@ export class LettaOrchestrator {
               parameters: tool.parameters || { type: 'object', properties: {} },
             },
           },
-          // Stub implementation - actual execution happens client-side
-          sourceCode: `def ${tool.name}(**kwargs):\n    raise Exception("This tool executes client-side only")`,
         });
 
         if (registered.id) {
@@ -234,12 +240,12 @@ export class LettaOrchestrator {
         }
 
         // Sync client-side tools - attach any missing tools
-        const existingToolIds = new Set(existingAgent.tool_ids || []);
+        const existingToolIds = new Set(existingAgent.tools?.map(t => t.id) || []);
         const clientToolIds = await this.registerClientToolsForUserAgent();
         for (const toolId of clientToolIds) {
           if (!existingToolIds.has(toolId)) {
             try {
-              await this.client.agents.tools.attach(user.userAgentId, { tool_id: toolId });
+              await this.client.agents.tools.attach(toolId, { agent_id: user.userAgentId });
               console.log(`Attached tool ${toolId} to User Agent ${user.userAgentId}`);
             } catch (e) {
               // Tool might already be attached or not available
@@ -358,12 +364,12 @@ export class LettaOrchestrator {
         }
 
         // Sync client-side tools - attach any missing tools
-        const existingToolIds = new Set(existingAgent.tool_ids || []);
+        const existingToolIds = new Set(existingAgent.tools?.map(t => t.id) || []);
         const clientToolIds = await this.registerClientToolsForWorldAgent();
         for (const toolId of clientToolIds) {
           if (!existingToolIds.has(toolId)) {
             try {
-              await this.client.agents.tools.attach(world.worldAgentId, { tool_id: toolId });
+              await this.client.agents.tools.attach(toolId, { agent_id: world.worldAgentId });
               console.log(`Attached tool ${toolId} to World Agent ${world.worldAgentId}`);
             } catch (e) {
               // Tool might already be attached or not available
