@@ -1,5 +1,8 @@
 # Deep Sci-Fi AWS Infrastructure
 # Main Terraform Configuration
+#
+# DEPLOYMENT MODE: EC2 (single instance with Docker Compose)
+# To switch to ECS, see main-ecs.tf.disabled
 
 terraform {
   required_version = ">= 1.5.0"
@@ -42,7 +45,7 @@ resource "random_id" "suffix" {
 }
 
 # ============================================================================
-# Networking Module
+# Networking Module (KEEP)
 # ============================================================================
 module "networking" {
   source = "./modules/networking"
@@ -54,7 +57,7 @@ module "networking" {
 }
 
 # ============================================================================
-# Secrets Module
+# Secrets Module (KEEP - for API keys)
 # ============================================================================
 module "secrets" {
   source = "./modules/secrets"
@@ -68,7 +71,7 @@ module "secrets" {
 }
 
 # ============================================================================
-# IAM Module
+# IAM Module (KEEP - reusable roles)
 # ============================================================================
 module "iam" {
   source = "./modules/iam"
@@ -81,23 +84,7 @@ module "iam" {
 }
 
 # ============================================================================
-# Database Module
-# ============================================================================
-module "database" {
-  source = "./modules/database"
-
-  project_name       = var.project_name
-  environment        = var.environment
-  vpc_id             = module.networking.vpc_id
-  private_subnet_ids = module.networking.private_subnet_ids
-  db_password        = var.db_password
-  db_instance_class  = var.db_instance_class
-
-  depends_on = [module.networking]
-}
-
-# ============================================================================
-# Storage Module
+# Storage Module (KEEP - S3 + CloudFront)
 # ============================================================================
 module "storage" {
   source = "./modules/storage"
@@ -108,95 +95,127 @@ module "storage" {
 }
 
 # ============================================================================
-# Compute Module (ECS, ALB, ECR)
+# EC2 Module (NEW - single instance deployment)
 # ============================================================================
-module "compute" {
-  source = "./modules/compute"
+module "ec2" {
+  source = "./modules/ec2"
 
-  project_name       = var.project_name
-  environment        = var.environment
-  aws_region         = var.aws_region
-  vpc_id             = module.networking.vpc_id
-  public_subnet_ids  = module.networking.public_subnet_ids
-  private_subnet_ids = module.networking.private_subnet_ids
-
-  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
-  ecs_task_role_arn      = module.iam.ecs_task_role_arn
-
-  db_host     = module.database.db_endpoint
-  db_name     = module.database.db_name
-  db_username = module.database.db_username
-
-  db_password_secret_arn       = module.secrets.db_password_secret_arn
-  anthropic_api_key_secret_arn = module.secrets.anthropic_api_key_secret_arn
-  openai_api_key_secret_arn    = module.secrets.openai_api_key_secret_arn
-  google_api_key_secret_arn    = module.secrets.google_api_key_secret_arn
-
+  project_name     = var.project_name
+  environment      = var.environment
+  vpc_id           = module.networking.vpc_id
+  public_subnet_id = module.networking.public_subnet_ids[0]
+  key_pair_name    = var.key_pair_name
+  instance_type    = var.ec2_instance_type
+  volume_size      = var.ec2_volume_size
+  ssh_cidr_blocks  = var.ssh_cidr_blocks
+  github_repo      = var.github_repo
   s3_assets_bucket = module.storage.assets_bucket_name
-  cloudfront_domain = module.storage.cloudfront_domain
+  secrets_arns     = module.secrets.secret_arns
 
-  ecs_cpu           = var.ecs_cpu
-  ecs_memory        = var.ecs_memory
-  ecs_desired_count = var.ecs_desired_count
-
-  depends_on = [module.networking, module.iam, module.secrets]
+  depends_on = [module.networking, module.storage, module.secrets]
 }
 
 # ============================================================================
-# Security Group Rule: Allow ECS to access RDS
-# (Created separately to avoid circular dependency)
+# DISABLED: ECS MODULES
+# Uncomment these and remove EC2 module to switch to ECS deployment
+# See also: main-ecs.tf.disabled for optimized ECS configuration
 # ============================================================================
-resource "aws_security_group_rule" "rds_from_ecs" {
-  type                     = "ingress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  source_security_group_id = module.compute.ecs_security_group_id
-  security_group_id        = module.database.db_security_group_id
-  description              = "PostgreSQL from ECS"
-}
 
-# ============================================================================
-# Letta UI Module (Observability Dashboard)
-# ============================================================================
-module "letta_ui" {
-  source = "./modules/letta-ui"
+# # Database Module (RDS PostgreSQL)
+# module "database" {
+#   source = "./modules/database"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   vpc_id             = module.networking.vpc_id
+#   private_subnet_ids = module.networking.private_subnet_ids
+#   db_password        = var.db_password
+#   db_instance_class  = var.db_instance_class
+#
+#   depends_on = [module.networking]
+# }
 
-  project_name       = var.project_name
-  environment        = var.environment
-  aws_region         = var.aws_region
-  vpc_id             = module.networking.vpc_id
-  public_subnet_ids  = module.networking.public_subnet_ids
-  private_subnet_ids = module.networking.private_subnet_ids
+# # Compute Module (ECS, ALB, ECR)
+# module "compute" {
+#   source = "./modules/compute"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   db_host     = module.database.db_endpoint
+#   db_name     = module.database.db_name
+#   db_username = module.database.db_username
+#
+#   db_password_secret_arn       = module.secrets.db_password_secret_arn
+#   anthropic_api_key_secret_arn = module.secrets.anthropic_api_key_secret_arn
+#   openai_api_key_secret_arn    = module.secrets.openai_api_key_secret_arn
+#   google_api_key_secret_arn    = module.secrets.google_api_key_secret_arn
+#
+#   s3_assets_bucket  = module.storage.assets_bucket_name
+#   cloudfront_domain = module.storage.cloudfront_domain
+#
+#   ecs_cpu           = var.ecs_cpu
+#   ecs_memory        = var.ecs_memory
+#   ecs_desired_count = var.ecs_desired_count
+#
+#   depends_on = [module.networking, module.iam, module.secrets]
+# }
 
-  ecs_cluster_id         = module.compute.ecs_cluster_id
-  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
-  ecs_task_role_arn      = module.iam.ecs_task_role_arn
+# # Security Group Rule: Allow ECS to access RDS
+# resource "aws_security_group_rule" "rds_from_ecs" {
+#   type                     = "ingress"
+#   from_port                = 5432
+#   to_port                  = 5432
+#   protocol                 = "tcp"
+#   source_security_group_id = module.compute.ecs_security_group_id
+#   security_group_id        = module.database.db_security_group_id
+#   description              = "PostgreSQL from ECS"
+# }
 
-  letta_api_url = "http://${module.compute.alb_dns_name}"
+# # Letta UI Module (Observability Dashboard)
+# module "letta_ui" {
+#   source = "./modules/letta-ui"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_cluster_id         = module.compute.ecs_cluster_id
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   letta_api_url = "http://${module.compute.alb_dns_name}"
+#
+#   depends_on = [module.networking, module.compute]
+# }
 
-  depends_on = [module.networking, module.compute]
-}
-
-# ============================================================================
-# Web App Module (Chat + Canvas UI)
-# ============================================================================
-module "web_app" {
-  source = "./modules/web-app"
-
-  project_name       = var.project_name
-  environment        = var.environment
-  aws_region         = var.aws_region
-  vpc_id             = module.networking.vpc_id
-  public_subnet_ids  = module.networking.public_subnet_ids
-  private_subnet_ids = module.networking.private_subnet_ids
-
-  ecs_cluster_id         = module.compute.ecs_cluster_id
-  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
-  ecs_task_role_arn      = module.iam.ecs_task_role_arn
-
-  letta_api_url     = "http://${module.compute.alb_dns_name}"
-  cloudfront_domain = module.storage.cloudfront_domain
-
-  depends_on = [module.networking, module.compute, module.storage]
-}
+# # Web App Module (Chat + Canvas UI)
+# module "web_app" {
+#   source = "./modules/web-app"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_cluster_id         = module.compute.ecs_cluster_id
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   letta_api_url     = "http://${module.compute.alb_dns_name}"
+#   cloudfront_domain = module.storage.cloudfront_domain
+#
+#   depends_on = [module.networking, module.compute, module.storage]
+# }
