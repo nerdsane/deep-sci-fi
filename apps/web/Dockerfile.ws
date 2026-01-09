@@ -11,6 +11,18 @@ FROM base AS deps
 COPY packages ./packages
 # Copy web app package files
 COPY apps/web/package.json apps/web/bun.lockb* ./apps/web/
+
+# Install workspace package dependencies first
+WORKDIR /workspace/packages/db
+RUN bun install || true
+
+WORKDIR /workspace/packages/types
+RUN bun install || true
+
+WORKDIR /workspace/packages/letta
+RUN bun install || true
+
+# Now install web app dependencies
 WORKDIR /workspace/apps/web
 RUN bun install --frozen-lockfile --production 2>/dev/null || bun install --production
 
