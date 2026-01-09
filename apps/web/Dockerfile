@@ -1,25 +1,25 @@
 # Web App - Next.js Chat + Canvas UI
 # Build context: project root (for monorepo workspace packages)
 FROM node:20-alpine AS base
+WORKDIR /workspace
 
 # Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
-WORKDIR /app
 
-# Copy package files from web app
-COPY apps/web/package.json ./
-# Copy workspace packages
+# Copy packages first (for file: dependencies)
 COPY packages ./packages
-
+# Copy web app package files
+COPY apps/web/package.json ./apps/web/
+WORKDIR /workspace/apps/web
 RUN npm install
 
 # Build the application
 FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
-COPY apps/web .
+COPY --from=deps /workspace/packages ./packages
+COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
+COPY apps/web ./apps/web
+WORKDIR /workspace/apps/web
 
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -37,10 +37,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built assets
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy built assets from standalone output
+COPY --from=builder /workspace/apps/web/public ./public
+COPY --from=builder --chown=nextjs:nodejs /workspace/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /workspace/apps/web/.next/static ./.next/static
 
 USER nextjs
 
