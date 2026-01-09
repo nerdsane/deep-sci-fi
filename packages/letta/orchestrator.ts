@@ -40,9 +40,73 @@ const SERVER_TOOL_NAMES = [
   'fetch_webpage',
 ];
 
-// Note: Server-side tools are attached by NAME via `tools` parameter
-// Client-side tools are passed via `client_tools` on each message
-// This is how letta-code works - no tool ID caching needed
+// Client-side tools need to be:
+// 1. REGISTERED on Letta server with defaultRequiresApproval: true
+// 2. ATTACHED to agent via tools parameter
+// 3. Passed via client_tools on each message
+// See: https://docs.letta.com/guides/agents/tool-execution-client-side/
+
+/** Cached tool names after registration (includes both server-side and client-side) */
+let cachedAllToolNames: string[] | null = null;
+
+/**
+ * Clear the cached tool names - forces re-registration on next use
+ * Useful for testing or when tool definitions change
+ */
+export function clearToolCache(): void {
+  console.log('[LettaOrchestrator] Clearing tool cache');
+  cachedAllToolNames = null;
+}
+
+/**
+ * Register client-side tools on Letta server
+ * Tools are registered with defaultRequiresApproval: true and a Python stub
+ * Returns array of tool names that were successfully registered
+ */
+async function registerClientTools(client: Letta): Promise<string[]> {
+  if (cachedAllToolNames) return cachedAllToolNames;
+
+  console.log('[LettaOrchestrator] Registering client-side tools on server...');
+
+  // Get all client tools (union of user and world agent tools)
+  const userTools = getUserAgentClientTools();
+  const worldTools = getWorldAgentClientTools();
+
+  // Dedupe by name
+  const allClientTools = new Map<string, typeof userTools[0]>();
+  for (const tool of [...userTools, ...worldTools]) {
+    allClientTools.set(tool.name, tool);
+  }
+
+  const registeredNames: string[] = [];
+
+  for (const [name, tool] of allClientTools) {
+    try {
+      // Create Python stub that raises exception (execution happens client-side)
+      const sourceCode = `def ${name}(**kwargs):
+    """${(tool.description || '').replace(/"/g, '\\"')}"""
+    raise Exception("This tool executes client-side only")`;
+
+      await client.tools.upsert({
+        source_code: sourceCode,
+        description: tool.description || `Client-side tool: ${name}`,
+        default_requires_approval: true,
+        args_json_schema: tool.parameters,
+      });
+
+      registeredNames.push(name);
+      console.log(`  Registered: ${name}`);
+    } catch (error) {
+      console.warn(`  Failed to register ${name}:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Combine with server-side tools
+  cachedAllToolNames = [...SERVER_TOOL_NAMES, ...registeredNames];
+  console.log(`[LettaOrchestrator] Registered ${registeredNames.length} client-side tools`);
+
+  return cachedAllToolNames;
+}
 
 /**
  * LettaOrchestrator - Two-Tier Agent Management Service
@@ -122,8 +186,10 @@ export class LettaOrchestrator {
           });
         }
 
-        // Note: Client-side tools are passed via client_tools on each message
-        // No need to attach them to the agent - this is how letta-code works
+        // Ensure client-side tools are registered and attached
+        const allToolNames = await registerClientTools(this.client);
+        await this.syncAgentTools(user.userAgentId, allToolNames);
+
         return { agentId: user.userAgentId, wasRecreated: false };
       } catch (error: any) {
         // Agent was deleted from Letta - clear from DB and create new one
@@ -153,6 +219,9 @@ export class LettaOrchestrator {
   private async createUserAgent(userId: string, user: User): Promise<string> {
     console.log(`Creating User Agent for user ${userId} (${user.email})`);
 
+    // Register client-side tools on server (idempotent, cached after first call)
+    const allToolNames = await registerClientTools(this.client);
+
     const systemPrompt = generateUserAgentSystemPrompt();
     const memoryBlockDefinitions = getUserAgentMemoryBlocks({
       id: user.id,
@@ -162,8 +231,8 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
-    // Use server-side tools by NAME (like letta-code does)
-    // Client-side tools are passed via client_tools on each message
+    // Attach ALL tools (server-side + client-side) to agent
+    // Client-side tools are registered with defaultRequiresApproval: true
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -172,7 +241,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: SERVER_TOOL_NAMES, // Use tool NAMES, not IDs
+      tools: allToolNames, // Both server-side AND client-side tools
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
@@ -230,8 +299,10 @@ export class LettaOrchestrator {
           });
         }
 
-        // Note: Client-side tools are passed via client_tools on each message
-        // No need to attach them to the agent - this is how letta-code works
+        // Ensure client-side tools are registered and attached
+        const allToolNames = await registerClientTools(this.client);
+        await this.syncAgentTools(world.worldAgentId, allToolNames);
+
         return world.worldAgentId;
       } catch (error: any) {
         // Agent was deleted from Letta - clear from DB and create new one
@@ -252,6 +323,9 @@ export class LettaOrchestrator {
 
     console.log(`Creating World Agent for world ${worldId} (${world.name})`);
 
+    // Register client-side tools on server (idempotent, cached after first call)
+    const allToolNames = await registerClientTools(this.client);
+
     const systemPrompt = generateWorldSystemPrompt(world);
     const memoryBlockDefinitions = getWorldAgentMemoryBlocks(
       {
@@ -268,8 +342,8 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
-    // Use server-side tools by NAME (like letta-code does)
-    // Client-side tools are passed via client_tools on each message
+    // Attach ALL tools (server-side + client-side) to agent
+    // Client-side tools are registered with defaultRequiresApproval: true
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -278,7 +352,7 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: SERVER_TOOL_NAMES, // Use tool NAMES, not IDs
+      tools: allToolNames, // Both server-side AND client-side tools
       block_ids: blockIds,
       include_base_tools: false,
       parallel_tool_calls: true,
@@ -619,6 +693,57 @@ ${story.description || 'No description provided'}
     // End all active sessions
     this.activeSessions.clear();
     console.log('LettaOrchestrator: Cleaned up all sessions');
+  }
+
+  /**
+   * Sync tools attached to an existing agent
+   * Ensures all required tools are attached without duplicating
+   */
+  private async syncAgentTools(agentId: string, requiredToolNames: string[]): Promise<void> {
+    try {
+      // Get agent's current tools
+      const agent = await this.client.agents.retrieve(agentId, {
+        include: ['agent.tools'],
+      });
+
+      const currentToolNames = new Set(
+        (agent.tools || []).map(t => t.name).filter((n): n is string => !!n)
+      );
+
+      // Find missing tools
+      const missingTools: string[] = [];
+      for (const name of requiredToolNames) {
+        if (!currentToolNames.has(name)) {
+          missingTools.push(name);
+        }
+      }
+
+      if (missingTools.length === 0) {
+        return; // All tools already attached
+      }
+
+      console.log(`Attaching ${missingTools.length} missing tools to agent ${agentId}:`, missingTools);
+
+      // Attach missing tools by name
+      for (const toolName of missingTools) {
+        try {
+          // Look up tool by name to get its ID
+          const toolsResponse = await this.client.tools.list({ name: toolName });
+          const tool = toolsResponse.items?.[0];
+
+          if (tool?.id) {
+            await this.client.agents.tools.attach(tool.id, { agent_id: agentId });
+            console.log(`  Attached: ${toolName}`);
+          } else {
+            console.warn(`  Tool not found on server: ${toolName}`);
+          }
+        } catch (error) {
+          console.warn(`  Failed to attach ${toolName}:`, error instanceof Error ? error.message : error);
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to sync tools for agent ${agentId}:`, error instanceof Error ? error.message : error);
+    }
   }
 
   /**
