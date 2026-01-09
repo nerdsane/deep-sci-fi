@@ -225,6 +225,20 @@ export async function delegate_to_experience(
     // Get client tools for Experience Agent
     const clientTools = getExperienceAgentTools();
 
+    // Validate that tools loaded correctly
+    if (!clientTools || clientTools.length === 0) {
+      console.error('[delegate_to_experience] Experience Agent tools failed to load!');
+      delegation.status = 'failed';
+      delegationQueue.set(delegationId, delegation);
+      return {
+        success: false,
+        message: 'Experience Agent tools failed to load. This is an internal error.',
+        delegation_id: delegationId,
+      };
+    }
+
+    console.log(`[delegate_to_experience] Loaded ${clientTools.length} client tools: ${clientTools.map(t => t.name).join(', ')}`);
+
     // Tool execution context for Experience Agent tools
     const toolContext: ToolContext = {
       userId: context.userId,
@@ -240,6 +254,7 @@ export async function delegate_to_experience(
     let currentInput: any = [{ role: 'user', content: taskMessage }];
     let loopCount = 0;
     const maxLoops = 10;
+    const toolFailures: Array<{ toolName: string; error: string }> = [];
 
     while (loopCount < maxLoops) {
       loopCount++;
@@ -336,11 +351,13 @@ export async function delegate_to_experience(
               status: 'success',
             });
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
             console.error(`[delegate_to_experience] Tool ${toolName} failed:`, error);
+            toolFailures.push({ toolName, error: errorMsg });
             approvalResults.push({
               type: 'tool',
               tool_call_id: toolCallId,
-              tool_return: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              tool_return: `Error: ${errorMsg}`,
               status: 'error',
             });
           }
@@ -356,6 +373,25 @@ export async function delegate_to_experience(
     }
 
     console.log(`[delegate_to_experience] Experience Agent completed after ${loopCount} loops`);
+
+    // Check for tool failures
+    if (toolFailures.length > 0) {
+      console.error('[delegate_to_experience] Tool failures occurred:', toolFailures);
+      delegation.status = 'failed';
+      delegation.result = {
+        responseText,
+        errors: toolFailures,
+      };
+      delegationQueue.set(delegationId, delegation);
+
+      const errorDetails = toolFailures.map(f => `- ${f.toolName}: ${f.error}`).join('\n');
+      return {
+        success: false,
+        message: `Experience Agent task "${params.task_type}" had tool failures:\n${errorDetails}\n\nPartial response:\n${responseText.trim() || 'No response'}`,
+        delegation_id: delegationId,
+        experience_agent_id: experienceAgentId,
+      };
+    }
 
     // Update delegation status
     delegation.status = 'completed';

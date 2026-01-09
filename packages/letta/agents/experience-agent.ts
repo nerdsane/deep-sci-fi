@@ -13,6 +13,13 @@
 import Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
 import { generateExperienceAgentSystemPrompt as generatePrompt } from '../prompts';
+import {
+  imageGeneratorTool,
+  assetManagerTool,
+  canvasUiTool,
+  getCanvasInteractionsTool,
+  sendSuggestionTool,
+} from '../tools';
 
 // ============================================================================
 // Types
@@ -115,15 +122,7 @@ export function getExperienceAgentMemoryBlocks(context: ExperienceAgentContext) 
 // ============================================================================
 
 export function getExperienceAgentTools() {
-  // Import tool definitions
-  const {
-    imageGeneratorTool,
-    assetManagerTool,
-    canvasUiTool,
-    getCanvasInteractionsTool,
-    sendSuggestionTool,
-  } = require('../tools');
-
+  // Return tool definitions imported at module level (ES6 imports)
   return [
     imageGeneratorTool,
     assetManagerTool,
