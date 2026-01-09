@@ -372,9 +372,10 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
 
   const isConnected = wsClient?.isConnected() ?? false;
 
-  // Compute header title based on agent type
+  // Compute header title based on connection state and agent type
   const getAgentTitle = () => {
-    if (!agentType) return 'Connecting...';
+    if (!isConnected) return 'Connecting...';
+    if (!agentType) return 'Connected';
     if (agentType === 'user') return 'User Agent';
     if (agentType === 'world' && agentWorldName) return `World Agent: ${agentWorldName}`;
     return 'World Agent';
