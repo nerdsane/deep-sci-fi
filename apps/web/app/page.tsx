@@ -153,6 +153,16 @@ function App() {
           // Refresh data when story changes
           loadData();
           break;
+        case 'world_entered':
+          // Refresh data when world is created/saved/updated
+          feedbackRef.current?.showToast('World updated', 'success');
+          loadData();
+          break;
+        case 'image_generated':
+          // Refresh data when image is generated
+          feedbackRef.current?.showToast('Image generated', 'success');
+          loadData();
+          break;
       }
     };
 
