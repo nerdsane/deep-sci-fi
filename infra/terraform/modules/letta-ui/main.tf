@@ -59,8 +59,8 @@ resource "aws_security_group" "letta_ui_ecs" {
 
   ingress {
     description     = "HTTP from ALB"
-    from_port       = 3000
-    to_port         = 3000
+    from_port       = 4000
+    to_port         = 4000
     protocol        = "tcp"
     security_groups = [aws_security_group.letta_ui_alb.id]
   }
@@ -93,7 +93,7 @@ resource "aws_lb" "letta_ui" {
 # ALB Target Group
 resource "aws_lb_target_group" "letta_ui" {
   name        = "${var.project_name}-ui-tg-${var.environment}"
-  port        = 3000
+  port        = 4000
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
@@ -154,14 +154,14 @@ resource "aws_ecs_task_definition" "letta_ui" {
 
       portMappings = [
         {
-          containerPort = 3000
-          hostPort      = 3000
+          containerPort = 4000
+          hostPort      = 4000
           protocol      = "tcp"
         }
       ]
 
       environment = [
-        { name = "PORT", value = "3000" },
+        { name = "PORT", value = "4000" },
         { name = "LETTA_BASE_URL", value = var.letta_api_url },
       ]
 
@@ -200,7 +200,7 @@ resource "aws_ecs_service" "letta_ui" {
   load_balancer {
     target_group_arn = aws_lb_target_group.letta_ui.arn
     container_name   = "letta-ui"
-    container_port   = 3000
+    container_port   = 4000
   }
 
   depends_on = [aws_lb_listener.letta_ui]

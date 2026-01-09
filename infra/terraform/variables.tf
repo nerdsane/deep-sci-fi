@@ -70,3 +70,37 @@ variable "google_api_key" {
   sensitive   = true
   default     = ""
 }
+
+# ============================================================================
+# EC2 Configuration (for single-instance deployment)
+# ============================================================================
+
+variable "key_pair_name" {
+  description = "EC2 key pair name for SSH access"
+  type        = string
+  default     = "deep-sci-fi-key"
+}
+
+variable "ec2_instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "ec2_volume_size" {
+  description = "EC2 root volume size in GB"
+  type        = number
+  default     = 40
+}
+
+variable "ssh_cidr_blocks" {
+  description = "CIDR blocks allowed for SSH access"
+  type        = list(string)
+  default     = ["0.0.0.0/0"] # Restrict in production
+}
+
+variable "github_repo" {
+  description = "GitHub repository URL for the project"
+  type        = string
+  default     = "https://github.com/nerdsane/deep-sci-fi.git"
+}

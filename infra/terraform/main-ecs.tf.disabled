@@ -1,0 +1,184 @@
+# Deep Sci-Fi AWS Infrastructure - FUTURE ECS Configuration
+# ============================================================================
+# This file is NOT active. It's a template for future ECS deployment.
+# To enable: rename to main-ecs.tf and disable main.tf's EC2 module
+#
+# Estimated cost: ~$80-100/month (optimized with single ALB)
+# ============================================================================
+
+# NOTE: Uncomment and configure when ready to switch from EC2 to ECS
+
+# # ============================================================================
+# # Database Module (RDS PostgreSQL)
+# # ============================================================================
+# module "database" {
+#   source = "./modules/database"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   vpc_id             = module.networking.vpc_id
+#   private_subnet_ids = module.networking.private_subnet_ids
+#   db_password        = var.db_password
+#   db_instance_class  = var.db_instance_class
+#
+#   depends_on = [module.networking]
+# }
+
+# # ============================================================================
+# # Compute Module (ECS Cluster, Letta Server)
+# # ============================================================================
+# module "compute" {
+#   source = "./modules/compute"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   db_host     = module.database.db_endpoint
+#   db_name     = module.database.db_name
+#   db_username = module.database.db_username
+#
+#   db_password_secret_arn       = module.secrets.db_password_secret_arn
+#   anthropic_api_key_secret_arn = module.secrets.anthropic_api_key_secret_arn
+#   openai_api_key_secret_arn    = module.secrets.openai_api_key_secret_arn
+#   google_api_key_secret_arn    = module.secrets.google_api_key_secret_arn
+#
+#   s3_assets_bucket  = module.storage.assets_bucket_name
+#   cloudfront_domain = module.storage.cloudfront_domain
+#
+#   ecs_cpu           = var.ecs_cpu
+#   ecs_memory        = var.ecs_memory
+#   ecs_desired_count = var.ecs_desired_count
+#
+#   depends_on = [module.networking, module.iam, module.secrets]
+# }
+
+# # ============================================================================
+# # Letta UI Module (Port 4000 - FIXED)
+# # ============================================================================
+# module "letta_ui" {
+#   source = "./modules/letta-ui"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_cluster_id         = module.compute.ecs_cluster_id
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   letta_api_url = "http://${module.unified_alb.alb_dns_name}"
+#
+#   depends_on = [module.networking, module.compute]
+# }
+
+# # ============================================================================
+# # Web App Module
+# # ============================================================================
+# module "web_app" {
+#   source = "./modules/web-app"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   public_subnet_ids  = module.networking.public_subnet_ids
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_cluster_id         = module.compute.ecs_cluster_id
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#
+#   letta_api_url     = "http://${module.unified_alb.alb_dns_name}"
+#   cloudfront_domain = module.storage.cloudfront_domain
+#
+#   depends_on = [module.networking, module.compute, module.storage]
+# }
+
+# # ============================================================================
+# # WebSocket Module (NEW)
+# # ============================================================================
+# module "websocket" {
+#   source = "./modules/websocket"
+#
+#   project_name       = var.project_name
+#   environment        = var.environment
+#   aws_region         = var.aws_region
+#   vpc_id             = module.networking.vpc_id
+#   private_subnet_ids = module.networking.private_subnet_ids
+#
+#   ecs_cluster_id         = module.compute.ecs_cluster_id
+#   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+#   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+#   alb_security_group_id  = module.unified_alb.security_group_id
+#
+#   depends_on = [module.networking, module.compute, module.unified_alb]
+# }
+
+# # ============================================================================
+# # Unified ALB Module (COST OPTIMIZATION)
+# # Single ALB for all services instead of multiple ALBs
+# # Saves ~$50+/month
+# # ============================================================================
+# module "unified_alb" {
+#   source = "./modules/unified-alb"
+#
+#   project_name      = var.project_name
+#   environment       = var.environment
+#   vpc_id            = module.networking.vpc_id
+#   public_subnet_ids = module.networking.public_subnet_ids
+#
+#   # Optional: ACM certificate for HTTPS
+#   # certificate_arn = "arn:aws:acm:us-east-1:xxx:certificate/xxx"
+#   certificate_arn = ""
+#
+#   letta_server_target_group_arn = module.compute.target_group_arn
+#   letta_ui_target_group_arn     = module.letta_ui.target_group_arn
+#   web_app_target_group_arn      = module.web_app.target_group_arn
+#   websocket_target_group_arn    = module.websocket.target_group_arn
+#
+#   depends_on = [module.compute, module.letta_ui, module.web_app, module.websocket]
+# }
+
+# # ============================================================================
+# # Security Group Rules for ECS->RDS
+# # ============================================================================
+# resource "aws_security_group_rule" "rds_from_ecs" {
+#   type                     = "ingress"
+#   from_port                = 5432
+#   to_port                  = 5432
+#   protocol                 = "tcp"
+#   source_security_group_id = module.compute.ecs_security_group_id
+#   security_group_id        = module.database.db_security_group_id
+#   description              = "PostgreSQL from ECS"
+# }
+
+# # ============================================================================
+# # Cost Optimization Notes
+# # ============================================================================
+# #
+# # This ECS configuration is optimized compared to the original:
+# #
+# # 1. Single ALB with path-based routing (~$50/month saved)
+# # 2. Letta UI port fixed to 4000 (matches Dockerfile)
+# # 3. WebSocket module added (port 8284)
+# # 4. NAT Gateway alternatives considered (see modules/nat-instance)
+# #
+# # Estimated monthly cost breakdown:
+# # - ECS Fargate (4 services, small): ~$40-60
+# # - RDS PostgreSQL (db.t3.micro): ~$15-20
+# # - Single ALB: ~$18-25
+# # - S3 + CloudFront: ~$5-10
+# # - Total: ~$80-115/month
+# #
+# # For even lower costs, consider using Fargate Spot for non-critical services
+# # ============================================================================

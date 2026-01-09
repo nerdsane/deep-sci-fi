@@ -22,10 +22,10 @@ COPY tsconfig.json ./
 COPY tailwind.config.js postcss.config.js ./
 
 # Environment variables
-ENV PORT=3000
+ENV PORT=4000
 ENV LETTA_BASE_URL=http://localhost:8283
 
-EXPOSE 3000
+EXPOSE 4000
 
 # Run with bun
 CMD ["bun", "run", "src/server.ts"]
