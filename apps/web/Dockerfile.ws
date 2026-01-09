@@ -3,35 +3,36 @@
 # Build context: project root
 
 FROM oven/bun:1-alpine AS base
-WORKDIR /app
+WORKDIR /workspace
 
-# Install dependencies
+# Install dependencies - preserve directory structure for file: dependencies
 FROM base AS deps
-COPY apps/web/package.json ./
-COPY apps/web/bun.lockb* ./
-# Copy workspace packages for @deep-sci-fi/* dependencies
+# Copy packages first (for file: dependencies)
 COPY packages ./packages
+# Copy web app package files
+COPY apps/web/package.json apps/web/bun.lockb* ./apps/web/
+WORKDIR /workspace/apps/web
 RUN bun install --frozen-lockfile --production 2>/dev/null || bun install --production
 
-# Build stage (if needed)
+# Build stage
 FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
-COPY apps/web/server ./server
-COPY apps/web/package.json ./
+COPY --from=deps /workspace/packages ./packages
+COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
+COPY apps/web/server ./apps/web/server
+COPY apps/web/package.json ./apps/web/
 
 # Runtime
 FROM base AS runner
-WORKDIR /app
+WORKDIR /workspace/apps/web
 
 ENV NODE_ENV=production
 ENV WS_PORT=8284
 
 # Copy only what's needed for the WebSocket server
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/package.json ./
+COPY --from=builder /workspace/packages ./../../packages
+COPY --from=builder /workspace/apps/web/node_modules ./node_modules
+COPY --from=builder /workspace/apps/web/server ./server
+COPY --from=builder /workspace/apps/web/package.json ./
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
