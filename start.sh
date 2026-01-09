@@ -133,21 +133,29 @@ fi
 echo ""
 echo "🗄️  Setting up database..."
 
-# Run Prisma commands from apps/web where .env exists
-cd apps/web
+# Run Prisma commands from packages/db where Prisma is installed
+cd packages/db
+
+# Ensure Prisma dependencies are installed
+if [ ! -d "node_modules/.bin" ]; then
+    print_warning "Installing Prisma dependencies..."
+    npm install --legacy-peer-deps
+fi
+
+# Export DATABASE_URL from apps/web/.env for Prisma
+export DATABASE_URL=$(grep "^DATABASE_URL=" ../../apps/web/.env | cut -d '=' -f2- | tr -d '"')
 
 # Check if database is already set up
-if npx prisma db execute --stdin --schema=../../packages/db/prisma/schema.prisma <<< "SELECT 1 FROM \"User\" LIMIT 1;" 2>/dev/null; then
+if npx prisma db execute --stdin <<< "SELECT 1 FROM \"User\" LIMIT 1;" 2>/dev/null; then
     print_success "Database already set up"
 else
     print_warning "Pushing database schema..."
-    npx prisma db push --skip-generate --schema=../../packages/db/prisma/schema.prisma
+    npx prisma db push --skip-generate
     print_success "Database schema created"
 fi
 
 # Always generate Prisma client
 print_warning "Generating Prisma client..."
-cd ../../packages/db
 npx prisma generate
 
 # Copy Prisma binary to web app (needed for Next.js with symlinked packages)

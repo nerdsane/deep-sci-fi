@@ -23,6 +23,37 @@ import {
   type ToolContext,
 } from './tools/executor';
 
+// ============================================================================
+// Server-Side Tool Configuration
+// ============================================================================
+
+/**
+ * Server-side tools that run on the Letta server (not client-side).
+ * These are registered with agents via tool_ids parameter.
+ */
+const SERVER_SIDE_TOOLS = {
+  // Core memory tools
+  core: [
+    'conversation_search', // Search in-context message history
+    'search_trajectories', // Search past execution experiences (requires ENABLE_TRAJECTORY_CAPTURE=true)
+  ],
+  // Evaluation tools (LLM-as-judge)
+  evaluation: [
+    'assess_output_quality', // Quality assessment with rubric
+    'check_logical_consistency', // Detect contradictions
+    'compare_versions', // Measure improvement
+    'analyze_information_gain', // Measure new information
+  ],
+  // Builtin tools (require API keys)
+  builtin: [
+    'web_search', // AI-powered search (requires EXA_API_KEY)
+    'fetch_webpage', // Extract webpage content (requires EXA_API_KEY)
+  ],
+};
+
+// Cache for server-side tool IDs to avoid repeated lookups
+let serverToolIdsCache: Map<string, string> | null = null;
+
 /**
  * LettaOrchestrator - Two-Tier Agent Management Service
  *
@@ -37,6 +68,96 @@ export class LettaOrchestrator {
   private client: Letta;
   private db: PrismaClient | null;
   private activeSessions: Map<string, ChatSession>;
+  private serverToolsInitialized: boolean = false;
+
+  /**
+   * Initialize server-side tools by fetching and caching their IDs.
+   * Called lazily on first agent creation.
+   *
+   * Note: Base tools are auto-registered by the Letta server on startup.
+   * We just need to fetch their IDs here.
+   */
+  private async initializeServerTools(): Promise<void> {
+    if (this.serverToolsInitialized && serverToolIdsCache) {
+      return;
+    }
+
+    console.log('Initializing server-side tools...');
+
+    try {
+      // Build tool ID cache
+      serverToolIdsCache = new Map();
+
+      // Fetch all tools and cache their IDs
+      // Note: Base tools are auto-registered by Letta server on startup
+      const allToolNames = [
+        ...SERVER_SIDE_TOOLS.core,
+        ...SERVER_SIDE_TOOLS.evaluation,
+        ...SERVER_SIDE_TOOLS.builtin,
+      ];
+
+      for (const toolName of allToolNames) {
+        try {
+          const tools = await this.client.tools.list({ name: toolName });
+          const toolItems = tools.items || [];
+          if (toolItems.length > 0 && toolItems[0]?.id) {
+            serverToolIdsCache.set(toolName, toolItems[0].id);
+            console.log(`  Cached tool: ${toolName} -> ${toolItems[0].id}`);
+          } else {
+            console.warn(`  Tool not found: ${toolName} (may not be registered yet)`);
+          }
+        } catch (error) {
+          console.warn(`  Failed to fetch tool ${toolName}:`, error);
+        }
+      }
+
+      this.serverToolsInitialized = true;
+      console.log(`Server-side tools initialized: ${serverToolIdsCache.size} tools cached`);
+    } catch (error) {
+      console.error('Failed to initialize server-side tools:', error);
+      // Don't throw - allow agents to work without server-side tools
+    }
+  }
+
+  /**
+   * Get tool IDs for a specific agent type.
+   * @param agentType - 'user', 'world', or 'experience'
+   * @param includeBuiltins - Include web_search/fetch_webpage (require EXA_API_KEY)
+   */
+  private getServerToolIds(
+    agentType: 'user' | 'world' | 'experience',
+    includeBuiltins: boolean = false
+  ): string[] {
+    if (!serverToolIdsCache) {
+      return [];
+    }
+
+    const toolIds: string[] = [];
+
+    // All agents get core tools
+    for (const toolName of SERVER_SIDE_TOOLS.core) {
+      const id = serverToolIdsCache.get(toolName);
+      if (id) toolIds.push(id);
+    }
+
+    // World and Experience agents get evaluation tools
+    if (agentType === 'world' || agentType === 'experience') {
+      for (const toolName of SERVER_SIDE_TOOLS.evaluation) {
+        const id = serverToolIdsCache.get(toolName);
+        if (id) toolIds.push(id);
+      }
+    }
+
+    // Builtin tools only if EXA_API_KEY is configured
+    if (includeBuiltins && process.env.EXA_API_KEY) {
+      for (const toolName of SERVER_SIDE_TOOLS.builtin) {
+        const id = serverToolIdsCache.get(toolName);
+        if (id) toolIds.push(id);
+      }
+    }
+
+    return toolIds;
+  }
 
   constructor(apiKey?: string, baseUrl?: string, db?: PrismaClient) {
     // Get API configuration from environment or parameters
@@ -91,6 +212,9 @@ export class LettaOrchestrator {
 
     console.log(`Creating User Agent for user ${userId} (${user.email})`);
 
+    // Initialize server-side tools (lazy, only once)
+    await this.initializeServerTools();
+
     // Generate system prompt
     const systemPrompt = generateUserAgentSystemPrompt();
 
@@ -104,9 +228,14 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
+    // Get server-side tool IDs for user agent
+    // User agent gets core tools (conversation_search, search_trajectories)
+    const serverToolIds = this.getServerToolIds('user', false);
+    console.log(`User Agent will have ${serverToolIds.length} server-side tools`);
+
     // Create agent with Letta SDK
-    // NOTE: We don't pass tool names here because we use client-side tools
-    // Client tools are passed with each message, not registered with the agent
+    // Server-side tools are registered via tool_ids
+    // Client-side tools are passed with each message
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -115,9 +244,9 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: [], // No server-side tools, only client-side tools
+      tool_ids: serverToolIds, // Server-side tools
       block_ids: blockIds,
-      include_base_tools: false,
+      include_base_tools: false, // We manually select which tools to include
       parallel_tool_calls: true,
       enable_sleeptime: false,
       tags: ['origin:deep-sci-fi', 'type:user-agent'],
@@ -165,6 +294,9 @@ export class LettaOrchestrator {
 
     console.log(`Creating World Agent for world ${worldId} (${world.name})`);
 
+    // Initialize server-side tools (lazy, only once)
+    await this.initializeServerTools();
+
     // Generate system prompt
     const systemPrompt = generateWorldSystemPrompt(world);
 
@@ -185,9 +317,17 @@ export class LettaOrchestrator {
     const createdBlocks = await createMemoryBlocks(this.client, memoryBlockDefinitions);
     const blockIds = createdBlocks.map(b => b.id);
 
+    // Get server-side tool IDs for world agent
+    // World agent gets:
+    // - Core tools (conversation_search, search_trajectories)
+    // - Evaluation tools (assess_output_quality, check_logical_consistency, etc.)
+    // - Builtin tools (web_search, fetch_webpage) if EXA_API_KEY is configured
+    const serverToolIds = this.getServerToolIds('world', true);
+    console.log(`World Agent will have ${serverToolIds.length} server-side tools`);
+
     // Create agent with Letta SDK
-    // NOTE: We don't pass tool names here because we use client-side tools
-    // Client tools are passed with each message, not registered with the agent
+    // Server-side tools are registered via tool_ids
+    // Client-side tools are passed with each message
     const agent = await this.client.agents.create({
       agent_type: 'letta_v1_agent',
       system: systemPrompt,
@@ -196,9 +336,9 @@ export class LettaOrchestrator {
       embedding: 'openai/text-embedding-3-small',
       model: 'anthropic/claude-opus-4-5-20251101',
       context_window_limit: 200000,
-      tools: [], // No server-side tools, only client-side tools
+      tool_ids: serverToolIds, // Server-side tools
       block_ids: blockIds,
-      include_base_tools: false,
+      include_base_tools: false, // We manually select which tools to include
       parallel_tool_calls: true,
       enable_sleeptime: false,
       tags: ['origin:deep-sci-fi', 'type:world-agent', `world:${worldId}`],
@@ -421,6 +561,11 @@ export class LettaOrchestrator {
               const parsedArgs = args ? JSON.parse(args) : {};
 
               // Execute tool with full context
+              // Include server tool IDs for Experience Agent delegation
+              const serverToolIds = agentType === 'world'
+                ? this.getServerToolIds('experience', false)
+                : [];
+
               const result = await executeTool(
                 toolName,
                 parsedArgs,
@@ -431,6 +576,7 @@ export class LettaOrchestrator {
                   storyId: worldContext?.storyId,
                   worldName: worldContext?.worldName,
                   lettaClient: this.client,
+                  serverToolIds,
                 }
               );
 
