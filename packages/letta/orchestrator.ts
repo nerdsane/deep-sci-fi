@@ -128,8 +128,10 @@ export class LettaOrchestrator {
     const lettaApiKey = apiKey || process.env.LETTA_API_KEY;
     const lettaBaseUrl = baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283';
 
-    // Check if using local Letta server (localhost or 127.0.0.1)
-    const isLocalServer = lettaBaseUrl.includes('localhost') || lettaBaseUrl.includes('127.0.0.1');
+    // Check if using local/self-hosted Letta server (not Letta Cloud)
+    // Local servers include: localhost, 127.0.0.1, Docker container names, private IPs
+    const isLettaCloud = lettaBaseUrl.includes('api.letta.ai') || lettaBaseUrl.includes('letta.ai');
+    const isLocalServer = !isLettaCloud;
 
     // Validate required configuration
     // API key is only required for Letta Cloud, not for local servers
