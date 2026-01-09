@@ -386,11 +386,18 @@ function App() {
   // Render
   // ============================================================================
 
+  // Derive agent type from current state
+  const agentType: 'user' | 'world' = state.selectedWorld ? 'world' : 'user';
+
   if (state.loading) {
     return (
       <div className="app-layout">
         {!state.cliConnected && (
-          <ChatSidebar wsClient={wsClientRef.current} />
+          <ChatSidebar
+            wsClient={wsClientRef.current}
+            agentType={agentType}
+            worldName={state.selectedWorld?.name}
+          />
         )}
         <div className="canvas-container">
           <LoadingScreen />
@@ -403,7 +410,11 @@ function App() {
     return (
       <div className="app-layout">
         {!state.cliConnected && (
-          <ChatSidebar wsClient={wsClientRef.current} />
+          <ChatSidebar
+            wsClient={wsClientRef.current}
+            agentType={agentType}
+            worldName={state.selectedWorld?.name}
+          />
         )}
         <div className="canvas-container">
           <ErrorScreen error={state.error} onRetry={loadData} />
@@ -416,7 +427,11 @@ function App() {
     <div className="app-layout">
       {/* Chat sidebar - hidden when CLI is connected */}
       {!state.cliConnected && (
-        <ChatSidebar wsClient={wsClientRef.current} />
+        <ChatSidebar
+          wsClient={wsClientRef.current}
+          agentType={agentType}
+          worldName={state.selectedWorld?.name}
+        />
       )}
 
       {/* CLI connected indicator */}

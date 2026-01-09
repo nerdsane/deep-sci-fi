@@ -9,9 +9,11 @@ import type Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
 import {
   getOrCreateExperienceAgent,
+  getExperienceAgentTools,
   type ExperienceAgentConfig,
   type ExperienceAgentContext,
 } from '../agents/experience-agent';
+import { executeTool, type ToolContext } from './executor';
 
 // ============================================================================
 // Types
@@ -216,25 +218,108 @@ export async function delegate_to_experience(
     // Build message for Experience Agent
     const taskMessage = buildTaskMessage(params);
 
-    // Send task to Experience Agent and wait for response
-    const response = await context.lettaClient.agents.messages.create(experienceAgentId, {
+    // Get client tools for Experience Agent
+    const clientTools = getExperienceAgentTools();
+
+    // Tool execution context
+    const toolContext: ToolContext = {
+      userId: context.userId,
+      db: context.db,
+      worldId: context.worldId,
+      storyId: context.storyId,
+      worldName,
+      lettaClient: context.lettaClient,
+    };
+
+    // Send task to Experience Agent with client tools and handle tool execution loop
+    let currentInput: any = {
       messages: [{ role: 'user', content: taskMessage }],
-      streaming: false,
-    });
-
-    console.log(`[delegate_to_experience] Experience Agent responded`);
-
-    // Extract response content
+    };
     let responseText = '';
-    if (response && 'messages' in response && Array.isArray(response.messages)) {
-      for (const msg of response.messages) {
-        if (msg && typeof msg === 'object' && 'message_type' in msg) {
-          if (msg.message_type === 'assistant_message' && 'assistant_message' in msg) {
-            responseText += msg.assistant_message + '\n';
+    const MAX_ITERATIONS = 10;
+
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+      console.log(`[delegate_to_experience] Iteration ${iteration + 1}: Sending to Experience Agent`);
+
+      const response = await context.lettaClient.agents.messages.create(experienceAgentId, {
+        ...currentInput,
+        streaming: false,
+        client_tools: clientTools,
+      });
+
+      // Extract stop reason and messages
+      let stopReason = 'end_turn';
+      const toolCalls: Array<{ id: string; name: string; args: string }> = [];
+
+      if (response && 'messages' in response && Array.isArray(response.messages)) {
+        for (const msg of response.messages) {
+          if (msg && typeof msg === 'object' && 'message_type' in msg) {
+            // Extract assistant messages
+            if (msg.message_type === 'assistant_message' && 'assistant_message' in msg) {
+              responseText += msg.assistant_message + '\n';
+            }
+            // Extract tool calls
+            if (msg.message_type === 'tool_call_message') {
+              const toolCallMsg = msg as any;
+              if (toolCallMsg.tool_call) {
+                toolCalls.push({
+                  id: toolCallMsg.tool_call.tool_call_id || toolCallMsg.tool_call.id,
+                  name: toolCallMsg.tool_call.name,
+                  args: toolCallMsg.tool_call.arguments,
+                });
+              }
+            }
           }
         }
       }
+
+      // Check stop reason
+      if (response && 'usage' in response && (response as any).usage?.stop_reason) {
+        stopReason = (response as any).usage.stop_reason;
+      }
+
+      console.log(`[delegate_to_experience] Stop reason: ${stopReason}, Tool calls: ${toolCalls.length}`);
+
+      // If no tool calls or end_turn, we're done
+      if (stopReason !== 'requires_approval' || toolCalls.length === 0) {
+        break;
+      }
+
+      // Execute tool calls
+      const approvalResults: any[] = [];
+      for (const toolCall of toolCalls) {
+        console.log(`[delegate_to_experience] Executing tool: ${toolCall.name}`);
+        try {
+          const parsedArgs = toolCall.args ? JSON.parse(toolCall.args) : {};
+          const result = await executeTool(toolCall.name, parsedArgs, toolContext);
+
+          approvalResults.push({
+            type: 'tool',
+            tool_call_id: toolCall.id,
+            tool_return: JSON.stringify(result),
+            status: 'success',
+          });
+
+          console.log(`[delegate_to_experience] Tool ${toolCall.name} completed successfully`);
+        } catch (error) {
+          console.error(`[delegate_to_experience] Tool ${toolCall.name} failed:`, error);
+          approvalResults.push({
+            type: 'tool',
+            tool_call_id: toolCall.id,
+            tool_return: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            status: 'error',
+          });
+        }
+      }
+
+      // Send approval results back
+      currentInput = [{
+        type: 'approval',
+        approvals: approvalResults,
+      }];
     }
+
+    console.log(`[delegate_to_experience] Experience Agent completed task`);
 
     // Update delegation status
     delegation.status = 'completed';

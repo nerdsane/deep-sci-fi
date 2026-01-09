@@ -240,6 +240,27 @@
   color: var(--terminal-cyan);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+  flex: 1;
+}
+
+.terminal-agent-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.terminal-agent-badge--user {
+  background: rgba(0, 200, 150, 0.2);
+  color: #00c896;
+  border: 1px solid rgba(0, 200, 150, 0.3);
+}
+
+.terminal-agent-badge--world {
+  background: rgba(200, 150, 0, 0.2);
+  color: #c89600;
+  border: 1px solid rgba(200, 150, 0, 0.3);
 }
 
 .terminal-status {

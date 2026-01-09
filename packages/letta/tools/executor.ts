@@ -7,7 +7,6 @@
 
 import type Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
-import { world_draft_generator, worldDraftGeneratorTool } from './world-draft-generator';
 import { list_worlds, listWorldsTool } from './list-worlds';
 import { user_preferences, userPreferencesTool } from './user-preferences';
 import { world_manager, worldManagerTool } from './world-manager';
@@ -49,7 +48,6 @@ type ToolExecutor = (params: any, context: ToolContext) => Promise<any>;
  * Tool registry mapping tool names to executors
  */
 const toolExecutors: Map<string, ToolExecutor> = new Map([
-  ['world_draft_generator', world_draft_generator as ToolExecutor],
   ['list_worlds', list_worlds as ToolExecutor],
   ['user_preferences', user_preferences as ToolExecutor],
   ['world_manager', world_manager as ToolExecutor],
@@ -67,7 +65,7 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
  */
 export function getUserAgentClientTools(): ClientTool[] {
   return [
-    worldDraftGeneratorTool,
+    worldManagerTool, // For creating new worlds
     listWorldsTool,
     userPreferencesTool,
   ];

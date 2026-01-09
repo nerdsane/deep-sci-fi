@@ -2,9 +2,9 @@
  * world_manager - Database-based world management tool for Deep Sci-Fi web
  *
  * Operations:
- * - save: Persist world to database
+ * - create: Create a new world in the database
+ * - save: Persist world foundation data to database
  * - load: Restore world from database
- * - diff: Compare two world versions (future feature)
  * - update: Evolve the world incrementally
  *
  * This is adapted from letta-code's filesystem-based world_manager
@@ -18,9 +18,11 @@ import type { PrismaClient } from '@deep-sci-fi/db';
 // ============================================================================
 
 export interface WorldManagerParams {
-  operation: 'save' | 'load' | 'update';
-  world_id: string; // Database world ID (cuid)
-  world_data?: any; // For save operation - full world foundation data
+  operation: 'create' | 'save' | 'load' | 'update';
+  world_id?: string; // Database world ID (cuid) - required for save/load/update, not for create
+  name?: string; // World name - required for create
+  description?: string; // World description - optional for create
+  world_data?: any; // For save/create operation - full world foundation data
   updates?: Array<{
     path: string; // Dot-notation path (e.g., "rules.0.statement")
     operation: 'add' | 'update' | 'remove';
@@ -51,13 +53,26 @@ export async function world_manager(
   context: { userId: string; db: PrismaClient }
 ): Promise<WorldManagerResult> {
   try {
-    console.log(`[world_manager] Operation: ${params.operation} for world ${params.world_id}`);
+    console.log(`[world_manager] Operation: ${params.operation}${params.world_id ? ` for world ${params.world_id}` : ''}`);
 
     // Validate operation
-    if (!['save', 'load', 'update'].includes(params.operation)) {
+    if (!['create', 'save', 'load', 'update'].includes(params.operation)) {
       return {
         success: false,
-        message: `Invalid operation: ${params.operation}. Valid operations: save, load, update`,
+        message: `Invalid operation: ${params.operation}. Valid operations: create, save, load, update`,
+      };
+    }
+
+    // Handle create operation separately (doesn't require existing world)
+    if (params.operation === 'create') {
+      return await createWorld(params, context.db, context.userId);
+    }
+
+    // For other operations, world_id is required
+    if (!params.world_id) {
+      return {
+        success: false,
+        message: `world_id is required for ${params.operation} operation`,
       };
     }
 
@@ -107,6 +122,67 @@ export async function world_manager(
     return {
       success: false,
       message: `Error in world_manager: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+// ============================================================================
+// Operation: Create
+// ============================================================================
+
+async function createWorld(
+  params: WorldManagerParams,
+  db: PrismaClient,
+  userId: string
+): Promise<WorldManagerResult> {
+  if (!params.name) {
+    return {
+      success: false,
+      message: 'name is required for create operation',
+    };
+  }
+
+  try {
+    // Create world in database
+    const world = await db.world.create({
+      data: {
+        name: params.name,
+        description: params.description || null,
+        ownerId: userId,
+        foundation: params.world_data || {},
+        surface: {},
+        constraints: [],
+        changelog: [],
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        foundation: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    console.log(`[world_manager] World created: ${world.id} - ${world.name}`);
+
+    return {
+      success: true,
+      message: `World created successfully\nWorld: ${world.name}\nID: ${world.id}\nCreated: ${world.createdAt.toISOString()}`,
+      world: {
+        id: world.id,
+        name: world.name,
+        description: world.description,
+        foundation: world.foundation,
+        version: 1,
+        updatedAt: world.updatedAt,
+      },
+    };
+  } catch (error) {
+    console.error('[world_manager] Create failed:', error);
+    return {
+      success: false,
+      message: `Failed to create world: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -345,22 +421,30 @@ function applyUpdate(foundation: any, update: { path: string; operation: string;
 
 export const worldManagerTool = {
   name: 'world_manager',
-  description: 'Manage world data in the database. Operations: save (persist world), load (retrieve world), update (incremental changes with path-based operations)',
+  description: 'Manage world data in the database. Operations: create (new world), save (persist world), load (retrieve world), update (incremental changes)',
   parameters: {
     type: 'object',
     properties: {
       operation: {
         type: 'string',
-        enum: ['save', 'load', 'update'],
-        description: 'Operation to perform: save, load, or update',
+        enum: ['create', 'save', 'load', 'update'],
+        description: 'Operation to perform: create (new world), save (update existing), load, or update',
+      },
+      name: {
+        type: 'string',
+        description: 'World name (required for create operation)',
+      },
+      description: {
+        type: 'string',
+        description: 'World description (optional, for create operation)',
       },
       world_id: {
         type: 'string',
-        description: 'Database ID of the world (cuid)',
+        description: 'Database ID of the world (cuid) - required for save/load/update, not for create',
       },
       world_data: {
         type: 'object',
-        description: 'Full world foundation data (for save operation)',
+        description: 'Full world foundation data (for create/save operations). Should include premise, technology, society, rules, etc.',
       },
       updates: {
         type: 'array',
@@ -389,6 +473,6 @@ export const worldManagerTool = {
         },
       },
     },
-    required: ['operation', 'world_id'],
+    required: ['operation'],
   },
 };

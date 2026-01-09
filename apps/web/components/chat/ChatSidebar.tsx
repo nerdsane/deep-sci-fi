@@ -24,9 +24,11 @@ interface Message {
 
 interface ChatSidebarProps {
   wsClient: UnifiedWSClient | null;
+  agentType?: 'user' | 'world';
+  worldName?: string;
 }
 
-export function ChatSidebar({ wsClient }: ChatSidebarProps) {
+export function ChatSidebar({ wsClient, agentType, worldName }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -335,11 +337,23 @@ export function ChatSidebar({ wsClient }: ChatSidebarProps) {
 
   const isConnected = wsClient?.isConnected() ?? false;
 
+  // Derive agent display info
+  const agentLabel = agentType === 'world' && worldName
+    ? `World: ${worldName}`
+    : agentType === 'world'
+    ? 'World Agent'
+    : 'User Agent';
+
   return (
     <aside className="chat-sidebar terminal-container">
       <div className="terminal-header">
         <div className={`terminal-status ${isConnected ? 'terminal-status--connected' : ''}`} />
-        <span className="terminal-title">Agent Terminal</span>
+        <span className="terminal-title">{agentLabel}</span>
+        {agentType && (
+          <span className={`terminal-agent-badge terminal-agent-badge--${agentType}`}>
+            {agentType === 'world' ? 'W' : 'U'}
+          </span>
+        )}
       </div>
 
       <div className="terminal-output">
