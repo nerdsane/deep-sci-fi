@@ -7,11 +7,6 @@
 
 // Import all tools first to ensure they're available for arrays
 import {
-  world_draft_generator,
-  worldDraftGeneratorTool,
-} from './world-draft-generator';
-
-import {
   list_worlds,
   listWorldsTool,
 } from './list-worlds';
@@ -77,8 +72,6 @@ export {
 // Export all tool functions and definitions
 export {
   // User Agent Tools
-  world_draft_generator,
-  worldDraftGeneratorTool,
   list_worlds,
   listWorldsTool,
   user_preferences,
@@ -111,9 +104,10 @@ export {
  * All User Agent tool definitions for Letta SDK registration
  */
 export const userAgentTools = [
-  worldDraftGeneratorTool,
+  worldManagerTool,
   listWorldsTool,
   userPreferencesTool,
+  delegateToExperienceTool,
 ];
 
 /**
