@@ -99,4 +99,6 @@ export type {
   AgentMessage,
   ChatSession,
   AgentResponse,
+  StreamChunk,
+  StreamChunkType,
 } from './types';

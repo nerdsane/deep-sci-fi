@@ -34,3 +34,38 @@ export interface AgentResponse {
     [key: string]: any;
   };
 }
+
+/**
+ * Streaming chunk types for real-time SSE responses
+ * Based on Letta API message types
+ */
+export type StreamChunkType =
+  | 'reasoning'
+  | 'reasoning_end'
+  | 'tool_call'
+  | 'tool_result'
+  | 'assistant'
+  | 'assistant_end'
+  | 'error'
+  | 'done'
+  | 'usage';
+
+export interface StreamChunk {
+  type: StreamChunkType;
+  id?: string;
+  content?: string;
+  // Tool call specific
+  toolCallId?: string;
+  toolName?: string;
+  toolArgs?: string;
+  toolResult?: string;
+  toolStatus?: 'pending' | 'running' | 'success' | 'error';
+  // Usage statistics
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  // Stop reason
+  stopReason?: string;
+}
