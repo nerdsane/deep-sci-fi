@@ -87,7 +87,7 @@ services:
         condition: service_healthy
     environment:
       - PORT=3000
-      - DATABASE_URL=postgresql://letta:${DB_PASSWORD}@postgres:5432/letta
+      - DATABASE_URL=postgresql://letta:${DB_PASSWORD}@postgres:5432/letta?schema=app
       - LETTA_BASE_URL=http://letta-server:8283
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -117,7 +117,7 @@ services:
     environment:
       - WS_PORT=8284
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://letta:${DB_PASSWORD}@postgres:5432/letta
+      - DATABASE_URL=postgresql://letta:${DB_PASSWORD}@postgres:5432/letta?schema=app
     ports:
       - "8284:8284"
     healthcheck:
