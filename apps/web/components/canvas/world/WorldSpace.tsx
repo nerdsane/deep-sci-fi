@@ -13,7 +13,7 @@ export interface WorldSpaceProps {
   onElementAction?: (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => void;
 }
 
-export function WorldSpace({
+export const WorldSpace = React.memo(function WorldSpace({
   world,
   stories,
   onSelectStory,
@@ -307,4 +307,4 @@ export function WorldSpace({
       )}
     </div>
   );
-}
+});
