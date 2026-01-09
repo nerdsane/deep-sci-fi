@@ -114,10 +114,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      letta-server:
+        condition: service_healthy
     environment:
       - WS_PORT=8284
       - NODE_ENV=production
       - DATABASE_URL=postgresql://letta:${DB_PASSWORD}@postgres:5432/letta?schema=app
+      - LETTA_BASE_URL=http://letta-server:8283
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     ports:
       - "8284:8284"
     healthcheck:
