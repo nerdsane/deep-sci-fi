@@ -34,6 +34,7 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const outputContainerRef = useRef<HTMLDivElement>(null);
 
   // Track streaming message IDs
   const reasoningIdRef = useRef<string | null>(null);
@@ -41,8 +42,12 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
   const toolCallIdsRef = useRef<Map<string, string>>(new Map());
 
   // Auto-scroll to bottom when new messages arrive
+  // Use scrollTop instead of scrollIntoView to avoid affecting sibling scroll containers
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = outputContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
   /**
@@ -419,7 +424,7 @@ export function ChatSidebar({ wsClient, onAgentTypeChange, agentType, agentWorld
         </div>
       </div>
 
-      <div className="terminal-output">
+      <div className="terminal-output" ref={outputContainerRef}>
         {messages.map((message) => (
           <div key={message.id} className="terminal-message">
             {renderMessage(message)}
