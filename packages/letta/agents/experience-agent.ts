@@ -29,8 +29,6 @@ export interface ExperienceAgentConfig {
   lettaClient: Letta;
   db: PrismaClient;
   userId: string;
-  /** Server-side tool IDs to attach (passed from orchestrator) */
-  serverToolIds?: string[];
 }
 
 // ============================================================================
@@ -180,11 +178,19 @@ function cacheAgentId(worldId: string, agentId: string): void {
 // Agent Creation
 // ============================================================================
 
+/** Server-side tool names for Experience Agent */
+const SERVER_TOOL_NAMES = [
+  'conversation_search',
+  'search_trajectories',
+  'assess_output_quality',
+  'check_logical_consistency',
+];
+
 export async function getOrCreateExperienceAgent(
   config: ExperienceAgentConfig,
   context: ExperienceAgentContext
 ): Promise<string> {
-  const { lettaClient, db, userId, serverToolIds = [] } = config;
+  const { lettaClient, db, userId } = config;
 
   // Check cache first
   const cachedAgentId = getCachedAgentId(context.worldId);
@@ -209,6 +215,19 @@ export async function getOrCreateExperienceAgent(
   const memoryBlocks = getExperienceAgentMemoryBlocks(context);
 
   try {
+    // Fetch server-side tool IDs
+    const toolIds: string[] = [];
+    for (const name of SERVER_TOOL_NAMES) {
+      try {
+        const result = await lettaClient.tools.list({ name });
+        if (result.items?.[0]?.id) {
+          toolIds.push(result.items[0].id);
+        }
+      } catch {
+        // Tool not available
+      }
+    }
+
     // Create memory blocks
     const createdBlocks = await Promise.all(
       memoryBlocks.map(async (block) => {
@@ -222,11 +241,6 @@ export async function getOrCreateExperienceAgent(
       })
     );
 
-    // Log server-side tools
-    if (serverToolIds.length > 0) {
-      console.log(`[ExperienceAgent] Including ${serverToolIds.length} server-side tools`);
-    }
-
     // Create the agent
     const agent = await lettaClient.agents.create({
       agent_type: 'letta_v1_agent',
@@ -236,7 +250,7 @@ export async function getOrCreateExperienceAgent(
       model: 'anthropic/claude-sonnet-4-20250514',
       embedding: 'openai/text-embedding-3-small',
       block_ids: createdBlocks.filter((id): id is string => id !== undefined),
-      tool_ids: serverToolIds, // Server-side tools (passed from orchestrator)
+      tool_ids: toolIds,
       include_base_tools: false,
       parallel_tool_calls: true,
       tags: ['origin:deep-sci-fi', 'type:experience-agent', `world:${context.worldId}`],

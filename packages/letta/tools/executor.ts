@@ -25,13 +25,10 @@ import { delegate_to_experience, delegateToExperienceTool } from './delegate-to-
 export interface ToolContext {
   userId: string;
   db: PrismaClient;
-  // Extended context for World Agent tools
   worldId?: string;
   storyId?: string;
   worldName?: string;
   lettaClient?: Letta;
-  /** Server-side tool IDs (for delegation to Experience Agent) */
-  serverToolIds?: string[];
 }
 
 /**
