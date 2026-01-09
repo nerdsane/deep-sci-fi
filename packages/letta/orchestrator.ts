@@ -132,8 +132,18 @@ export class LettaOrchestrator {
     if (user.userAgentId) {
       // Verify the agent actually exists in Letta
       try {
-        await this.client.agents.retrieve(user.userAgentId);
+        const existingAgent = await this.client.agents.retrieve(user.userAgentId);
         console.log(`User Agent exists for user ${userId}: ${user.userAgentId}`);
+
+        // Sync system prompt to ensure it has latest tool descriptions
+        const currentSystemPrompt = generateUserAgentSystemPrompt();
+        if (existingAgent.system !== currentSystemPrompt) {
+          console.log(`Updating User Agent system prompt for ${userId}`);
+          await this.client.agents.update(user.userAgentId, {
+            system: currentSystemPrompt,
+          });
+        }
+
         return { agentId: user.userAgentId, wasRecreated: false };
       } catch (error: any) {
         // Agent was deleted from Letta - clear from DB and create new one
@@ -225,8 +235,36 @@ export class LettaOrchestrator {
   async getOrCreateWorldAgent(worldId: string, world: World, owner: User): Promise<string> {
     // Check if world already has an agent
     if (world.worldAgentId) {
-      console.log(`World Agent exists for world ${worldId}: ${world.worldAgentId}`);
-      return world.worldAgentId;
+      // Verify agent exists and sync system prompt
+      try {
+        const existingAgent = await this.client.agents.retrieve(world.worldAgentId);
+        console.log(`World Agent exists for world ${worldId}: ${world.worldAgentId}`);
+
+        // Sync system prompt to ensure it has latest tool descriptions
+        const currentSystemPrompt = generateWorldSystemPrompt(world);
+        if (existingAgent.system !== currentSystemPrompt) {
+          console.log(`Updating World Agent system prompt for ${worldId}`);
+          await this.client.agents.update(world.worldAgentId, {
+            system: currentSystemPrompt,
+          });
+        }
+
+        return world.worldAgentId;
+      } catch (error: any) {
+        // Agent was deleted from Letta - clear from DB and create new one
+        if (error?.status === 404 || error?.message?.includes('not found')) {
+          console.warn(`World Agent ${world.worldAgentId} not found in Letta, will create new one`);
+          if (this.db) {
+            await this.db.world.update({
+              where: { id: worldId },
+              data: { worldAgentId: null },
+            });
+          }
+          // Fall through to create new agent
+        } else {
+          throw error;
+        }
+      }
     }
 
     console.log(`Creating World Agent for world ${worldId} (${world.name})`);
