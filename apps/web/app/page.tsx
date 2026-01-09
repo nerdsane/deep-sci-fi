@@ -13,6 +13,13 @@ import { ToastContainer, AgentStatus } from '@/components/canvas/feedback';
 import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType } from '@/components/canvas/interaction';
 import { AgentSuggestions, type AgentSuggestion, type Suggestion } from '@/components/canvas/agent';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import {
+  UnifiedWSClient,
+  type StreamChunk,
+  type CanvasUIMessage,
+  type SuggestionPayload,
+  type ConnectedClient,
+} from '@/lib/unified-ws-client';
 
 // ============================================================================
 // Types
@@ -41,6 +48,9 @@ interface AppState {
   useImmersiveWorld: boolean;
   pendingExperience: { storyId: string; spec: any } | null;
   agentSuggestions: AgentSuggestion[];
+  // WebSocket state
+  wsConnected: boolean;
+  cliConnected: boolean;
 }
 
 // ============================================================================
@@ -62,28 +72,158 @@ function App() {
     useImmersiveWorld: true,
     pendingExperience: null,
     agentSuggestions: [],
+    wsConnected: false,
+    cliConnected: false,
   });
 
   const feedback = useFeedbackSafe();
+  const wsClientRef = useRef<UnifiedWSClient | null>(null);
 
-  // ESC key handler for fullscreen modes
+  // ============================================================================
+  // WebSocket Connection
+  // ============================================================================
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (state.fullscreenUI) {
-          setState(s => ({ ...s, fullscreenUI: null }));
-        }
+    // Create WebSocket client
+    const wsClient = new UnifiedWSClient();
+    wsClientRef.current = wsClient;
+
+    // Connection handlers
+    wsClient.onConnect = (clientId, sessionId, clients) => {
+      console.log('[App] WebSocket connected:', clientId);
+      const hasCli = clients.some((c) => c.type === 'cli');
+      setState((s) => ({ ...s, wsConnected: true, cliConnected: hasCli }));
+      feedback?.showToast('Connected to agent', 'success');
+    };
+
+    wsClient.onDisconnect = () => {
+      console.log('[App] WebSocket disconnected');
+      setState((s) => ({ ...s, wsConnected: false }));
+    };
+
+    wsClient.onError = (error) => {
+      console.error('[App] WebSocket error:', error);
+      feedback?.showToast(`Connection error: ${error}`, 'warning');
+    };
+
+    // Client join/leave handlers
+    wsClient.onClientJoined = (client) => {
+      console.log('[App] Client joined:', client);
+      if (client.type === 'cli') {
+        setState((s) => ({ ...s, cliConnected: true }));
+        feedback?.showToast('CLI connected - chat sidebar hidden', 'info');
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state.fullscreenUI]);
+    wsClient.onClientLeft = (clientId, clientType) => {
+      console.log('[App] Client left:', clientId, clientType);
+      if (clientType === 'cli') {
+        setState((s) => ({ ...s, cliConnected: false }));
+        feedback?.showToast('CLI disconnected', 'info');
+      }
+    };
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
+    // State change handler
+    wsClient.onStateChange = (event, data) => {
+      console.log('[App] State change:', event, data);
+      switch (event) {
+        case 'agent_thinking':
+          setState((s) => ({
+            ...s,
+            agentThinking: true,
+            agentAction: data.message || 'Processing...',
+          }));
+          break;
+        case 'agent_done':
+          setState((s) => ({ ...s, agentThinking: false, agentAction: undefined }));
+          break;
+        case 'story_started':
+        case 'story_continued':
+          // Refresh data when story changes
+          loadData();
+          break;
+      }
+    };
+
+    // Canvas UI handler
+    wsClient.onCanvasUI = (message) => {
+      console.log('[App] Canvas UI:', message);
+      handleCanvasUI(message);
+    };
+
+    // Suggestion handler
+    wsClient.onSuggestion = (suggestion) => {
+      console.log('[App] Suggestion:', suggestion);
+      setState((s) => ({
+        ...s,
+        agentSuggestions: [
+          ...s.agentSuggestions.filter((sug) => sug.id !== suggestion.id),
+          {
+            id: suggestion.id,
+            title: suggestion.title,
+            description: suggestion.description,
+            priority: suggestion.priority,
+            actionId: suggestion.actionId,
+            actionLabel: suggestion.actionLabel,
+            actionData: suggestion.actionData,
+          },
+        ].slice(-10), // Keep last 10
+      }));
+    };
+
+    // Connect
+    wsClient.connect().catch((err) => {
+      console.error('[App] Failed to connect:', err);
+    });
+
+    // Cleanup
+    return () => {
+      wsClient.disconnect();
+    };
+  }, [feedback]);
+
+  // ============================================================================
+  // Canvas UI Handling
+  // ============================================================================
+
+  function handleCanvasUI(message: CanvasUIMessage) {
+    const { action, componentId, spec, mode } = message;
+
+    setState((s) => {
+      const newAgentUI = new Map(s.agentUI);
+
+      switch (action) {
+        case 'create':
+        case 'update':
+          if (spec) {
+            if (mode === 'fullscreen') {
+              return {
+                ...s,
+                fullscreenUI: { componentId, spec: spec as ComponentSpec, mode },
+              };
+            }
+            newAgentUI.set(componentId, {
+              componentId,
+              spec: spec as ComponentSpec,
+              mode: mode || 'overlay',
+            });
+          }
+          break;
+        case 'remove':
+          newAgentUI.delete(componentId);
+          if (s.fullscreenUI?.componentId === componentId) {
+            return { ...s, fullscreenUI: null, agentUI: newAgentUI };
+          }
+          break;
+      }
+
+      return { ...s, agentUI: newAgentUI };
+    });
+  }
+
+  // ============================================================================
+  // Data Loading
+  // ============================================================================
 
   async function loadData() {
     try {
@@ -94,8 +234,8 @@ function App() {
         fetch('/api/stories'),
       ]);
 
-      const worlds = await worldsRes.json() as World[];
-      const stories = await storiesRes.json() as Story[];
+      const worlds = (await worldsRes.json()) as World[];
+      const stories = (await storiesRes.json()) as Story[];
 
       setState((s) => ({
         ...s,
@@ -111,6 +251,29 @@ function App() {
       }));
     }
   }
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // ESC key handler for fullscreen modes
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (state.fullscreenUI) {
+          setState((s) => ({ ...s, fullscreenUI: null }));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.fullscreenUI]);
+
+  // ============================================================================
+  // Navigation
+  // ============================================================================
 
   function selectWorld(world: World) {
     setState((s) => ({
@@ -130,7 +293,12 @@ function App() {
 
   function goBack() {
     if (state.view === 'story') {
-      setState((s) => ({ ...s, view: 'world', pendingExperience: null, agentThinking: false }));
+      setState((s) => ({
+        ...s,
+        view: 'world',
+        pendingExperience: null,
+        agentThinking: false,
+      }));
     } else if (state.view === 'world') {
       setState((s) => ({ ...s, view: 'canvas', selectedWorld: null }));
     }
@@ -147,6 +315,10 @@ function App() {
     }));
   }
 
+  // ============================================================================
+  // Interaction Handlers
+  // ============================================================================
+
   function handleDynamicUIInteraction(
     componentId: string,
     interactionType: string,
@@ -154,35 +326,65 @@ function App() {
     target?: string
   ) {
     console.log('[Dynamic UI] Interaction:', { componentId, interactionType, data, target });
+
+    // Send interaction via WebSocket
+    wsClientRef.current?.sendInteraction(componentId, interactionType, data, target);
   }
 
-  function handleElementAction(actionId: string, elementId: string, elementType: ElementType, elementData?: any) {
+  function handleElementAction(
+    actionId: string,
+    elementId: string,
+    elementType: ElementType,
+    elementData?: any
+  ) {
     console.log('[Canvas] Element action:', { actionId, elementId, elementType });
     feedback?.showToast(`Action: ${actionId}`, 'agent');
-    setState(s => ({ ...s, agentThinking: true, agentAction: `Processing ${actionId}...` }));
+
+    // Send as interaction
+    wsClientRef.current?.sendInteraction(elementId, 'element_action', {
+      actionId,
+      elementType,
+      ...elementData,
+    });
   }
 
   function handleSuggestionAccept(suggestion: Suggestion) {
     console.log('[Canvas] Suggestion accepted:', suggestion);
     feedback?.showToast(`Working on: ${suggestion.title}`, 'agent');
-    setState(s => ({ ...s, agentThinking: true, agentAction: suggestion.action }));
+
+    // Send as interaction
+    wsClientRef.current?.sendInteraction('suggestions', 'suggestion_accept', {
+      suggestionId: suggestion.id || suggestion.title,
+      action: suggestion.action,
+    });
+
+    // Remove from list
+    setState((s) => ({
+      ...s,
+      agentSuggestions: s.agentSuggestions.filter(
+        (sug) => sug.id !== suggestion.id && sug.title !== suggestion.title
+      ),
+    }));
   }
 
   function handleSuggestionDismiss(suggestionId: string) {
     console.log('[Canvas] Suggestion dismissed:', suggestionId);
+    setState((s) => ({
+      ...s,
+      agentSuggestions: s.agentSuggestions.filter((sug) => sug.id !== suggestionId),
+    }));
   }
 
-  // Handle messages from chat
-  function handleChatMessage(message: string) {
-    console.log('[Chat] Message sent:', message);
-    setState(s => ({ ...s, agentThinking: true, agentAction: 'Processing...' }));
-    // This will be connected to the Letta agent API
-  }
+  // ============================================================================
+  // Render
+  // ============================================================================
 
   if (state.loading) {
     return (
       <div className="app-layout">
-        <ChatSidebar onSendMessage={handleChatMessage} />
+        {!state.cliConnected && (
+          <ChatSidebar wsClient={wsClientRef.current} />
+        )}
         <div className="canvas-container">
           <LoadingScreen />
         </div>
@@ -193,7 +395,9 @@ function App() {
   if (state.error) {
     return (
       <div className="app-layout">
-        <ChatSidebar onSendMessage={handleChatMessage} />
+        {!state.cliConnected && (
+          <ChatSidebar wsClient={wsClientRef.current} />
+        )}
         <div className="canvas-container">
           <ErrorScreen error={state.error} onRetry={loadData} />
         </div>
@@ -203,7 +407,18 @@ function App() {
 
   return (
     <div className="app-layout">
-      <ChatSidebar onSendMessage={handleChatMessage} />
+      {/* Chat sidebar - hidden when CLI is connected */}
+      {!state.cliConnected && (
+        <ChatSidebar wsClient={wsClientRef.current} />
+      )}
+
+      {/* CLI connected indicator */}
+      {state.cliConnected && (
+        <div className="cli-indicator">
+          <span className="cli-dot" />
+          <span>CLI Connected</span>
+        </div>
+      )}
 
       <div className="canvas-container">
         <div className="app">
@@ -213,13 +428,11 @@ function App() {
             selectedStory={state.selectedStory}
             onBack={goBack}
             onHome={goHome}
+            wsConnected={state.wsConnected}
           />
 
           {/* Agent status indicator */}
-          <AgentStatus
-            isThinking={state.agentThinking}
-            action={state.agentAction}
-          />
+          <AgentStatus isThinking={state.agentThinking} action={state.agentAction} />
 
           <main className="main-content">
             {state.view === 'canvas' && (
@@ -259,6 +472,44 @@ function App() {
             )}
           </main>
 
+          {/* Overlay UI from agent */}
+          {Array.from(state.agentUI.values())
+            .filter((entry) => entry.mode === 'overlay')
+            .map((entry) => (
+              <div key={entry.componentId} className="agent-overlay-ui">
+                <DynamicRenderer
+                  spec={entry.spec}
+                  onInteraction={(
+                    _componentId: string,
+                    interactionType: string,
+                    data: any,
+                    target?: string
+                  ) => handleDynamicUIInteraction(entry.componentId, interactionType, data, target)}
+                />
+              </div>
+            ))}
+
+          {/* Fullscreen UI from agent */}
+          {state.fullscreenUI && (
+            <div className="agent-fullscreen-ui">
+              <button
+                className="fullscreen-close"
+                onClick={() => setState((s) => ({ ...s, fullscreenUI: null }))}
+              >
+                ✕ Close
+              </button>
+              <DynamicRenderer
+                spec={state.fullscreenUI.spec}
+                onInteraction={(
+                  _componentId: string,
+                  interactionType: string,
+                  data: any,
+                  target?: string
+                ) => handleDynamicUIInteraction(state.fullscreenUI!.componentId, interactionType, data, target)}
+              />
+            </div>
+          )}
+
           {/* Agent Suggestions */}
           <AgentSuggestions
             world={state.selectedWorld}
@@ -288,19 +539,21 @@ function Header({
   selectedStory,
   onBack,
   onHome,
+  wsConnected,
 }: {
   view: View;
   selectedWorld: World | null;
   selectedStory: Story | null;
   onBack: () => void;
   onHome: () => void;
+  wsConnected: boolean;
 }) {
   return (
     <header className="header">
       <div className="header-left">
         <div className="logo" onClick={onHome}>
           <pre className="logo-ascii">
-{`██████╗ ███████╗███████╗██████╗
+            {`██████╗ ███████╗███████╗██████╗
 ██╔══██╗██╔════╝██╔════╝██╔══██╗
 ██║  ██║█████╗  █████╗  ██████╔╝
 ██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
@@ -322,15 +575,14 @@ function Header({
       </div>
 
       <nav className="breadcrumb">
+        <span className={`ws-status ${wsConnected ? 'ws-connected' : 'ws-disconnected'}`} />
         <span className="breadcrumb-item" onClick={onHome}>
           Canvas
         </span>
         {selectedWorld && (
           <>
             <span className="breadcrumb-separator">/</span>
-            <span className="breadcrumb-item">
-              {getWorldTitle(selectedWorld)}
-            </span>
+            <span className="breadcrumb-item">{getWorldTitle(selectedWorld)}</span>
           </>
         )}
         {selectedStory && (
@@ -357,7 +609,12 @@ function StoryView({
   story: Story;
   agentUI: Map<string, AgentUIEntry>;
   onInteraction: (componentId: string, interactionType: string, data: any, target?: string) => void;
-  onElementAction?: (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => void;
+  onElementAction?: (
+    actionId: string,
+    elementId: string,
+    elementType: ElementType,
+    elementData?: any
+  ) => void;
 }) {
   const segments = story.segments || [];
   const [activeSegmentIndex, setActiveSegmentIndex] = useState(Math.max(0, segments.length - 1));
@@ -398,9 +655,7 @@ function StoryView({
                 <span className="segment-word-count">{segment.word_count} words</span>
               </div>
 
-              <div className="segment-text">
-                {segment.content}
-              </div>
+              <div className="segment-text">{segment.content}</div>
             </div>
           )}
         </>
@@ -437,7 +692,11 @@ function ErrorScreen({ error, onRetry }: { error: string; onRetry: () => void })
 // ============================================================================
 
 function getWorldTitle(world: World): string {
-  if (world.surface?.visible_elements && world.surface.visible_elements.length > 0 && world.surface.visible_elements[0]?.name) {
+  if (
+    world.surface?.visible_elements &&
+    world.surface.visible_elements.length > 0 &&
+    world.surface.visible_elements[0]?.name
+  ) {
     return world.surface.visible_elements[0].name;
   }
   const premise = world.foundation?.core_premise || 'Untitled World';
@@ -450,11 +709,13 @@ function getWorldCheckpointName(world: World): string {
     return (world as any).checkpoint_name;
   }
   const premise = world.foundation?.core_premise || '';
-  return premise
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-    .substring(0, 30) || 'unnamed_world';
+  return (
+    premise
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .substring(0, 30) || 'unnamed_world'
+  );
 }
 
 // ============================================================================

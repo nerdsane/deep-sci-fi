@@ -30,6 +30,29 @@ else
     echo -e "${YELLOW}⚠ Next.js was not running${NC}"
 fi
 
+# Stop WebSocket server
+echo ""
+echo -e "${YELLOW}Stopping WebSocket server...${NC}"
+WS_PID_FILE="$SCRIPT_DIR/apps/web/.ws.pid"
+if [ -f "$WS_PID_FILE" ]; then
+    WS_PID=$(cat "$WS_PID_FILE")
+    if kill -0 $WS_PID 2>/dev/null; then
+        kill $WS_PID 2>/dev/null
+        echo -e "${GREEN}✓ WebSocket server stopped (PID: $WS_PID)${NC}"
+    else
+        echo -e "${YELLOW}⚠ WebSocket server was not running${NC}"
+    fi
+    rm -f "$WS_PID_FILE"
+else
+    # Try to find and kill by process name
+    if pgrep -f "ws-server.ts" > /dev/null; then
+        pkill -f "ws-server.ts" 2>/dev/null
+        echo -e "${GREEN}✓ WebSocket server stopped${NC}"
+    else
+        echo -e "${YELLOW}⚠ WebSocket server was not running${NC}"
+    fi
+fi
+
 # Stop Letta containers
 echo ""
 echo -e "${YELLOW}Stopping Letta server containers...${NC}"
