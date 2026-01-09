@@ -223,16 +223,16 @@ if [ -f ".ui.pid" ]; then
     rm -f .ui.pid
 fi
 
-# Start Letta UI in background on port 3002 (3001 reserved for Next.js fallback)
-LETTA_BASE_URL=http://localhost:8283 PORT=3002 bun run dev > .ui.log 2>&1 &
+# Start Letta UI in background on port 4000 (far from Next.js 3000+ range)
+LETTA_BASE_URL=http://localhost:8283 PORT=4000 bun run dev > .ui.log 2>&1 &
 UI_PID=$!
 echo $UI_PID > .ui.pid
 print_success "Letta UI starting (PID: $UI_PID)..."
 
 # Wait for Letta UI to be ready
 for i in {1..10}; do
-    if curl -s http://localhost:3002 > /dev/null 2>&1; then
-        print_success "Letta UI ready on localhost:3002"
+    if curl -s http://localhost:4000 > /dev/null 2>&1; then
+        print_success "Letta UI ready on localhost:4000"
         break
     fi
     if [ $i -eq 10 ]; then
@@ -253,7 +253,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  🌌 Deep Sci-Fi is starting..."
 echo ""
 echo "  Web App:        http://localhost:3000"
-echo "  Letta UI:       http://localhost:3002"
+echo "  Letta UI:       http://localhost:4000"
 echo "  WebSocket:      ws://localhost:8284"
 echo "  Letta Server:   http://localhost:8283"
 echo "  PostgreSQL:     localhost:5432"
