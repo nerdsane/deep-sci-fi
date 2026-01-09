@@ -46,6 +46,74 @@ export interface WorldManagerResult {
 }
 
 // ============================================================================
+// World Structure Helpers
+// ============================================================================
+
+/**
+ * Ensure world data has the minimum required structure for display
+ * This helps the agent create complete worlds that render properly in the UI
+ */
+function ensureWorldStructure(worldData: any): any {
+  const data = { ...worldData };
+
+  // Ensure foundation structure
+  if (!data.foundation) {
+    data.foundation = {};
+  }
+  data.foundation = {
+    core_premise: data.foundation.core_premise || data.foundation.premise || data.premise || '',
+    rules: data.foundation.rules || [],
+    deep_focus_areas: data.foundation.deep_focus_areas || [],
+    technology: data.foundation.technology || {},
+    history: data.foundation.history || {},
+    geography: data.foundation.geography || {},
+    culture: data.foundation.culture || {},
+    working_notes: data.foundation.working_notes || { contradictions: [], research_needed: [], open_questions: [] },
+    ...data.foundation,
+  };
+
+  // Ensure surface structure
+  if (!data.surface) {
+    data.surface = {};
+  }
+  data.surface = {
+    visible_elements: data.surface.visible_elements || [],
+    opening_scene: data.surface.opening_scene || '',
+    revealed_in_story: data.surface.revealed_in_story || [],
+    ...data.surface,
+  };
+
+  // Ensure changelog
+  if (!data.changelog) {
+    data.changelog = [];
+  }
+
+  return data;
+}
+
+/**
+ * Log a warning if the world structure is incomplete
+ * Helps identify when agents need better prompting
+ */
+function validateWorldCompleteness(worldData: any, worldName: string): void {
+  const warnings: string[] = [];
+
+  if (!worldData.surface?.visible_elements?.length) {
+    warnings.push('No visible_elements (characters, locations, technologies)');
+  }
+  if (!worldData.surface?.opening_scene) {
+    warnings.push('No opening_scene');
+  }
+  if (!worldData.foundation?.rules?.length) {
+    warnings.push('No foundation rules');
+  }
+
+  if (warnings.length > 0) {
+    console.warn(`[world_manager] World "${worldName}" is incomplete:`, warnings.join(', '));
+  }
+}
+
+// ============================================================================
 // Main Entry Point
 // ============================================================================
 
@@ -152,26 +220,27 @@ async function createWorld(
 
   try {
     // Ensure world_data has required foundation fields
-    const foundation = params.world_data;
-    if (!foundation.premise) {
+    const rawData = params.world_data;
+    if (!rawData.premise && !rawData.foundation?.premise && !rawData.foundation?.core_premise) {
       return {
         success: false,
-        message: 'world_data.premise is required',
+        message: 'world_data.premise (or foundation.core_premise) is required',
       };
     }
 
+    // Ensure complete world structure with defaults
+    const worldData = ensureWorldStructure(rawData);
+
+    // Log warning if world is incomplete (helps debug prompting issues)
+    validateWorldCompleteness(worldData, params.name!);
+
     // Create world in database
-    // surface field is required by schema - initialize with empty structure
     const world = await context.db.world.create({
       data: {
-        name: params.name.trim(),
-        description: params.description || `A sci-fi world: ${foundation.premise.substring(0, 100)}...`,
-        foundation: foundation,
-        surface: params.world_data.surface || {
-          opening_scene: null,
-          visible_elements: [],
-          revealed_in_story: [],
-        },
+        name: params.name!.trim(),
+        description: params.description || `A sci-fi world: ${(worldData.foundation.core_premise || worldData.premise || '').substring(0, 100)}...`,
+        foundation: worldData.foundation,
+        surface: worldData.surface,
         ownerId: context.userId,
       },
       select: {
@@ -179,6 +248,7 @@ async function createWorld(
         name: true,
         description: true,
         foundation: true,
+        surface: true,
         updatedAt: true,
       },
     });
@@ -229,11 +299,18 @@ async function saveWorld(
   }
 
   try {
+    // Ensure complete world structure with defaults
+    const worldData = ensureWorldStructure(params.world_data);
+
+    // Log warning if world is incomplete (helps debug prompting issues)
+    validateWorldCompleteness(worldData, currentWorld.name);
+
     // Update world in database
     const updatedWorld = await db.world.update({
       where: { id: params.world_id },
       data: {
-        foundation: params.world_data,
+        foundation: worldData.foundation,
+        surface: worldData.surface,
         updatedAt: new Date(),
       },
       select: {
@@ -241,6 +318,7 @@ async function saveWorld(
         name: true,
         description: true,
         foundation: true,
+        surface: true,
         updatedAt: true,
       },
     });
