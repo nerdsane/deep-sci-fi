@@ -64,12 +64,21 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
 
 /**
  * Get client tools for User Agent
+ *
+ * User Agent (Orchestrator) has tools for:
+ * - Generating world drafts
+ * - Creating and managing worlds (via world_manager with create operation)
+ * - Listing existing worlds
+ * - Managing user preferences
+ * - Delegating to Experience Agent for images and multimedia
  */
 export function getUserAgentClientTools(): ClientTool[] {
   return [
     worldDraftGeneratorTool,
+    worldManagerTool,
     listWorldsTool,
     userPreferencesTool,
+    delegateToExperienceTool,
   ];
 }
 

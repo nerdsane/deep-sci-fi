@@ -18,9 +18,11 @@ import type { PrismaClient } from '@deep-sci-fi/db';
 // ============================================================================
 
 export interface WorldManagerParams {
-  operation: 'save' | 'load' | 'update';
-  world_id: string; // Database world ID (cuid)
-  world_data?: any; // For save operation - full world foundation data
+  operation: 'create' | 'save' | 'load' | 'update';
+  world_id?: string; // Database world ID (cuid) - required for save/load/update, not for create
+  name?: string; // For create operation
+  description?: string; // For create operation
+  world_data?: any; // For save/create operation - full world foundation data
   updates?: Array<{
     path: string; // Dot-notation path (e.g., "rules.0.statement")
     operation: 'add' | 'update' | 'remove';
@@ -51,13 +53,26 @@ export async function world_manager(
   context: { userId: string; db: PrismaClient }
 ): Promise<WorldManagerResult> {
   try {
-    console.log(`[world_manager] Operation: ${params.operation} for world ${params.world_id}`);
+    console.log(`[world_manager] Operation: ${params.operation}${params.world_id ? ` for world ${params.world_id}` : ''}`);
 
     // Validate operation
-    if (!['save', 'load', 'update'].includes(params.operation)) {
+    if (!['create', 'save', 'load', 'update'].includes(params.operation)) {
       return {
         success: false,
-        message: `Invalid operation: ${params.operation}. Valid operations: save, load, update`,
+        message: `Invalid operation: ${params.operation}. Valid operations: create, save, load, update`,
+      };
+    }
+
+    // Handle create operation separately (doesn't need existing world)
+    if (params.operation === 'create') {
+      return await createWorld(params, context);
+    }
+
+    // For other operations, world_id is required
+    if (!params.world_id) {
+      return {
+        success: false,
+        message: `world_id is required for ${params.operation} operation`,
       };
     }
 
@@ -107,6 +122,79 @@ export async function world_manager(
     return {
       success: false,
       message: `Error in world_manager: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+// ============================================================================
+// Operation: Create
+// ============================================================================
+
+async function createWorld(
+  params: WorldManagerParams,
+  context: { userId: string; db: PrismaClient }
+): Promise<WorldManagerResult> {
+  // Validate required fields for create
+  if (!params.name?.trim()) {
+    return {
+      success: false,
+      message: 'name is required for create operation',
+    };
+  }
+
+  if (!params.world_data) {
+    return {
+      success: false,
+      message: 'world_data is required for create operation (foundation data for the world)',
+    };
+  }
+
+  try {
+    // Ensure world_data has required foundation fields
+    const foundation = params.world_data;
+    if (!foundation.premise) {
+      return {
+        success: false,
+        message: 'world_data.premise is required',
+      };
+    }
+
+    // Create world in database
+    const world = await context.db.world.create({
+      data: {
+        name: params.name.trim(),
+        description: params.description || `A sci-fi world: ${foundation.premise.substring(0, 100)}...`,
+        foundation: foundation,
+        ownerId: context.userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        foundation: true,
+        updatedAt: true,
+      },
+    });
+
+    console.log(`[world_manager] World created: ${world.id} (${world.name})`);
+
+    return {
+      success: true,
+      message: `World "${world.name}" created successfully!\nWorld ID: ${world.id}\nYou can now enter this world to develop it further.`,
+      world: {
+        id: world.id,
+        name: world.name,
+        description: world.description,
+        foundation: world.foundation,
+        version: 1,
+        updatedAt: world.updatedAt,
+      },
+    };
+  } catch (error) {
+    console.error('[world_manager] Create failed:', error);
+    return {
+      success: false,
+      message: `Failed to create world: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
@@ -345,22 +433,52 @@ function applyUpdate(foundation: any, update: { path: string; operation: string;
 
 export const worldManagerTool = {
   name: 'world_manager',
-  description: 'Manage world data in the database. Operations: save (persist world), load (retrieve world), update (incremental changes with path-based operations)',
+  description: 'Manage world data in the database. Operations: create (new world from draft), save (persist world), load (retrieve world), update (incremental changes with path-based operations)',
   parameters: {
     type: 'object',
     properties: {
       operation: {
         type: 'string',
-        enum: ['save', 'load', 'update'],
-        description: 'Operation to perform: save, load, or update',
+        enum: ['create', 'save', 'load', 'update'],
+        description: 'Operation to perform: create (new world), save, load, or update',
       },
       world_id: {
         type: 'string',
-        description: 'Database ID of the world (cuid)',
+        description: 'Database ID of the world (cuid) - required for save/load/update, not needed for create',
+      },
+      name: {
+        type: 'string',
+        description: 'Name of the world (required for create operation)',
+      },
+      description: {
+        type: 'string',
+        description: 'Brief description of the world (optional for create, auto-generated if not provided)',
       },
       world_data: {
         type: 'object',
-        description: 'Full world foundation data (for save operation)',
+        description: 'Full world foundation data (required for create and save operations). Should include: premise, technology, society, and optionally physics and history',
+        properties: {
+          premise: {
+            type: 'string',
+            description: 'The core concept or "what if" that defines this world',
+          },
+          technology: {
+            type: 'string',
+            description: 'The level and nature of technology in this world',
+          },
+          society: {
+            type: 'string',
+            description: 'Social structures, governance, culture',
+          },
+          physics: {
+            type: 'string',
+            description: 'Any unique physical laws or phenomena (optional)',
+          },
+          history: {
+            type: 'string',
+            description: 'Key historical events that shaped this world (optional)',
+          },
+        },
       },
       updates: {
         type: 'array',
@@ -389,6 +507,6 @@ export const worldManagerTool = {
         },
       },
     },
-    required: ['operation', 'world_id'],
+    required: ['operation'],
   },
 };
