@@ -25,6 +25,45 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 
 **This verification happens automatically after task completion. User can also trigger it manually with `/no-cap` command.**
 
+## Vision-Aligned Planning (CRITICAL)
+
+**For ANY non-trivial task (3+ steps, multi-file, or research required), use the vision-aligned planning workflow:**
+
+### Directories
+
+```
+.vision/     → Project vision documents (long-lived north star)
+.progress/   → Timestamped task plans (per-task tracking)
+```
+
+### Workflow
+
+1. **Check vision** - Read `.vision/*.md` if exists before planning
+2. **Create plan** - `.progress/YYYYMMDD_HHMMSS_task-name.md`
+3. **Execute with checkpoints** - Update plan after each phase
+4. **Verify** - Run `/no-cap` before marking complete
+5. **Update status** - Mark complete, document deviations if any
+
+### Vision Interview
+
+If no `.vision/` folder exists and user starts a significant project:
+- Offer to interview them to create vision files
+- Ask about product goals, technical approach, constraints
+- Create structured `.vision/` files from responses
+
+### Multi-Instance Coordination
+
+When multiple Claude instances collaborate:
+- Read `.progress/` before starting
+- Claim phases in Instance Log section
+- Update status frequently
+- Share discoveries in findings section
+
+### Commands
+
+- `/vision-aligned-planning` - Start planning workflow for current task
+- `/no-cap` - Verify implementation quality
+
 ## Git Workflow (IMPORTANT)
 
 **After implementing any fix, change, or feature that has been discussed and completed:**
