@@ -76,8 +76,8 @@ services:
   # Web App (Next.js frontend)
   web-app:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     container_name: dsf-web-app
     restart: always
     depends_on:
@@ -100,8 +100,8 @@ services:
   # WebSocket Server
   websocket:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile.ws
+      context: .
+      dockerfile: apps/web/Dockerfile.ws
     container_name: dsf-websocket
     restart: always
     environment:
