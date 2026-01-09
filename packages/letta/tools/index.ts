@@ -101,25 +101,35 @@ export {
 };
 
 /**
- * All User Agent tool definitions for Letta SDK registration
+ * Get User Agent tool definitions for Letta SDK registration
+ * (Function instead of const to avoid circular dependency issues)
  */
-export const userAgentTools = [
-  worldManagerTool,
-  listWorldsTool,
-  userPreferencesTool,
-  delegateToExperienceTool,
-];
+export function getUserAgentTools() {
+  return [
+    worldManagerTool,
+    listWorldsTool,
+    userPreferencesTool,
+    delegateToExperienceTool,
+  ];
+}
 
 /**
- * All World Agent tool definitions for Letta SDK registration
+ * Get World Agent tool definitions for Letta SDK registration
+ * (Function instead of const to avoid circular dependency issues)
  */
-export const worldAgentTools = [
-  worldManagerTool,
-  storyManagerTool,
-  imageGeneratorTool,
-  assetManagerTool,
-  canvasUiTool,
-  getCanvasInteractionsTool,
-  sendSuggestionTool,
-  delegateToExperienceTool,
-];
+export function getWorldAgentTools() {
+  return [
+    worldManagerTool,
+    storyManagerTool,
+    imageGeneratorTool,
+    assetManagerTool,
+    canvasUiTool,
+    getCanvasInteractionsTool,
+    sendSuggestionTool,
+    delegateToExperienceTool,
+  ];
+}
+
+// Legacy aliases for backwards compatibility
+export { getUserAgentTools as userAgentTools };
+export { getWorldAgentTools as worldAgentTools };
