@@ -9,9 +9,11 @@ import type Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
 import {
   getOrCreateExperienceAgent,
+  getExperienceAgentTools,
   type ExperienceAgentConfig,
   type ExperienceAgentContext,
 } from '../agents/experience-agent';
+import { executeTool, type ToolContext } from './executor';
 
 // ============================================================================
 // Types
@@ -220,25 +222,140 @@ export async function delegate_to_experience(
     // Build message for Experience Agent
     const taskMessage = buildTaskMessage(params);
 
-    // Send task to Experience Agent and wait for response
-    const response = await context.lettaClient.agents.messages.create(experienceAgentId, {
-      messages: [{ role: 'user', content: taskMessage }],
-      streaming: false,
-    });
+    // Get client tools for Experience Agent
+    const clientTools = getExperienceAgentTools();
 
-    console.log(`[delegate_to_experience] Experience Agent responded`);
+    // Tool execution context for Experience Agent tools
+    const toolContext: ToolContext = {
+      userId: context.userId,
+      db: context.db,
+      worldId: worldId,
+      storyId: context.storyId,
+      worldName,
+      lettaClient: context.lettaClient,
+    };
 
-    // Extract response content
+    // Send task to Experience Agent with approval handling loop
     let responseText = '';
-    if (response && 'messages' in response && Array.isArray(response.messages)) {
-      for (const msg of response.messages) {
-        if (msg && typeof msg === 'object' && 'message_type' in msg) {
-          if (msg.message_type === 'assistant_message' && 'assistant_message' in msg) {
-            responseText += msg.assistant_message + '\n';
+    let currentInput: any = [{ role: 'user', content: taskMessage }];
+    let loopCount = 0;
+    const maxLoops = 10;
+
+    while (loopCount < maxLoops) {
+      loopCount++;
+      const approvalRequests = new Map<string, { toolName: string; args: string }>();
+      let stopReason: string | undefined;
+
+      console.log(`[delegate_to_experience] Sending message to Experience Agent (loop ${loopCount})`);
+
+      // Stream from Experience Agent to capture all message types
+      const stream = await context.lettaClient.agents.messages.create(experienceAgentId, {
+        messages: currentInput,
+        streaming: true,
+        stream_tokens: true,
+        client_tools: clientTools,
+      });
+
+      // Process stream chunks
+      for await (const chunk of stream) {
+        if (!chunk || typeof chunk !== 'object') continue;
+
+        const chunkAny = chunk as any;
+        const messageType = chunkAny.message_type;
+
+        switch (messageType) {
+          case 'stop_reason':
+            stopReason = chunkAny.stop_reason;
+            break;
+
+          case 'assistant_message': {
+            let content = '';
+            if (typeof chunkAny.content === 'string') {
+              content = chunkAny.content;
+            } else if (Array.isArray(chunkAny.content)) {
+              for (const part of chunkAny.content) {
+                if (part?.type === 'text' && part.text) {
+                  content += part.text;
+                }
+              }
+            }
+            if (content) {
+              responseText += content;
+            }
+            break;
+          }
+
+          case 'approval_request_message': {
+            const toolCall = chunkAny.tool_call ||
+              (Array.isArray(chunkAny.tool_calls) && chunkAny.tool_calls[0]);
+            if (toolCall?.tool_call_id && toolCall?.name) {
+              const existing = approvalRequests.get(toolCall.tool_call_id);
+              approvalRequests.set(toolCall.tool_call_id, {
+                toolName: toolCall.name,
+                args: (existing?.args || '') + (toolCall.arguments || ''),
+              });
+              console.log(`[delegate_to_experience] Tool needs approval: ${toolCall.name}`);
+            }
+            break;
+          }
+
+          case 'tool_call_message': {
+            const toolCall = chunkAny.tool_call ||
+              (Array.isArray(chunkAny.tool_calls) && chunkAny.tool_calls[0]);
+            if (toolCall) {
+              console.log(`[delegate_to_experience] Tool call: ${toolCall.name}`);
+            }
+            break;
           }
         }
       }
+
+      console.log(`[delegate_to_experience] Stream complete. Stop reason: ${stopReason}, Approvals: ${approvalRequests.size}`);
+
+      // End of turn - break
+      if (stopReason === 'end_turn') {
+        break;
+      }
+
+      // Requires approval - execute tools and continue
+      if (stopReason === 'requires_approval' && approvalRequests.size > 0) {
+        const approvalResults = [];
+
+        for (const [toolCallId, { toolName, args }] of approvalRequests.entries()) {
+          console.log(`[delegate_to_experience] Executing tool: ${toolName}`);
+
+          try {
+            const parsedArgs = args ? JSON.parse(args) : {};
+            const result = await executeTool(toolName, parsedArgs, toolContext);
+
+            console.log(`[delegate_to_experience] Tool ${toolName} completed successfully`);
+            approvalResults.push({
+              type: 'tool',
+              tool_call_id: toolCallId,
+              tool_return: JSON.stringify(result),
+              status: 'success',
+            });
+          } catch (error) {
+            console.error(`[delegate_to_experience] Tool ${toolName} failed:`, error);
+            approvalResults.push({
+              type: 'tool',
+              tool_call_id: toolCallId,
+              tool_return: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              status: 'error',
+            });
+          }
+        }
+
+        // Send approval results back and continue loop
+        currentInput = [{ type: 'approval', approvals: approvalResults }] as any;
+        continue;
+      }
+
+      // Unknown stop reason - break
+      break;
     }
+
+    console.log(`[delegate_to_experience] Experience Agent completed after ${loopCount} loops`);
 
     // Update delegation status
     delegation.status = 'completed';
