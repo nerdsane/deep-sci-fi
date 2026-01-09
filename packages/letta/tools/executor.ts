@@ -16,7 +16,16 @@ import { asset_manager, assetManagerTool } from './asset-manager';
 import { canvas_ui, canvasUiTool } from './canvas-ui';
 import { get_canvas_interactions, getCanvasInteractionsTool } from './get-canvas-interactions';
 import { send_suggestion, sendSuggestionTool } from './send-suggestion';
-import { delegate_to_experience, delegateToExperienceTool } from './delegate-to-experience';
+import { delegate_to_experience } from './delegate-to-experience';
+
+// Lazy import delegateToExperienceTool to avoid circular dependency
+let _delegateToExperienceTool: any = null;
+function getDelegateToExperienceTool() {
+  if (!_delegateToExperienceTool) {
+    _delegateToExperienceTool = require('./delegate-to-experience').delegateToExperienceTool;
+  }
+  return _delegateToExperienceTool;
+}
 
 /**
  * Tool execution context
@@ -74,7 +83,7 @@ export function getUserAgentClientTools(): ClientTool[] {
     worldManagerTool,
     listWorldsTool,
     userPreferencesTool,
-    delegateToExperienceTool,
+    getDelegateToExperienceTool(),
   ];
 }
 
@@ -90,7 +99,7 @@ export function getWorldAgentClientTools(): ClientTool[] {
     canvasUiTool,
     getCanvasInteractionsTool,
     sendSuggestionTool,
-    delegateToExperienceTool,
+    getDelegateToExperienceTool(),
   ];
 }
 
