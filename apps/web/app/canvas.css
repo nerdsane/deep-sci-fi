@@ -60,7 +60,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -214,7 +214,7 @@ body {
 }
 
 .section-title {
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -336,7 +336,7 @@ body {
 
 .world-card-title,
 .story-card-title {
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: #d4d4d4;
   letter-spacing: -0.005em;
@@ -465,7 +465,7 @@ body {
 }
 
 .world-premise {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--text-primary);
   font-family: var(--font-mono);
@@ -794,7 +794,7 @@ body {
 }
 
 .segment-text {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--text-primary);
   white-space: pre-wrap;
@@ -1618,7 +1618,7 @@ a:focus-visible {
 }
 
 .dsf-card-title {
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-primary);
   font-family: var(--font-mono);
@@ -1626,13 +1626,13 @@ a:focus-visible {
 }
 
 .dsf-card-subtitle {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .dsf-card-body {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   line-height: 1.6;
 }
