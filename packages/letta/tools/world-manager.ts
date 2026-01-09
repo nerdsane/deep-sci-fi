@@ -12,6 +12,7 @@
  */
 
 import type { PrismaClient } from '@deep-sci-fi/db';
+import { sendStateChange } from '../websocket/manager';
 
 // ============================================================================
 // Tool Interface
@@ -184,6 +185,12 @@ async function createWorld(
 
     console.log(`[world_manager] World created: ${world.id} (${world.name})`);
 
+    // Broadcast state change for reactive UI
+    sendStateChange('world_entered', {
+      worldId: world.id,
+      worldName: world.name,
+    });
+
     return {
       success: true,
       message: `World "${world.name}" created successfully!\nWorld ID: ${world.id}\nYou can now enter this world to develop it further.`,
@@ -239,6 +246,12 @@ async function saveWorld(
     });
 
     console.log(`[world_manager] World saved: ${updatedWorld.id}`);
+
+    // Broadcast state change for reactive UI
+    sendStateChange('world_entered', {
+      worldId: updatedWorld.id,
+      worldName: updatedWorld.name,
+    });
 
     return {
       success: true,
@@ -348,6 +361,12 @@ async function updateWorld(
     });
 
     console.log(`[world_manager] World updated: ${updatedWorld.id} (${revisionNotes.length} changes)`);
+
+    // Broadcast state change for reactive UI
+    sendStateChange('world_entered', {
+      worldId: updatedWorld.id,
+      worldName: updatedWorld.name,
+    });
 
     const message = `World updated successfully\nChanges applied: ${params.updates.length}\n` +
       (revisionNotes.length > 0 ? `Revision notes:\n${revisionNotes.map(note => `  - ${note}`).join('\n')}` : '');
