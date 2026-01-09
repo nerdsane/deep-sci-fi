@@ -67,13 +67,17 @@ const toolExecutors: Map<string, ToolExecutor> = new Map([
  * - Creating and managing worlds (via world_manager with create operation)
  * - Listing existing worlds
  * - Managing user preferences
- * - Delegating to Experience Agent for images and multimedia
+ * - Generating images for worlds (cover images, concept art)
+ * - Canvas UI for immersive experiences
+ * - Delegating to World Agent for in-world experiences
  */
 export function getUserAgentClientTools(): ClientTool[] {
   return [
     worldManagerTool,
     listWorldsTool,
     userPreferencesTool,
+    imageGeneratorTool,
+    canvasUiTool,
     delegateToExperienceTool,
   ];
 }
