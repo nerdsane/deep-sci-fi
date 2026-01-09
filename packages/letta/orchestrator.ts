@@ -48,6 +48,16 @@ let cachedUserAgentClientToolIds: string[] | null = null;
 let cachedWorldAgentClientToolIds: string[] | null = null;
 
 /**
+ * Clear all tool caches - useful for forcing re-registration after code changes
+ */
+export function clearToolCaches(): void {
+  console.log('[LettaOrchestrator] Clearing all tool caches');
+  cachedServerToolIds = null;
+  cachedUserAgentClientToolIds = null;
+  cachedWorldAgentClientToolIds = null;
+}
+
+/**
  * LettaOrchestrator - Two-Tier Agent Management Service
  *
  * ARCHITECTURE:
