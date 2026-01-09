@@ -108,6 +108,8 @@ export class UnifiedWSClient {
   private reconnectAttempts = 0;
   private isConnecting = false;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private pendingConnectResolvers: Array<() => void> = [];
+  private pendingConnectRejecters: Array<(err: Error) => void> = [];
 
   // Callbacks
   public onConnect: ((clientId: string, sessionId: string, clients: ConnectedClient[]) => void) | null = null;
@@ -153,17 +155,23 @@ export class UnifiedWSClient {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.isConnecting) {
-        reject(new Error('Already connecting'));
-        return;
-      }
-
+      // If already connected, resolve immediately
       if (this.ws?.readyState === WebSocket.OPEN) {
         resolve();
         return;
       }
 
+      // If already connecting, queue this caller to be resolved when connection completes
+      if (this.isConnecting) {
+        this.pendingConnectResolvers.push(resolve);
+        this.pendingConnectRejecters.push(reject);
+        return;
+      }
+
       this.isConnecting = true;
+      this.pendingConnectResolvers.push(resolve);
+      this.pendingConnectRejecters.push(reject);
+
       const fullUrl = `${this.url}?type=browser&sessionId=${this.sessionId}&userId=${this.userId}`;
 
       console.log('[WS Client] Connecting to', fullUrl);
@@ -182,7 +190,7 @@ export class UnifiedWSClient {
         this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            this.handleMessage(message, resolve);
+            this.handleMessage(message);
           } catch (err) {
             console.error('[WS Client] Failed to parse message:', err);
           }
@@ -203,13 +211,21 @@ export class UnifiedWSClient {
           console.error('[WS Client] WebSocket error:', event);
           this.isConnecting = false;
           this.onError?.('WebSocket connection error');
-          reject(new Error('WebSocket connection error'));
+          // Reject all pending callers
+          const error = new Error('WebSocket connection error');
+          this.pendingConnectRejecters.forEach(rej => rej(error));
+          this.pendingConnectResolvers = [];
+          this.pendingConnectRejecters = [];
         };
 
       } catch (err) {
         this.isConnecting = false;
         console.error('[WS Client] Failed to create WebSocket:', err);
-        reject(err);
+        // Reject all pending callers
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.pendingConnectRejecters.forEach(rej => rej(error));
+        this.pendingConnectResolvers = [];
+        this.pendingConnectRejecters = [];
       }
     });
   }
@@ -264,7 +280,7 @@ export class UnifiedWSClient {
   // Message Handling
   // ============================================================================
 
-  private handleMessage(message: any, connectResolve?: (value: void) => void): void {
+  private handleMessage(message: any): void {
     switch (message.type) {
       case 'connect':
         this.clientId = message.clientId;
@@ -274,7 +290,10 @@ export class UnifiedWSClient {
         if (this.clientId) {
           this.onConnect?.(this.clientId, message.sessionId, this.connectedClients);
         }
-        connectResolve?.();
+        // Resolve all pending connect() callers
+        this.pendingConnectResolvers.forEach(res => res());
+        this.pendingConnectResolvers = [];
+        this.pendingConnectRejecters = [];
         break;
 
       case 'client_joined':
