@@ -337,11 +337,6 @@ export function ChatSidebar({ wsClient }: ChatSidebarProps) {
 
   return (
     <aside className="chat-sidebar terminal-container">
-      <div className="terminal-header">
-        <div className={`terminal-status ${isConnected ? 'terminal-status--connected' : ''}`} />
-        <span className="terminal-title">Agent Terminal</span>
-      </div>
-
       <div className="terminal-output">
         {messages.map((message) => (
           <div key={message.id} className="terminal-message">
