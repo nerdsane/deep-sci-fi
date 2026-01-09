@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import type { UnifiedWSClient, StreamChunk } from '@/lib/unified-ws-client';
 
 /**
  * Message types for terminal-style rendering
@@ -22,46 +23,10 @@ interface Message {
 }
 
 interface ChatSidebarProps {
-  onSendMessage: (message: string) => void;
+  wsClient: UnifiedWSClient | null;
 }
 
-/**
- * Parse SSE stream and yield chunks
- */
-async function* parseSSEStream(response: Response): AsyncGenerator<any> {
-  const reader = response.body?.getReader();
-  if (!reader) return;
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') return;
-          try {
-            yield JSON.parse(data);
-          } catch {
-            // Skip malformed JSON
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
+export function ChatSidebar({ wsClient }: ChatSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -71,29 +36,18 @@ export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
     },
   ]);
   const [input, setInput] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Track streaming message IDs
+  const reasoningIdRef = useRef<string | null>(null);
+  const assistantIdRef = useRef<string | null>(null);
+  const toolCallIdsRef = useRef<Map<string, string>>(new Map());
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Check connection status on mount
-  useEffect(() => {
-    checkConnection();
-  }, []);
-
-  async function checkConnection() {
-    try {
-      const res = await fetch('/api/health');
-      setIsConnected(res.ok);
-    } catch {
-      setIsConnected(false);
-    }
-  }
 
   /**
    * Add or update a message by ID
@@ -136,9 +90,131 @@ export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
     });
   }, []);
 
+  /**
+   * Handle incoming chat chunks from WebSocket
+   */
+  const handleChatChunk = useCallback((chunk: StreamChunk) => {
+    switch (chunk.type) {
+      case 'reasoning':
+        if (!reasoningIdRef.current) {
+          reasoningIdRef.current = `reasoning-${Date.now()}`;
+          upsertMessage(reasoningIdRef.current, {
+            type: 'reasoning',
+            content: chunk.content || '',
+            isStreaming: true,
+          });
+        } else {
+          appendToMessage(reasoningIdRef.current, chunk.content || '');
+        }
+        break;
+
+      case 'reasoning_end':
+        if (reasoningIdRef.current) {
+          upsertMessage(reasoningIdRef.current, { type: 'reasoning', isStreaming: false });
+        }
+        break;
+
+      case 'assistant':
+        if (!assistantIdRef.current) {
+          assistantIdRef.current = `assistant-${Date.now()}`;
+          upsertMessage(assistantIdRef.current, {
+            type: 'agent',
+            content: chunk.content || '',
+            isStreaming: true,
+          });
+        } else {
+          appendToMessage(assistantIdRef.current, chunk.content || '');
+        }
+        break;
+
+      case 'assistant_end':
+        if (assistantIdRef.current) {
+          upsertMessage(assistantIdRef.current, { type: 'agent', isStreaming: false });
+        }
+        break;
+
+      case 'tool_call': {
+        const tcId = chunk.toolCallId || `tc-${Date.now()}`;
+        let msgId = toolCallIdsRef.current.get(tcId);
+        if (!msgId) {
+          msgId = `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          toolCallIdsRef.current.set(tcId, msgId);
+        }
+        upsertMessage(msgId, {
+          type: 'tool_call',
+          content: '',
+          toolName: chunk.toolName,
+          toolArgs: chunk.toolArgs,
+          toolStatus: chunk.toolStatus || 'pending',
+        });
+        break;
+      }
+
+      case 'tool_result': {
+        const tcId = chunk.toolCallId;
+        const msgId = tcId ? toolCallIdsRef.current.get(tcId) : null;
+        if (msgId) {
+          upsertMessage(msgId, {
+            type: 'tool_call',
+            toolResult: chunk.toolResult,
+            toolStatus: chunk.toolStatus || 'success',
+          });
+        } else {
+          // Standalone result
+          upsertMessage(`result-${Date.now()}`, {
+            type: 'tool_result',
+            content: chunk.toolResult || '',
+            toolName: chunk.toolName,
+            toolStatus: chunk.toolStatus || 'success',
+          });
+        }
+        break;
+      }
+
+      case 'error':
+        upsertMessage(`error-${Date.now()}`, {
+          type: 'error',
+          content: chunk.content || 'Unknown error',
+        });
+        setIsLoading(false);
+        break;
+
+      case 'done':
+        // Mark all streaming messages as complete
+        if (reasoningIdRef.current) {
+          upsertMessage(reasoningIdRef.current, { type: 'reasoning', isStreaming: false });
+        }
+        if (assistantIdRef.current) {
+          upsertMessage(assistantIdRef.current, { type: 'agent', isStreaming: false });
+        }
+        // Reset refs for next message
+        reasoningIdRef.current = null;
+        assistantIdRef.current = null;
+        toolCallIdsRef.current.clear();
+        setIsLoading(false);
+        break;
+    }
+  }, [upsertMessage, appendToMessage]);
+
+  // Set up WebSocket chat chunk handler
+  useEffect(() => {
+    if (!wsClient) return;
+
+    // Store the original handler to restore later
+    const originalHandler = wsClient.onChatChunk;
+
+    // Set our handler
+    wsClient.onChatChunk = handleChatChunk;
+
+    return () => {
+      // Restore original handler on cleanup
+      wsClient.onChatChunk = originalHandler;
+    };
+  }, [wsClient, handleChatChunk]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !wsClient) return;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -151,144 +227,13 @@ export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
     setInput('');
     setIsLoading(true);
 
-    // Call the parent handler
-    onSendMessage(userMessage.content);
+    // Reset streaming refs
+    reasoningIdRef.current = null;
+    assistantIdRef.current = null;
+    toolCallIdsRef.current.clear();
 
-    // Abort any existing stream
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-
-    // Track streaming message IDs
-    let reasoningId: string | null = null;
-    let assistantId: string | null = null;
-    const toolCallIds = new Map<string, string>(); // toolCallId -> messageId
-
-    try {
-      const res = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.content }),
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
-        upsertMessage(`error-${Date.now()}`, {
-          type: 'error',
-          content: error.error || 'Failed to connect to agent',
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Process SSE stream
-      for await (const chunk of parseSSEStream(res)) {
-        switch (chunk.type) {
-          case 'reasoning':
-            if (!reasoningId) {
-              reasoningId = `reasoning-${Date.now()}`;
-              upsertMessage(reasoningId, {
-                type: 'reasoning',
-                content: chunk.content || '',
-                isStreaming: true,
-              });
-            } else {
-              appendToMessage(reasoningId, chunk.content || '');
-            }
-            break;
-
-          case 'reasoning_end':
-            if (reasoningId) {
-              upsertMessage(reasoningId, { type: 'reasoning', isStreaming: false });
-            }
-            break;
-
-          case 'assistant':
-            if (!assistantId) {
-              assistantId = `assistant-${Date.now()}`;
-              upsertMessage(assistantId, {
-                type: 'agent',
-                content: chunk.content || '',
-                isStreaming: true,
-              });
-            } else {
-              appendToMessage(assistantId, chunk.content || '');
-            }
-            break;
-
-          case 'assistant_end':
-            if (assistantId) {
-              upsertMessage(assistantId, { type: 'agent', isStreaming: false });
-            }
-            break;
-
-          case 'tool_call': {
-            const tcId = chunk.toolCallId || `tc-${Date.now()}`;
-            let msgId = toolCallIds.get(tcId);
-            if (!msgId) {
-              msgId = `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-              toolCallIds.set(tcId, msgId);
-            }
-            upsertMessage(msgId, {
-              type: 'tool_call',
-              content: '',
-              toolName: chunk.toolName,
-              toolArgs: chunk.toolArgs,
-              toolStatus: chunk.toolStatus || 'pending',
-            });
-            break;
-          }
-
-          case 'tool_result': {
-            const tcId = chunk.toolCallId;
-            const msgId = tcId ? toolCallIds.get(tcId) : null;
-            if (msgId) {
-              upsertMessage(msgId, {
-                type: 'tool_call',
-                toolResult: chunk.toolResult,
-                toolStatus: chunk.toolStatus || 'success',
-              });
-            } else {
-              // Standalone result
-              upsertMessage(`result-${Date.now()}`, {
-                type: 'tool_result',
-                content: chunk.toolResult || '',
-                toolName: chunk.toolName,
-                toolStatus: chunk.toolStatus || 'success',
-              });
-            }
-            break;
-          }
-
-          case 'error':
-            upsertMessage(`error-${Date.now()}`, {
-              type: 'error',
-              content: chunk.content || 'Unknown error',
-            });
-            break;
-
-          case 'done':
-            // Mark all streaming messages as complete
-            if (reasoningId) {
-              upsertMessage(reasoningId, { type: 'reasoning', isStreaming: false });
-            }
-            if (assistantId) {
-              upsertMessage(assistantId, { type: 'agent', isStreaming: false });
-            }
-            break;
-        }
-      }
-    } catch (error) {
-      if ((error as Error).name !== 'AbortError') {
-        console.error('Chat stream error:', error);
-        upsertMessage(`error-${Date.now()}`, {
-          type: 'error',
-          content: 'Connection error. Please check if all services are running.',
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    // Send message via WebSocket
+    wsClient.sendChatMessage(userMessage.content);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -388,6 +333,8 @@ export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
     }
   }
 
+  const isConnected = wsClient?.isConnected() ?? false;
+
   return (
     <aside className="chat-sidebar terminal-container">
       <div className="terminal-header">
@@ -418,14 +365,14 @@ export function ChatSidebar({ onSendMessage }: ChatSidebarProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Enter command..."
+            placeholder={isConnected ? "Enter command..." : "Connecting..."}
             rows={1}
-            disabled={isLoading}
+            disabled={isLoading || !isConnected}
           />
           <button
             type="submit"
             className="terminal-submit"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || !isConnected}
           >
             ↵
           </button>

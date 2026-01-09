@@ -1,12 +1,42 @@
 /**
  * WebSocket Manager
  *
- * Manages WebSocket connections between the Next.js server and browser clients.
+ * Manages message broadcasting between agent tools and connected clients.
+ * Supports both:
+ * - WebSocket broadcasting (via registered handler)
+ * - Polling fallback (queue-based)
+ *
  * Tools (canvas_ui, send_suggestion) use this to push updates to connected clients.
- * Browser interactions are queued here for agent polling.
  */
 
 import type { ComponentSpec } from './types';
+
+// ============================================================================
+// WebSocket Broadcast Handler
+// ============================================================================
+
+/**
+ * Function type for broadcasting messages via WebSocket
+ * Set by the WebSocket server when processing messages
+ */
+type BroadcastHandler = (message: WebSocketMessage) => void;
+
+let activeBroadcastHandler: BroadcastHandler | null = null;
+
+/**
+ * Set the active broadcast handler for the current message processing context.
+ * Called by the WebSocket server when it starts processing a message.
+ */
+export function setActiveBroadcastHandler(handler: BroadcastHandler | null): void {
+  activeBroadcastHandler = handler;
+}
+
+/**
+ * Get the current broadcast handler
+ */
+export function getActiveBroadcastHandler(): BroadcastHandler | null {
+  return activeBroadcastHandler;
+}
 
 // ============================================================================
 // Types
@@ -260,10 +290,19 @@ export function getClientCount(): number {
 /**
  * Broadcast a message to all connected clients.
  *
- * Messages are queued in memory and delivered when clients poll via getPendingMessages().
- * The browser client should poll regularly (e.g., every 500ms) to receive updates.
+ * If a WebSocket broadcast handler is active (set by the WS server during
+ * message processing), the message is sent immediately via WebSocket.
+ * Otherwise, messages are queued for polling fallback.
  */
 export function broadcast(message: WebSocketMessage): void {
+  // If WebSocket handler is active, use it for immediate delivery
+  if (activeBroadcastHandler) {
+    console.log(`[WebSocket Manager] Broadcasting ${message.type} via WebSocket`);
+    activeBroadcastHandler(message);
+    return;
+  }
+
+  // Fallback: queue for polling
   pendingMessages.push(message);
 
   // Trim if too many pending

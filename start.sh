@@ -165,7 +165,43 @@ cp -r node_modules/.prisma/client/* ../../apps/web/node_modules/.prisma/client/
 cd ../..
 print_success "Prisma client generated and binary copied"
 
-# 5. Start the web app
+# 5. Start WebSocket Server
+echo ""
+echo "🔌 Starting WebSocket server..."
+cd apps/web
+
+# Kill any existing WebSocket server
+if [ -f ".ws.pid" ]; then
+    OLD_PID=$(cat .ws.pid)
+    if kill -0 $OLD_PID 2>/dev/null; then
+        print_warning "Stopping existing WebSocket server (PID: $OLD_PID)..."
+        kill $OLD_PID 2>/dev/null || true
+        sleep 1
+    fi
+    rm -f .ws.pid
+fi
+
+# Start WebSocket server in background
+bun run server/ws-server.ts > .ws.log 2>&1 &
+WS_PID=$!
+echo $WS_PID > .ws.pid
+print_success "WebSocket server starting (PID: $WS_PID)..."
+
+# Wait for WebSocket server to be ready
+for i in {1..10}; do
+    if curl -s http://localhost:8284/health > /dev/null 2>&1; then
+        print_success "WebSocket server ready on localhost:8284"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        print_warning "WebSocket server may still be starting..."
+    fi
+    sleep 0.5
+done
+
+cd ../..
+
+# 6. Start the web app
 echo ""
 echo "🚀 Starting web app..."
 echo ""
@@ -175,6 +211,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  🌌 Deep Sci-Fi is starting..."
 echo ""
 echo "  Web App:        http://localhost:3000"
+echo "  WebSocket:      ws://localhost:8284"
 echo "  Letta Server:   http://localhost:8283"
 echo "  PostgreSQL:     localhost:5432"
 echo ""

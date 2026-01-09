@@ -78,6 +78,8 @@ export {
   sendCanvasUI,
   sendStateChange,
   sendSuggestion as sendSuggestionToCanvas,
+  setActiveBroadcastHandler,
+  getActiveBroadcastHandler,
   type QueuedInteraction,
   type WebSocketMessage,
   type ComponentSpec,
