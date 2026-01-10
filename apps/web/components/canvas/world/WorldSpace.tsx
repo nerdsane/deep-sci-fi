@@ -34,11 +34,13 @@ export const WorldSpace = React.memo(function WorldSpace({
   const surface = world?.surface || { visible_elements: [] };
   const development = world?.development || { version: 0, state: 'sketch' };
 
-  // Derive world title from visible elements or premise
+  // Derive world title - use explicit name, NOT element names
   const worldTitle = (() => {
-    if (surface.visible_elements?.[0]?.name) {
-      return surface.visible_elements[0].name;
+    // Use explicit world name first (from database)
+    if ((world as any).name) {
+      return (world as any).name;
     }
+    // Fallback to premise truncation (NOT element names - those are characters/locations)
     const premise = foundation.core_premise || 'Untitled World';
     const words = premise.split(' ').slice(0, 5);
     return words.join(' ') + (words.length < premise.split(' ').length ? '...' : '');
@@ -47,8 +49,14 @@ export const WorldSpace = React.memo(function WorldSpace({
   // Derive era from history or development state
   const worldEra = foundation.history?.eras?.[0] || development.state || 'Active';
 
-  // Get world cover image if available
-  const coverImage = world.asset?.path ? `/api/assets/${world.asset.path}` : undefined;
+  // Get world cover image if available - prefer URL (data URL), fallback to path
+  const coverImage = (() => {
+    const asset = (world as any).asset;
+    if (!asset) return undefined;
+    if (asset.url) return asset.url;
+    if (asset.path) return `/api/assets/${asset.path}`;
+    return undefined;
+  })();
 
   // Build timeline from changelog
   const changelog = world?.changelog || [];
@@ -127,42 +135,8 @@ export const WorldSpace = React.memo(function WorldSpace({
         </ScrollSection>
       </section>
 
-      {/* Characters */}
-      {characters.length > 0 && (
-        <section className="world-space__section">
-          <ScrollSection animation="fade-up">
-            <h2 className="world-space__section-title">
-              <span className="world-space__section-icon">◇</span>
-              Characters
-            </h2>
-            <div className="world-space__grid">
-              {characters.map((char, i) => (
-                <ScrollSection key={char.id} animation="scale" delay={i * 100}>
-                  <InteractiveElement
-                    elementType="character"
-                    elementId={char.id}
-                    elementData={char}
-                    onAction={handleAction}
-                  >
-                    <button
-                      className="world-space__card"
-                      onClick={() => onExploreElement?.(char.id, 'character')}
-                    >
-                      <h3 className="world-space__card-name">{char.name || char.id}</h3>
-                      <p className="world-space__card-desc">{char.description}</p>
-                      {char.first_appearance && (
-                        <span className="world-space__card-meta">
-                          First seen: Segment {char.first_appearance}
-                        </span>
-                      )}
-                    </button>
-                  </InteractiveElement>
-                </ScrollSection>
-              ))}
-            </div>
-          </ScrollSection>
-        </section>
-      )}
+      {/* Characters - HIDDEN: Characters emerge through stories, not displayed upfront */}
+      {/* They're still tracked in visible_elements but not shown in the world overview */}
 
       {/* Locations */}
       {locations.length > 0 && (
