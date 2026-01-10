@@ -6,3 +6,6 @@
 	path = letta
 	url = https://github.com/nerdsane/letta.git
 	branch = evaluation-tools
+[submodule "ots"]
+	path = ots
+	url = https://github.com/nerdsane/ots.git
