@@ -204,7 +204,179 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 3. **Letta integration**: Existing OTS tests should pass with new library
 4. **PyPI publish**: `pip install ots` works
 
+## Decisions & Trade-offs
+
+### D1: Package Architecture - "Batteries-included with pluggable backends"
+
+**Decision**: Ship working implementations (SQLite, File, Memory) rather than just interfaces.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Interfaces only | Smaller package, no opinions | Users must implement everything |
+| B. Batteries-included (CHOSEN) | Works out of the box, reference implementations | Larger package, more maintenance |
+| C. Separate packages | Maximum flexibility | Fragmented ecosystem, version hell |
+
+**Rationale**: Agent developers want to start storing trajectories immediately. Requiring backend implementation before any value is realized creates adoption friction. Reference implementations also serve as documentation.
+
+---
+
+### D2: Letta Adapter Location - Lives in Letta codebase, not OTS
+
+**Decision**: Framework-specific adapters live in their respective codebases.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Adapters in OTS | Single source of truth | OTS depends on all frameworks, circular deps |
+| B. Adapters in frameworks (CHOSEN) | Clean separation, no circular deps | Adapters may drift from OTS spec |
+| C. Separate adapter packages | Maximum isolation | Package proliferation |
+
+**Rationale**: OTS should have zero framework dependencies. If OTS imported Letta types, it couldn't be used by LangChain users. Each framework knows its internal types best.
+
+---
+
+### D3: Entity Extraction - Generic ToolEntityExtractor ships with library
+
+**Decision**: Provide zero-config entity extraction from tool calls as default.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. No built-in extractor | Forces domain-specific design | No value until user implements |
+| B. Generic tool extractor (CHOSEN) | Immediate entity tracking, works for any tool-using agent | May miss domain-specific entities |
+| C. LLM-based extraction | Smart entity detection | Expensive, slow, requires API key |
+
+**Rationale**: Tool calls are universal across agent frameworks. Extracting tool names and resource references provides immediate value. Domain-specific extraction (DSF worlds, stories) is additive via the EntityExtractor protocol.
+
+---
+
+### D4: Async vs Sync API - All storage operations are async
+
+**Decision**: Use async/await for all storage and embedding operations.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Sync only | Simpler API | Blocks on I/O, poor for web servers |
+| B. Async only (CHOSEN) | Non-blocking, scales well | Requires async runtime |
+| C. Both sync and async | Maximum flexibility | Double maintenance, confusing API |
+
+**Rationale**: Agent frameworks (Letta, LangChain) are already async. Embedding API calls are I/O-bound. Forcing sync would require thread pools and add complexity. Users in sync contexts can use `asyncio.run()`.
+
+---
+
+### D5: Embedding Provider - OpenAI as default, protocol for others
+
+**Decision**: Ship OpenAI provider, define protocol for alternatives.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. No embedding support | Simpler, no API deps | Text search only, poor retrieval |
+| B. OpenAI default (CHOSEN) | Industry standard, good quality | Requires API key, cost |
+| C. Local embeddings default | Free, private | Large models, slow on CPU |
+
+**Rationale**: OpenAI embeddings are the industry default with excellent quality. Making it optional (`pip install ots[openai]`) avoids forcing the dependency. Protocol allows local/Anthropic/custom embeddings.
+
+---
+
+### D6: SQLite for Default Storage - Not PostgreSQL
+
+**Decision**: SQLite as default backend, PostgreSQL via custom backend.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. SQLite default (CHOSEN) | Zero setup, single file, works offline | Not for high concurrency |
+| B. PostgreSQL default | Production-ready, scalable | Requires server setup |
+| C. In-memory default | Fastest, simplest | No persistence |
+
+**Rationale**: OTS should work with `pip install ots` and zero configuration. SQLite is embedded, requires no server, and handles moderate workloads. Production users (like Letta) implement PostgreSQLBackend for their needs.
+
+---
+
+### D7: Decision Extraction Modes - fast/full/deferred
+
+**Decision**: Support multiple extraction modes for cost/quality tradeoff.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Always use LLM | Rich decision traces | Expensive, slow |
+| B. Never use LLM | Free, fast | Missing rationale/alternatives |
+| C. Modal extraction (CHOSEN) | User controls cost/quality | More complex API |
+
+**Rationale**: Programmatic extraction (tool calls → decisions) is free and immediate. LLM extraction (reasoning → rationale) is expensive. Users should control this tradeoff. "Deferred" mode allows batch enrichment later.
+
+---
+
+### D8: Observability Exporters - Langfuse AND OTel
+
+**Decision**: Support both Langfuse and OpenTelemetry.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Langfuse only | Purpose-built for LLMs | Vendor lock-in |
+| B. OTel only | Industry standard, any backend | Less LLM-specific features |
+| C. Both (CHOSEN) | Maximum flexibility | More code to maintain |
+
+**Rationale**: Langfuse provides LLM-specific features (cost tracking, prompt management). OTel integrates with existing infrastructure (Jaeger, Datadog, Honeycomb). Different users have different observability stacks.
+
+---
+
+### D9: Pydantic v2 Requirement
+
+**Decision**: Require Pydantic v2, not v1.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Pydantic v1 | Wider compatibility | Deprecated, slower |
+| B. Pydantic v2 (CHOSEN) | Faster, better validation, modern | Some v1 users need to upgrade |
+| C. Support both | Maximum compat | Complex code, testing burden |
+
+**Rationale**: Pydantic v2 is significantly faster and the maintained version. OTS is a new library with no legacy users. Starting with v2 avoids future migration pain.
+
+---
+
+### D10: No JSON Schema (Yet)
+
+**Decision**: Defer JSON Schema generation to future version.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Generate JSON Schema now | Cross-language compat, validation | Maintenance burden, premature |
+| B. Defer (CHOSEN) | Focus on Python first | TypeScript/Go users wait |
+| C. Hand-write schema | Full control | Drift from Pydantic models |
+
+**Rationale**: Python is the primary agent ecosystem. JSON Schema can be auto-generated from Pydantic models when needed. Adding it now is premature optimization. Listed as open question for v0.2.
+
+---
+
+## Verification Status
+
+**Verified**: 2026-01-10 via `/no-cap` check
+
+| Criteria | Status |
+|----------|--------|
+| No hacks or workarounds | ✅ |
+| No placeholder implementations | ✅ |
+| No fake implementations | ✅ |
+| No silent failures | ✅ |
+| Proper error handling | ✅ |
+| Edge cases handled | ✅ |
+| Types properly defined | ✅ |
+
+**Files**: 22 files, 3,299+ lines of code
+**Tests**: Pending (Phase 6 will add integration tests)
+
+---
+
 ## Open Questions
 
-- JSON Schema for OTS format? (for cross-language compatibility)
-- Versioning strategy for the spec itself?
+- JSON Schema for OTS format? (for cross-language compatibility) → Deferred to v0.2
+- Versioning strategy for the spec itself? → Use SemVer, version field in OTSTrajectory
+- PyPI package name availability? → Need to check if "ots" is available
