@@ -9,7 +9,7 @@
 ### Before Writing Code
 
 - [ ] Did you check if `.vision/` exists? Read whatever's there.
-- [ ] Did you create a plan in `.progress/YYYYMMDD_HHMMSS_task-name.md`?
+- [ ] Did you create a plan in `.progress/NNN_YYYYMMDD_HHMMSS_task-name.md`?
 - [ ] Did you document the options you considered?
 - [ ] Did you note the trade-offs of your chosen approach?
 
