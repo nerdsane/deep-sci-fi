@@ -32,31 +32,32 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 ### Directories
 
 ```
-.vision/     → Project vision documents (long-lived north star) - READ FIRST
+.vision/     → Project vision documents (long-lived north star) - READ IF EXISTS
 .progress/   → Timestamped task plans (per-task tracking) - CREATE BEFORE CODING
 ```
 
 ### Vision Documents
 
-| Document | Type | Purpose |
-|----------|------|---------|
-| `ARCHITECTURE.md` | EVOLVING | System design, tiers, data flow |
-| `PHILOSOPHY.md` | STABLE | Bitter Lesson, tools not workflows |
-| `CONSTRAINTS.md` | STABLE | TigerStyle non-negotiables |
-| `SCIENTIFIC_GROUNDING.md` | STABLE | What "scientifically grounded" means |
-| `UX_STYLING.md` | STABLE | UI/UX design outcomes |
-| `ROADMAP.md` | EVOLVING | Where we are, where we're going |
+**Vision files are optional.** Not every project needs all of them. Read whatever exists.
 
-**STABLE** docs rarely change. **EVOLVING** docs may be stale - check dates, ask user if >30 days old.
+| Document | When Useful |
+|----------|-------------|
+| `CONSTRAINTS.md` | Non-negotiable rules for this project |
+| `ARCHITECTURE.md` | System design decisions |
+| `PHILOSOPHY.md` | Design principles and approach |
+| `ROADMAP.md` | If project has defined phases |
+| `[domain].md` | Any domain-specific guidance |
+
+**If `.vision/` doesn't exist or is incomplete:** Offer to interview the user and create relevant files. Don't assume all files are needed - ask what would be helpful.
 
 ### Before Starting - DO THIS FIRST
 
-1. **Check `.vision/`** - If exists, READ ALL vision files before doing anything else
+1. **Check `.vision/`** - If exists, read whatever vision files are there
 2. **Check `.progress/`** - Read existing plans to understand current state
-3. **Create plan** - ALWAYS save `.progress/YYYYMMDD_HHMMSS_task-name.md` BEFORE writing any code
-4. **If no `.vision/`** and task is significant: ASK user if they want a vision interview
+3. **Create plan** - Save `.progress/YYYYMMDD_HHMMSS_task-name.md` BEFORE writing code
+4. **If no `.vision/`** and task is significant: Offer to help create relevant vision docs (interview user about what they need)
 
-**DO NOT skip planning. DO NOT start coding without a plan file. This is non-negotiable.**
+**Planning is important, but be pragmatic.** Small fixes don't need full plans. Use judgment.
 
 ### During Execution
 

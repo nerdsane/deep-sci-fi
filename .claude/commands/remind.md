@@ -8,22 +8,22 @@
 
 ### Before Writing Code
 
-- [ ] Did you read `.vision/` files first?
+- [ ] Did you check if `.vision/` exists? Read whatever's there.
 - [ ] Did you create a plan in `.progress/YYYYMMDD_HHMMSS_task-name.md`?
 - [ ] Did you document the options you considered?
 - [ ] Did you note the trade-offs of your chosen approach?
 
 ### During Implementation
 
-- [ ] Are you logging decisions in the plan file?
+- [ ] Are you logging significant decisions in the plan file?
 - [ ] Are you updating the plan as you complete phases?
 - [ ] If you hit a blocker, did you document it?
 
 ### Before Completion
 
-- [ ] Did you write tests that prove the feature works?
+- [ ] Did you write tests (if applicable for this project)?
 - [ ] Did you run `/no-cap` to verify no placeholders/hacks?
-- [ ] Does the result align with `.vision/CONSTRAINTS.md`?
+- [ ] Does the result align with documented constraints (if any)?
 - [ ] Did you update the plan state to COMPLETE?
 
 ---
@@ -33,22 +33,36 @@
 ```
 State Machine: GROUNDING → PLANNING → IMPLEMENTING → VERIFYING → COMPLETE
 
-GROUNDING:   Read .vision/*.md, understand constraints
+GROUNDING:   Check .vision/ (read what exists), understand context
 PLANNING:    Create .progress/ plan with options/decisions/trade-offs
 IMPLEMENTING: Do the work, log decisions
-VERIFYING:   Tests pass, /no-cap pass, vision aligned
-COMPLETE:    Commit with plan reference, push
+VERIFYING:   Tests (if applicable), /no-cap, alignment check
+COMPLETE:    Commit, push
 ```
 
 ---
 
-## Key Files
+## Key Directories
 
-| File | Purpose |
-|------|---------|
-| `.vision/CONSTRAINTS.md` | Non-negotiable requirements |
-| `.vision/PHILOSOPHY.md` | Tools not workflows, Bitter Lesson |
-| `.progress/templates/plan.md` | Plan template to copy |
+| Directory | Purpose |
+|-----------|---------|
+| `.vision/` | Project vision docs (optional - read if exists) |
+| `.progress/` | Task plans (create before coding) |
+| `.progress/templates/` | Plan template |
+
+---
+
+## If No Vision Docs Exist
+
+That's fine! Either:
+1. Proceed without them (for small tasks)
+2. Offer to interview user and create relevant ones:
+   - CONSTRAINTS.md - Non-negotiable rules
+   - ARCHITECTURE.md - System design
+   - PHILOSOPHY.md - Design principles
+   - [Custom] - Domain-specific guidance
+
+**Don't assume all files are needed.** Ask what would help.
 
 ---
 
@@ -58,7 +72,7 @@ COMPLETE:    Commit with plan reference, push
 |---------|-----|
 | Started coding without plan | Stop. Create plan first. |
 | Made decision without documenting | Add to Options & Decisions section |
-| Skipped tests | Write tests before marking complete |
+| Skipped tests (when project has them) | Write tests before marking complete |
 | Left TODOs in code | Fix or document as intentional |
 | Forgot to update plan state | Update now |
 
@@ -66,8 +80,8 @@ COMPLETE:    Commit with plan reference, push
 
 ## If You're Lost
 
-1. Read `.vision/CONSTRAINTS.md`
+1. Check `.vision/` for any guidance
 2. Check current plan in `.progress/`
 3. Ask user for clarification if needed
 
-**The goal is disciplined, traceable development - not speed.**
+**Goal: Disciplined, traceable development - proportional to task size.**
