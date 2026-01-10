@@ -7,12 +7,10 @@
 
 ## Vision Alignment
 
-- [ ] Read .vision/ARCHITECTURE.md
-- [ ] Read .vision/CONSTRAINTS.md
-- [ ] Read .vision/PHILOSOPHY.md
+**Vision files read:** [List whatever .vision/ files exist and were read, or "None - no .vision/ directory"]
 
-**Relevant constraints:**
-- [List constraints that apply to this task]
+**Relevant constraints/guidance:**
+- [List constraints or principles that apply to this task]
 
 ---
 
