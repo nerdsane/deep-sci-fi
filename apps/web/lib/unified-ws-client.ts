@@ -121,7 +121,24 @@ export class UnifiedWSClient {
   public onSuggestion: ((suggestion: SuggestionPayload) => void) | null = null;
   public onClientJoined: ((client: ConnectedClient) => void) | null = null;
   public onClientLeft: ((clientId: string, clientType: ClientType) => void) | null = null;
-  public onMessageHistory: ((messages: HistoryMessage[]) => void) | null = null;
+  // Cache for message history received before handler is set up
+  private _cachedMessageHistory: HistoryMessage[] | null = null;
+  private _onMessageHistory: ((messages: HistoryMessage[]) => void) | null = null;
+
+  // Getter/setter for onMessageHistory that auto-flushes cached history
+  get onMessageHistory(): ((messages: HistoryMessage[]) => void) | null {
+    return this._onMessageHistory;
+  }
+
+  set onMessageHistory(handler: ((messages: HistoryMessage[]) => void) | null) {
+    this._onMessageHistory = handler;
+    // If we have cached history and a new handler is set, flush the cache
+    if (handler && this._cachedMessageHistory) {
+      console.log('[WS Client] Flushing cached message history:', this._cachedMessageHistory.length, 'messages');
+      handler(this._cachedMessageHistory);
+      this._cachedMessageHistory = null;
+    }
+  }
 
   constructor(options: UnifiedWSClientOptions = {}) {
     const wsHost = typeof window !== 'undefined'
@@ -335,7 +352,13 @@ export class UnifiedWSClient {
 
       case 'message_history':
         console.log('[WS Client] Received message history:', message.messages?.length, 'messages');
-        this.onMessageHistory?.(message.messages || []);
+        if (this._onMessageHistory) {
+          this._onMessageHistory(message.messages || []);
+        } else {
+          // Cache for later when handler is set up
+          console.log('[WS Client] Caching message history for later');
+          this._cachedMessageHistory = message.messages || [];
+        }
         break;
 
       default:
