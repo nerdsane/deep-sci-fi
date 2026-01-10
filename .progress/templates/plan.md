@@ -22,11 +22,49 @@
 
 ---
 
-## Decision Log
+## Options & Decisions
 
-| Time | Decision | Rationale | Alternatives Considered |
-|------|----------|-----------|------------------------|
-| | | | |
+### Decision 1: [Title]
+
+**Context:** [What problem or choice are we facing?]
+
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| A: [Name] | [Brief description] | [Benefits] | [Drawbacks] |
+| B: [Name] | [Brief description] | [Benefits] | [Drawbacks] |
+| C: [Name] | [Brief description] | [Benefits] | [Drawbacks] |
+
+**Decision:** [Which option and why]
+
+**Trade-offs accepted:**
+- [What we're giving up by choosing this option]
+- [Risks we're accepting]
+
+---
+
+### Decision 2: [Title]
+
+**Context:** [What problem or choice are we facing?]
+
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| A: [Name] | [Brief description] | [Benefits] | [Drawbacks] |
+| B: [Name] | [Brief description] | [Benefits] | [Drawbacks] |
+
+**Decision:** [Which option and why]
+
+**Trade-offs accepted:**
+- [What we're giving up]
+
+---
+
+## Quick Decision Log
+
+For smaller decisions that don't need full analysis:
+
+| Time | Decision | Rationale |
+|------|----------|-----------|
+| | | |
 
 ---
 
@@ -103,6 +141,9 @@
 - Tests: [pass/fail]
 - /no-cap: [pass/fail]
 - Vision alignment: [confirmed/concerns]
+
+**Decisions summary:**
+- [List key decisions made and their outcomes]
 
 **Commit:** [hash]
 **PR:** [link if applicable]
