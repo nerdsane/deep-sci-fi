@@ -1,263 +1,192 @@
-# UX & Styling Philosophy
+# UX & Styling
 
 **Type:** STABLE
 **Created:** 2026-01-09
-**Last Updated:** 2026-01-09
+**Last Updated:** 2026-01-10
 
 ---
 
-## Overview
+## Design Philosophy
 
-Deep Sci-Fi's interface should feel like an extension of the worlds being created - thoughtful, immersive, and focused on content over chrome. This document defines the UX philosophy and aesthetic outcomes to achieve.
+Push the envelope. Generic dashboards are everywhere. Deep Sci-Fi should feel like nothing else - a portal into worlds being created, not a tool for managing them.
 
----
-
-## Core Principles
-
-### 1. Immersive Over Utilitarian
-
-The UI should feel like part of the sci-fi world, not a generic app.
-
-**Outcomes:**
-- Content is the hero, not the interface
-- Transitions feel natural and unobtrusive
-- Visual design evokes thoughtful exploration
-
-**Anti-patterns:**
-- Flashy animations that distract from content
-- Generic SaaS dashboard aesthetics
-- Over-designed empty states
-
-### 2. Progressive Disclosure
-
-Show only what's needed for the current task.
-
-**Outcomes:**
-- New users aren't overwhelmed
-- Complexity reveals itself as users go deeper
-- Each screen has a clear primary action
-
-**Anti-patterns:**
-- All options visible at once
-- Dense dashboards with everything accessible
-- Forcing users through wizards for simple tasks
-
-### 3. Agent as Collaborator, Not Tool
-
-The AI feels like a creative partner, not a command interface.
-
-**Outcomes:**
-- Conversation is the primary interaction mode
-- Agent suggestions feel like collaboration
-- Human always in control of major decisions
-- Agent explains its reasoning when useful
-
-**Anti-patterns:**
-- Treating agent as a form-filler
-- Modal confirmations for every agent action
-- Agent making decisions without transparency
-
-### 4. Scientific Aesthetic
-
-Clean, readable, information-rich when needed.
-
-**Outcomes:**
-- Typography aids reading long-form content
-- Data visualizations for world structure (when useful)
-- Clear hierarchy of information
-
-**Anti-patterns:**
-- Sacrificing readability for aesthetics
-- Information buried in menus
-- Visualizations that obscure rather than clarify
+**Core Tenets:**
+1. **Immersive over utilitarian** - The interface is part of the experience
+2. **Minimalist but bold** - Clean layouts, striking accents
+3. **Square and sharp** - No soft edges, no rounded corners
+4. **Agent as creative partner** - Not a chatbot, a collaborator
 
 ---
 
-## Visual Identity
+## Color Palette (Locked)
 
-### Color Philosophy
+Use only these colors. Vary transparency, not hue.
 
-Earth tones evoke thoughtful exploration rather than sci-fi clichés:
+```css
+/* Backgrounds */
+--bg-primary: #000000;
+--bg-secondary: #0a0a0a;
+--bg-tertiary: #0f0f0f;
 
-| Role | Intent |
-|------|--------|
-| Primary backgrounds | Deep, calm, receding |
-| Accent colors | Warm highlights for interaction |
-| Text | High contrast, easy reading |
-| Borders/dividers | Subtle, not distracting |
+/* Neon Accents */
+--neon-cyan: #00ffcc;
+--neon-cyan-bright: #00ffff;
+--neon-purple: #aa00ff;
 
-**NOT:** Neon everything, glitch effects, overwhelming darkness
+/* Text */
+--text-primary: #c8c8c8;
+--text-secondary: #8a8a8a;
+--text-tertiary: #5a5a5a;
+```
 
-### Typography Philosophy
-
-- Readable at length (stories can be long)
-- Clear hierarchy (headings, body, captions)
-- Monospace for code/technical content
-- System fonts for performance where design isn't critical
-
-### Spacing & Layout
-
-- Generous whitespace (content breathes)
-- Consistent rhythm
-- Mobile-first responsiveness
-- Reading width limits for long-form content
+**Rules:**
+- No new greens, blues, or purples - use the palette
+- Vary with `rgba()` for transparency effects
+- Cyan for primary actions, purple for secondary/agent
+- Glow effects via `box-shadow` with accent colors
 
 ---
 
-## Interaction Patterns
+## Typography
 
-### Chat-First Design
+```css
+--font-mono: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', monospace;
+--font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+```
 
-The chat panel is the primary way to interact with agents:
-
-**Outcomes:**
-- Always accessible but not intrusive
-- Can be expanded for focus mode
-- Shows agent reasoning when useful
-- Supports rich content (images, cards, UI components)
-
-### Canvas UI
-
-Agents can create dynamic UI in the canvas area:
-
-**Outcomes:**
-- Components render at designated mount points
-- Smooth transitions between UI states
-- Agent-driven but user-controllable
-- Falls back gracefully if components fail
-
-### World/Story Navigation
-
-**Outcomes:**
-- Easy to understand current context (which world? which story?)
-- Breadcrumb-style navigation
-- Quick switching between worlds
-- Story position always clear
+- **Mono** for headers, labels, UI chrome
+- **Sans** for body text, story content, long-form reading
+- All caps + letter-spacing for labels and badges
 
 ---
 
-## Component Guidelines
-
-### Cards
-
-Used for worlds, stories, suggestions:
-- Clear title hierarchy
-- Summary text visible without hover
-- Actions discoverable on interaction
-- Visual indicator of status/type
+## Component Rules
 
 ### Buttons
+- Square corners (no border-radius)
+- Uppercase, letter-spaced text
+- Neon glow on hover
+- Never rounded, never pill-shaped
 
-- Primary actions are obvious
-- Destructive actions require confirmation
-- Loading states prevent double-submission
-- Icons paired with text for clarity
+### Cards
+- Square corners
+- Subtle border (`rgba(255,255,255,0.06)`)
+- Top accent line on hover (gradient)
+- Lift effect (`translateY(-2px)`) on hover
 
-### Forms
-
-- Inline validation
-- Clear error messages
-- Save state visible
-- Auto-save where appropriate
+### Inputs
+- Square corners
+- Transparent or dark background
+- Cyan border on focus
+- No placeholder animations
 
 ### Modals
-
-- Used sparingly
-- Clear exit mechanism
-- Don't stack modals
-- Consider if sheet/panel would work better
+- Square corners
+- Top accent border in cyan
+- Backdrop blur
+- No rounded anything
 
 ---
 
-## Story Reading Experience
+## Interaction Model
 
-### Visual Novel Mode
+### Multimodal Agent Interaction
 
-For immersive story consumption:
+Users interact with the agent through multiple channels:
 
-**Outcomes:**
-- Full-screen capable
+```
+┌─────────────────────────────────────────────────┐
+│                   AGENT                          │
+│                                                  │
+│   ┌─────────┐   ┌─────────┐   ┌─────────┐       │
+│   │  CHAT   │   │ CANVAS  │   │  VOICE  │       │
+│   │         │   │         │   │ (future)│       │
+│   │Terminal │   │Immersive│   │  Speak  │       │
+│   │  style  │   │  world  │   │ & listen│       │
+│   └─────────┘   └─────────┘   └─────────┘       │
+└─────────────────────────────────────────────────┘
+```
+
+**Chat** - Terminal-style conversation, always accessible
+**Canvas** - Agent-controlled multimedia space for immersive exploration
+**Voice** - Natural conversation (future)
+
+### Canvas as Living Space
+
+The canvas is not static UI. The agent dynamically creates and controls:
+- Visual novel-style story presentation
+- World exploration interfaces
+- Character interactions
+- Generated imagery and audio
+- Game-like experiences
+
+Think of canvas as a stage where the agent is the director.
+
+---
+
+## Immersive Experiences
+
+When exploring worlds through story, the experience should feel like playing a game, not reading a document.
+
+**Elements:**
+- Full-screen visual novel mode
 - Character portraits and backgrounds
-- Text appears naturally (not jarring)
-- Easy navigation between segments
-- Audio integration (ambient, music)
+- Ambient audio and music
+- Smooth transitions between scenes
+- Agent-driven narrative pacing
 
-### Editor Mode
-
-For story creation and editing:
-
-**Outcomes:**
-- Clean writing environment
-- World context accessible
-- Agent assistance available
-- Segment structure visible
+**Anti-patterns:**
+- Static text walls
+- Generic reading views
+- Interrupting the experience with chrome
 
 ---
 
-## Responsive Behavior
+## Pushing the Envelope
 
-| Viewport | Adaptation |
-|----------|------------|
-| Desktop | Full experience, side-by-side layouts |
-| Tablet | Stacked layouts, collapsible panels |
-| Mobile | Single-column, bottom sheet patterns |
+We aim to set trends, not follow them. Current directions to explore:
 
-**Outcome:** Full functionality on all devices, optimized for each context.
+### Spatial Depth
+- Layered UI with parallax
+- Elements that feel dimensional
+- Subtle 3D transforms
+
+### Kinetic Typography
+- Text that responds to context
+- Headlines that animate meaningfully (not decoratively)
+- Type as interface element
+
+### Adaptive Interfaces
+- UI that responds to story mood
+- Layouts that shift based on context
+- Agent-driven visual changes
+
+### Haptic Integration (Future)
+- Tactile feedback for interactions
+- Vibration patterns for agent communication
+- Physical presence in digital space
 
 ---
 
-## Performance Philosophy
+## What We Avoid
 
-- Fast initial load (minimize blocking resources)
-- Progressive enhancement (core content first)
-- Skeleton loading over spinners where possible
-- Optimistic UI updates (feel fast even when waiting)
-
----
-
-## What This Is NOT
-
-### NOT a Style Guide
-
-This document doesn't specify `#3a86a0` or `16px`. Those are implementation details that may change. This defines outcomes.
-
-### NOT Prescriptive
-
-"Use this exact component library" violates flexibility. The goal is the outcome, not the implementation.
-
-### NOT Complete
-
-UX evolves as we learn from users. This is a starting point, not a final destination.
+| Anti-Pattern | Why |
+|--------------|-----|
+| Rounded corners | Breaks our sharp aesthetic |
+| New color shades | Fragments the palette |
+| Generic dashboard layouts | We're not a SaaS tool |
+| Decorative animations | Motion should have purpose |
+| Soft/friendly aesthetic | We're bold and immersive |
+| Traditional form UX | Conversation is primary |
 
 ---
 
 ## Success Criteria
 
-| Criterion | How to Evaluate |
-|-----------|-----------------|
-| Immersion | Does the UI disappear into the content? |
-| Clarity | Can new users understand what to do? |
-| Collaboration feel | Does the agent feel like a partner? |
-| Readability | Can users read stories comfortably? |
-| Performance | Does the UI feel responsive? |
-
----
-
-## Anti-Patterns Summary
-
-| Don't Do This | Why |
-|---------------|-----|
-| Dark sci-fi clichés (neon, glitch) | Distracts from content |
-| Dense dashboards | Overwhelms users |
-| Modal for everything | Interrupts flow |
-| Hidden critical info | Frustrates users |
-| Animations everywhere | Feels gimmicky |
-| Agent as command interface | Loses collaboration feel |
-
----
-
-## Remember
-
-> "The best interface is the one you don't notice."
-
-The UI serves the creative work. When users are deep in world-building or story-writing, the interface should feel like it's not there at all - just them and their creative partner.
+| Question | Good Answer |
+|----------|-------------|
+| Does it feel unique? | Unlike any other app |
+| Is the agent present? | Feels like a collaborator, not a feature |
+| Is it immersive? | You forget you're using software |
+| Is it bold? | Makes a statement |
+| Is it clean? | No clutter, clear focus |
