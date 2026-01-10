@@ -94,6 +94,14 @@ export async function image_generator(
 
     const provider = params.provider || getDefaultProvider();
 
+    // Notify frontend that image generation is starting
+    if (params.world_id) {
+      sendStateChange('image_generating', {
+        worldId: params.world_id,
+        storyId: params.story_id,
+      });
+    }
+
     // Generate image based on provider
     let imageUrl: string;
     let revisedPrompt: string | undefined;

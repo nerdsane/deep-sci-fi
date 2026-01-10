@@ -38,6 +38,7 @@ export interface DelegateToExperienceParams {
     story_segment_id?: string;
   };
   priority?: 'high' | 'medium' | 'low';
+  async?: boolean; // If true, start delegation in background and return immediately
 }
 
 export interface DelegateToExperienceResult {
@@ -183,8 +184,74 @@ export async function delegate_to_experience(
     delegationQueue.set(delegationId, delegation);
 
     console.log(
-      `[delegate_to_experience] Starting delegation ${delegationId}: ${params.task_type}`
+      `[delegate_to_experience] Starting delegation ${delegationId}: ${params.task_type}${params.async ? ' (async)' : ''}`
     );
+
+    // If async mode, start execution in background and return immediately
+    if (params.async) {
+      // Start async execution without awaiting
+      executeAsyncDelegation(delegationId, params, context).catch((error) => {
+        console.error(`[delegate_to_experience] Async delegation ${delegationId} failed:`, error);
+        updateDelegation(delegationId, {
+          status: 'failed',
+          result: { error: error instanceof Error ? error.message : String(error) },
+        });
+      });
+
+      return {
+        success: true,
+        message: `Delegation "${params.task_type}" started in background. ID: ${delegationId}. The Experience Agent is working on: ${params.task}`,
+        delegation_id: delegationId,
+      };
+    }
+
+    // Synchronous execution continues below
+    return await executeSyncDelegation(delegationId, params, context);
+  } catch (error) {
+    console.error('[delegate_to_experience] Error:', error);
+    return {
+      success: false,
+      message: `Failed to delegate: ${error instanceof Error ? error.message : String(error)}`,
+      delegation_id: '',
+    };
+  }
+}
+
+/**
+ * Execute delegation asynchronously (fire and forget)
+ */
+async function executeAsyncDelegation(
+  delegationId: string,
+  params: DelegateToExperienceParams,
+  context: DelegationContext
+): Promise<void> {
+  const result = await executeSyncDelegation(delegationId, params, context);
+  if (!result.success) {
+    console.error(`[delegate_to_experience] Async delegation ${delegationId} completed with failure:`, result.message);
+  } else {
+    console.log(`[delegate_to_experience] Async delegation ${delegationId} completed successfully`);
+  }
+}
+
+/**
+ * Execute delegation synchronously and wait for result
+ */
+async function executeSyncDelegation(
+  delegationId: string,
+  params: DelegateToExperienceParams,
+  context: DelegationContext
+): Promise<DelegateToExperienceResult> {
+  try {
+    const worldId = context.worldId || params.world_id;
+
+    if (!worldId || !context.lettaClient) {
+      updateDelegation(delegationId, { status: 'failed' });
+      return {
+        success: false,
+        message: 'Missing world context or Letta client for delegation',
+        delegation_id: delegationId,
+      };
+    }
 
     // Get world name for Experience Agent context
     let worldName = context.worldName || 'Unknown World';
@@ -517,6 +584,10 @@ export const delegateToExperienceTool = {
         type: 'string',
         enum: ['high', 'medium', 'low'],
         description: 'Task priority (default: medium)',
+      },
+      async: {
+        type: 'boolean',
+        description: 'If true, start delegation in background and return immediately. Use for parallel image generation when creating multiple worlds.',
       },
     },
     required: ['task', 'task_type'],
