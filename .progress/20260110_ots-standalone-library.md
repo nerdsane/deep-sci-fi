@@ -145,12 +145,12 @@ context = await learner.get_context("creating a story in Nexus world")
 - [x] Port `OTelTrajectoryExporter`
 - [x] Add convenience functions
 
-### Phase 6: Letta Integration - PENDING
-- [ ] Create `letta/ots/` package in Letta codebase
-- [ ] Implement `LettaAdapter`
-- [ ] Implement `LettaStorageBackend`
-- [ ] Move `DSFEntityExtractor` to Letta
-- [ ] Update Letta to use OTS library
+### Phase 6: Letta Integration - COMPLETE
+- [x] Create `letta/ots/` package in Letta codebase
+- [x] Implement `LettaAdapter` (implements TrajectoryAdapter protocol)
+- [x] Implement `LettaStorageBackend` (implements StorageBackend protocol)
+- [x] Move `DSFEntityExtractor` to Letta (implements EntityExtractor protocol)
+- [x] Update Letta to use OTS library (git dependency in pyproject.toml)
 
 ## Files to Create (OTS Library)
 
@@ -353,6 +353,21 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 | C. Hand-write schema | Full control | Drift from Pydantic models |
 
 **Rationale**: Python is the primary agent ecosystem. JSON Schema can be auto-generated from Pydantic models when needed. Adding it now is premature optimization. Listed as open question for v0.2.
+
+---
+
+### D11: Git Dependency for Letta Integration
+
+**Decision**: Use git dependency (`ots @ git+https://github.com/nerdsane/ots.git`) until PyPI publish.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| A. Wait for PyPI | Standard, versioned | Blocks integration work |
+| B. Git dependency (CHOSEN) | Immediate integration | Non-standard, no versioning |
+| C. Local path dependency | Fast iteration | Not portable |
+
+**Rationale**: Git dependencies work for development and can be replaced with PyPI version once published. This unblocks integration testing immediately.
 
 ---
 
