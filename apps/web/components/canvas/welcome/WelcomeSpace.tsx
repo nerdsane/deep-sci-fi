@@ -10,6 +10,7 @@ export interface WelcomeSpaceProps {
   onSelectWorld: (world: World) => void;
   onSelectStory: (story: Story) => void;
   onStartNewWorld?: () => void;
+  onDeleteWorld?: (world: World) => void;
   onElementAction?: (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => void;
   generatingWorldIds?: Set<string>;
 }
@@ -53,6 +54,7 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
   onSelectWorld,
   onSelectStory,
   onStartNewWorld,
+  onDeleteWorld,
   onElementAction,
   generatingWorldIds,
 }: WelcomeSpaceProps) {
@@ -143,12 +145,26 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
                     elementData={world}
                     onAction={handleAction}
                   >
-                    <button
-                      className="welcome-space__world-card"
-                      onClick={() => onSelectWorld(world)}
-                    >
-                      {/* Thumbnail section */}
-                      <div className="welcome-space__world-thumbnail">
+                    <div className="welcome-space__world-card-wrapper">
+                      {onDeleteWorld && (
+                        <button
+                          className="welcome-space__world-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteWorld(world);
+                          }}
+                          title="Delete world"
+                          aria-label={`Delete ${getWorldTitle(world)}`}
+                        >
+                          <span className="welcome-space__world-delete-icon">×</span>
+                        </button>
+                      )}
+                      <button
+                        className="welcome-space__world-card"
+                        onClick={() => onSelectWorld(world)}
+                      >
+                        {/* Thumbnail section */}
+                        <div className="welcome-space__world-thumbnail">
                         {(() => {
                           const coverImage = getWorldCoverImage(world);
                           const isGenerating = generatingWorldIds?.has((world as any).id);
@@ -190,6 +206,7 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
                         <span>v{world.development?.version || 0}</span>
                       </div>
                     </button>
+                    </div>
                   </InteractiveElement>
                 </ScrollSection>
               ))}
