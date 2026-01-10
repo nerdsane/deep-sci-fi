@@ -158,4 +158,29 @@ export const api = {
     const query = searchParams.toString();
     return fetchApi<any>(`/v1/analytics/aggregations${query ? `?${query}` : ''}`);
   },
+
+  // Trajectory Analytics
+  getTrajectoriesWithEmbeddings: (params?: { limit?: number; agent_id?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.agent_id) searchParams.set('agent_id', params.agent_id);
+    const query = searchParams.toString();
+    return fetchApi<any>(`/v1/trajectories/analytics/embeddings${query ? `?${query}` : ''}`);
+  },
+
+  getTrajectoryAggregations: (params?: { agent_id?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.agent_id) searchParams.set('agent_id', params.agent_id);
+    const query = searchParams.toString();
+    return fetchApi<any>(`/v1/trajectories/analytics/aggregations${query ? `?${query}` : ''}`);
+  },
+
+  // OTS Analytics (pure OTS data - no LLM enrichment required)
+  getOTSAnalytics: (params?: { agent_id?: string; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.agent_id) searchParams.set('agent_id', params.agent_id);
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return fetchApi<any>(`/v1/trajectories/analytics/ots${query ? `?${query}` : ''}`);
+  },
 };
