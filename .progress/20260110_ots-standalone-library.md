@@ -208,7 +208,7 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ### D1: Package Architecture - "Batteries-included with pluggable backends"
 
-**Decision**: Ship working implementations (SQLite, File, Memory) rather than just interfaces.
+**Decision**: Ship working implementations (LanceDB default, SQLite for simple storage, PostgreSQL for production) rather than just interfaces.
 
 **Options Considered**:
 | Option | Pros | Cons |
@@ -218,6 +218,8 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 | C. Separate packages | Maximum flexibility | Fragmented ecosystem, version hell |
 
 **Rationale**: Agent developers want to start storing trajectories immediately. Requiring backend implementation before any value is realized creates adoption friction. Reference implementations also serve as documentation.
+
+**Update (2026-01-10)**: Changed default from SQLite to LanceDB. Context learning (the core OTS value) requires semantic search. SQLite stores embeddings as BLOBs but can't do efficient vector similarity search. LanceDB is an embedded vector DB (local files like SQLite) with native vector search.
 
 ---
 
@@ -236,18 +238,27 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ---
 
-### D3: Entity Extraction - Generic ToolEntityExtractor ships with library
+### D3: Entity Extraction - Two locations per position paper
 
-**Decision**: Provide zero-config entity extraction from tool calls as default.
+**Decision**: Entities have two locations: `context.entities` (input) and `context_snapshot.entities` (evolving). Extraction supports both programmatic (`fast` mode) and LLM-based (`full` mode).
 
 **Options Considered**:
 | Option | Pros | Cons |
 |--------|------|------|
 | A. No built-in extractor | Forces domain-specific design | No value until user implements |
-| B. Generic tool extractor (CHOSEN) | Immediate entity tracking, works for any tool-using agent | May miss domain-specific entities |
-| C. LLM-based extraction | Smart entity detection | Expensive, slow, requires API key |
+| B. Generic tool extractor only | Immediate tracking, works for any agent | Misses entities in reasoning |
+| C. LLM-based extraction only | Smart entity detection | Expensive, slow, requires API key |
+| D. Modal extraction (CHOSEN) | User controls cost/quality tradeoff | More complex API |
 
-**Rationale**: Tool calls are universal across agent frameworks. Extracting tool names and resource references provides immediate value. Domain-specific extraction (DSF worlds, stories) is additive via the EntityExtractor protocol.
+**Rationale**: Per the position paper:
+- `context.entities` = INPUT (what agent knew at start, populated by framework adapter)
+- `context_snapshot.entities` = EVOLVING (updated as agent discovers/references things)
+
+Extraction modes:
+- `fast`: Programmatic extraction from tool calls only (free)
+- `full`: LLM extracts both decisions AND entities from reasoning/conversation (cost)
+
+**Update (2026-01-10)**: Clarified entity model based on position paper. Entities are distinct from decisions. In `full` mode, LLM extracts entities alongside decisions.
 
 ---
 
@@ -281,18 +292,25 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ---
 
-### D6: SQLite for Default Storage - Not PostgreSQL
+### D6: LanceDB for Default Storage - Not SQLite
 
-**Decision**: SQLite as default backend, PostgreSQL via custom backend.
+**Decision**: LanceDB as default backend (embedded vector DB), SQLite for simple storage without context learning, PostgreSQL+pgvector for production.
 
 **Options Considered**:
 | Option | Pros | Cons |
 |--------|------|------|
-| A. SQLite default (CHOSEN) | Zero setup, single file, works offline | Not for high concurrency |
-| B. PostgreSQL default | Production-ready, scalable | Requires server setup |
-| C. In-memory default | Fastest, simplest | No persistence |
+| A. SQLite default | Zero setup, single file | Can't do efficient vector search |
+| B. LanceDB default (CHOSEN) | Embedded, native vector search, local files | Newer, less battle-tested |
+| C. PostgreSQL default | Production-ready, pgvector for vectors | Requires server setup |
+| D. In-memory default | Fastest, simplest | No persistence |
 
-**Rationale**: OTS should work with `pip install ots` and zero configuration. SQLite is embedded, requires no server, and handles moderate workloads. Production users (like Letta) implement PostgreSQLBackend for their needs.
+**Rationale**: Context learning (the core OTS value) requires semantic search over embeddings. SQLite stores embeddings as BLOBs but requires loading ALL embeddings into memory for similarity search - O(n) and unscalable. LanceDB is an embedded vector DB that:
+- Works like SQLite (local files, no server, no API key)
+- Has native vector search (efficient similarity queries)
+- Is used by LlamaIndex, LangChain
+- Can scale to millions of vectors
+
+**Update (2026-01-10)**: Changed from SQLite to LanceDB. The out-of-box backend MUST support embedding search, or it doesn't deliver OTS value.
 
 ---
 
@@ -311,18 +329,23 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ---
 
-### D8: Observability Exporters - Langfuse AND OTel
+### D8: Observability Exporters - Export-Only to Langfuse AND OTel
 
-**Decision**: Support both Langfuse and OpenTelemetry.
+**Decision**: Support EXPORTING OTS trajectories TO Langfuse and OpenTelemetry for visualization. No import from these platforms.
 
 **Options Considered**:
 | Option | Pros | Cons |
 |--------|------|------|
 | A. Langfuse only | Purpose-built for LLMs | Vendor lock-in |
 | B. OTel only | Industry standard, any backend | Less LLM-specific features |
-| C. Both (CHOSEN) | Maximum flexibility | More code to maintain |
+| C. Both export (CHOSEN) | Maximum flexibility | More code to maintain |
+| D. Bidirectional (import + export) | Bootstrap corpus from existing traces | Loses key OTS value (reasoning) |
 
-**Rationale**: Langfuse provides LLM-specific features (cost tracking, prompt management). OTel integrates with existing infrastructure (Jaeger, Datadog, Honeycomb). Different users have different observability stacks.
+**Rationale**:
+- **Export**: OTS trajectories contain rich decision data (reasoning, alternatives). Langfuse/OTel provide excellent visualization UIs. Export enables display capability.
+- **No import**: OTel traces capture WHAT happened (tool calls) but not WHY (reasoning). Importing from OTel would produce degraded trajectories missing the key OTS value. Capture-at-source is required for full decision extraction.
+
+**Update (2026-01-10)**: Clarified as export-only. Import from OTel/Langfuse loses reasoning and alternatives - the key OTS differentiator from observability traces.
 
 ---
 
@@ -341,18 +364,26 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ---
 
-### D10: No JSON Schema (Yet)
+### D10: JSON Schema - Auto-generate from Pydantic
 
-**Decision**: Defer JSON Schema generation to future version.
+**Decision**: Generate JSON Schema from Pydantic models and include in package.
 
 **Options Considered**:
 | Option | Pros | Cons |
 |--------|------|------|
-| A. Generate JSON Schema now | Cross-language compat, validation | Maintenance burden, premature |
-| B. Defer (CHOSEN) | Focus on Python first | TypeScript/Go users wait |
+| A. Generate JSON Schema (CHOSEN) | Cross-language compat, validation | Maintenance burden |
+| B. Defer | Focus on Python first | TypeScript/Go users wait |
 | C. Hand-write schema | Full control | Drift from Pydantic models |
 
-**Rationale**: Python is the primary agent ecosystem. JSON Schema can be auto-generated from Pydantic models when needed. Adding it now is premature optimization. Listed as open question for v0.2.
+**Rationale**: JSON Schema enables:
+- Cross-language implementations (TypeScript, Go, Rust)
+- Validation in non-Python environments
+- Documentation of the OTS format
+- Integration with schema registries
+
+Auto-generation from Pydantic models using `pydantic.json_schema()` ensures the schema stays in sync with the Python implementation.
+
+**Update (2026-01-10)**: Changed from "defer" to "add now". JSON Schema is part of OTS being an open standard.
 
 ---
 
@@ -392,6 +423,7 @@ letta/letta/trajectories/ots/ # Remove (replaced by ots library)
 
 ## Open Questions
 
-- JSON Schema for OTS format? (for cross-language compatibility) → Deferred to v0.2
+- ~~JSON Schema for OTS format? (for cross-language compatibility)~~ → **RESOLVED**: Adding JSON Schema (see D10)
 - Versioning strategy for the spec itself? → Use SemVer, version field in OTSTrajectory
 - PyPI package name availability? → Need to check if "ots" is available
+- LanceDB stability for production use? → Monitor adoption and performance
