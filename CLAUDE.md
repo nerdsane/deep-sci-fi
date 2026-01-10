@@ -40,11 +40,12 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 
 | Document | Type | Purpose |
 |----------|------|---------|
-| `ARCHITECTURE.md` | EVOLVING | Target system architecture |
+| `ARCHITECTURE.md` | EVOLVING | System design, tiers, data flow |
 | `PHILOSOPHY.md` | STABLE | Bitter Lesson, tools not workflows |
 | `CONSTRAINTS.md` | STABLE | TigerStyle non-negotiables |
 | `SCIENTIFIC_GROUNDING.md` | STABLE | What "scientifically grounded" means |
 | `UX_STYLING.md` | STABLE | UI/UX design outcomes |
+| `ROADMAP.md` | EVOLVING | Where we are, where we're going |
 
 **STABLE** docs rarely change. **EVOLVING** docs may be stale - check dates, ask user if >30 days old.
 
@@ -79,9 +80,12 @@ When multiple Claude instances collaborate:
 
 ### Commands
 
+- **`/remind`** - Refresh TigerStyle workflow in context (checklist, state machine, common mistakes). **Use this if you're unsure what to do next.**
 - `/harness` - Start TigerStyle development workflow (state machine: GROUNDING → PLANNING → IMPLEMENTING → VERIFYING → COMPLETE)
 - `/planning-with-files` - Full workflow details (vision interview, multi-instance, etc.)
 - `/no-cap` - Verify implementation quality (no hacks, placeholders, or silent failures)
+
+**Automatic reminders:** A hook runs before Edit/Write operations to check for plan files and remind you of the process. See `.claude/settings.json`.
 
 ## Git Workflow (IMPORTANT)
 
