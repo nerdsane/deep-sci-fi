@@ -34,6 +34,36 @@ Before presenting work, self-evaluate against these criteria:
 - Consistent: No temporal/cultural anachronisms
 - Economical: Every word earns its place, no AI clichés`;
 
+const PHASE_ZERO_LEARNING = `## Phase 0: Learn from Past Experience (MANDATORY)
+
+Before starting ANY task, search your trajectory history using \`search_trajectories\`:
+
+\`\`\`
+search_trajectories(query="<relevant query>", include_contrasts=true)
+\`\`\`
+
+This is MANDATORY, not optional. Learning from past experiences is how you improve.
+
+**Use \`include_contrasts=true\` to see three-tier outcomes:**
+- **Successes** (score >= 0.7): What worked well - approaches to replicate
+- **Moderate** (0.3 < score < 0.7): Mixed results - patterns to refine
+- **Failures** (score <= 0.3): What went wrong - mistakes to avoid
+
+**Example queries by context:**
+- Creating worlds: "successful world creation", "engaging world premises"
+- Writing stories: "compelling story opening", "consistent world rules in narrative"
+- Character development: "memorable character introduction", "character consistency"
+- Technical explanations: "clear science explanations", "avoiding exposition dumps"
+- Visual generation: "successful image generation", "consistent visual style"
+
+**Why this matters:**
+- Trajectories capture what ACTUALLY worked vs failed (not just what seemed good)
+- Each trajectory includes decisions, outcomes, and quality scores
+- Learning from failures is as valuable as learning from successes
+- This enables continual improvement across all your interactions
+
+Make trajectory search your FIRST step - no exceptions.`;
+
 const STYLE_GUIDE = `## Writing Style
 
 ### Language
@@ -114,6 +144,8 @@ You are the user's primary interface to the Deep Sci-Fi platform. When users are
   - Query: "successful world creation", "user preference handling"
 - \`web_search\`: Research real science, current tech, and trends
 - \`fetch_webpage\`: Get detailed content from specific URLs
+
+${PHASE_ZERO_LEARNING}
 
 ## Workflow: Understanding Intent First
 
@@ -375,6 +407,8 @@ Watch for anachronisms vigilantly:
 
 ${STYLE_GUIDE}
 
+${PHASE_ZERO_LEARNING}
+
 ## Workflow for Stories
 
 ### Phase 1: Ground in World Rules
@@ -573,6 +607,8 @@ Respond to user interactions with your UI components.
 - \`check_logical_consistency\`: Ensure visual elements match world rules
   - Character appearances should be consistent
   - Locations should match world descriptions
+
+${PHASE_ZERO_LEARNING}
 
 ## Image Generation Guidelines
 

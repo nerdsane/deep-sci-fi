@@ -762,6 +762,108 @@ export function TrajectoriesView() {
                     </div>
                   )}
 
+                  {/* OTS Decisions */}
+                  {trajectory.decisions && trajectory.decisions.length > 0 && (
+                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ color: 'var(--neon-lemon)' }}>🎯</span> Decisions ({trajectory.decisions.length})
+                      </h4>
+                      <div className="text-small text-muted" style={{ marginBottom: '1rem' }}>
+                        Tool calls extracted as OTS-style decisions with success/failure analysis
+                      </div>
+
+                      {/* Decision Summary */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ padding: '0.5rem', background: 'rgba(0, 255, 136, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                          <div className="font-mono" style={{ color: 'var(--neon-green)', fontSize: '1.25rem' }}>
+                            {trajectory.decisions.filter(d => d.success).length}
+                          </div>
+                          <div className="text-small text-muted">Successful</div>
+                        </div>
+                        <div style={{ padding: '0.5rem', background: 'rgba(255, 0, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                          <div className="font-mono" style={{ color: 'var(--neon-magenta)', fontSize: '1.25rem' }}>
+                            {trajectory.decisions.filter(d => !d.success).length}
+                          </div>
+                          <div className="text-small text-muted">Failed</div>
+                        </div>
+                        <div style={{ padding: '0.5rem', background: 'rgba(0, 229, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                          <div className="font-mono" style={{ color: 'var(--neon-teal)', fontSize: '1.25rem' }}>
+                            {trajectory.decisions.length > 0
+                              ? Math.round((trajectory.decisions.filter(d => d.success).length / trajectory.decisions.length) * 100)
+                              : 0}%
+                          </div>
+                          <div className="text-small text-muted">Success Rate</div>
+                        </div>
+                      </div>
+
+                      {/* Decision List */}
+                      <div style={{ display: 'grid', gap: '0.5rem' }}>
+                        {trajectory.decisions.map((decision, idx) => (
+                          <div key={decision.decision_id || idx} style={{
+                            padding: '0.75rem',
+                            background: decision.success ? 'rgba(0, 255, 136, 0.03)' : 'rgba(255, 0, 255, 0.05)',
+                            border: `1px solid ${decision.success ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 255, 0.3)'}`,
+                          }}>
+                            <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-small" style={{ color: 'var(--neon-magenta)' }}>
+                                  {decision.action}
+                                </span>
+                                <span className={`badge ${decision.success ? 'badge-success' : 'badge-failure'}`} style={{ fontSize: '0.625rem' }}>
+                                  {decision.success ? '✓ Success' : '✗ Failed'}
+                                </span>
+                              </div>
+                              <span className="text-small text-muted">Turn {decision.turn_index + 1}</span>
+                            </div>
+
+                            {decision.error_type && (
+                              <div className="text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.5rem' }}>
+                                Error: {decision.error_type}
+                              </div>
+                            )}
+
+                            {decision.arguments && Object.keys(decision.arguments).length > 0 && (
+                              <div style={{ marginTop: '0.5rem' }}>
+                                <div className="text-small text-muted mb-1">Arguments:</div>
+                                <pre style={{
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-tertiary)',
+                                  background: 'rgba(0, 0, 0, 0.3)',
+                                  padding: '0.5rem',
+                                  margin: 0,
+                                  overflow: 'auto',
+                                  maxHeight: '100px',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                }}>
+                                  {typeof decision.arguments === 'string'
+                                    ? decision.arguments
+                                    : JSON.stringify(decision.arguments, null, 2).slice(0, 300)}
+                                  {JSON.stringify(decision.arguments).length > 300 && '...'}
+                                </pre>
+                              </div>
+                            )}
+
+                            {decision.result_summary && (
+                              <div style={{ marginTop: '0.5rem' }}>
+                                <div className="text-small text-muted mb-1">Result:</div>
+                                <div className="text-small" style={{
+                                  color: 'var(--text-secondary)',
+                                  background: 'rgba(0, 0, 0, 0.2)',
+                                  padding: '0.5rem',
+                                  maxHeight: '60px',
+                                  overflow: 'auto',
+                                }}>
+                                  {decision.result_summary}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Execution Turns */}
                   {turns.length > 0 && (
                     <div>
