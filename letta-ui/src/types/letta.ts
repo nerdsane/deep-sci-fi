@@ -130,6 +130,20 @@ export interface Trajectory {
   organization_id?: string;
   // For search results
   visibility?: TrajectoryVisibility;
+  // OTS-style decisions extracted from tool calls
+  decisions?: DecisionSummary[];
+}
+
+export interface DecisionSummary {
+  decision_id: string;
+  turn_index: number;
+  decision_type: string;
+  action: string;
+  arguments?: Record<string, any>;
+  rationale?: string;
+  success: boolean;
+  error_type?: string;
+  result_summary?: string;
 }
 
 export interface SearchTrajectoriesResponse {
