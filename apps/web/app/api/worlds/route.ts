@@ -3,7 +3,7 @@ import { db } from '@deep-sci-fi/db';
 
 export async function GET() {
   try {
-    // Fetch worlds from database
+    // Fetch worlds from database with cover images
     const worlds = await db.world.findMany({
       orderBy: {
         updatedAt: 'desc',
@@ -20,6 +20,17 @@ export async function GET() {
         version: true,
         createdAt: true,
         updatedAt: true,
+        // Include cover art assets
+        assets: {
+          where: { category: 'cover_art' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            url: true,
+            storagePath: true,
+          },
+        },
       },
     });
 
@@ -49,6 +60,14 @@ export async function GET() {
       },
       // Include name for display
       name: world.name,
+      // Include cover art asset
+      asset: world.assets[0]
+        ? {
+            id: world.assets[0].id,
+            path: world.assets[0].storagePath,
+            url: world.assets[0].url,
+          }
+        : null,
     }));
 
     return NextResponse.json(transformedWorlds);

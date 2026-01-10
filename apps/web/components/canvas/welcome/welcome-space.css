@@ -10,6 +10,29 @@
   color: var(--text-primary, #c8c8c8);
 }
 
+/* Minimal stats bar */
+.welcome-space__stats-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary, #5a5a5a);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.welcome-space__stat {
+  color: var(--text-secondary, #8a8a8a);
+}
+
+.welcome-space__stat-divider {
+  color: var(--text-muted, #3a3a3a);
+}
+
 /* ============================================================================
    SECTIONS
    ============================================================================ */
@@ -180,6 +203,79 @@
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   color: var(--text-tertiary, #5a5a5a);
+}
+
+/* ============================================================================
+   WORLD CARD THUMBNAILS
+   ============================================================================ */
+
+.welcome-space__world-thumbnail {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-tertiary, #0f0f0f);
+}
+
+.welcome-space__world-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.welcome-space__world-card:hover .welcome-space__world-image {
+  transform: scale(1.05);
+}
+
+.welcome-space__world-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary, #0a0a0a) 0%,
+    var(--bg-tertiary, #0f0f0f) 100%
+  );
+}
+
+.welcome-space__world-placeholder-icon {
+  font-size: 2rem;
+  color: var(--text-muted, #3a3a3a);
+  opacity: 0.5;
+}
+
+.welcome-space__world-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-tertiary, #5a5a5a);
+  letter-spacing: 0.05em;
+}
+
+.welcome-space__world-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-top-color: var(--neon-cyan, #00ffcc);
+  border-radius: 50%;
+  animation: world-spinner 1s linear infinite;
+}
+
+@keyframes world-spinner {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ============================================================================

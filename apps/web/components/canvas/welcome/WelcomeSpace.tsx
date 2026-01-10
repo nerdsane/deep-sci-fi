@@ -1,6 +1,6 @@
 import React from 'react';
 import type { World, Story } from '@/types/dsf';
-import { Hero, ScrollSection, ActionBar } from '../experience';
+import { ScrollSection, ActionBar } from '../experience';
 import { InteractiveElement, type ElementType } from '../interaction';
 import './welcome-space.css';
 
@@ -11,13 +11,26 @@ export interface WelcomeSpaceProps {
   onSelectStory: (story: Story) => void;
   onStartNewWorld?: () => void;
   onElementAction?: (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => void;
+  generatingWorldIds?: Set<string>;
 }
 
-// Helper to derive world title
+// Helper to get world cover image URL
+function getWorldCoverImage(world: World): string | null {
+  const asset = (world as any).asset;
+  if (!asset) return null;
+  // Prefer direct URL (S3), fall back to storagePath
+  if (asset.url) return asset.url;
+  if (asset.path) return `/api/assets/${asset.path}`;
+  return null;
+}
+
+// Helper to derive world title - prefer explicit name over element names
 function getWorldTitle(world: World): string {
-  if (world.surface?.visible_elements?.[0]?.name) {
-    return world.surface.visible_elements[0].name;
+  // Use explicit world name first (from database)
+  if ((world as any).name) {
+    return (world as any).name;
   }
+  // Fallback to premise truncation (not element names)
   const premise = world.foundation?.core_premise || 'Untitled World';
   const words = premise.split(' ').slice(0, 5);
   return words.join(' ') + (words.length < premise.split(' ').length ? '...' : '');
@@ -41,6 +54,7 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
   onSelectStory,
   onStartNewWorld,
   onElementAction,
+  generatingWorldIds,
 }: WelcomeSpaceProps) {
   // Default action handler
   const handleAction = (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => {
@@ -68,17 +82,12 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
 
   return (
     <div className="welcome-space">
-      {/* Hero Section - Compact for content-first design */}
-      <Hero
-        title={greeting}
-        subtitle={subtitle}
-        meta={[
-          `${worlds.length} worlds`,
-          `${stories.length} stories`,
-        ]}
-        height="compact"
-        overlay="gradient"
-      />
+      {/* Minimal stats bar instead of Hero */}
+      <div className="welcome-space__stats-bar">
+        <span className="welcome-space__stat">{worlds.length} worlds</span>
+        <span className="welcome-space__stat-divider">·</span>
+        <span className="welcome-space__stat">{stories.length} stories</span>
+      </div>
 
       {/* Continue Reading Section */}
       {recentStories.length > 0 && (
@@ -138,6 +147,37 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
                       className="welcome-space__world-card"
                       onClick={() => onSelectWorld(world)}
                     >
+                      {/* Thumbnail section */}
+                      <div className="welcome-space__world-thumbnail">
+                        {(() => {
+                          const coverImage = getWorldCoverImage(world);
+                          const isGenerating = generatingWorldIds?.has((world as any).id);
+
+                          if (coverImage) {
+                            return (
+                              <img
+                                src={coverImage}
+                                alt=""
+                                className="welcome-space__world-image"
+                                loading="lazy"
+                              />
+                            );
+                          }
+                          if (isGenerating) {
+                            return (
+                              <div className="welcome-space__world-loading">
+                                <div className="welcome-space__world-spinner" />
+                                <span>Generating...</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="welcome-space__world-placeholder">
+                              <span className="welcome-space__world-placeholder-icon">◈</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                       <div className="welcome-space__world-header">
                         <span className="welcome-space__world-badge">
                           {getWorldEra(world)}

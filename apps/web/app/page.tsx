@@ -55,6 +55,8 @@ interface AppState {
   // Agent type tracking
   agentType: 'user' | 'world' | null;
   agentWorldName: string | null;
+  // Image generation tracking
+  generatingWorldIds: Set<string>;
 }
 
 // ============================================================================
@@ -80,6 +82,7 @@ function App() {
     cliConnected: false,
     agentType: null,
     agentWorldName: null,
+    generatingWorldIds: new Set(),
   });
 
   const feedback = useFeedbackSafe();
@@ -143,7 +146,7 @@ function App() {
           setState((s) => ({
             ...s,
             agentThinking: true,
-            agentAction: data.message || 'Processing...',
+            agentAction: 'Processing...',
           }));
           break;
         case 'agent_done':
@@ -159,8 +162,24 @@ function App() {
           feedbackRef.current?.showToast('World updated', 'success');
           loadData();
           break;
+        case 'image_generating':
+          // Track that image is being generated for a world
+          if (data?.worldId) {
+            setState((s) => ({
+              ...s,
+              generatingWorldIds: new Set([...s.generatingWorldIds, data.worldId]),
+            }));
+          }
+          break;
         case 'image_generated':
-          // Refresh data when image is generated
+          // Remove from generating set and refresh data
+          if (data?.worldId) {
+            setState((s) => {
+              const newSet = new Set(s.generatingWorldIds);
+              newSet.delete(data.worldId);
+              return { ...s, generatingWorldIds: newSet };
+            });
+          }
           feedbackRef.current?.showToast('Image generated', 'success');
           loadData();
           break;
@@ -494,6 +513,7 @@ function App() {
                 onSelectWorld={selectWorld}
                 onSelectStory={selectStory}
                 onElementAction={handleElementAction}
+                generatingWorldIds={state.generatingWorldIds}
               />
             )}
 
