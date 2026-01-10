@@ -54,7 +54,7 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 
 1. **Check `.vision/`** - If exists, read whatever vision files are there
 2. **Check `.progress/`** - Read existing plans to understand current state
-3. **Create plan** - Save `.progress/YYYYMMDD_HHMMSS_task-name.md` BEFORE writing code
+3. **Create plan** - Save `.progress/NNN_YYYYMMDD_HHMMSS_task-name.md` BEFORE writing code (NNN = next sequence number)
 4. **If no `.vision/`** and task is significant: Offer to help create relevant vision docs (interview user about what they need)
 
 **Planning is important, but be pragmatic.** Small fixes don't need full plans. Use judgment.
@@ -70,6 +70,12 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 1. **Run `/no-cap`** - MANDATORY for any code changes
 2. **Check vision alignment** - Does result match vision constraints?
 3. **Update plan status** - Mark complete with verification status
+
+### Testing (Default Behavior)
+
+- **Write tests for new code** - Any new feature or bug fix should have tests
+- **Run tests before pushing** - Never push without running tests locally
+- **If tests fail, fix before pushing** - Don't rely on CI to catch issues
 
 ### Multi-Instance Coordination
 
