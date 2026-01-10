@@ -190,13 +190,14 @@ curl -X POST http://localhost:8283/v1/trajectories/search \
 
 **Try It**:
 ```bash
-# Start Letta server
+# Start everything
+./start.sh
+
+# Or manually:
 cd letta && docker compose -f dev-compose.yaml up -d
+cd letta-ui && LETTA_BASE_URL=http://localhost:8283 PORT=4000 bun run dev
 
-# Start UI
-cd letta-ui && LETTA_BASE_URL=http://localhost:8283 bun run dev
-
-# Navigate to http://localhost:3000 → Trajectories tab
+# Navigate to http://localhost:4000 → Trajectories tab
 ```
 
 ### Phase 5: Deduplicate Langfuse Exporter ✅ COMPLETE
@@ -314,7 +315,7 @@ curl -X POST http://localhost:8283/v1/trajectories/{id}/export/langfuse \
 
 **What works RIGHT NOW:**
 1. Start `./start.sh` → Trajectories are captured with `ENABLE_TRAJECTORY_CAPTURE=true`
-2. Letta UI shows trajectory list, search, and analytics at http://localhost:3000
+2. Letta UI shows trajectory list, search, and analytics at http://localhost:4000
 3. New Langfuse export: `POST /v1/trajectories/{id}/export/langfuse`
 4. Cross-org sharing via API (set `share_cross_org=true`)
 
