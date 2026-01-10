@@ -48,9 +48,26 @@ interface AnalyticsAggregations {
   agent_stats: Record<string, { count: number; avg_score?: number }>;
 }
 
+interface OTSAnalytics {
+  decision_success_rate: Record<string, number>;
+  action_frequency: Record<string, number>;
+  decision_type_breakdown: Record<string, number>;
+  turn_distribution: Record<string, number>;
+  error_type_frequency: Record<string, number>;
+  trajectory_outcomes: Record<string, number>;
+  total_trajectories: number;
+  total_turns: number;
+  total_decisions: number;
+  total_messages: number;
+  avg_turns_per_trajectory: number;
+  avg_decisions_per_turn: number;
+  overall_success_rate: number;
+}
+
 export function AnalyticsView() {
   const [trajectories, setTrajectories] = useState<TrajectoryWithEmbedding[]>([]);
   const [aggregations, setAggregations] = useState<AnalyticsAggregations | null>(null);
+  const [otsAnalytics, setOtsAnalytics] = useState<OTSAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTrajectory, setSelectedTrajectory] = useState<string | null>(null);
@@ -63,12 +80,14 @@ export function AnalyticsView() {
   async function loadData() {
     try {
       setLoading(true);
-      const [trajsData, aggsData] = await Promise.all([
-        api.getTrajectoriesWithEmbeddings(500),
-        api.getAnalyticsAggregations(),
+      const [trajsData, aggsData, otsData] = await Promise.all([
+        api.getTrajectoriesWithEmbeddings({ limit: 500 }),
+        api.getTrajectoryAggregations(),
+        api.getOTSAnalytics({ limit: 500 }),
       ]);
       setTrajectories(trajsData);
       setAggregations(aggsData);
+      setOtsAnalytics(otsData);
 
       // Compute UMAP projection if we have embeddings
       if (trajsData.length > 0 && trajsData[0].embedding) {
@@ -160,6 +179,52 @@ export function AnalyticsView() {
       value,
     }));
   }, [aggregations]);
+
+  // OTS Analytics data
+  const otsActionFrequencyData = useMemo(() => {
+    if (!otsAnalytics) return [];
+    return Object.entries(otsAnalytics.action_frequency)
+      .map(([action, count]) => ({ action, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [otsAnalytics]);
+
+  const otsSuccessRateData = useMemo(() => {
+    if (!otsAnalytics) return [];
+    return Object.entries(otsAnalytics.decision_success_rate)
+      .map(([action, rate]) => ({
+        action,
+        rate: Math.round(rate * 100),
+        success: Math.round(rate * 100),
+        failure: Math.round((1 - rate) * 100),
+      }))
+      .sort((a, b) => b.rate - a.rate)
+      .slice(0, 10);
+  }, [otsAnalytics]);
+
+  const otsDecisionTypeData = useMemo(() => {
+    if (!otsAnalytics) return [];
+    return Object.entries(otsAnalytics.decision_type_breakdown).map(([name, value]) => ({
+      name,
+      value,
+    }));
+  }, [otsAnalytics]);
+
+  const otsErrorTypeData = useMemo(() => {
+    if (!otsAnalytics) return [];
+    return Object.entries(otsAnalytics.error_type_frequency)
+      .map(([error, count]) => ({ error, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [otsAnalytics]);
+
+  const otsOutcomeData = useMemo(() => {
+    if (!otsAnalytics) return [];
+    return Object.entries(otsAnalytics.trajectory_outcomes).map(([name, value]) => ({
+      name,
+      value,
+    }));
+  }, [otsAnalytics]);
 
   const timeSeriesData = useMemo(() => {
     if (!aggregations) return [];
@@ -558,6 +623,223 @@ export function AnalyticsView() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+      )}
+
+      {/* Pure OTS Analytics Section */}
+      {otsAnalytics && (
+        <>
+          <div style={{ marginTop: '3rem', marginBottom: '2rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '2rem' }}>
+            <h2 className="section-title">Pure OTS Analytics</h2>
+            <p className="section-subtitle">
+              Decision-level analytics from raw OTS data (no LLM enrichment required)
+            </p>
+          </div>
+
+          {/* OTS Overview Stats */}
+          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
+            <div className="stat-card">
+              <div className="stat-value color-teal">{otsAnalytics.total_decisions}</div>
+              <div className="stat-label">Total Decisions</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-green">
+                {(otsAnalytics.overall_success_rate * 100).toFixed(1)}%
+              </div>
+              <div className="stat-label">Success Rate</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-magenta">
+                {otsAnalytics.avg_decisions_per_turn.toFixed(1)}
+              </div>
+              <div className="stat-label">Avg Decisions/Turn</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-lemon">
+                {otsAnalytics.total_messages}
+              </div>
+              <div className="stat-label">Total Messages</div>
+            </div>
+          </div>
+
+          {/* Decision Success Rate and Action Frequency */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {/* Decision Success Rate */}
+            {otsSuccessRateData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  ✅ Decision Success Rate by Action
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={otsSuccessRateData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="action"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                      formatter={(value: number) => [`${value}%`, 'Success Rate']}
+                    />
+                    <Bar dataKey="rate" fill="var(--neon-green)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Action Frequency */}
+            {otsActionFrequencyData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  📊 Action Frequency (Top 10)
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={otsActionFrequencyData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="action"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                    <Bar dataKey="count" fill="var(--neon-teal)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Decision Type and Outcomes */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {/* Decision Type Breakdown */}
+            {otsDecisionTypeData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  🔀 Decision Type Breakdown
+                </h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={otsDecisionTypeData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {otsDecisionTypeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Trajectory Outcomes */}
+            {otsOutcomeData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  🎯 Trajectory Outcomes
+                </h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={otsOutcomeData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {otsOutcomeData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            entry.name === 'success'
+                              ? '#00ff88'
+                              : entry.name === 'partial_success'
+                              ? '#ffff00'
+                              : entry.name === 'failure'
+                              ? '#ff0055'
+                              : COLORS[index % COLORS.length]
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Error Type Frequency */}
+          {otsErrorTypeData.length > 0 && (
+            <div className="card">
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                ⚠️ Error Type Frequency
+              </h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={otsErrorTypeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis
+                    dataKey="error"
+                    stroke="var(--text-tertiary)"
+                    tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                  />
+                  <YAxis stroke="var(--text-tertiary)" tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#000',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#ff0055" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
