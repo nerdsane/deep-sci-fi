@@ -70,7 +70,7 @@ export async function GET(
           orderBy: { updatedAt: 'desc' },
         },
         assets: {
-          where: { category: 'cover_art' },
+          where: { type: 'image' },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: { id: true, url: true, storagePath: true },
@@ -82,7 +82,42 @@ export async function GET(
       return NextResponse.json({ error: 'World not found' }, { status: 404 });
     }
 
-    return NextResponse.json(world);
+    // Transform to match frontend contract (same as list endpoint)
+    const transformed = {
+      id: world.id,
+      checkpoint_name: world.id,
+      name: world.name,
+      foundation: {
+        core_premise: (world.foundation as any)?.premise || world.description || '',
+        rules: (world.foundation as any)?.rules || [],
+        deep_focus_areas: (world.foundation as any)?.deep_focus_areas || {},
+        history: (world.foundation as any)?.history || {},
+        technology: (world.foundation as any)?.technology || '',
+        society: (world.foundation as any)?.society || '',
+      },
+      surface: world.surface || {
+        visible_elements: [],
+        opening_scene: null,
+        revealed_in_story: [],
+      },
+      constraints: world.constraints || [],
+      changelog: world.changelog || [],
+      development: {
+        version: world.version,
+        state: world.state,
+        last_modified: world.updatedAt.toISOString(),
+      },
+      asset: world.assets[0]
+        ? {
+            id: world.assets[0].id,
+            path: world.assets[0].storagePath,
+            url: world.assets[0].url,
+          }
+        : null,
+      stories: world.stories,
+    };
+
+    return NextResponse.json(transformed);
   } catch (error) {
     console.error('[GET /api/worlds/[id]] Error:', error);
     return NextResponse.json(
