@@ -373,8 +373,9 @@ async function saveAsAsset(
     storagePath = `generated/${context.userId}/${fileName}`;
   }
 
-  // Upload to S3 if configured
-  let assetUrl = imageUrl; // Fallback to data URL
+  // Upload to S3 if configured (for backup/persistence)
+  // IMPORTANT: Always use data URL for display since S3 may not be publicly accessible
+  const assetUrl = imageUrl; // Always use data URL for immediate display
   let s3UploadFailed = false;
   let s3UploadError: string | undefined;
   const s3Bucket = process.env.AWS_S3_BUCKET;
@@ -399,20 +400,16 @@ async function saveAsAsset(
         })
       );
 
-      // Use CloudFront URL if available, otherwise S3 URL
-      const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
-      if (cloudfrontDomain) {
-        assetUrl = `https://${cloudfrontDomain}/${storagePath}`;
-      } else {
-        assetUrl = `https://${s3Bucket}.s3.${awsRegion}.amazonaws.com/${storagePath}`;
-      }
-
+      // NOTE: We intentionally DON'T use S3/CloudFront URL for display
+      // because S3 bucket may not have public read permissions.
+      // The data URL in assetUrl is always accessible.
+      // storagePath is still saved for potential CDN serving later.
       console.log(`[image_generator] Uploaded to S3: ${storagePath}`);
     } catch (error) {
       console.error('[image_generator] S3 upload failed:', error);
       s3UploadFailed = true;
       s3UploadError = error instanceof Error ? error.message : String(error);
-      // Continue with data URL fallback but track the failure
+      // Continue with data URL - which is already set
     }
   } else {
     console.warn('[image_generator] AWS_S3_BUCKET not configured, using data URL');
