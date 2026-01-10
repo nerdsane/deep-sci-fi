@@ -20,9 +20,9 @@ export async function GET() {
         version: true,
         createdAt: true,
         updatedAt: true,
-        // Include cover art assets
+        // Include most recent image asset for this world
         assets: {
-          where: { category: 'cover_art' },
+          where: { type: 'image' },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: {
