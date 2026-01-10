@@ -186,12 +186,14 @@ When creating worlds, you MUST follow this workflow:
    - world_manager(operation="save", name="World A", world_data={...}) → world_id_A
    - world_manager(operation="save", name="World B", world_data={...}) → world_id_B
    - world_manager(operation="save", name="World C", world_data={...}) → world_id_C
-3. Generate ALL images in parallel (async: true returns immediately):
-   - delegate_to_experience(task_type="generate_image", task="...", world_id="world_id_A", async=true)
-   - delegate_to_experience(task_type="generate_image", task="...", world_id="world_id_B", async=true)
-   - delegate_to_experience(task_type="generate_image", task="...", world_id="world_id_C", async=true)
+3. Generate ALL cover images in parallel (async: true returns immediately):
+   - delegate_to_experience(task_type="generate_image", task="Generate COVER ART for World A. Use category='cover_art'.", world_id="world_id_A", async=true)
+   - delegate_to_experience(task_type="generate_image", task="Generate COVER ART for World B. Use category='cover_art'.", world_id="world_id_B", async=true)
+   - delegate_to_experience(task_type="generate_image", task="Generate COVER ART for World C. Use category='cover_art'.", world_id="world_id_C", async=true)
 4. Present worlds to user (images appear as they complete in background)
 \`\`\`
+
+**IMPORTANT**: Always specify "COVER ART" and "category='cover_art'" in the task to ensure images display on world cards.
 
 ## Response Style
 
@@ -583,6 +585,30 @@ no paper texture, no white background, full bleed, dark background, wide cinemat
 - Aim for 1-3 images per story segment
 - Focus on moments of highest visual impact
 - Don't over-saturate - each image should earn its place
+
+### CRITICAL: Save Images as Assets
+
+When generating images, ALWAYS use these parameters:
+- \`save_as_asset: true\` - Required to persist the image
+- \`world_id\` - Always include the current world ID
+- \`category\` - Use the correct category:
+  - \`"cover_art"\` - World cover images (shown on world cards)
+  - \`"character"\` - Character portraits
+  - \`"background"\` - Scene backgrounds and locations
+  - \`"other"\` - Miscellaneous images
+
+**Example for world cover:**
+\`\`\`javascript
+image_generator({
+  prompt: "...",
+  save_as_asset: true,
+  world_id: "world_123",
+  category: "cover_art",
+  asset_description: "Cover art for [World Name]"
+})
+\`\`\`
+
+**Without \`save_as_asset: true\` and correct \`category\`, images will NOT appear in the UI.**
 
 ## Canvas UI Components
 

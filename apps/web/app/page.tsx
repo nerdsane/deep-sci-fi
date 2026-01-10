@@ -178,16 +178,30 @@ function App() {
           }
           break;
         case 'image_generated':
-          // Remove from generating set and refresh data
+          // Update only the specific world with new asset - no full reload
           if (data?.worldId) {
             setState((s) => {
               const newSet = new Set(s.generatingWorldIds);
               newSet.delete(data.worldId);
-              return { ...s, generatingWorldIds: newSet };
+
+              // Update the specific world's asset without reloading all worlds
+              const updatedWorlds = s.worlds.map((world) => {
+                if ((world as any).id === data.worldId && data.assetUrl) {
+                  return {
+                    ...world,
+                    asset: {
+                      id: data.assetId,
+                      url: data.assetUrl,
+                    },
+                  };
+                }
+                return world;
+              });
+
+              return { ...s, generatingWorldIds: newSet, worlds: updatedWorlds };
             });
+            feedbackRef.current?.showToast('Image generated', 'success');
           }
-          feedbackRef.current?.showToast('Image generated', 'success');
-          loadData();
           break;
       }
     };
