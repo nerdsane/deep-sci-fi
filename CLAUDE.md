@@ -40,12 +40,11 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 
 | Document | Type | Purpose |
 |----------|------|---------|
-| `ARCHITECTURE.md` | EVOLVING | System design, tiers, data flow |
+| `ARCHITECTURE.md` | EVOLVING | Target system architecture |
 | `PHILOSOPHY.md` | STABLE | Bitter Lesson, tools not workflows |
 | `CONSTRAINTS.md` | STABLE | TigerStyle non-negotiables |
 | `SCIENTIFIC_GROUNDING.md` | STABLE | What "scientifically grounded" means |
 | `UX_STYLING.md` | STABLE | UI/UX design outcomes |
-| `ROADMAP.md` | EVOLVING | Where we are, where we're going |
 
 **STABLE** docs rarely change. **EVOLVING** docs may be stale - check dates, ask user if >30 days old.
 
