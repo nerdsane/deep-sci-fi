@@ -36,6 +36,19 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 .progress/   → Timestamped task plans (per-task tracking) - CREATE BEFORE CODING
 ```
 
+### Vision Documents
+
+| Document | Type | Purpose |
+|----------|------|---------|
+| `ARCHITECTURE.md` | EVOLVING | System design, tiers, data flow |
+| `PHILOSOPHY.md` | STABLE | Bitter Lesson, tools not workflows |
+| `CONSTRAINTS.md` | STABLE | TigerStyle non-negotiables |
+| `SCIENTIFIC_GROUNDING.md` | STABLE | What "scientifically grounded" means |
+| `UX_STYLING.md` | STABLE | UI/UX design outcomes |
+| `ROADMAP.md` | EVOLVING | Where we are, where we're going |
+
+**STABLE** docs rarely change. **EVOLVING** docs may be stale - check dates, ask user if >30 days old.
+
 ### Before Starting - DO THIS FIRST
 
 1. **Check `.vision/`** - If exists, READ ALL vision files before doing anything else
@@ -67,8 +80,9 @@ When multiple Claude instances collaborate:
 
 ### Commands
 
+- `/harness` - Start TigerStyle development workflow (state machine: GROUNDING → PLANNING → IMPLEMENTING → VERIFYING → COMPLETE)
 - `/planning-with-files` - Full workflow details (vision interview, multi-instance, etc.)
-- `/no-cap` - Verify implementation quality
+- `/no-cap` - Verify implementation quality (no hacks, placeholders, or silent failures)
 
 ## Git Workflow (IMPORTANT)
 
