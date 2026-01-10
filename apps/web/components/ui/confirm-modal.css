@@ -1,6 +1,7 @@
 /* ============================================================================
    CONFIRM MODAL
    Reusable confirmation dialog with DSF styling
+   DSF brand: no rounded corners, neon-cyan/neon-purple accents only
    ============================================================================ */
 
 .confirm-modal__backdrop {
@@ -31,7 +32,7 @@
   padding: 2rem;
   background: var(--bg-secondary, #0a0a0a);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-top: 2px solid var(--neon-cyan, #00ffcc);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: modal-slide-up 0.25s ease-out;
 }
@@ -39,7 +40,7 @@
 @keyframes modal-slide-up {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(20px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -47,15 +48,15 @@
   }
 }
 
-/* Variant borders */
+/* Variant borders - use neon-purple for danger */
 .confirm-modal--danger {
-  border-color: rgba(255, 70, 70, 0.3);
-  border-top: 2px solid #ff4646;
+  border-color: rgba(170, 0, 255, 0.3);
+  border-top: 2px solid var(--neon-purple, #aa00ff);
 }
 
 .confirm-modal--warning {
-  border-color: rgba(255, 180, 50, 0.3);
-  border-top: 2px solid #ffb432;
+  border-color: rgba(170, 0, 255, 0.2);
+  border-top: 2px solid var(--neon-purple, #aa00ff);
 }
 
 /* Icon */
@@ -66,7 +67,6 @@
   width: 48px;
   height: 48px;
   margin: 0 auto 1.5rem;
-  border-radius: 50%;
   font-family: var(--font-mono);
   font-size: 1.5rem;
   font-weight: 600;
@@ -75,13 +75,13 @@
 }
 
 .confirm-modal--danger .confirm-modal__icon {
-  background: rgba(255, 70, 70, 0.15);
-  color: #ff4646;
+  background: rgba(170, 0, 255, 0.15);
+  color: var(--neon-purple, #aa00ff);
 }
 
 .confirm-modal--warning .confirm-modal__icon {
-  background: rgba(255, 180, 50, 0.15);
-  color: #ffb432;
+  background: rgba(170, 0, 255, 0.1);
+  color: var(--neon-purple, #aa00ff);
 }
 
 /* Title */
@@ -110,12 +110,11 @@
   gap: 0.75rem;
   padding: 1rem;
   margin-bottom: 1.5rem;
-  background: rgba(255, 70, 70, 0.08);
-  border: 1px solid rgba(255, 70, 70, 0.2);
-  border-radius: 6px;
+  background: rgba(170, 0, 255, 0.08);
+  border: 1px solid rgba(170, 0, 255, 0.2);
   font-size: 0.85rem;
   line-height: 1.5;
-  color: #ff8080;
+  color: var(--text-secondary, #8a8a8a);
 }
 
 .confirm-modal__warning-icon {
@@ -125,12 +124,11 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
-  background: rgba(255, 70, 70, 0.2);
+  background: rgba(170, 0, 255, 0.2);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
-  color: #ff4646;
+  color: var(--neon-purple, #aa00ff);
 }
 
 /* Actions */
@@ -145,11 +143,11 @@
   max-width: 160px;
   padding: 0.75rem 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -170,7 +168,7 @@
   color: var(--text-primary, #c8c8c8);
 }
 
-/* Confirm button - default */
+/* Confirm button - default (cyan) */
 .confirm-modal__button--confirm {
   background: rgba(0, 255, 204, 0.1);
   border-color: rgba(0, 255, 204, 0.3);
@@ -182,28 +180,28 @@
   box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
 }
 
-/* Confirm button - danger variant */
+/* Confirm button - danger variant (purple) */
 .confirm-modal__button--danger {
-  background: rgba(255, 70, 70, 0.15);
-  border-color: rgba(255, 70, 70, 0.4);
-  color: #ff4646;
+  background: rgba(170, 0, 255, 0.15);
+  border-color: rgba(170, 0, 255, 0.4);
+  color: var(--neon-purple, #aa00ff);
 }
 
 .confirm-modal__button--danger:hover:not(:disabled) {
-  background: rgba(255, 70, 70, 0.25);
-  box-shadow: 0 0 15px rgba(255, 70, 70, 0.3);
+  background: rgba(170, 0, 255, 0.25);
+  box-shadow: 0 0 15px rgba(170, 0, 255, 0.3);
 }
 
-/* Confirm button - warning variant */
+/* Confirm button - warning variant (purple, softer) */
 .confirm-modal__button--warning {
-  background: rgba(255, 180, 50, 0.15);
-  border-color: rgba(255, 180, 50, 0.4);
-  color: #ffb432;
+  background: rgba(170, 0, 255, 0.1);
+  border-color: rgba(170, 0, 255, 0.3);
+  color: var(--neon-purple, #aa00ff);
 }
 
 .confirm-modal__button--warning:hover:not(:disabled) {
-  background: rgba(255, 180, 50, 0.25);
-  box-shadow: 0 0 15px rgba(255, 180, 50, 0.3);
+  background: rgba(170, 0, 255, 0.2);
+  box-shadow: 0 0 15px rgba(170, 0, 255, 0.2);
 }
 
 /* Spinner */
@@ -213,7 +211,6 @@
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-top-color: currentColor;
-  border-radius: 50%;
   animation: modal-spinner 0.8s linear infinite;
 }
 

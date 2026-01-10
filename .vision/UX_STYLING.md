@@ -43,6 +43,7 @@ Use only these colors. Vary transparency, not hue.
 - No new greens, blues, or purples - use the palette
 - Vary with `rgba()` for transparency effects
 - Cyan for primary actions, purple for secondary/agent
+- **Purple for danger/destructive actions** (delete, remove, etc.)
 - Glow effects via `box-shadow` with accent colors
 
 ---
