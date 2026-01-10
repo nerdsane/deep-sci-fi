@@ -145,7 +145,7 @@
   width: 100%;
 }
 
-/* Delete button */
+/* Delete button - no rounded corners, use neon-purple for danger */
 .welcome-space__world-delete {
   position: absolute;
   top: 0.75rem;
@@ -157,9 +157,8 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
   cursor: pointer;
   opacity: 0;
   transform: scale(0.9);
@@ -172,8 +171,9 @@
 }
 
 .welcome-space__world-delete:hover {
-  background: rgba(255, 70, 70, 0.3);
-  border-color: rgba(255, 70, 70, 0.5);
+  background: rgba(170, 0, 255, 0.2);
+  border-color: rgba(170, 0, 255, 0.5);
+  box-shadow: 0 0 10px rgba(170, 0, 255, 0.2);
 }
 
 .welcome-space__world-delete:active {
@@ -189,7 +189,7 @@
 }
 
 .welcome-space__world-delete:hover .welcome-space__world-delete-icon {
-  color: #ff4646;
+  color: var(--neon-purple, #aa00ff);
 }
 
 .welcome-space__world-card {
