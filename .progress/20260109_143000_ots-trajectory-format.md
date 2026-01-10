@@ -1,11 +1,11 @@
 # OTS (Open Trajectory Specification) Implementation
 
 **Started**: 2026-01-09
-**Status**: In Progress (Phase 5 remaining)
+**Status**: ✅ COMPLETE
 
 ## Overview
 
-Implementing an open format for agent decision traces (trajectories) that enables:
+Implemented an open format for agent decision traces (trajectories) that enables:
 1. Display - Render decision history in UIs
 2. Context Learning - Retrieve similar examples at inference time
 3. Simulation - Predict counterfactuals before acting
@@ -40,15 +40,17 @@ Full plan at: `/Users/seshendranalla/.claude/plans/fancy-swimming-creek.md`
 - [x] DSFContextLearning for context learning retrieval (`letta/letta/trajectories/ots/context_learning.py`)
 - [x] Convenience functions: `get_dsf_context()`, `get_anti_patterns()`
 
-### Phase 5: Observability 🔲 PENDING
-- [ ] LangfuseExporter - Export to Langfuse
-- [ ] OTel integration
+### Phase 5: Observability ✅ COMPLETE
+- [x] LangfuseExporter for Langfuse trace visualization (`letta/letta/trajectories/ots/observability.py`)
+- [x] OTelTrajectoryExporter for OTel span export
+- [x] `link_trajectory_to_current_span()` for span context continuity
+- [x] Convenience functions: `export_to_langfuse()`, `export_to_otel()`
 
 ## Files Created
 
 ```
 letta/letta/trajectories/ots/
-├── __init__.py              # Package exports
+├── __init__.py              # Package exports (all phases)
 ├── schema.json              # JSON Schema for OTS format
 ├── annotation_schema.json   # JSON Schema for annotations
 ├── models.py                # Pydantic models
@@ -56,8 +58,9 @@ letta/letta/trajectories/ots/
 ├── decision_extractor.py    # Decision extraction
 ├── store.py                 # OTS storage layer
 ├── decision_embeddings.py   # Decision embedding utilities
-├── dsf_entity_extractor.py  # DSF entity extraction (NEW)
-└── context_learning.py      # Context learning retrieval (NEW)
+├── dsf_entity_extractor.py  # DSF entity extraction
+├── context_learning.py      # Context learning retrieval
+└── observability.py         # Langfuse + OTel exporters
 
 letta/letta/services/
 ├── annotation_manager.py    # Annotation CRUD service
@@ -78,37 +81,7 @@ letta/letta/schemas/
 7. **Leveraged existing ORM** - TrajectoryAnnotation ORM already existed, created service layer
 8. **Decision embeddings are optional** - Can embed decisions for fine-grained search
 9. **Context learning is retrieval-based** - Find similar past decisions at inference time
-
-## Phase 4 Implementation Details
-
-### DSFEntityExtractor
-- Extracts DSF-specific entities from trajectories:
-  - Worlds (with development state, version)
-  - Stories (with segments, contributions)
-  - Rules (scope, certainty, tested status)
-  - Elements (characters, locations, tech)
-  - Constraints (physical, social, logical, narrative)
-- Parses tool calls to world_manager and story_manager
-- Extracts world contributions from story segments
-
-### DSFEvaluationIntegrator
-- Placeholder for integrating with Letta's evaluation tools
-- Will evaluate trajectory consistency with world rules
-- Will assess output quality and track information gain
-
-### DSFContextLearning
-- Main entry point: `get_context_for_action()`
-- Retrieves similar past decisions based on:
-  - Current situation description
-  - Action type (world_manager, story_manager)
-  - World/story context
-  - Outcome score threshold
-- Formats retrieved decisions for agent consumption
-- Supports anti-pattern retrieval (failed decisions)
-
-### Convenience Functions
-- `get_dsf_context(situation, actor, ...)` - Get formatted context for agent
-- `get_anti_patterns(situation, actor, ...)` - Get failure examples to avoid
+10. **OTel integration uses existing infra** - Builds on Letta's existing OTel setup
 
 ## Usage Examples
 
@@ -148,14 +121,68 @@ stories = [e for e in entities if e.type == "story"]
 rules = [e for e in entities if e.type == "rule"]
 ```
 
-## Next Steps
+### Exporting to Langfuse
 
-1. **Phase 5: Observability**
-   - LangfuseExporter for trace visualization
-   - OTel integration for spans
-   - Dashboard integration for trajectory browsing
+```python
+from letta.trajectories.ots import export_to_langfuse, OTSAdapter
 
-2. **Future Enhancements**
-   - Deep integration with Letta evaluation tools
-   - RL training data export
-   - Counterfactual simulation
+adapter = OTSAdapter()
+ots_trajectory = adapter.from_letta_trajectory(letta_trajectory)
+
+# Export to Langfuse for visualization
+trace_id = await export_to_langfuse(
+    ots_trajectory,
+    public_key="pk-...",
+    secret_key="sk-...",
+)
+print(f"View trace at: https://cloud.langfuse.com/trace/{trace_id}")
+```
+
+### Exporting to OTel
+
+```python
+from letta.trajectories.ots import export_to_otel, OTSAdapter
+
+adapter = OTSAdapter()
+ots_trajectory = adapter.from_letta_trajectory(letta_trajectory)
+
+# Export as OTel spans (goes to configured collector)
+trace_id = export_to_otel(ots_trajectory)
+```
+
+### Linking Trajectory to Current Span
+
+```python
+from letta.trajectories.ots import link_trajectory_to_current_span
+
+# Within a traced operation
+with tracer.start_as_current_span("agent_run"):
+    # ... agent executes ...
+
+    # Link the captured trajectory
+    link_trajectory_to_current_span(ots_trajectory)
+```
+
+## Summary
+
+The OTS implementation provides a complete solution for agent trajectory management:
+
+| Capability | Module | Key Functions |
+|------------|--------|---------------|
+| Format | models.py | `OTSTrajectory`, `OTSDecision`, `OTSAnnotation` |
+| Conversion | adapter.py | `OTSAdapter.from_letta_trajectory()` |
+| Storage | store.py | `OTSStore`, `store_ots_trajectory()` |
+| Annotations | annotation_manager.py | `AnnotationManager` |
+| Embeddings | decision_embeddings.py | `DecisionEmbedder`, `find_similar_decisions()` |
+| DSF Entities | dsf_entity_extractor.py | `DSFEntityExtractor`, `extract_dsf_entities()` |
+| Context Learning | context_learning.py | `get_dsf_context()`, `get_anti_patterns()` |
+| Langfuse | observability.py | `LangfuseExporter`, `export_to_langfuse()` |
+| OTel | observability.py | `OTelTrajectoryExporter`, `export_to_otel()` |
+
+## Future Enhancements
+
+1. **Deep Letta Evaluation Integration** - Connect DSFEvaluationIntegrator to actual Letta evaluation tools
+2. **RL Training Data Export** - Export trajectories in format suitable for RLHF/DPO
+3. **Counterfactual Simulation** - Use trajectories to predict alternative outcomes
+4. **UI Dashboard** - Build Letta-UI integration for trajectory browsing
+5. **Automatic Context Injection** - Hook into agent loop to automatically add context learning
