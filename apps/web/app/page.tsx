@@ -21,6 +21,7 @@ import {
   type SuggestionPayload,
   type ConnectedClient,
 } from '@/lib/unified-ws-client';
+import { ConfirmModal } from '@/components/ui';
 
 // ============================================================================
 // Types
@@ -57,6 +58,9 @@ interface AppState {
   agentWorldName: string | null;
   // Image generation tracking
   generatingWorldIds: Set<string>;
+  // Delete modal state
+  worldToDelete: World | null;
+  isDeleting: boolean;
 }
 
 // ============================================================================
@@ -83,6 +87,8 @@ function App() {
     agentType: null,
     agentWorldName: null,
     generatingWorldIds: new Set(),
+    worldToDelete: null,
+    isDeleting: false,
   });
 
   const feedback = useFeedbackSafe();
@@ -375,6 +381,51 @@ function App() {
   }, []);
 
   // ============================================================================
+  // World Delete Handlers
+  // ============================================================================
+
+  const handleDeleteWorld = useCallback((world: World) => {
+    setState((s) => ({ ...s, worldToDelete: world }));
+  }, []);
+
+  const cancelDeleteWorld = useCallback(() => {
+    setState((s) => ({ ...s, worldToDelete: null, isDeleting: false }));
+  }, []);
+
+  const confirmDeleteWorld = useCallback(async () => {
+    if (!state.worldToDelete) return;
+
+    const worldId = (state.worldToDelete as any).id;
+    const worldName = (state.worldToDelete as any).name || 'this world';
+
+    setState((s) => ({ ...s, isDeleting: true }));
+
+    try {
+      const response = await fetch(`/api/worlds/${worldId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete world');
+      }
+
+      // Refresh data and close modal
+      await loadData();
+      setState((s) => ({ ...s, worldToDelete: null, isDeleting: false }));
+
+      feedbackRef.current?.showToast(`"${worldName}" has been deleted`, 'success');
+    } catch (error) {
+      console.error('Failed to delete world:', error);
+      feedbackRef.current?.showToast(
+        error instanceof Error ? error.message : 'Failed to delete world',
+        'warning'
+      );
+      setState((s) => ({ ...s, isDeleting: false }));
+    }
+  }, [state.worldToDelete]);
+
+  // ============================================================================
   // Interaction Handlers (memoized to prevent canvas re-renders)
   // ============================================================================
 
@@ -512,6 +563,7 @@ function App() {
                 stories={state.stories}
                 onSelectWorld={selectWorld}
                 onSelectStory={selectStory}
+                onDeleteWorld={handleDeleteWorld}
                 onElementAction={handleElementAction}
                 generatingWorldIds={state.generatingWorldIds}
               />
@@ -595,6 +647,20 @@ function App() {
 
           {/* Global toast notifications */}
           <ToastContainer />
+
+          {/* Delete World Confirmation Modal */}
+          <ConfirmModal
+            isOpen={!!state.worldToDelete}
+            title="Delete World"
+            message={`Are you sure you want to delete "${(state.worldToDelete as any)?.name || 'this world'}"?`}
+            warning="This will permanently delete the world and all its stories, assets, and chat history. This action cannot be undone."
+            confirmLabel="Delete World"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={confirmDeleteWorld}
+            onCancel={cancelDeleteWorld}
+            isLoading={state.isDeleting}
+          />
         </div>
       </div>
     </div>
