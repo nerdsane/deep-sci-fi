@@ -1,7 +1,8 @@
 # Immersive UX Ultra-Plan: Making Users WANT to Stay
 
 **Created:** 2026-01-10
-**Status:** PLANNING
+**Updated:** 2026-01-11
+**Status:** IN_PROGRESS (Phase 1 Complete)
 **Type:** Vision + Implementation Plan
 
 ---
@@ -430,9 +431,69 @@ apps/web/components/canvas/observatory/
 - ✅ Toggle to Classic mode works
 - ✅ Toggle back to 3D Observatory works
 
-**Known Issues:**
+**Known Issues (Resolved):**
 - R3F v9 incompatible with Next.js 14 (downgraded to v8)
 - Hover info panel not showing (camera position needs adjustment)
+
+---
+
+### Bug Fixes: Full-Screen Observatory & R3F Initialization (2026-01-11)
+
+**Issue 1:** Observatory was rendering as a small container on top, not full canvas
+
+**Root Cause:** Observatory was rendered inside `<main className="main-content">` which has padding and layout constraints.
+
+**Fix:** Moved Observatory rendering outside `main-content` in `page.tsx`:
+```tsx
+{/* 3D Observatory - rendered outside main-content to avoid constraints */}
+{state.view === 'canvas' && state.useObservatory && (
+  <>
+    <Observatory worlds={state.worlds} onSelectWorld={selectWorld} />
+    <button className="view-mode-toggle">◈ Classic</button>
+  </>
+)}
+```
+
+---
+
+**Issue 2:** R3F Canvas showing black screen - no 3D content rendering
+
+**Symptoms:**
+- Canvas element existed with correct dimensions (1512x732)
+- WebGL context was valid (not lost)
+- No console errors
+- `onCreated` callback never fired
+- Center pixel was `[0,0,0,0]` (fully transparent)
+
+**Root Cause:** R3F Canvas requires a proper client-side mount cycle beyond just `dynamic(..., { ssr: false })`. The first render happened before React was fully mounted on the client.
+
+**Fix:** Added `useIsClient` hook to ensure Canvas only renders after client-side mount:
+```tsx
+const useIsClient = () => {
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  return isClient;
+};
+
+export function Observatory(...) {
+  const isClient = useIsClient();
+
+  if (!isClient) {
+    return <LoadingScreen />;
+  }
+
+  return <Canvas>...</Canvas>;
+}
+```
+
+**Additional Fixes:**
+- Added `<color attach="background" args={['#000000']} />` for explicit background
+- Set `alpha: false` in gl options to prevent transparency issues
+- Updated z-index layering: shader (0), observatory (2), header (100)
+
+**Commit:** `d99ba29` - "fix: resolve Observatory full-screen rendering and R3F initialization"
 
 ---
 
