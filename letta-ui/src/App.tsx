@@ -13,6 +13,13 @@ import { SettingsView } from './components/SettingsView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('agents');
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  // Handler for navigating to a specific agent from other views
+  const handleNavigateToAgent = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setActiveTab('agents');
+  };
 
   return (
     <ErrorBoundary>
@@ -23,7 +30,7 @@ export default function App() {
           <main className="main-content">
             <ErrorBoundary>
               <Tabs.Content value="agents" className="animate-in">
-                <AgentsView />
+                <AgentsView initialSelectedAgentId={selectedAgentId} onAgentSelected={() => setSelectedAgentId(null)} />
               </Tabs.Content>
             </ErrorBoundary>
 
@@ -35,7 +42,7 @@ export default function App() {
 
             <ErrorBoundary>
               <Tabs.Content value="trajectories" className="animate-in">
-                <TrajectoriesView />
+                <TrajectoriesView onNavigateToAgent={handleNavigateToAgent} />
               </Tabs.Content>
             </ErrorBoundary>
 
