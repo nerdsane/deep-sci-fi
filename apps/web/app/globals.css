@@ -160,6 +160,8 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  position: relative; /* For shader background positioning */
+  isolation: isolate; /* Create stacking context for shader */
 }
 
 /* Responsive - collapse chat on smaller screens */
