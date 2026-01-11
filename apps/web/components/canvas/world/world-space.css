@@ -278,3 +278,65 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+   Large Desktop (1600px+) - Scale up for bigger screens
+   ============================================================================ */
+
+@media (min-width: 1600px) {
+  .world-space__section {
+    max-width: 1000px;
+    padding: 3.5rem 2rem;
+  }
+
+  .world-space__section-title {
+    font-size: 0.8rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .world-space__rule {
+    padding: 1.5rem;
+  }
+
+  .world-space__rule-statement {
+    font-size: 0.95rem;
+  }
+
+  .world-space__grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .world-space__card {
+    padding: 1.5rem;
+  }
+
+  .world-space__card-name {
+    font-size: 1rem;
+  }
+
+  .world-space__card-desc {
+    font-size: 0.875rem;
+  }
+}
+
+/* ============================================================================
+   Extra Large Desktop (1920px+)
+   ============================================================================ */
+
+@media (min-width: 1920px) {
+  .world-space__section {
+    max-width: 1100px;
+    padding: 4rem 2.5rem;
+  }
+
+  .world-space__section-title {
+    font-size: 0.85rem;
+    margin-bottom: 2rem;
+  }
+
+  .world-space__grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
+  }
+}
