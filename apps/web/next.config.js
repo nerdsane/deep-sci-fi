@@ -2,8 +2,15 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  // Transpile workspace packages
-  transpilePackages: ['@deep-sci-fi/db', '@deep-sci-fi/letta', '@deep-sci-fi/types'],
+  // Transpile workspace packages and Three.js
+  transpilePackages: [
+    '@deep-sci-fi/db',
+    '@deep-sci-fi/letta',
+    '@deep-sci-fi/types',
+    'three',
+    '@react-three/fiber',
+    '@react-three/drei',
+  ],
   images: {
     remotePatterns: [
       {

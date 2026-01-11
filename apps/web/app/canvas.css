@@ -198,6 +198,31 @@ body {
   opacity: 0.4;
 }
 
+/* View Mode Toggle (3D Observatory vs Classic) */
+.view-mode-toggle {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid var(--border-accent);
+  color: var(--neon-cyan);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.view-mode-toggle:hover {
+  background: rgba(0, 255, 204, 0.1);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+}
+
 /* ============================================================================
    Gallery View - Clean Grid
    ============================================================================ */
