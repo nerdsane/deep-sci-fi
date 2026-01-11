@@ -13,6 +13,7 @@ import { ToastContainer, AgentStatus } from '@/components/canvas/feedback';
 import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType } from '@/components/canvas/interaction';
 import { AgentSuggestions, type AgentSuggestion, type Suggestion } from '@/components/canvas/agent';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { ShaderBackground } from '@/components/canvas/immersive';
 import {
   getDefaultWSClient,
   UnifiedWSClient,
@@ -514,6 +515,7 @@ function App() {
           />
         )}
         <div className="canvas-container">
+          <ShaderBackground />
           <LoadingScreen />
         </div>
       </div>
@@ -532,6 +534,7 @@ function App() {
           />
         )}
         <div className="canvas-container">
+          <ShaderBackground />
           <ErrorScreen error={state.error} onRetry={loadData} />
         </div>
       </div>
@@ -559,6 +562,8 @@ function App() {
       )}
 
       <div className="canvas-container">
+        {/* Shader background - only behind canvas, not chat */}
+        <ShaderBackground />
         <div className="app">
           <Header
             view={state.view}
