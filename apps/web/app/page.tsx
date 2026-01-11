@@ -191,6 +191,8 @@ function App() {
                     ...world,
                     asset: {
                       id: data.assetId,
+                      type: "image" as const,
+                      path: data.assetUrl,
                       url: data.assetUrl,
                     },
                   };

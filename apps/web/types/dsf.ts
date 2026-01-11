@@ -335,6 +335,7 @@ export interface StoryAsset {
   id: string;
   type: "image" | "audio" | "video" | "document";
   path: string;              // Relative to .dsf/assets/
+  url?: string;              // Full URL for remote/generated assets
   description?: string;
   generated?: boolean;       // Was this AI-generated?
   prompt?: string;           // Generation prompt if applicable
