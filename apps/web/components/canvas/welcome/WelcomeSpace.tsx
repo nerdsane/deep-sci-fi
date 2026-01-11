@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import type { World, Story } from '@/types/dsf';
 import { ScrollSection, ActionBar } from '../experience';
 import { InteractiveElement, type ElementType } from '../interaction';
+import { TiltCard, useStaggeredReveal, useAudio } from '../immersive';
 import './welcome-space.css';
 
 export interface WelcomeSpaceProps {
@@ -58,6 +59,36 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
   onElementAction,
   generatingWorldIds,
 }: WelcomeSpaceProps) {
+  // Refs for GSAP animations
+  const worldsGridRef = useRef<HTMLDivElement>(null);
+
+  // Audio hook for sound effects
+  let audio: ReturnType<typeof useAudio> | null = null;
+  try {
+    audio = useAudio();
+  } catch {
+    // Audio provider may not be available
+  }
+
+  // GSAP staggered reveal for world cards
+  useStaggeredReveal(worldsGridRef, '.welcome-space__world-card-wrapper', {
+    stagger: 0.08,
+    duration: 0.5,
+    y: 30,
+    scale: 0.95,
+  });
+
+  // Audio-enabled hover handler
+  const handleCardHover = useCallback(() => {
+    audio?.playSound('hover');
+  }, [audio]);
+
+  // Audio-enabled click handler
+  const handleCardClick = useCallback((world: World) => {
+    audio?.playSound('click');
+    onSelectWorld(world);
+  }, [audio, onSelectWorld]);
+
   // Default action handler
   const handleAction = (actionId: string, elementId: string, elementType: ElementType, elementData?: any) => {
     if (onElementAction) {
@@ -136,16 +167,24 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
               <span className="welcome-space__section-icon">◈</span>
               Your Worlds
             </h2>
-            <div className="welcome-space__worlds-grid">
+            <div className="welcome-space__worlds-grid" ref={worldsGridRef}>
               {worlds.map((world, i) => (
-                <ScrollSection key={(world as any).id || getWorldId(world)} animation="scale" delay={i * 100} persistKey={`world-card-${(world as any).id || getWorldId(world)}`}>
+                <div key={(world as any).id || getWorldId(world)} className="welcome-space__world-card-wrapper">
                   <InteractiveElement
                     elementType="world_card"
                     elementId={getWorldId(world)}
                     elementData={world}
                     onAction={handleAction}
                   >
-                    <div className="welcome-space__world-card-wrapper">
+                    <TiltCard
+                      tiltMaxAngleX={6}
+                      tiltMaxAngleY={6}
+                      scale={1.03}
+                      glareEnable={true}
+                      glareMaxOpacity={0.12}
+                      glareColor="#00ffcc"
+                      transitionSpeed={300}
+                    >
                       {onDeleteWorld && (
                         <button
                           className="welcome-space__world-delete"
@@ -161,7 +200,8 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
                       )}
                       <button
                         className="welcome-space__world-card"
-                        onClick={() => onSelectWorld(world)}
+                        onClick={() => handleCardClick(world)}
+                        onMouseEnter={handleCardHover}
                       >
                         {/* Thumbnail section */}
                         <div className="welcome-space__world-thumbnail">
@@ -206,9 +246,9 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
                         <span>v{world.development?.version || 0}</span>
                       </div>
                     </button>
-                    </div>
+                    </TiltCard>
                   </InteractiveElement>
-                </ScrollSection>
+                </div>
               ))}
             </div>
           </ScrollSection>
