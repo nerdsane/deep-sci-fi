@@ -36,7 +36,24 @@ export function TrajectoriesView() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize] = useState(50);
+  const [stats, setStats] = useState<{ total: number; completed: number; failed: number; pending: number } | null>(null);
+
+  // Load stats from API
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/v1/trajectories/stats');
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+    loadStats();
+  }, [trajectories]); // Refresh stats when trajectories change
 
   // Auto-refresh every 10 seconds
   useEffect(() => {
@@ -197,22 +214,23 @@ export function TrajectoriesView() {
       ) : (
         <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-value color-teal">{trajectories.length}</div>
+          <div className="stat-value color-teal">{stats?.total ?? trajectories.length}</div>
           <div className="stat-label">Total Trajectories</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value color-green">{successCount}</div>
+          <div className="stat-value color-green">{stats?.completed ?? successCount}</div>
           <div className="stat-label">Successful</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value color-magenta">{failureCount}</div>
+          <div className="stat-value color-magenta">{stats?.failed ?? failureCount}</div>
           <div className="stat-label">Failed</div>
         </div>
         <div className="stat-card">
           <div className="stat-value color-lemon">
-            {successCount + failureCount > 0
-              ? Math.round((successCount / (successCount + failureCount)) * 100)
-              : 0}
+            {stats ? (stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0)
+              : (successCount + failureCount > 0
+                ? Math.round((successCount / (successCount + failureCount)) * 100)
+                : 0)}
             %
           </div>
           <div className="stat-label">Success Rate</div>
