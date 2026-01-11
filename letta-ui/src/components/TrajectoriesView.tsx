@@ -436,6 +436,8 @@ export function TrajectoriesView() {
             const outcome = trajectory.data?.outcome;
             const metadata = trajectory.data?.metadata;
             const isSelected = selectedTrajectory === trajectory.id;
+            const createdAt = new Date(trajectory.created_at);
+            const isNew = Date.now() - createdAt.getTime() < 5 * 60 * 1000; // 5 minutes
 
             return (
               <div
@@ -461,6 +463,19 @@ export function TrajectoriesView() {
                 }}
               >
                 <div className="flex items-center gap-3 mb-2">
+                  {/* New indicator */}
+                  {isNew && (
+                    <span className="badge" style={{
+                      background: 'var(--neon-lemon)',
+                      color: 'var(--background)',
+                      fontSize: '0.625rem',
+                      fontWeight: 700,
+                      padding: '0.125rem 0.375rem',
+                      animation: 'pulse 2s infinite',
+                    }}>
+                      NEW
+                    </span>
+                  )}
                   {/* Execution Status (did it complete?) */}
                   <span
                     className={`badge ${
@@ -518,8 +533,13 @@ export function TrajectoriesView() {
                   <span className="font-mono">
                     {metadata?.step_count || 0} steps
                   </span>
-                  <span>
-                    {new Date(trajectory.created_at).toLocaleDateString()}
+                  <span className="font-mono" title={new Date(trajectory.created_at).toISOString()}>
+                    {new Date(trajectory.created_at).toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </span>
                 </div>
               </div>
