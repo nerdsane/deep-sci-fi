@@ -289,10 +289,232 @@ export function AnalyticsView() {
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h2 className="section-title">Trajectory Analytics</h2>
+      {/* ============================================ */}
+      {/* OTS ANALYTICS (Raw Decision Data - No LLM)  */}
+      {/* ============================================ */}
+      {otsAnalytics && (
+        <>
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 className="section-title">OTS Analytics</h2>
+            <p className="section-subtitle">
+              Decision-level data from Open Trajectory Specification — extracted directly from agent execution, no LLM processing required
+            </p>
+          </div>
+
+          {/* OTS Overview Stats */}
+          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
+            <div className="stat-card">
+              <div className="stat-value color-teal">{otsAnalytics.total_decisions}</div>
+              <div className="stat-label">Total Decisions</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-green">
+                {(otsAnalytics.overall_success_rate * 100).toFixed(1)}%
+              </div>
+              <div className="stat-label">Decision Success Rate</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-magenta">
+                {otsAnalytics.avg_decisions_per_turn.toFixed(1)}
+              </div>
+              <div className="stat-label">Avg Decisions/Turn</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value color-lemon">
+                {otsAnalytics.total_messages}
+              </div>
+              <div className="stat-label">Total Messages</div>
+            </div>
+          </div>
+
+          {/* Decision Success Rate and Action Frequency */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {/* Decision Success Rate */}
+            {otsSuccessRateData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  ✅ Decision Success Rate by Action
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={otsSuccessRateData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="action"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                      formatter={(value: number) => [`${value}%`, 'Success Rate']}
+                    />
+                    <Bar dataKey="rate" fill="var(--neon-green)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Action Frequency */}
+            {otsActionFrequencyData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  📊 Action Frequency (Top 10)
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={otsActionFrequencyData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      type="number"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="action"
+                      stroke="var(--text-tertiary)"
+                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                    <Bar dataKey="count" fill="var(--neon-teal)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Decision Type and Outcomes */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {/* Decision Type Breakdown */}
+            {otsDecisionTypeData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  🔀 Decision Type Breakdown
+                </h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={otsDecisionTypeData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {otsDecisionTypeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Trajectory Outcomes */}
+            {otsOutcomeData.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                  🎯 Trajectory Outcomes
+                </h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={otsOutcomeData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {otsOutcomeData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            entry.name === 'success'
+                              ? '#00ff88'
+                              : entry.name === 'partial_success'
+                              ? '#ffff00'
+                              : entry.name === 'failure'
+                              ? '#ff0055'
+                              : COLORS[index % COLORS.length]
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: '#000',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Error Type Frequency */}
+          {otsErrorTypeData.length > 0 && (
+            <div className="card" style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
+                ⚠️ Error Type Frequency
+              </h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={otsErrorTypeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis
+                    dataKey="error"
+                    stroke="var(--text-tertiary)"
+                    tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
+                  />
+                  <YAxis stroke="var(--text-tertiary)" tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#000',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#ff0055" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============================================ */}
+      {/* LETTA-ENRICHED ANALYTICS (LLM-Processed)    */}
+      {/* ============================================ */}
+      <div style={{ marginTop: otsAnalytics ? '3rem' : '0', marginBottom: '2rem', borderTop: otsAnalytics ? '1px solid var(--border-subtle)' : 'none', paddingTop: otsAnalytics ? '2rem' : '0' }}>
+        <h2 className="section-title">Letta-Enriched Analytics</h2>
         <p className="section-subtitle">
-          Comprehensive analysis of {aggregations.total_count} agent execution traces
+          Semantic analysis of {aggregations.total_count} trajectories — enriched using <span style={{ color: 'var(--neon-magenta)', fontFamily: 'var(--font-mono)' }}>gpt-4o-mini</span> for summaries, tags, and embeddings
         </p>
       </div>
 
@@ -623,223 +845,6 @@ export function AnalyticsView() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      )}
-
-      {/* Pure OTS Analytics Section */}
-      {otsAnalytics && (
-        <>
-          <div style={{ marginTop: '3rem', marginBottom: '2rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '2rem' }}>
-            <h2 className="section-title">Pure OTS Analytics</h2>
-            <p className="section-subtitle">
-              Decision-level analytics from raw OTS data (no LLM enrichment required)
-            </p>
-          </div>
-
-          {/* OTS Overview Stats */}
-          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-            <div className="stat-card">
-              <div className="stat-value color-teal">{otsAnalytics.total_decisions}</div>
-              <div className="stat-label">Total Decisions</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value color-green">
-                {(otsAnalytics.overall_success_rate * 100).toFixed(1)}%
-              </div>
-              <div className="stat-label">Success Rate</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value color-magenta">
-                {otsAnalytics.avg_decisions_per_turn.toFixed(1)}
-              </div>
-              <div className="stat-label">Avg Decisions/Turn</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value color-lemon">
-                {otsAnalytics.total_messages}
-              </div>
-              <div className="stat-label">Total Messages</div>
-            </div>
-          </div>
-
-          {/* Decision Success Rate and Action Frequency */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-            {/* Decision Success Rate */}
-            {otsSuccessRateData.length > 0 && (
-              <div className="card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                  ✅ Decision Success Rate by Action
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={otsSuccessRateData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      stroke="var(--text-tertiary)"
-                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="action"
-                      stroke="var(--text-tertiary)"
-                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
-                      width={120}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#000',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                      formatter={(value: number) => [`${value}%`, 'Success Rate']}
-                    />
-                    <Bar dataKey="rate" fill="var(--neon-green)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Action Frequency */}
-            {otsActionFrequencyData.length > 0 && (
-              <div className="card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                  📊 Action Frequency (Top 10)
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={otsActionFrequencyData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      type="number"
-                      stroke="var(--text-tertiary)"
-                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="action"
-                      stroke="var(--text-tertiary)"
-                      tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
-                      width={120}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#000',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    />
-                    <Bar dataKey="count" fill="var(--neon-teal)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* Decision Type and Outcomes */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-            {/* Decision Type Breakdown */}
-            {otsDecisionTypeData.length > 0 && (
-              <div className="card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                  🔀 Decision Type Breakdown
-                </h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={otsDecisionTypeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {otsDecisionTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: '#000',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Trajectory Outcomes */}
-            {otsOutcomeData.length > 0 && (
-              <div className="card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                  🎯 Trajectory Outcomes
-                </h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={otsOutcomeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {otsOutcomeData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={
-                            entry.name === 'success'
-                              ? '#00ff88'
-                              : entry.name === 'partial_success'
-                              ? '#ffff00'
-                              : entry.name === 'failure'
-                              ? '#ff0055'
-                              : COLORS[index % COLORS.length]
-                          }
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: '#000',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* Error Type Frequency */}
-          {otsErrorTypeData.length > 0 && (
-            <div className="card">
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                ⚠️ Error Type Frequency
-              </h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={otsErrorTypeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis
-                    dataKey="error"
-                    stroke="var(--text-tertiary)"
-                    tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }}
-                  />
-                  <YAxis stroke="var(--text-tertiary)" tick={{ fill: 'var(--text-tertiary)', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#000',
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#ff0055" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </>
       )}
     </div>
   );
