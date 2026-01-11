@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './experience.css';
 
+// Global cache to remember which elements have been animated (persists across re-renders)
+const animatedElements = new Set<string>();
+
 export interface ScrollSectionProps {
   children: React.ReactNode;
   animation?: 'fade-up' | 'fade-in' | 'slide-left' | 'slide-right' | 'scale' | 'none';
@@ -8,6 +11,8 @@ export interface ScrollSectionProps {
   threshold?: number;
   className?: string;
   as?: 'div' | 'section' | 'article';
+  /** Unique key to persist animation state across re-renders. If provided, element won't re-animate. */
+  persistKey?: string;
 }
 
 export function ScrollSection({
@@ -17,11 +22,17 @@ export function ScrollSection({
   threshold = 0.2,
   className = '',
   as: Component = 'div',
+  persistKey,
 }: ScrollSectionProps) {
   const ref = useRef<HTMLElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  // If persistKey exists and was already animated, start visible
+  const wasAlreadyAnimated = persistKey ? animatedElements.has(persistKey) : false;
+  const [isVisible, setIsVisible] = useState(wasAlreadyAnimated);
 
   useEffect(() => {
+    // If already visible (from cache), skip observer
+    if (isVisible) return;
+
     const element = ref.current;
     if (!element) return;
 
@@ -30,6 +41,10 @@ export function ScrollSection({
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             setIsVisible(true);
+            // Remember this element was animated
+            if (persistKey) {
+              animatedElements.add(persistKey);
+            }
             observer.unobserve(entry.target);
           }
         });
@@ -39,7 +54,7 @@ export function ScrollSection({
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [threshold]);
+  }, [threshold, isVisible, persistKey]);
 
   const animationClass = animation !== 'none' ? `exp-scroll--${animation}` : '';
   const visibleClass = isVisible ? 'exp-scroll--visible' : '';
