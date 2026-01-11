@@ -142,8 +142,8 @@ Start the entire stack (Letta server, Web UI, Agent Bus, Canvas):
 This will:
 1. Validate prerequisites (Docker, docker-compose, Bun)
 2. Set up environment variables from `.env` (creates from `.env.example` if needed)
-3. Start Letta Server in Docker (http://localhost:8283)
-4. Start Letta Web UI (http://localhost:3000)
+3. Start Letta Server in Docker (http://localhost:8285)
+4. Start Letta Web UI (http://localhost:3030)
 5. Start Agent Bus WebSocket server (ws://localhost:8284)
 6. Start Story Explorer Gallery (http://localhost:3030)
 7. Launch letta-code CLI in foreground
@@ -217,7 +217,7 @@ Located in `letta-ui/` (not a submodule, part of main repo)
 cd letta-ui
 
 # Start dev server
-LETTA_BASE_URL=http://localhost:8283 bun run dev  # http://localhost:3000
+LETTA_BASE_URL=http://localhost:8285 bun run dev  # http://localhost:3030
 
 # Build for production
 bun run build               # Outputs to dist/
@@ -382,8 +382,8 @@ tail -f letta-code/.gallery.log
 ```
 
 **Access services**:
-- Letta Server API: http://localhost:8283
-- Letta Web UI: http://localhost:3000
+- Letta Server API: http://localhost:8285
+- Letta Web UI: http://localhost:3030
 - Story Explorer Gallery: http://localhost:3030
 - Agent Bus: ws://localhost:8284
 - PostgreSQL: localhost:5432

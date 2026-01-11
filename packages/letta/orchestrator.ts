@@ -126,7 +126,7 @@ export class LettaOrchestrator {
   constructor(apiKey?: string, baseUrl?: string, db?: PrismaClient) {
     // Get API configuration from environment or parameters
     const lettaApiKey = apiKey || process.env.LETTA_API_KEY;
-    const lettaBaseUrl = baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8283';
+    const lettaBaseUrl = baseUrl || process.env.LETTA_BASE_URL || 'http://localhost:8285';
 
     // Check if using local/self-hosted Letta server (not Letta Cloud)
     // Local servers include: localhost, 127.0.0.1, Docker container names, private IPs
