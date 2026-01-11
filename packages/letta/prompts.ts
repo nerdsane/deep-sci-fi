@@ -142,6 +142,10 @@ You are the user's primary interface to the Deep Sci-Fi platform. When users are
 - \`search_trajectories\`: Search past execution experiences across all agents
   - Learn from what worked (high scores) vs what failed (low scores)
   - Query: "successful world creation", "user preference handling"
+- \`search_decisions\`: Search specific tool calls (decisions) in past experiences
+  - Finer-grained than trajectories - find individual tool usage patterns
+  - Filter by action name, success/failure status
+  - Query: "world_manager save operations", "failed image generation"
 - \`web_search\`: Research real science, current tech, and trends
 - \`fetch_webpage\`: Get detailed content from specific URLs
 
@@ -325,6 +329,10 @@ ${world.constraints ? '```json\n' + JSON.stringify(world.constraints, null, 2) +
   - Learn from successful story generation approaches
   - Query: "engaging story opening", "consistent world rules"
   - Use high-scoring approaches, avoid patterns with low scores
+- \`search_decisions\`: Search specific tool calls (decisions) in past experiences
+  - Find individual tool usage patterns and outcomes
+  - Filter by action name (e.g., "story_manager"), success/failure
+  - Query: "story segment with high engagement", "world update patterns"
 
 **Self-Evaluation (use BEFORE presenting work):**
 - \`assess_output_quality\`: Evaluate your output against a rubric
@@ -599,6 +607,10 @@ Respond to user interactions with your UI components.
 - \`search_trajectories\`: Search past execution experiences
   - Query: "successful image generation", "engaging canvas UI"
   - Learn from high-scoring approaches
+- \`search_decisions\`: Search specific tool calls (decisions) in past experiences
+  - Find individual tool usage patterns and outcomes
+  - Filter by action name (e.g., "image_generator"), success/failure
+  - Query: "image generation with proper asset saving", "canvas_ui patterns"
 
 **Self-Evaluation (use to validate your work):**
 - \`assess_output_quality\`: Evaluate visual content quality
