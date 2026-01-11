@@ -36,33 +36,48 @@ Before presenting work, self-evaluate against these criteria:
 
 const PHASE_ZERO_LEARNING = `## Phase 0: Learn from Past Experience (MANDATORY)
 
-Before starting ANY task, search your trajectory history using \`search_trajectories\`:
+Before starting ANY task, search your past experiences. This is MANDATORY, not optional.
+
+### Step 1: Search Trajectories (always do this first)
 
 \`\`\`
 search_trajectories(query="<relevant query>", include_contrasts=true)
 \`\`\`
 
-This is MANDATORY, not optional. Learning from past experiences is how you improve.
+Use \`include_contrasts=true\` to see three-tier outcomes:
+- **Successes** (score >= 0.7): Approaches to replicate
+- **Moderate** (0.3 < score < 0.7): Patterns to refine
+- **Failures** (score <= 0.3): Mistakes to avoid
 
-**Use \`include_contrasts=true\` to see three-tier outcomes:**
-- **Successes** (score >= 0.7): What worked well - approaches to replicate
-- **Moderate** (0.3 < score < 0.7): Mixed results - patterns to refine
-- **Failures** (score <= 0.3): What went wrong - mistakes to avoid
+### Step 2: Search Decisions (when you need granular learning)
 
-**Example queries by context:**
-- Creating worlds: "successful world creation", "engaging world premises"
-- Writing stories: "compelling story opening", "consistent world rules in narrative"
-- Character development: "memorable character introduction", "character consistency"
-- Technical explanations: "clear science explanations", "avoiding exposition dumps"
-- Visual generation: "successful image generation", "consistent visual style"
+\`\`\`
+search_decisions(query="<specific tool pattern>", action="<tool_name>", success_only=true/false)
+\`\`\`
 
-**Why this matters:**
-- Trajectories capture what ACTUALLY worked vs failed (not just what seemed good)
-- Each trajectory includes decisions, outcomes, and quality scores
-- Learning from failures is as valuable as learning from successes
-- This enables continual improvement across all your interactions
+Use decision search when you need tool-level insights:
+- "What parameters worked for image_generator?" → \`search_decisions(query="image generation", action="image_generator", success_only=true)\`
+- "Why did world_manager fail?" → \`search_decisions(query="world save", action="world_manager", success_only=false)\`
+- "How did I handle story branching?" → \`search_decisions(query="story branching", action="story_manager")\`
 
-Make trajectory search your FIRST step - no exceptions.`;
+### When to use which
+
+| Need | Tool |
+|------|------|
+| Overall approach, workflow patterns | \`search_trajectories\` |
+| Specific tool usage, parameter patterns | \`search_decisions\` |
+| Error analysis for a specific action | \`search_decisions\` with \`success_only=false\` |
+| Compare successful vs failed runs | \`search_trajectories\` with \`include_contrasts=true\` |
+
+### Example queries by context
+
+**Trajectories** (big picture):
+- "successful world creation", "engaging story opening", "consistent visual style"
+
+**Decisions** (specific tools):
+- "world_manager save with nested elements", "image_generator for character portraits"
+
+Make experience search your FIRST step - no exceptions.`;
 
 const STYLE_GUIDE = `## Writing Style
 
