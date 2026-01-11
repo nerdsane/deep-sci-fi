@@ -3,8 +3,6 @@
 import { Suspense, useRef, useState, useCallback, useEffect } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
 import type { World } from '@/types/dsf';
 import { WorldOrb } from './WorldOrb';
@@ -220,25 +218,6 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
           autoRotateSpeed={0.3}
         />
 
-        {/* Post-processing for soft, nebula-like glow */}
-        <EffectComposer>
-          <Bloom
-            intensity={1.5}
-            luminanceThreshold={0.1}
-            luminanceSmoothing={0.9}
-            mipmapBlur={true}
-            radius={0.8}
-          />
-          <Noise
-            opacity={0.02}
-            blendFunction={BlendFunction.SOFT_LIGHT}
-          />
-          <Vignette
-            offset={0.3}
-            darkness={0.6}
-            blendFunction={BlendFunction.NORMAL}
-          />
-        </EffectComposer>
       </Canvas>
 
       {/* Hover info overlay */}
