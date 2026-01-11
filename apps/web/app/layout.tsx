@@ -1,5 +1,6 @@
 import './canvas.css';
 import './globals.css';
+import { ImmersiveLayout } from './ImmersiveLayout';
 
 export const metadata = {
   title: 'Deep Sci-Fi',
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ImmersiveLayout>{children}</ImmersiveLayout>
+      </body>
     </html>
   );
 }
