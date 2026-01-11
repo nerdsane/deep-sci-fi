@@ -198,6 +198,7 @@
   align-items: flex-start;
   text-align: left;
   width: 100%;
+  min-height: 340px; /* Consistent card heights */
   padding: 1.5rem;
   background: var(--bg-secondary, #0a0a0a);
   border: 1px solid rgba(255, 255, 255, 0.06);
