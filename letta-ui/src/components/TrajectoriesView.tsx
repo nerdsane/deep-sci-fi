@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { api } from '../lib/api';
 import type { Trajectory } from '../types/letta';
 import { StatsSkeleton, TrajectoryListSkeleton, TrajectoryDetailSkeleton } from './LoadingSkeletons';
 import { AnalyticsView } from './AnalyticsView';
+import { convertRunToOTS } from '../lib/ots-converter';
 
 interface Filters {
   agentId: string;
@@ -915,7 +916,7 @@ export function TrajectoriesView() {
                           fontWeight: 600,
                           userSelect: 'none',
                         }}>
-                          📄 View Raw OTS JSON
+                          📄 View OTS Format (Open Trajectory Specification)
                         </summary>
                         <div style={{
                           padding: '1rem',
@@ -933,7 +934,13 @@ export function TrajectoriesView() {
                             margin: 0,
                             fontFamily: 'var(--font-mono)',
                           }}>
-                            {JSON.stringify(trajectory.data, null, 2)}
+                            {JSON.stringify(
+                              trajectory.data
+                                ? convertRunToOTS(trajectory.data, trajectory.id, trajectory.agent_id)
+                                : {},
+                              null,
+                              2
+                            )}
                           </pre>
                         </div>
                       </details>
