@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import type { World, Story } from '@/types/dsf';
 import type { ComponentSpec } from '@/components/canvas/types';
 import { DynamicRenderer } from '@/components/canvas/DynamicRenderer';
@@ -8,6 +9,12 @@ import { MountPoint } from '@/components/canvas/MountPoint';
 import { ImmersiveStoryReader } from '@/components/canvas/story';
 import { WorldSpace } from '@/components/canvas/world';
 import { WelcomeSpace } from '@/components/canvas/welcome';
+
+// Dynamic import for Observatory to avoid SSR issues with Three.js
+const Observatory = dynamic(
+  () => import('@/components/canvas/observatory/Observatory').then(mod => mod.Observatory),
+  { ssr: false, loading: () => <div className="loading-screen"><div className="loading-spinner"></div><p>Loading 3D Observatory...</p></div> }
+);
 import { FeedbackProvider, useFeedbackSafe } from '@/components/canvas/context/FeedbackContext';
 import { ToastContainer, AgentStatus } from '@/components/canvas/feedback';
 import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType } from '@/components/canvas/interaction';
@@ -62,6 +69,8 @@ interface AppState {
   // Delete modal state
   worldToDelete: World | null;
   isDeleting: boolean;
+  // 3D Observatory mode
+  useObservatory: boolean;
 }
 
 // ============================================================================
@@ -90,6 +99,7 @@ function App() {
     generatingWorldIds: new Set(),
     worldToDelete: null,
     isDeleting: false,
+    useObservatory: true, // Default to 3D mode
   });
 
   const feedback = useFeedbackSafe();
@@ -579,15 +589,33 @@ function App() {
 
           <main className="main-content">
             {state.view === 'canvas' && (
-              <WelcomeSpace
-                worlds={state.worlds}
-                stories={state.stories}
-                onSelectWorld={selectWorld}
-                onSelectStory={selectStory}
-                onDeleteWorld={handleDeleteWorld}
-                onElementAction={handleElementAction}
-                generatingWorldIds={state.generatingWorldIds}
-              />
+              <>
+                {/* Mode toggle */}
+                <button
+                  className="view-mode-toggle"
+                  onClick={() => setState(s => ({ ...s, useObservatory: !s.useObservatory }))}
+                  title={state.useObservatory ? 'Switch to classic view' : 'Switch to 3D observatory'}
+                >
+                  {state.useObservatory ? '◈ Classic' : '◇ 3D Observatory'}
+                </button>
+
+                {state.useObservatory ? (
+                  <Observatory
+                    worlds={state.worlds}
+                    onSelectWorld={selectWorld}
+                  />
+                ) : (
+                  <WelcomeSpace
+                    worlds={state.worlds}
+                    stories={state.stories}
+                    onSelectWorld={selectWorld}
+                    onSelectStory={selectStory}
+                    onDeleteWorld={handleDeleteWorld}
+                    onElementAction={handleElementAction}
+                    generatingWorldIds={state.generatingWorldIds}
+                  />
+                )}
+              </>
             )}
 
             {state.view === 'world' && state.selectedWorld && (
