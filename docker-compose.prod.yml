@@ -1,8 +1,6 @@
 # Deep Sci-Fi Production Docker Compose
 # Single-server deployment for EC2
 
-version: '3.8'
-
 services:
   # PostgreSQL with pgvector
   postgres:
