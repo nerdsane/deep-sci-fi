@@ -2,13 +2,22 @@
 
 import { Suspense, useRef, useState, useCallback, useEffect } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import type { World } from '@/types/dsf';
 import { WorldOrb } from './WorldOrb';
 import { StarField } from './StarField';
 import { useObservatoryCamera, type CameraState } from './useObservatoryCamera';
 import './observatory.css';
+
+// Track if we're on the client - R3F requires this for proper initialization
+const useIsClient = () => {
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  return isClient;
+};
 
 export interface ObservatoryProps {
   worlds: World[];
@@ -68,10 +77,10 @@ function ObservatoryScene({
   return (
     <>
       {/* Ambient lighting */}
-      <ambientLight intensity={0.1} />
+      <ambientLight intensity={0.3} />
 
       {/* Point light at center */}
-      <pointLight position={[0, 0, 0]} intensity={0.5} color="#00ffcc" />
+      <pointLight position={[0, 5, 10]} intensity={1} color="#ffffff" />
 
       {/* Star field background */}
       <StarField count={2000} radius={100} />
@@ -91,9 +100,6 @@ function ObservatoryScene({
           );
         })}
       </group>
-
-      {/* Fog for depth */}
-      <fog attach="fog" args={['#000000', 10, 80]} />
     </>
   );
 }
@@ -112,6 +118,7 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
   const [hoveredWorld, setHoveredWorld] = useState<World | null>(null);
   const { cameraState, zoomToWorld, resetCamera } = useObservatoryCamera();
   const [isEntering, setIsEntering] = useState(false);
+  const isClient = useIsClient();
 
   // Handle world click - zoom in then navigate
   const handleWorldClick = useCallback((world: World, position: THREE.Vector3) => {
@@ -146,6 +153,18 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
     return premise.split(' ').slice(0, 4).join(' ') + '...';
   };
 
+  // Only render Canvas on client side - R3F requires this
+  if (!isClient) {
+    return (
+      <div className="observatory">
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <p>Initializing 3D Observatory...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="observatory">
       {/* 3D Canvas */}
@@ -153,11 +172,14 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
         className="observatory__canvas"
         gl={{
           antialias: true,
-          alpha: true,
+          alpha: false,
           powerPreference: 'high-performance',
         }}
         dpr={[1, 2]}
+        frameloop="always"
       >
+        <color attach="background" args={['#000000']} />
+
         <PerspectiveCamera
           makeDefault
           position={[0, 2, 15]}

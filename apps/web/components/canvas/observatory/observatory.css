@@ -1,11 +1,28 @@
 /* Observatory - 3D World Gallery */
 
 .observatory {
-  position: relative;
+  /* Full-screen 3D canvas - positioned outside main-content */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
-  height: 100%;
+  height: 100vh;
   background: #000000;
   overflow: hidden;
+  z-index: 2; /* Above shader background (0), below header (100) */
+}
+
+/* Account for chat sidebar when present */
+.app-layout .observatory {
+  /* Chat sidebar is 340px on right */
+  right: 340px;
+}
+
+/* When CLI is connected (no sidebar), use full width */
+.app-layout:has(.cli-indicator) .observatory {
+  right: 0;
 }
 
 .observatory__canvas {
@@ -18,9 +35,9 @@
 
 /* Hover info panel */
 .observatory__hover-info {
-  position: absolute;
-  bottom: 80px;
-  left: 50%;
+  position: fixed;
+  bottom: 100px;
+  left: calc(50% - 170px); /* Offset for sidebar */
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.85);
   border: 1px solid rgba(0, 255, 204, 0.3);
@@ -29,6 +46,7 @@
   text-align: center;
   animation: fadeInUp 0.3s ease-out;
   backdrop-filter: blur(10px);
+  z-index: 50;
 }
 
 .observatory__world-name {
@@ -59,17 +77,18 @@
 
 /* Entering transition */
 .observatory__entering {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 340px;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
   pointer-events: none;
   animation: fadeIn 0.5s ease-out;
+  z-index: 40;
 }
 
 .observatory__entering-text {
@@ -83,9 +102,9 @@
 
 /* Empty state */
 .observatory__empty {
-  position: absolute;
+  position: fixed;
   top: 50%;
-  left: 50%;
+  left: calc(50% - 170px); /* Offset for sidebar */
   transform: translate(-50%, -50%);
   text-align: center;
   z-index: 10;

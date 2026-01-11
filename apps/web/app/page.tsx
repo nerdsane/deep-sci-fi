@@ -587,34 +587,44 @@ function App() {
           {/* Agent status indicator */}
           <AgentStatus isThinking={state.agentThinking} action={state.agentAction} />
 
+          {/* 3D Observatory - rendered outside main-content to avoid constraints */}
+          {state.view === 'canvas' && state.useObservatory && (
+            <>
+              <Observatory
+                worlds={state.worlds}
+                onSelectWorld={selectWorld}
+              />
+              <button
+                className="view-mode-toggle"
+                onClick={() => setState(s => ({ ...s, useObservatory: !s.useObservatory }))}
+                title="Switch to classic view"
+              >
+                ◈ Classic
+              </button>
+            </>
+          )}
+
           <main className="main-content">
-            {state.view === 'canvas' && (
+            {state.view === 'canvas' && !state.useObservatory && (
               <>
                 {/* Mode toggle */}
                 <button
                   className="view-mode-toggle"
                   onClick={() => setState(s => ({ ...s, useObservatory: !s.useObservatory }))}
-                  title={state.useObservatory ? 'Switch to classic view' : 'Switch to 3D observatory'}
+                  title="Switch to 3D observatory"
                 >
-                  {state.useObservatory ? '◈ Classic' : '◇ 3D Observatory'}
+                  ◇ 3D Observatory
                 </button>
 
-                {state.useObservatory ? (
-                  <Observatory
-                    worlds={state.worlds}
-                    onSelectWorld={selectWorld}
-                  />
-                ) : (
-                  <WelcomeSpace
-                    worlds={state.worlds}
-                    stories={state.stories}
-                    onSelectWorld={selectWorld}
-                    onSelectStory={selectStory}
-                    onDeleteWorld={handleDeleteWorld}
-                    onElementAction={handleElementAction}
-                    generatingWorldIds={state.generatingWorldIds}
-                  />
-                )}
+                <WelcomeSpace
+                  worlds={state.worlds}
+                  stories={state.stories}
+                  onSelectWorld={selectWorld}
+                  onSelectStory={selectStory}
+                  onDeleteWorld={handleDeleteWorld}
+                  onElementAction={handleElementAction}
+                  generatingWorldIds={state.generatingWorldIds}
+                />
               </>
             )}
 

@@ -202,7 +202,7 @@ body {
 .view-mode-toggle {
   position: fixed;
   bottom: 20px;
-  left: 50%;
+  left: calc(50% - 170px); /* Offset for sidebar (340px / 2) */
   transform: translateX(-50%);
   z-index: 100;
   background: rgba(0, 0, 0, 0.9);
