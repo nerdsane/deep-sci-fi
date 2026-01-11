@@ -15,16 +15,11 @@
   justify-content: center;
   overflow: hidden;
   background: transparent; /* Let shader background show through */
-  /* Break out of .main-content container to fill canvas width */
-  width: calc(100% + var(--space-4) * 2);
-  margin-left: calc(var(--space-4) * -1);
-  margin-right: calc(var(--space-4) * -1);
-  margin-top: calc(var(--space-6) * -1);
 }
 
-.exp-hero--full { min-height: 100vh; }
-.exp-hero--large { min-height: 80vh; }
-.exp-hero--medium { min-height: 60vh; }
+.exp-hero--full { min-height: 70vh; }
+.exp-hero--large { min-height: 55vh; }
+.exp-hero--medium { min-height: 40vh; }
 .exp-hero--compact {
   min-height: auto;
   padding: 2rem 0;
@@ -119,24 +114,24 @@
 
 .exp-hero__title {
   font-family: var(--font-mono);
-  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-size: clamp(1.5rem, 5vw, 3rem);
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: 0.02em;
   color: var(--text-primary, #c8c8c8);
-  margin: 0 0 1rem;
-  text-shadow: 0 0 40px rgba(0, 255, 204, 0.2);
+  margin: 0 0 0.75rem;
+  text-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
 }
 
 .exp-hero__subtitle {
   font-family: var(--font-sans);
-  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  font-size: clamp(0.8rem, 2vw, 1rem);
   font-weight: 400;
   color: var(--text-secondary, #8a8a8a);
-  margin: 0 0 2rem;
-  max-width: 600px;
+  margin: 0 0 1.25rem;
+  max-width: 500px;
   margin-inline: auto;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 .exp-hero__meta {

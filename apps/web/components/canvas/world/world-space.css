@@ -15,9 +15,9 @@
    ============================================================================ */
 
 .world-space__section {
-  max-width: 900px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: 4rem 2rem;
+  padding: 2.5rem 1.5rem;
 }
 
 .world-space__section--stories {
@@ -27,14 +27,14 @@
 .world-space__section-title {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.65rem;
   font-weight: 400;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text-secondary, #8a8a8a);
-  margin: 0 0 2rem;
+  margin: 0 0 1.25rem;
 }
 
 .world-space__section-icon {
@@ -52,7 +52,7 @@
 }
 
 .world-space__rule {
-  padding: 1.5rem;
+  padding: 1rem;
   background: var(--bg-secondary, #0a0a0a);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-left: 2px solid var(--neon-cyan, #00ffcc);
@@ -70,8 +70,8 @@
 
 .world-space__rule-statement {
   margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.7;
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: var(--text-primary, #c8c8c8);
 }
 
@@ -81,8 +81,8 @@
 
 .world-space__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
 }
 
 .world-space__card {
@@ -91,7 +91,7 @@
   align-items: flex-start;
   text-align: left;
   width: 100%;
-  padding: 1.5rem;
+  padding: 1rem;
   background: var(--bg-secondary, #0a0a0a);
   border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
@@ -113,17 +113,17 @@
 }
 
 .world-space__card-name {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.35rem;
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 400;
   color: var(--text-primary, #c8c8c8);
 }
 
 .world-space__card-desc {
-  margin: 0 0 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--text-secondary, #8a8a8a);
   flex: 1;
 }
