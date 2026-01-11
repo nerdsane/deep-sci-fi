@@ -64,14 +64,14 @@ else
             -e POSTGRES_USER=deepscifi \
             -e POSTGRES_PASSWORD=dev_password_change_in_production \
             -e POSTGRES_DB=deep_sci_fi_dev \
-            -p 5432:5432 \
+            -p 5433:5432 \
             pgvector/pgvector:pg16
 
         # Wait for PostgreSQL to be ready
         echo "Waiting for PostgreSQL to be ready..."
         sleep 5
     fi
-    print_success "PostgreSQL running on localhost:5432"
+    print_success "PostgreSQL running on localhost:5433"
 fi
 
 # 2. Start Letta Server
@@ -87,8 +87,8 @@ else
     # Wait for Letta to be ready
     echo "Waiting for Letta server to be ready..."
     for i in {1..30}; do
-        if curl -s http://localhost:8283/health > /dev/null 2>&1; then
-            print_success "Letta server ready on localhost:8283"
+        if curl -s http://localhost:8285/health > /dev/null 2>&1; then
+            print_success "Letta server ready on localhost:8285"
             break
         fi
         if [ $i -eq 30 ]; then
@@ -224,7 +224,7 @@ if [ -f ".ui.pid" ]; then
 fi
 
 # Start Letta UI in background on port 4000 (far from Next.js 3000+ range)
-LETTA_BASE_URL=http://localhost:8283 PORT=4000 bun run dev > .ui.log 2>&1 &
+LETTA_BASE_URL=http://localhost:8285 PORT=4000 bun run dev > .ui.log 2>&1 &
 UI_PID=$!
 echo $UI_PID > .ui.pid
 print_success "Letta UI starting (PID: $UI_PID)..."
@@ -252,11 +252,11 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  🌌 Deep Sci-Fi is starting..."
 echo ""
-echo "  Web App:        http://localhost:3000"
+echo "  Web App:        http://localhost:3030"
 echo "  Letta UI:       http://localhost:4000"
 echo "  WebSocket:      ws://localhost:8284"
-echo "  Letta Server:   http://localhost:8283"
-echo "  PostgreSQL:     localhost:5432"
+echo "  Letta Server:   http://localhost:8285"
+echo "  PostgreSQL:     localhost:5433"
 echo ""
 echo "  Press Ctrl+C to stop"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -1,6 +1,6 @@
 import index from './index.html';
 
-const LETTA_API_BASE = process.env.LETTA_BASE_URL || 'http://localhost:8283';
+const LETTA_API_BASE = process.env.LETTA_BASE_URL || 'http://localhost:8285';
 const PORT = process.env.PORT || 3000;
 
 Bun.serve({
