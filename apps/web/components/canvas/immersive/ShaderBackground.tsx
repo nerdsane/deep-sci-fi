@@ -90,8 +90,9 @@ void main() {
   vec3 color2 = u_colorSecondary;
   vec3 nebulaColor = mix(color1, color2, nebula);
 
-  // Apply intensity
-  nebulaColor *= nebula * u_intensity;
+  // Apply intensity with minimum brightness
+  float brightness = mix(0.3, 1.0, nebula); // Ensure minimum brightness
+  nebulaColor *= brightness * u_intensity;
 
   // Add subtle star field
   float stars = 0.0;
@@ -121,9 +122,9 @@ interface ShaderBackgroundProps {
 }
 
 export function ShaderBackground({
-  colorPrimary = [0.0, 0.4, 0.3], // Teal
-  colorSecondary = [0.2, 0.0, 0.4], // Purple
-  intensity = 0.4,
+  colorPrimary = [0.0, 0.6, 0.5], // Bright teal
+  colorSecondary = [0.3, 0.0, 0.5], // Bright purple
+  intensity = 1.2, // Higher intensity for visibility
   className = "",
 }: ShaderBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -301,12 +302,25 @@ export function ShaderBackground({
     };
   }, [initWebGL, render, prefersReducedMotion]);
 
+  const baseStyle: React.CSSProperties = {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+    pointerEvents: "none",
+    zIndex: 0,
+  };
+
   if (!isSupported) {
     // Fallback gradient
     return (
       <div
-        className={`fixed inset-0 -z-10 ${className}`}
+        className={className}
         style={{
+          ...baseStyle,
           background: `radial-gradient(ellipse at center,
             rgba(${colorPrimary.map((c) => Math.round(c * 255)).join(",")}, 0.3) 0%,
             rgba(${colorSecondary.map((c) => Math.round(c * 255)).join(",")}, 0.2) 50%,
@@ -319,8 +333,8 @@ export function ShaderBackground({
   return (
     <canvas
       ref={canvasRef}
-      className={`fixed inset-0 -z-10 ${className}`}
-      style={{ width: "100%", height: "100%" }}
+      className={className}
+      style={baseStyle}
     />
   );
 }
