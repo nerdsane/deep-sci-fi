@@ -4,8 +4,8 @@
  * Generates images from text prompts and optionally saves them to S3 as assets.
  *
  * Default Provider Selection:
- * - Google (preferred): Uses gemini-2.0-flash-exp if GOOGLE_API_KEY is set
- * - OpenAI (fallback): Uses dall-e-3 if OPENAI_API_KEY is set
+ * - Google (preferred): Uses gemini-3-pro-image-preview if GOOGLE_API_KEY is set
+ * - OpenAI (fallback): Uses gpt-image-1.5 if OPENAI_API_KEY is set
  */
 
 import type { PrismaClient } from '@deep-sci-fi/db';
@@ -93,6 +93,7 @@ export async function image_generator(
     }
 
     const provider = params.provider || getDefaultProvider();
+    console.log(`[image_generator] Using provider: ${provider}`);
 
     // Notify frontend that image generation is starting
     if (params.world_id) {
@@ -171,7 +172,7 @@ export async function image_generator(
 }
 
 // ============================================================================
-// OpenAI Generation
+// OpenAI Generation (gpt-image-1.5)
 // ============================================================================
 
 async function generateWithOpenAI(
@@ -182,18 +183,34 @@ async function generateWithOpenAI(
     throw new Error('OPENAI_API_KEY environment variable not set');
   }
 
-  const size = params.size || '1024x1024';
-  const model = params.model || 'dall-e-3';
+  // Map size to gpt-image-1.5 supported sizes
+  // gpt-image-1.5 supports: "1024x1024", "1024x1536" (portrait), "1536x1024" (landscape), "auto"
+  let size: string = params.size || '1024x1024';
+  if (size === '1792x1024') {
+    size = '1536x1024'; // Map to closest supported landscape
+  } else if (size === '1024x1792') {
+    size = '1024x1536'; // Map to closest supported portrait
+  } else if (size === '512x512' || size === '256x256') {
+    size = '1024x1024'; // gpt-image-1.5 doesn't support smaller sizes
+  }
 
+  // Use gpt-image-1.5 (best quality, fast, good text rendering)
+  const model = params.model || 'gpt-image-1.5';
+  console.log(`[image_generator] OpenAI model: ${model}, size: ${size}`);
+
+  // Build request body
+  // gpt-image-1 and gpt-image-1.5 ONLY return b64_json (don't pass response_format - it's implied)
+  // DALL-E models support response_format, quality, and style parameters
   const requestBody: Record<string, any> = {
     model,
     prompt: params.prompt,
     n: 1,
     size,
-    response_format: 'b64_json',
   };
 
-  if (model === 'dall-e-3') {
+  // Only add response_format/quality/style for DALL-E models (gpt-image-1/1.5 don't accept these params)
+  if (model.startsWith('dall-e')) {
+    requestBody.response_format = 'b64_json';
     requestBody.quality = params.quality || 'standard';
     requestBody.style = params.style || 'vivid';
   }
@@ -248,7 +265,7 @@ async function generateWithOpenAI(
 }
 
 // ============================================================================
-// Google Gemini Generation
+// Google Gemini Generation (gemini-3-pro-image-preview)
 // ============================================================================
 
 async function generateWithGoogle(
@@ -259,8 +276,9 @@ async function generateWithGoogle(
     throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY environment variable not set');
   }
 
-  // Use Gemini 2.0 Flash for image generation
-  const modelName = params.model || 'gemini-2.0-flash-exp';
+  // Use Gemini 3 Pro Image Preview (best quality image generation)
+  const modelName = params.model || 'gemini-3-pro-image-preview';
+  console.log(`[image_generator] Google model: ${modelName}`);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
@@ -453,7 +471,7 @@ async function saveAsAsset(
 export const imageGeneratorTool = {
   name: 'image_generator',
   description:
-    'Generate images using AI (Google Gemini or OpenAI DALL-E). Can save images as assets to S3.',
+    'Generate images using AI (Google gemini-3-pro-image-preview preferred, OpenAI gpt-image-1.5 fallback). Can save images as assets to S3.',
   parameters: {
     type: 'object',
     properties: {
