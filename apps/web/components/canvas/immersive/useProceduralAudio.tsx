@@ -312,33 +312,99 @@ export function useAudio() {
 // Audio Controls Component
 // ============================================================================
 
+const audioControlStyles = {
+  container: {
+    position: "fixed" as const,
+    bottom: "20px",
+    right: "360px", // Account for 340px chat sidebar + 20px margin
+    zIndex: 50,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "8px 12px",
+    background: "rgba(0, 0, 0, 0.7)",
+    backdropFilter: "blur(8px)",
+    border: "1px solid rgba(0, 255, 204, 0.2)",
+  },
+  enableButton: {
+    position: "fixed" as const,
+    bottom: "20px",
+    right: "360px", // Account for 340px chat sidebar + 20px margin
+    zIndex: 50,
+    padding: "8px 16px",
+    fontFamily: "var(--font-mono, monospace)",
+    fontSize: "11px",
+    fontWeight: 500,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase" as const,
+    color: "#00ffcc",
+    background: "rgba(0, 0, 0, 0.7)",
+    backdropFilter: "blur(8px)",
+    border: "1px solid rgba(0, 255, 204, 0.3)",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  muteButton: {
+    background: "transparent",
+    border: "none",
+    fontSize: "14px",
+    cursor: "pointer",
+    padding: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "transform 0.15s ease",
+  },
+  slider: {
+    width: "60px",
+    height: "4px",
+    appearance: "none" as const,
+    WebkitAppearance: "none" as const,
+    background: "rgba(255, 255, 255, 0.1)",
+    cursor: "pointer",
+    outline: "none",
+  },
+  volumeLabel: {
+    fontFamily: "var(--font-mono, monospace)",
+    fontSize: "10px",
+    color: "rgba(0, 255, 204, 0.6)",
+    minWidth: "24px",
+    textAlign: "right" as const,
+  },
+};
+
 export function AudioControls() {
   const { settings, setVolume, toggleMute, initialize } = useAudio();
+  const [isHovered, setIsHovered] = useState(false);
 
   if (!settings.isEnabled) {
     return (
       <button
         type="button"
         onClick={initialize}
-        className="fixed bottom-5 right-5 z-50 px-4 py-2 text-xs font-mono
-                   bg-black/60 border border-cyan-500/30 rounded
-                   text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50
-                   transition-all duration-200 backdrop-blur-sm"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          ...audioControlStyles.enableButton,
+          background: isHovered ? "rgba(0, 255, 204, 0.1)" : "rgba(0, 0, 0, 0.7)",
+          borderColor: isHovered ? "rgba(0, 255, 204, 0.5)" : "rgba(0, 255, 204, 0.3)",
+          boxShadow: isHovered ? "0 0 15px rgba(0, 255, 204, 0.2)" : "none",
+        }}
       >
-        Enable Audio
+        ♪ Enable Audio
       </button>
     );
   }
 
+  const volumePercent = Math.round(settings.masterVolume * 100);
+
   return (
-    <div
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-3 py-2
-                    bg-black/60 backdrop-blur-sm rounded-full border border-white/10"
-    >
+    <div style={audioControlStyles.container}>
       <button
         type="button"
         onClick={toggleMute}
-        className="text-sm hover:text-cyan-400 transition-colors"
+        style={audioControlStyles.muteButton}
+        title={settings.isMuted ? "Unmute" : "Mute"}
       >
         {settings.isMuted ? "🔇" : settings.masterVolume > 0.5 ? "🔊" : "🔉"}
       </button>
@@ -349,12 +415,26 @@ export function AudioControls() {
         step={0.1}
         value={settings.isMuted ? 0 : settings.masterVolume}
         onChange={(e) => setVolume(parseFloat(e.target.value))}
-        className="w-16 h-1 appearance-none bg-gray-700 rounded cursor-pointer
-                   [&::-webkit-slider-thumb]:appearance-none
-                   [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-                   [&::-webkit-slider-thumb]:rounded-full
-                   [&::-webkit-slider-thumb]:bg-cyan-400"
+        style={audioControlStyles.slider}
+        title={`Volume: ${volumePercent}%`}
       />
+      <span style={audioControlStyles.volumeLabel}>{volumePercent}%</span>
+      <style>{`
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 12px;
+          height: 12px;
+          background: #00ffcc;
+          cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          background: #00ffcc;
+          cursor: pointer;
+          border: none;
+        }
+      `}</style>
     </div>
   );
 }
