@@ -14,10 +14,13 @@
     "@babel/standalone": "^7.28.5",
     "@deep-sci-fi/db": "file:../../packages/db",
     "@deep-sci-fi/letta": "file:../../packages/letta",
+    "@gsap/react": "^2.1.2",
     "@radix-ui/react-dialog": "^1.1.15",
+    "gsap": "^3.14.2",
     "next": "^14.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-parallax-tilt": "^1.7.315",
     "zod": "^3.22.4",
     "zustand": "^4.5.0"
   },
