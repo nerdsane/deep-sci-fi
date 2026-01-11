@@ -68,8 +68,8 @@ export const WorldSpace = React.memo(function WorldSpace({
     status: i === 0 ? 'current' as const : 'completed' as const,
   }));
 
-  // Group visible elements by type
-  const visibleElements = surface.visible_elements || [];
+  // Group visible elements by type - ensure it's always an array
+  const visibleElements = Array.isArray(surface.visible_elements) ? surface.visible_elements : [];
   const characters = visibleElements.filter(e => e.type === 'character');
   const locations = visibleElements.filter(e => e.type === 'location');
   const technologies = visibleElements.filter(e => e.type === 'technology');

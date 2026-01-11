@@ -138,7 +138,7 @@ export const WelcomeSpace = React.memo(function WelcomeSpace({
             </h2>
             <div className="welcome-space__worlds-grid">
               {worlds.map((world, i) => (
-                <ScrollSection key={getWorldId(world) + i} animation="scale" delay={i * 100}>
+                <ScrollSection key={(world as any).id || getWorldId(world)} animation="scale" delay={i * 100} persistKey={`world-card-${(world as any).id || getWorldId(world)}`}>
                   <InteractiveElement
                     elementType="world_card"
                     elementId={getWorldId(world)}
