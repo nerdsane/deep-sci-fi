@@ -6,6 +6,17 @@ import { StatsSkeleton, TrajectoryListSkeleton, TrajectoryDetailSkeleton } from 
 import { AnalyticsView } from './AnalyticsView';
 import { convertRunToOTS } from '../lib/ots-converter';
 
+interface Agent {
+  id: string;
+  name: string;
+  description?: string;
+  agent_type?: string;
+}
+
+interface TrajectoriesViewProps {
+  onNavigateToAgent?: (agentId: string) => void;
+}
+
 interface Filters {
   agentId: string;
   outcomeType: string;
@@ -17,9 +28,10 @@ interface Filters {
   includeCrossOrg: boolean;
 }
 
-export function TrajectoriesView() {
+export function TrajectoriesView({ onNavigateToAgent }: TrajectoriesViewProps = {}) {
   const [viewTab, setViewTab] = useState('list');
   const [trajectories, setTrajectories] = useState<Trajectory[]>([]);
+  const [agents, setAgents] = useState<Map<string, Agent>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +51,24 @@ export function TrajectoriesView() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [stats, setStats] = useState<{ total: number; completed: number; failed: number; pending: number } | null>(null);
+
+  // Load agents for name lookup
+  useEffect(() => {
+    async function loadAgents() {
+      try {
+        const response = await api.listAgents();
+        const agentsList = Array.isArray(response) ? response : response.items || [];
+        const agentsMap = new Map<string, Agent>();
+        agentsList.forEach((agent: Agent) => {
+          agentsMap.set(agent.id, agent);
+        });
+        setAgents(agentsMap);
+      } catch (err) {
+        console.error('Failed to load agents:', err);
+      }
+    }
+    loadAgents();
+  }, []);
 
   // Load stats from API
   useEffect(() => {
@@ -133,6 +163,7 @@ export function TrajectoriesView() {
 
   function applyFilters() {
     const filtered = trajectories.filter(t => {
+      if (filters.agentId && t.agent_id !== filters.agentId) return false;
       if (filters.outcomeType) {
         const status = t.data?.outcome?.execution?.status || t.data?.outcome?.type;
         if (status !== filters.outcomeType) return false;
@@ -145,6 +176,18 @@ export function TrajectoriesView() {
     });
     return filtered;
   }
+
+  // Helper to get agent display name
+  const getAgentDisplayName = (agentId: string | undefined): string => {
+    if (!agentId) return 'Unknown Agent';
+    const agent = agents.get(agentId);
+    return agent?.name || agentId.slice(0, 12) + '...';
+  };
+
+  const getAgentInfo = (agentId: string | undefined): Agent | undefined => {
+    if (!agentId) return undefined;
+    return agents.get(agentId);
+  };
 
   const filteredTrajectories = applyFilters();
   const successCount = trajectories.filter((t) => {
@@ -287,16 +330,21 @@ export function TrajectoriesView() {
           }}>
             <div>
               <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
-                Agent ID
+                Agent
               </label>
-              <input
-                type="text"
+              <select
                 value={filters.agentId}
                 onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
-                placeholder="Filter by agent..."
                 className="input"
                 style={{ width: '100%' }}
-              />
+              >
+                <option value="">All agents</option>
+                {Array.from(agents.values()).map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name || agent.id.slice(0, 12) + '...'}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-small text-muted mb-1" style={{ display: 'block' }}>
@@ -481,7 +529,55 @@ export function TrajectoriesView() {
                   }
                 }}
               >
-                <div className="flex items-center gap-3 mb-2">
+                {/* Agent Name - Prominent at top */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '0.5rem',
+                }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onNavigateToAgent && trajectory.agent_id) {
+                        onNavigateToAgent(trajectory.agent_id);
+                      }
+                    }}
+                    style={{
+                      background: 'rgba(0, 229, 255, 0.1)',
+                      border: '1px solid rgba(0, 229, 255, 0.3)',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '4px',
+                      cursor: onNavigateToAgent ? 'pointer' : 'default',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (onNavigateToAgent) {
+                        e.currentTarget.style.background = 'rgba(0, 229, 255, 0.2)';
+                        e.currentTarget.style.borderColor = 'var(--neon-teal)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(0, 229, 255, 0.1)';
+                      e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.3)';
+                    }}
+                    title={trajectory.agent_id ? `Go to agent: ${trajectory.agent_id}` : 'Unknown agent'}
+                  >
+                    <span style={{ color: 'var(--neon-teal)', fontSize: '0.75rem' }}>🤖</span>
+                    <span style={{
+                      color: 'var(--neon-teal)',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                    }}>
+                      {getAgentDisplayName(trajectory.agent_id)}
+                    </span>
+                    {onNavigateToAgent && (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>→</span>
+                    )}
+                  </button>
                   {/* New indicator */}
                   {isNew && (
                     <span className="badge" style={{
@@ -495,6 +591,9 @@ export function TrajectoriesView() {
                       NEW
                     </span>
                   )}
+                </div>
+
+                <div className="flex items-center gap-3 mb-2">
                   {/* Execution Status (did it complete?) */}
                   <span
                     className={`badge ${
@@ -581,6 +680,54 @@ export function TrajectoriesView() {
           return (
             <div className="card" style={{ position: 'sticky', top: '1.5rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
               <>
+                  {/* Agent Header - Prominent at top */}
+                  <div style={{
+                    marginBottom: '1.5rem',
+                    paddingBottom: '1rem',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    background: 'rgba(0, 229, 255, 0.05)',
+                    margin: '-1.5rem -1.5rem 1.5rem -1.5rem',
+                    padding: '1.5rem',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ fontSize: '1.5rem' }}>🤖</span>
+                        <div>
+                          <div style={{
+                            fontSize: '1.125rem',
+                            fontWeight: 600,
+                            color: 'var(--neon-teal)',
+                          }}>
+                            {getAgentDisplayName(trajectory.agent_id)}
+                          </div>
+                          {getAgentInfo(trajectory.agent_id)?.description && (
+                            <div className="text-small text-muted" style={{ marginTop: '0.25rem' }}>
+                              {getAgentInfo(trajectory.agent_id)?.description}
+                            </div>
+                          )}
+                          <div className="text-small font-mono" style={{ color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
+                            {trajectory.agent_id}
+                          </div>
+                        </div>
+                      </div>
+                      {onNavigateToAgent && trajectory.agent_id && (
+                        <button
+                          onClick={() => onNavigateToAgent(trajectory.agent_id!)}
+                          className="btn btn-primary"
+                          style={{
+                            background: 'rgba(0, 229, 255, 0.2)',
+                            border: '1px solid var(--neon-teal)',
+                            color: 'var(--neon-teal)',
+                            fontSize: '0.875rem',
+                            padding: '0.5rem 1rem',
+                          }}
+                        >
+                          View Agent →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Header - Execution Status (OTS-derived) */}
                   <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div className="flex items-center gap-3">

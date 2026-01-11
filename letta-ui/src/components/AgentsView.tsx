@@ -16,7 +16,12 @@ interface AgentWithDetails extends Agent {
   };
 }
 
-export function AgentsView() {
+interface AgentsViewProps {
+  initialSelectedAgentId?: string | null;
+  onAgentSelected?: () => void;
+}
+
+export function AgentsView({ initialSelectedAgentId, onAgentSelected }: AgentsViewProps = {}) {
   const [agents, setAgents] = useState<AgentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +33,14 @@ export function AgentsView() {
   useEffect(() => {
     loadAgents();
   }, []);
+
+  // Handle initial selection from external navigation
+  useEffect(() => {
+    if (initialSelectedAgentId && agents.length > 0 && expandedAgent !== initialSelectedAgentId) {
+      loadAgentDetails(initialSelectedAgentId);
+      onAgentSelected?.();
+    }
+  }, [initialSelectedAgentId, agents]);
 
   async function loadAgents() {
     try {
