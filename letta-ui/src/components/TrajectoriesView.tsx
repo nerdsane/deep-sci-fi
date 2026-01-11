@@ -542,9 +542,9 @@ export function TrajectoriesView() {
           return (
             <div className="card" style={{ position: 'sticky', top: '1.5rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
               <>
-                  {/* Header */}
-                  <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <div className="flex items-center gap-3 mb-3">
+                  {/* Header - Basic Status */}
+                  <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className="flex items-center gap-3">
                       {/* Execution Status */}
                       <span
                         className={`badge ${
@@ -574,35 +574,339 @@ export function TrajectoriesView() {
                         </span>
                       )}
                     </div>
-                    {trajectory.searchable_summary && (
-                      <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', fontSize: '0.9375rem', marginBottom: '0.75rem' }}>
-                        {trajectory.searchable_summary}
+                  </div>
+
+                  {/* ============================================ */}
+                  {/* OTS DATA SECTION - Raw trajectory extraction */}
+                  {/* ============================================ */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255, 255, 0, 0.2)' }}>
+                      <h3 style={{
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        color: 'var(--neon-lemon)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        marginBottom: '0.25rem'
+                      }}>
+                        OTS Data
+                      </h3>
+                      <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+                        Extracted directly from agent execution — no LLM processing
                       </p>
+                    </div>
+
+                    {/* OTS Decisions */}
+                    {trajectory.decisions && trajectory.decisions.length > 0 && (
+                      <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--neon-lemon)' }}>🎯</span> Decisions ({trajectory.decisions.length})
+                        </h4>
+                        <div className="text-small text-muted" style={{ marginBottom: '1rem' }}>
+                          Tool calls extracted as OTS-style decisions with success/failure analysis
+                        </div>
+
+                        {/* Decision Summary */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                          <div style={{ padding: '0.5rem', background: 'rgba(0, 255, 136, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                            <div className="font-mono" style={{ color: 'var(--neon-green)', fontSize: '1.25rem' }}>
+                              {trajectory.decisions.filter(d => d.success).length}
+                            </div>
+                            <div className="text-small text-muted">Successful</div>
+                          </div>
+                          <div style={{ padding: '0.5rem', background: 'rgba(255, 0, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                            <div className="font-mono" style={{ color: 'var(--neon-magenta)', fontSize: '1.25rem' }}>
+                              {trajectory.decisions.filter(d => !d.success).length}
+                            </div>
+                            <div className="text-small text-muted">Failed</div>
+                          </div>
+                          <div style={{ padding: '0.5rem', background: 'rgba(0, 229, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                            <div className="font-mono" style={{ color: 'var(--neon-teal)', fontSize: '1.25rem' }}>
+                              {trajectory.decisions.length > 0
+                                ? Math.round((trajectory.decisions.filter(d => d.success).length / trajectory.decisions.length) * 100)
+                                : 0}%
+                            </div>
+                            <div className="text-small text-muted">Success Rate</div>
+                          </div>
+                        </div>
+
+                        {/* Decision List */}
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                          {trajectory.decisions.map((decision, idx) => (
+                            <div key={decision.decision_id || idx} style={{
+                              padding: '0.75rem',
+                              background: decision.success ? 'rgba(0, 255, 136, 0.03)' : 'rgba(255, 0, 255, 0.05)',
+                              border: `1px solid ${decision.success ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 255, 0.3)'}`,
+                            }}>
+                              <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-small" style={{ color: 'var(--neon-magenta)' }}>
+                                    {decision.action}
+                                  </span>
+                                  <span className={`badge ${decision.success ? 'badge-success' : 'badge-failure'}`} style={{ fontSize: '0.625rem' }}>
+                                    {decision.success ? '✓ Success' : '✗ Failed'}
+                                  </span>
+                                </div>
+                                <span className="text-small text-muted">Turn {decision.turn_index + 1}</span>
+                              </div>
+
+                              {decision.error_type && (
+                                <div className="text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.5rem' }}>
+                                  Error: {decision.error_type}
+                                </div>
+                              )}
+
+                              {decision.arguments && Object.keys(decision.arguments).length > 0 && (
+                                <div style={{ marginTop: '0.5rem' }}>
+                                  <div className="text-small text-muted mb-1">Arguments:</div>
+                                  <pre style={{
+                                    fontSize: '0.7rem',
+                                    color: 'var(--text-tertiary)',
+                                    background: 'rgba(0, 0, 0, 0.3)',
+                                    padding: '0.5rem',
+                                    margin: 0,
+                                    overflow: 'auto',
+                                    maxHeight: '100px',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                  }}>
+                                    {typeof decision.arguments === 'string'
+                                      ? decision.arguments
+                                      : JSON.stringify(decision.arguments, null, 2).slice(0, 300)}
+                                    {JSON.stringify(decision.arguments).length > 300 && '...'}
+                                  </pre>
+                                </div>
+                              )}
+
+                              {decision.result_summary && (
+                                <div style={{ marginTop: '0.5rem' }}>
+                                  <div className="text-small text-muted mb-1">Result:</div>
+                                  <div className="text-small" style={{
+                                    color: 'var(--text-secondary)',
+                                    background: 'rgba(0, 0, 0, 0.2)',
+                                    padding: '0.5rem',
+                                    maxHeight: '60px',
+                                    overflow: 'auto',
+                                  }}>
+                                    {decision.result_summary}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
-                    {/* Tags, Category, Complexity */}
-                    {(trajectory.tags || trajectory.task_category || trajectory.complexity_level) && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-                        {trajectory.task_category && (
-                          <span className="badge" style={{ background: 'rgba(0, 229, 255, 0.1)', color: 'var(--neon-teal)', border: '1px solid rgba(0, 229, 255, 0.3)' }}>
-                            📑 {trajectory.task_category}
-                          </span>
+                    {/* Metadata (OTS) */}
+                    {metadata && (
+                      <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                          Execution Metadata
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                          <div>
+                            <div className="text-small text-muted mb-1">Steps</div>
+                            <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.step_count}</div>
+                          </div>
+                          <div>
+                            <div className="text-small text-muted mb-1">Messages</div>
+                            <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.message_count}</div>
+                          </div>
+                          <div>
+                            <div className="text-small text-muted mb-1">Total Tokens</div>
+                            <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.total_tokens?.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-small text-muted mb-1">Duration</div>
+                            <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                              {metadata.duration_ns ? `${(metadata.duration_ns / 1_000_000_000).toFixed(1)}s` : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-small text-muted mb-1">Status</div>
+                            <span className="badge badge-neutral">{metadata.status}</span>
+                          </div>
+                          <div>
+                            <div className="text-small text-muted mb-1">Run ID</div>
+                            <div className="font-mono text-small" style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {trajectory.data?.run_id?.slice(0, 12)}...
+                            </div>
+                          </div>
+                        </div>
+                        {metadata.models && metadata.models.length > 0 && (
+                          <div style={{ marginTop: '1rem' }}>
+                            <div className="text-small text-muted mb-2">Models</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              {metadata.models.map((model, idx) => (
+                                <span key={idx} className="badge badge-neutral text-small font-mono">
+                                  {model}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                        {trajectory.complexity_level && (
-                          <span className="badge" style={{ background: 'rgba(255, 255, 0, 0.1)', color: 'var(--neon-lemon)', border: '1px solid rgba(255, 255, 0, 0.3)' }}>
-                            🎯 {trajectory.complexity_level}
-                          </span>
+                        {metadata.tools_used && metadata.tools_used.length > 0 && (
+                          <div style={{ marginTop: '1rem' }}>
+                            <div className="text-small text-muted mb-2">Tools Used</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              {metadata.tools_used.map((tool, idx) => (
+                                <span key={idx} className="badge badge-neutral text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
+                                  {tool}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                        {trajectory.tags && trajectory.tags.length > 0 && trajectory.tags.map((tag, idx) => (
-                          <span key={idx} className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-                            {tag}
-                          </span>
-                        ))}
+                      </div>
+                    )}
+
+                    {/* Execution Turns (OTS) */}
+                    {turns.length > 0 && (
+                      <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                          Execution Trace ({turns.length} turns)
+                        </h4>
+                        <div style={{ display: 'grid', gap: '1rem' }}>
+                          {turns.map((turn, idx) => (
+                            <div key={turn.step_id || idx} style={{
+                              padding: '1rem',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              border: '1px solid var(--border-subtle)',
+                            }}>
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="font-mono" style={{ color: 'var(--neon-green)' }}>
+                                  Turn {idx + 1}
+                                </span>
+                                <div className="flex items-center gap-3 text-small" style={{ color: 'var(--text-tertiary)' }}>
+                                  <span className="font-mono">{turn.model}</span>
+                                  <span>•</span>
+                                  <span className="font-mono">{turn.input_tokens + turn.output_tokens} tokens</span>
+                                </div>
+                              </div>
+                              {turn.messages && turn.messages.length > 0 && (
+                                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                  {turn.messages.map((msg, msgIdx) => (
+                                    <div key={msgIdx} style={{
+                                      padding: '0.75rem',
+                                      background: msg.role === 'user' ? 'rgba(0, 229, 255, 0.05)' : 'rgba(0, 255, 136, 0.05)',
+                                      border: `1px solid ${msg.role === 'user' ? 'rgba(0, 229, 255, 0.2)' : 'rgba(0, 255, 136, 0.2)'}`,
+                                    }}>
+                                      <div className="flex justify-between items-center mb-2">
+                                        <span className={`badge ${msg.role === 'user' ? 'badge-neutral' : 'badge-success'}`}>
+                                          {msg.role}
+                                        </span>
+                                        {msg.tool_calls && msg.tool_calls.length > 0 && (
+                                          <span className="text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
+                                            {msg.tool_calls.length} tool call{msg.tool_calls.length > 1 ? 's' : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {msg.text && (
+                                        <div style={{
+                                          color: 'var(--text-secondary)',
+                                          fontSize: '0.875rem',
+                                          lineHeight: '1.7',
+                                          whiteSpace: 'pre-wrap',
+                                          wordBreak: 'break-word',
+                                        }}>
+                                          {msg.text}
+                                        </div>
+                                      )}
+                                      {msg.tool_calls && msg.tool_calls.length > 0 && (
+                                        <div style={{ marginTop: '0.75rem' }}>
+                                          {msg.tool_calls.map((tc, tcIdx) => (
+                                            <div key={tcIdx} style={{
+                                              padding: '0.5rem',
+                                              background: 'rgba(0, 0, 0, 0.3)',
+                                              border: '1px solid var(--border-subtle)',
+                                              marginBottom: tcIdx < msg.tool_calls!.length - 1 ? '0.5rem' : 0,
+                                            }}>
+                                              <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.25rem' }}>
+                                                {tc.function.name}
+                                              </div>
+                                              <pre style={{
+                                                fontSize: '0.75rem',
+                                                color: 'var(--text-tertiary)',
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-word',
+                                                margin: 0,
+                                              }}>
+                                                {tc.function.arguments}
+                                              </pre>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* LLM Processing Details */}
+                  {/* ============================================ */}
+                  {/* LETTA-ENRICHED SECTION - LLM-processed data */}
+                  {/* ============================================ */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255, 0, 255, 0.2)' }}>
+                      <h3 style={{
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        color: 'var(--neon-magenta)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        marginBottom: '0.25rem'
+                      }}>
+                        Letta-Enriched Data
+                      </h3>
+                      <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+                        Semantic analysis using <span style={{ color: 'var(--neon-magenta)', fontFamily: 'var(--font-mono)' }}>gpt-4o-mini</span>
+                      </p>
+                    </div>
+
+                    {/* Summary and Tags (Letta-enriched) */}
+                    {(trajectory.searchable_summary || trajectory.tags || trajectory.task_category || trajectory.complexity_level) && (
+                      <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        {trajectory.searchable_summary && (
+                          <div style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                              Summary
+                            </h4>
+                            <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', fontSize: '0.9375rem' }}>
+                              {trajectory.searchable_summary}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Tags, Category, Complexity */}
+                        {(trajectory.tags || trajectory.task_category || trajectory.complexity_level) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                            {trajectory.task_category && (
+                              <span className="badge" style={{ background: 'rgba(0, 229, 255, 0.1)', color: 'var(--neon-teal)', border: '1px solid rgba(0, 229, 255, 0.3)' }}>
+                                📑 {trajectory.task_category}
+                              </span>
+                            )}
+                            {trajectory.complexity_level && (
+                              <span className="badge" style={{ background: 'rgba(255, 255, 0, 0.1)', color: 'var(--neon-lemon)', border: '1px solid rgba(255, 255, 0, 0.3)' }}>
+                                🎯 {trajectory.complexity_level}
+                              </span>
+                            )}
+                            {trajectory.tags && trajectory.tags.length > 0 && trajectory.tags.map((tag, idx) => (
+                              <span key={idx} className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* LLM Processing Details (Letta-enriched) */}
                   {(trajectory.score_reasoning || trajectory.processing_completed_at) && (
                     <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
                       <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -674,282 +978,33 @@ export function TrajectoriesView() {
                     </div>
                   )}
 
-                  {/* Metadata */}
-                  {metadata && (
-                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                        Metadata
-                      </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                        <div>
-                          <div className="text-small text-muted mb-1">Steps</div>
-                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.step_count}</div>
-                        </div>
-                        <div>
-                          <div className="text-small text-muted mb-1">Messages</div>
-                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.message_count}</div>
-                        </div>
-                        <div>
-                          <div className="text-small text-muted mb-1">Total Tokens</div>
-                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>{metadata.total_tokens?.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <div className="text-small text-muted mb-1">Duration</div>
-                          <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>
-                            {metadata.duration_ns ? `${(metadata.duration_ns / 1_000_000_000).toFixed(1)}s` : 'N/A'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-small text-muted mb-1">Status</div>
-                          <span className="badge badge-neutral">{metadata.status}</span>
-                        </div>
-                        <div>
-                          <div className="text-small text-muted mb-1">Run ID</div>
-                          <div className="font-mono text-small" style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {trajectory.data?.run_id?.slice(0, 12)}...
-                          </div>
-                        </div>
-                      </div>
-                      {metadata.models && metadata.models.length > 0 && (
-                        <div style={{ marginTop: '1rem' }}>
-                          <div className="text-small text-muted mb-2">Models</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            {metadata.models.map((model, idx) => (
-                              <span key={idx} className="badge badge-neutral text-small font-mono">
-                                {model}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {metadata.tools_used && metadata.tools_used.length > 0 && (
-                        <div style={{ marginTop: '1rem' }}>
-                          <div className="text-small text-muted mb-2">Tools Used</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            {metadata.tools_used.map((tool, idx) => (
-                              <span key={idx} className="badge badge-neutral text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
-                                {tool}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Outcome */}
-                  {outcome && (
-                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                        Outcome Analysis
-                      </h4>
-                      <div style={{ marginBottom: '1rem' }}>
-                        <div className="text-small text-muted mb-1">Confidence</div>
-                        <div className="font-mono" style={{ color: 'var(--neon-teal)' }}>
-                          {(outcome.confidence * 100).toFixed(0)}%
-                        </div>
-                      </div>
-                      {outcome.reasoning && outcome.reasoning.length > 0 && (
-                        <div>
-                          <div className="text-small text-muted mb-2">Reasoning</div>
-                          <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7' }}>
-                            {outcome.reasoning.map((reason, idx) => (
-                              <li key={idx} style={{ marginBottom: '0.5rem' }}>{reason}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* OTS Decisions */}
-                  {trajectory.decisions && trajectory.decisions.length > 0 && (
-                    <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ color: 'var(--neon-lemon)' }}>🎯</span> Decisions ({trajectory.decisions.length})
-                      </h4>
-                      <div className="text-small text-muted" style={{ marginBottom: '1rem' }}>
-                        Tool calls extracted as OTS-style decisions with success/failure analysis
-                      </div>
-
-                      {/* Decision Summary */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
-                        <div style={{ padding: '0.5rem', background: 'rgba(0, 255, 136, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                          <div className="font-mono" style={{ color: 'var(--neon-green)', fontSize: '1.25rem' }}>
-                            {trajectory.decisions.filter(d => d.success).length}
-                          </div>
-                          <div className="text-small text-muted">Successful</div>
-                        </div>
-                        <div style={{ padding: '0.5rem', background: 'rgba(255, 0, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                          <div className="font-mono" style={{ color: 'var(--neon-magenta)', fontSize: '1.25rem' }}>
-                            {trajectory.decisions.filter(d => !d.success).length}
-                          </div>
-                          <div className="text-small text-muted">Failed</div>
-                        </div>
-                        <div style={{ padding: '0.5rem', background: 'rgba(0, 229, 255, 0.05)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                          <div className="font-mono" style={{ color: 'var(--neon-teal)', fontSize: '1.25rem' }}>
-                            {trajectory.decisions.length > 0
-                              ? Math.round((trajectory.decisions.filter(d => d.success).length / trajectory.decisions.length) * 100)
-                              : 0}%
-                          </div>
-                          <div className="text-small text-muted">Success Rate</div>
-                        </div>
-                      </div>
-
-                      {/* Decision List */}
-                      <div style={{ display: 'grid', gap: '0.5rem' }}>
-                        {trajectory.decisions.map((decision, idx) => (
-                          <div key={decision.decision_id || idx} style={{
-                            padding: '0.75rem',
-                            background: decision.success ? 'rgba(0, 255, 136, 0.03)' : 'rgba(255, 0, 255, 0.05)',
-                            border: `1px solid ${decision.success ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 255, 0.3)'}`,
-                          }}>
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-small" style={{ color: 'var(--neon-magenta)' }}>
-                                  {decision.action}
-                                </span>
-                                <span className={`badge ${decision.success ? 'badge-success' : 'badge-failure'}`} style={{ fontSize: '0.625rem' }}>
-                                  {decision.success ? '✓ Success' : '✗ Failed'}
-                                </span>
-                              </div>
-                              <span className="text-small text-muted">Turn {decision.turn_index + 1}</span>
+                    {/* Outcome Analysis (Letta-enriched) */}
+                    {outcome && (
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                          Outcome Analysis
+                        </h4>
+                        {outcome.confidence !== undefined && (
+                          <div style={{ marginBottom: '1rem' }}>
+                            <div className="text-small text-muted mb-1">Confidence</div>
+                            <div className="font-mono" style={{ color: 'var(--neon-teal)' }}>
+                              {(outcome.confidence * 100).toFixed(0)}%
                             </div>
-
-                            {decision.error_type && (
-                              <div className="text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.5rem' }}>
-                                Error: {decision.error_type}
-                              </div>
-                            )}
-
-                            {decision.arguments && Object.keys(decision.arguments).length > 0 && (
-                              <div style={{ marginTop: '0.5rem' }}>
-                                <div className="text-small text-muted mb-1">Arguments:</div>
-                                <pre style={{
-                                  fontSize: '0.7rem',
-                                  color: 'var(--text-tertiary)',
-                                  background: 'rgba(0, 0, 0, 0.3)',
-                                  padding: '0.5rem',
-                                  margin: 0,
-                                  overflow: 'auto',
-                                  maxHeight: '100px',
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-word',
-                                }}>
-                                  {typeof decision.arguments === 'string'
-                                    ? decision.arguments
-                                    : JSON.stringify(decision.arguments, null, 2).slice(0, 300)}
-                                  {JSON.stringify(decision.arguments).length > 300 && '...'}
-                                </pre>
-                              </div>
-                            )}
-
-                            {decision.result_summary && (
-                              <div style={{ marginTop: '0.5rem' }}>
-                                <div className="text-small text-muted mb-1">Result:</div>
-                                <div className="text-small" style={{
-                                  color: 'var(--text-secondary)',
-                                  background: 'rgba(0, 0, 0, 0.2)',
-                                  padding: '0.5rem',
-                                  maxHeight: '60px',
-                                  overflow: 'auto',
-                                }}>
-                                  {decision.result_summary}
-                                </div>
-                              </div>
-                            )}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Execution Turns */}
-                  {turns.length > 0 && (
-                    <div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                        Execution Trace ({turns.length} turns)
-                      </h4>
-                      <div style={{ display: 'grid', gap: '1rem' }}>
-                        {turns.map((turn, idx) => (
-                          <div key={turn.step_id || idx} style={{
-                            padding: '1rem',
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px solid var(--border-subtle)',
-                          }}>
-                            <div className="flex justify-between items-center mb-3">
-                              <span className="font-mono" style={{ color: 'var(--neon-green)' }}>
-                                Turn {idx + 1}
-                              </span>
-                              <div className="flex items-center gap-3 text-small" style={{ color: 'var(--text-tertiary)' }}>
-                                <span className="font-mono">{turn.model}</span>
-                                <span>•</span>
-                                <span className="font-mono">{turn.input_tokens + turn.output_tokens} tokens</span>
-                              </div>
-                            </div>
-                            {turn.messages && turn.messages.length > 0 && (
-                              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                                {turn.messages.map((msg, msgIdx) => (
-                                  <div key={msgIdx} style={{
-                                    padding: '0.75rem',
-                                    background: msg.role === 'user' ? 'rgba(0, 229, 255, 0.05)' : 'rgba(0, 255, 136, 0.05)',
-                                    border: `1px solid ${msg.role === 'user' ? 'rgba(0, 229, 255, 0.2)' : 'rgba(0, 255, 136, 0.2)'}`,
-                                  }}>
-                                    <div className="flex justify-between items-center mb-2">
-                                      <span className={`badge ${msg.role === 'user' ? 'badge-neutral' : 'badge-success'}`}>
-                                        {msg.role}
-                                      </span>
-                                      {msg.tool_calls && msg.tool_calls.length > 0 && (
-                                        <span className="text-small font-mono" style={{ color: 'var(--neon-magenta)' }}>
-                                          {msg.tool_calls.length} tool call{msg.tool_calls.length > 1 ? 's' : ''}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {msg.text && (
-                                      <div style={{
-                                        color: 'var(--text-secondary)',
-                                        fontSize: '0.875rem',
-                                        lineHeight: '1.7',
-                                        whiteSpace: 'pre-wrap',
-                                        wordBreak: 'break-word',
-                                      }}>
-                                        {msg.text}
-                                      </div>
-                                    )}
-                                    {msg.tool_calls && msg.tool_calls.length > 0 && (
-                                      <div style={{ marginTop: '0.75rem' }}>
-                                        {msg.tool_calls.map((tc, tcIdx) => (
-                                          <div key={tcIdx} style={{
-                                            padding: '0.5rem',
-                                            background: 'rgba(0, 0, 0, 0.3)',
-                                            border: '1px solid var(--border-subtle)',
-                                            marginBottom: tcIdx < msg.tool_calls!.length - 1 ? '0.5rem' : 0,
-                                          }}>
-                                            <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.25rem' }}>
-                                              {tc.function.name}
-                                            </div>
-                                            <pre style={{
-                                              fontSize: '0.75rem',
-                                              color: 'var(--text-tertiary)',
-                                              whiteSpace: 'pre-wrap',
-                                              wordBreak: 'break-word',
-                                              margin: 0,
-                                            }}>
-                                              {tc.function.arguments}
-                                            </pre>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                        )}
+                        {outcome.reasoning && outcome.reasoning.length > 0 && (
+                          <div>
+                            <div className="text-small text-muted mb-2">Reasoning</div>
+                            <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7' }}>
+                              {outcome.reasoning.map((reason, idx) => (
+                                <li key={idx} style={{ marginBottom: '0.5rem' }}>{reason}</li>
+                              ))}
+                            </ul>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Footer */}
                   <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
