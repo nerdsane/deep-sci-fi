@@ -3,10 +3,12 @@
 import { Suspense, useRef, useState, useCallback, useEffect } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
+import { BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
 import type { World } from '@/types/dsf';
 import { WorldOrb } from './WorldOrb';
-import { StarField } from './StarField';
+import { StarField, NebulaClouds } from './StarField';
 import { useObservatoryCamera, type CameraState } from './useObservatoryCamera';
 import './observatory.css';
 
@@ -76,14 +78,22 @@ function ObservatoryScene({
 
   return (
     <>
-      {/* Ambient lighting */}
-      <ambientLight intensity={0.3} />
+      {/* Soft ambient lighting */}
+      <ambientLight intensity={0.15} color="#8080ff" />
 
-      {/* Point light at center */}
-      <pointLight position={[0, 5, 10]} intensity={1} color="#ffffff" />
+      {/* Soft point lights for atmospheric glow */}
+      <pointLight position={[0, 10, 15]} intensity={0.5} color="#ffffff" distance={50} decay={2} />
+      <pointLight position={[-10, -5, 10]} intensity={0.3} color="#00ffcc" distance={40} decay={2} />
+      <pointLight position={[10, 5, -10]} intensity={0.2} color="#ff88ff" distance={40} decay={2} />
 
-      {/* Star field background */}
-      <StarField count={2000} radius={100} />
+      {/* Atmospheric fog for depth */}
+      <fog attach="fog" args={['#000011', 30, 120]} />
+
+      {/* Background nebula clouds */}
+      <NebulaClouds />
+
+      {/* Soft star field */}
+      <StarField count={2500} radius={80} />
 
       {/* World orbs */}
       <group ref={groupRef}>
@@ -178,7 +188,8 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
         dpr={[1, 2]}
         frameloop="always"
       >
-        <color attach="background" args={['#000000']} />
+        {/* Deep space blue-black background */}
+        <color attach="background" args={['#030308']} />
 
         <PerspectiveCamera
           makeDefault
@@ -208,6 +219,26 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
           autoRotate={!hoveredWorld}
           autoRotateSpeed={0.3}
         />
+
+        {/* Post-processing for soft, nebula-like glow */}
+        <EffectComposer>
+          <Bloom
+            intensity={1.5}
+            luminanceThreshold={0.1}
+            luminanceSmoothing={0.9}
+            mipmapBlur={true}
+            radius={0.8}
+          />
+          <Noise
+            opacity={0.02}
+            blendFunction={BlendFunction.SOFT_LIGHT}
+          />
+          <Vignette
+            offset={0.3}
+            darkness={0.6}
+            blendFunction={BlendFunction.NORMAL}
+          />
+        </EffectComposer>
       </Canvas>
 
       {/* Hover info overlay */}
