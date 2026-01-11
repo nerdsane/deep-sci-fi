@@ -104,11 +104,11 @@ body {
   backdrop-filter: blur(24px) saturate(180%);
   background: rgba(0, 0, 0, 0.85);
   border-bottom: 1px solid var(--border-subtle);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-4);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .header::after {
@@ -137,12 +137,12 @@ body {
 
 .logo-ascii {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
-  line-height: 1;
+  font-size: 0.35rem;
+  line-height: 0.9;
   color: var(--neon-cyan);
-  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+  text-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
   white-space: pre;
-  filter: drop-shadow(0 0 4px rgba(0, 255, 204, 0.3));
+  filter: drop-shadow(0 0 3px rgba(0, 255, 204, 0.25));
   transition: all 0.3s ease;
 }
 

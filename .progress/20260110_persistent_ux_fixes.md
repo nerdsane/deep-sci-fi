@@ -176,9 +176,44 @@ Tested in browser:
 
 ---
 
+## Additional Fix: Letta Provider Registration
+
+**Issue:** After restarting Letta server, agents failed with:
+```
+✖400 {"detail":"INVALID_ARGUMENT: Provider anthropic is not supported (supported providers: letta)"}
+```
+
+**Root Cause:** Letta server requires providers to be explicitly registered via API. Having API keys in environment variables is not enough - providers must be created in the database.
+
+**Fix:** Created providers via API:
+```bash
+# Create Anthropic provider
+curl -X POST http://localhost:8283/v1/providers/ \
+  -H "Content-Type: application/json" \
+  -d '{"name": "anthropic", "provider_type": "anthropic", "api_key": "$ANTHROPIC_API_KEY"}'
+
+# Create OpenAI provider
+curl -X POST http://localhost:8283/v1/providers/ \
+  -H "Content-Type: application/json" \
+  -d '{"name": "openai", "provider_type": "openai", "api_key": "$OPENAI_API_KEY"}'
+
+# Create Google AI provider
+curl -X POST http://localhost:8283/v1/providers/ \
+  -H "Content-Type: application/json" \
+  -d '{"name": "google_ai", "provider_type": "google_ai", "api_key": "$GOOGLE_API_KEY"}'
+```
+
+**Result:** All three providers registered successfully:
+- `provider-2ea62ee7-600a-4d17-b254-aa4b9add4ac5` (anthropic)
+- `provider-765c61ca-91bc-4f76-8160-fb586b03fce2` (openai)
+- `provider-95c1b89c-8d0e-416f-b9fb-8d6db55ff903` (google_ai)
+
+---
+
 ## Notes
 
 - Existing images were deleted from database since they had broken S3 URLs
 - New images will use data URLs and work immediately
 - S3 is now configured for public read access for future CDN integration
 - Consider setting up CloudFront for better performance in production
+- **Letta providers persist in database** - don't need to re-register after server restart as long as same database is used
