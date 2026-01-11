@@ -55,7 +55,7 @@ export function TrajectoriesView() {
   async function loadTrajectories(silent = false) {
     try {
       if (!silent) setLoading(true);
-      const response = await api.listTrajectories(filters.agentId || undefined, pageSize);
+      const response = await api.listTrajectories({ limit: pageSize });
       setTrajectories(Array.isArray(response) ? response : response.items || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load trajectories');
@@ -542,10 +542,10 @@ export function TrajectoriesView() {
           return (
             <div className="card" style={{ position: 'sticky', top: '1.5rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
               <>
-                  {/* Header - Basic Status */}
+                  {/* Header - Execution Status (OTS-derived) */}
                   <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div className="flex items-center gap-3">
-                      {/* Execution Status */}
+                      {/* Execution Status - from OTS */}
                       <span
                         className={`badge ${
                           (outcome?.execution?.status || outcome?.type) === 'completed' || outcome?.type === 'success'
@@ -554,14 +554,11 @@ export function TrajectoriesView() {
                             ? 'badge-failure'
                             : 'badge-neutral'
                         }`}
-                        title="Execution status (did it complete?)"
+                        title="Execution status from trajectory data"
                       >
                         Exec: {outcome?.execution?.status || outcome?.type || 'unknown'}
                       </span>
-                      {/* Learning Value */}
-                      <span className="font-mono" style={{ color: 'var(--neon-teal)' }} title="Learning value (quality score 0-1)">
-                        Learning: {trajectory.outcome_score?.toFixed(2) || 'N/A'} {trajectory.outcome_score !== null && trajectory.outcome_score !== undefined ? `${'⭐'.repeat(Math.round(trajectory.outcome_score * 5))}` : ''}
-                      </span>
+                      {/* Processing Status - shows if enrichment is done */}
                       {trajectory.processing_status && (
                         <span className={`badge ${
                           trajectory.processing_status === 'completed'
@@ -569,8 +566,10 @@ export function TrajectoriesView() {
                             : trajectory.processing_status === 'failed'
                             ? 'badge-failure'
                             : 'badge-neutral'
-                        }`}>
-                          {trajectory.processing_status}
+                        }`}
+                        title="Letta enrichment processing status"
+                        >
+                          Enrichment: {trajectory.processing_status}
                         </span>
                       )}
                     </div>
@@ -781,12 +780,12 @@ export function TrajectoriesView() {
                                 <div className="flex items-center gap-3 text-small" style={{ color: 'var(--text-tertiary)' }}>
                                   <span className="font-mono">{turn.model}</span>
                                   <span>•</span>
-                                  <span className="font-mono">{turn.input_tokens + turn.output_tokens} tokens</span>
+                                  <span className="font-mono">{(turn.input_tokens || 0) + (turn.output_tokens || 0)} tokens</span>
                                 </div>
                               </div>
-                              {turn.messages && turn.messages.length > 0 && (
+                              {Array.isArray(turn.messages) && turn.messages.length > 0 && (
                                 <div style={{ display: 'grid', gap: '0.75rem' }}>
-                                  {turn.messages.map((msg, msgIdx) => (
+                                  {turn.messages.map((msg: any, msgIdx: number) => (
                                     <div key={msgIdx} style={{
                                       padding: '0.75rem',
                                       background: msg.role === 'user' ? 'rgba(0, 229, 255, 0.05)' : 'rgba(0, 255, 136, 0.05)',
@@ -802,6 +801,7 @@ export function TrajectoriesView() {
                                           </span>
                                         )}
                                       </div>
+                                      {/* Handle text content - could be string or array of content blocks */}
                                       {msg.text && (
                                         <div style={{
                                           color: 'var(--text-secondary)',
@@ -810,12 +810,28 @@ export function TrajectoriesView() {
                                           whiteSpace: 'pre-wrap',
                                           wordBreak: 'break-word',
                                         }}>
-                                          {msg.text}
+                                          {typeof msg.text === 'string' ? msg.text : JSON.stringify(msg.text)}
+                                        </div>
+                                      )}
+                                      {/* Also check for content field which might contain the actual message */}
+                                      {!msg.text && msg.content && (
+                                        <div style={{
+                                          color: 'var(--text-secondary)',
+                                          fontSize: '0.875rem',
+                                          lineHeight: '1.7',
+                                          whiteSpace: 'pre-wrap',
+                                          wordBreak: 'break-word',
+                                        }}>
+                                          {typeof msg.content === 'string'
+                                            ? msg.content
+                                            : Array.isArray(msg.content)
+                                              ? msg.content.map((c: any) => c.text || c.content || '').filter(Boolean).join('\n')
+                                              : JSON.stringify(msg.content)}
                                         </div>
                                       )}
                                       {msg.tool_calls && msg.tool_calls.length > 0 && (
                                         <div style={{ marginTop: '0.75rem' }}>
-                                          {msg.tool_calls.map((tc, tcIdx) => (
+                                          {msg.tool_calls.map((tc: any, tcIdx: number) => (
                                             <div key={tcIdx} style={{
                                               padding: '0.5rem',
                                               background: 'rgba(0, 0, 0, 0.3)',
@@ -823,7 +839,7 @@ export function TrajectoriesView() {
                                               marginBottom: tcIdx < msg.tool_calls!.length - 1 ? '0.5rem' : 0,
                                             }}>
                                               <div className="font-mono text-small" style={{ color: 'var(--neon-magenta)', marginBottom: '0.25rem' }}>
-                                                {tc.function.name}
+                                                {tc.function?.name || tc.name || 'unknown'}
                                               </div>
                                               <pre style={{
                                                 fontSize: '0.75rem',
@@ -832,7 +848,7 @@ export function TrajectoriesView() {
                                                 wordBreak: 'break-word',
                                                 margin: 0,
                                               }}>
-                                                {tc.function.arguments}
+                                                {tc.function?.arguments || tc.arguments || '{}'}
                                               </pre>
                                             </div>
                                           ))}
@@ -846,6 +862,43 @@ export function TrajectoriesView() {
                           ))}
                         </div>
                       </div>
+                    )}
+
+                    {/* Raw OTS JSON - Collapsible */}
+                    {trajectory.data && (
+                      <details style={{ marginTop: '1rem' }}>
+                        <summary style={{
+                          cursor: 'pointer',
+                          padding: '0.75rem',
+                          background: 'rgba(255, 255, 0, 0.05)',
+                          border: '1px solid rgba(255, 255, 0, 0.2)',
+                          color: 'var(--neon-lemon)',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          userSelect: 'none',
+                        }}>
+                          📄 View Raw OTS JSON
+                        </summary>
+                        <div style={{
+                          padding: '1rem',
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          border: '1px solid var(--border-subtle)',
+                          borderTop: 'none',
+                          maxHeight: '400px',
+                          overflow: 'auto',
+                        }}>
+                          <pre style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            margin: 0,
+                            fontFamily: 'var(--font-mono)',
+                          }}>
+                            {JSON.stringify(trajectory.data, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
                     )}
                   </div>
 
@@ -868,6 +921,26 @@ export function TrajectoriesView() {
                         Semantic analysis using <span style={{ color: 'var(--neon-magenta)', fontFamily: 'var(--font-mono)' }}>gpt-4o-mini</span>
                       </p>
                     </div>
+
+                    {/* Learning Score (Letta-enriched via LLM) */}
+                    {(trajectory.outcome_score !== null && trajectory.outcome_score !== undefined) && (
+                      <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                          Learning Value Score
+                        </h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <span className="font-mono" style={{ fontSize: '1.5rem', color: 'var(--neon-teal)' }}>
+                            {trajectory.outcome_score.toFixed(2)}
+                          </span>
+                          <span style={{ fontSize: '1.25rem' }}>
+                            {'⭐'.repeat(Math.round(trajectory.outcome_score * 5))}
+                          </span>
+                        </div>
+                        <p className="text-small text-muted" style={{ marginTop: '0.5rem' }}>
+                          Quality score (0-1) generated by LLM based on interaction depth, task complexity, and learning value
+                        </p>
+                      </div>
+                    )}
 
                     {/* Summary and Tags (Letta-enriched) */}
                     {(trajectory.searchable_summary || trajectory.tags || trajectory.task_category || trajectory.complexity_level) && (
