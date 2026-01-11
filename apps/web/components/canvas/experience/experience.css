@@ -14,7 +14,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: var(--bg-primary, #000000);
+  background: transparent; /* Let shader background show through */
 }
 
 .exp-hero--full { min-height: 100vh; }
@@ -39,8 +39,8 @@
 .exp-hero__bg {
   position: absolute;
   top: -10%;
-  left: -5%;
-  right: -5%;
+  left: 0;
+  right: 0;
   bottom: -10%;
   z-index: 0;
   will-change: transform;
@@ -66,8 +66,8 @@
     180deg,
     rgba(0, 0, 0, 0.3) 0%,
     rgba(0, 0, 0, 0.5) 40%,
-    rgba(0, 0, 0, 0.85) 80%,
-    rgba(0, 0, 0, 1) 100%
+    rgba(0, 0, 0, 0.4) 80%,
+    transparent 100%
   );
 }
 

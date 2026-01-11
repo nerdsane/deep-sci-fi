@@ -373,6 +373,20 @@ const audioControlStyles = {
   },
 };
 
+// Minimalist SVG icons for audio controls
+const SpeakerIcon = ({ muted, volume }: { muted: boolean; volume: number }) => {
+  const bars = muted ? 0 : volume > 0.6 ? 3 : volume > 0.3 ? 2 : 1;
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 5.5h2l4-3v11l-4-3H2v-5z" fill={muted ? "none" : "currentColor"} />
+      {!muted && bars >= 1 && <path d="M10 6c.5.5.8 1.2.8 2s-.3 1.5-.8 2" />}
+      {!muted && bars >= 2 && <path d="M11.5 4.5c1 1 1.5 2.2 1.5 3.5s-.5 2.5-1.5 3.5" />}
+      {!muted && bars >= 3 && <path d="M13 3c1.3 1.3 2 3 2 5s-.7 3.7-2 5" />}
+      {muted && <path d="M10 5l5 6M15 5l-5 6" strokeLinecap="round" />}
+    </svg>
+  );
+};
+
 export function AudioControls() {
   const { settings, setVolume, toggleMute, initialize } = useAudio();
   const [isHovered, setIsHovered] = useState(false);
@@ -391,7 +405,7 @@ export function AudioControls() {
           boxShadow: isHovered ? "0 0 15px rgba(0, 255, 204, 0.2)" : "none",
         }}
       >
-        ♪ Enable Audio
+        Audio
       </button>
     );
   }
@@ -403,10 +417,13 @@ export function AudioControls() {
       <button
         type="button"
         onClick={toggleMute}
-        style={audioControlStyles.muteButton}
+        style={{
+          ...audioControlStyles.muteButton,
+          color: settings.isMuted ? "rgba(255, 255, 255, 0.4)" : "#00ffcc",
+        }}
         title={settings.isMuted ? "Unmute" : "Mute"}
       >
-        {settings.isMuted ? "🔇" : settings.masterVolume > 0.5 ? "🔊" : "🔉"}
+        <SpeakerIcon muted={settings.isMuted} volume={settings.masterVolume} />
       </button>
       <input
         type="range"

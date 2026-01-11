@@ -78,11 +78,6 @@ export function InteractiveElement({
         data-element-id={elementId}
       >
         {children}
-        {isHovered && !disabled && (
-          <div className="dsf-interactive-element__hint">
-            Right-click for options
-          </div>
-        )}
       </div>
 
       {contextMenu && (
