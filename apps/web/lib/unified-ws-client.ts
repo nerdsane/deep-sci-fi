@@ -145,7 +145,12 @@ export class UnifiedWSClient {
       ? window.location.hostname
       : 'localhost';
 
-    this.url = options.url || `ws://${wsHost}:8284/ws`;
+    // Use environment variable if available, otherwise construct from hostname
+    const defaultWsUrl = typeof window !== 'undefined' && (window as any).__NEXT_DATA__?.runtimeConfig?.NEXT_PUBLIC_WS_URL
+      ? (window as any).__NEXT_DATA__.runtimeConfig.NEXT_PUBLIC_WS_URL
+      : process.env.NEXT_PUBLIC_WS_URL || `ws://${wsHost}:8284/ws`;
+
+    this.url = options.url || defaultWsUrl;
     this.sessionId = options.sessionId || this.generateSessionId();
     this.userId = options.userId || 'dev-user';
     this.autoReconnect = options.autoReconnect ?? true;
