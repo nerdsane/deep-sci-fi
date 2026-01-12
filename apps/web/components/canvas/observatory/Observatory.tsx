@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type { World } from '@/types/dsf';
 import { WorldOrb } from './WorldOrb';
 import { StarField, NebulaClouds } from './StarField';
+import { WarpTunnel } from './WarpTunnel';
 import { useObservatoryCamera, type CameraState } from './useObservatoryCamera';
 import './observatory.css';
 
@@ -41,22 +42,48 @@ function ObservatoryScene({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
+  const startPositionRef = useRef<THREE.Vector3 | null>(null);
 
-  // Animate camera based on state
+  // Animate camera based on state with easing
   useFrame((state, delta) => {
     if (cameraState.target && cameraState.isTransitioning) {
-      // Smooth camera movement toward target
-      camera.position.lerp(cameraState.target, delta * 2);
+      // Store start position on first frame
+      if (!startPositionRef.current) {
+        startPositionRef.current = camera.position.clone();
+      }
+
+      // Use progress for smoother animation with easing
+      const progress = cameraState.progress;
+      const easedProgress = easeInOutQuart(progress);
+
+      // Interpolate position based on eased progress
+      if (startPositionRef.current) {
+        camera.position.lerpVectors(
+          startPositionRef.current,
+          cameraState.target,
+          easedProgress
+        );
+      }
 
       if (cameraState.lookAt) {
-        const currentLookAt = new THREE.Vector3();
-        camera.getWorldDirection(currentLookAt);
-        currentLookAt.add(camera.position);
-        currentLookAt.lerp(cameraState.lookAt, delta * 3);
-        camera.lookAt(currentLookAt);
+        camera.lookAt(cameraState.lookAt);
       }
+
+      // Add slight FOV change during warp for zoom effect
+      const baseFov = 60;
+      const warpFovBoost = cameraState.warpIntensity * 15;
+      (camera as THREE.PerspectiveCamera).fov = baseFov + warpFovBoost;
+      (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    } else {
+      // Reset start position when not transitioning
+      startPositionRef.current = null;
     }
   });
+
+  // Easing function for smooth animation
+  function easeInOutQuart(t: number): number {
+    return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+  }
 
   // Calculate world positions in a constellation pattern
   const getWorldPosition = useCallback((index: number, total: number): [number, number, number] => {
@@ -84,16 +111,22 @@ function ObservatoryScene({
       <pointLight position={[-10, -5, 10]} intensity={0.3} color="#00ffcc" distance={40} decay={2} />
       <pointLight position={[10, 5, -10]} intensity={0.2} color="#ff88ff" distance={40} decay={2} />
 
-      {/* Atmospheric fog for depth */}
-      <fog attach="fog" args={['#000011', 30, 120]} />
+      {/* Atmospheric fog for depth - reduced during warp */}
+      <fog attach="fog" args={['#000011', 30 + cameraState.warpIntensity * 50, 120]} />
 
-      {/* Background nebula clouds */}
-      <NebulaClouds />
+      {/* Background nebula clouds - fade during warp */}
+      {cameraState.warpIntensity < 0.5 && <NebulaClouds />}
 
-      {/* Soft star field */}
+      {/* Soft star field - fade during warp */}
       <StarField count={2500} radius={80} />
 
-      {/* World orbs */}
+      {/* Warp tunnel effect - visible during transition */}
+      <WarpTunnel
+        intensity={cameraState.warpIntensity}
+        active={cameraState.isTransitioning}
+      />
+
+      {/* World orbs - fade during warp */}
       <group ref={groupRef}>
         {worlds.map((world, index) => {
           const position = getWorldPosition(index, worlds.length);
@@ -128,24 +161,23 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
   const [isEntering, setIsEntering] = useState(false);
   const isClient = useIsClient();
 
-  // Handle world click - zoom in then navigate
+  // Handle world click - zoom in with warp effect then navigate
   const handleWorldClick = useCallback((world: World, position: THREE.Vector3) => {
     if (isEntering) return;
 
     setIsEntering(true);
 
-    // Calculate camera position closer to the world
+    // Calculate camera target - fly INTO the world (past it slightly)
     const direction = position.clone().normalize();
-    const targetPosition = position.clone().sub(direction.multiplyScalar(2));
+    const targetPosition = position.clone().add(direction.multiplyScalar(0.5)); // Go into/past the world
 
-    zoomToWorld(targetPosition, position);
-
-    // After zoom animation, navigate to world
-    setTimeout(() => {
+    // Start the warp animation with onComplete callback
+    zoomToWorld(targetPosition, position, () => {
+      // Animation complete - navigate to world
       onSelectWorld(world);
       setIsEntering(false);
       resetCamera();
-    }, 1200);
+    });
   }, [isEntering, zoomToWorld, onSelectWorld, resetCamera]);
 
   // Handle hover
@@ -231,10 +263,15 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
         </div>
       )}
 
-      {/* Entering transition overlay */}
+      {/* Entering transition overlay with warp effect */}
       {isEntering && (
         <div className="observatory__entering">
-          <div className="observatory__entering-text">Entering world...</div>
+          <div className="observatory__entering-vignette" />
+          <div className="observatory__entering-text">
+            {cameraState.phase === 'approach' && 'Initiating...'}
+            {cameraState.phase === 'warp' && 'Entering...'}
+            {cameraState.phase === 'arrive' && 'Arriving...'}
+          </div>
         </div>
       )}
 
