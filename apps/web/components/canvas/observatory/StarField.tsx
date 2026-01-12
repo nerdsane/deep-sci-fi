@@ -37,24 +37,29 @@ const SoftStarMaterial = {
     uniform float opacity;
 
     void main() {
-      // Soft circular gradient - key to the nebula look
+      // Ultra-soft circular gradient - nebula/mist look
       vec2 center = gl_PointCoord - vec2(0.5);
       float dist = length(center);
 
-      // Super soft falloff with multiple layers
-      float core = 1.0 - smoothstep(0.0, 0.15, dist);
-      float glow = 1.0 - smoothstep(0.0, 0.35, dist);
+      // Gaussian-like falloff for maximum softness
+      float gaussian = exp(-dist * dist * 8.0);
+
+      // Multiple soft layers blending outward
+      float core = 1.0 - smoothstep(0.0, 0.1, dist);
+      float inner = 1.0 - smoothstep(0.0, 0.25, dist);
+      float glow = 1.0 - smoothstep(0.0, 0.4, dist);
       float haze = 1.0 - smoothstep(0.0, 0.5, dist);
 
-      // Combine for soft, layered glow
-      float alpha = core * 0.9 + glow * 0.4 + haze * 0.15;
+      // Combine for ultra-soft, misty glow
+      float alpha = gaussian * 0.6 + core * 0.3 + inner * 0.2 + glow * 0.15 + haze * 0.1;
 
-      // Subtle color shift in the glow
-      vec3 glowColor = mix(vColor, vec3(0.5, 0.8, 1.0), haze * 0.3);
+      // Nebula color shift - more purple/cyan in the haze
+      vec3 hazeColor = mix(vec3(0.6, 0.4, 0.8), vec3(0.3, 0.7, 0.9), vTwinkle);
+      vec3 glowColor = mix(vColor, hazeColor, haze * 0.5);
 
-      if (alpha < 0.01) discard;
+      if (alpha < 0.005) discard;
 
-      gl_FragColor = vec4(glowColor, alpha * opacity);
+      gl_FragColor = vec4(glowColor, alpha * opacity * 0.8);
     }
   `,
 };
