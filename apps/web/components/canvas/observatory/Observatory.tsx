@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useState, useCallback, useEffect } from 'react';
+import { Suspense, useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -32,17 +32,20 @@ function ObservatoryScene({
   onSelectWorld,
   onHoverWorld,
   cameraState,
+  hoverTarget,
   onWorldClick,
 }: {
   worlds: World[];
   onSelectWorld: (world: World) => void;
-  onHoverWorld?: (world: World | null) => void;
+  onHoverWorld?: (world: World | null, position?: THREE.Vector3) => void;
   cameraState: CameraState;
+  hoverTarget: { position: THREE.Vector3; lookAt: THREE.Vector3 } | null;
   onWorldClick: (world: World, position: THREE.Vector3) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
   const startPositionRef = useRef<THREE.Vector3 | null>(null);
+  const defaultCameraPos = useRef(new THREE.Vector3(0, 2, 15));
 
   // Animate camera based on state with easing
   useFrame((state, delta) => {
@@ -77,6 +80,18 @@ function ObservatoryScene({
     } else {
       // Reset start position when not transitioning
       startPositionRef.current = null;
+
+      // Handle hover zoom (gentle, non-blocking)
+      if (hoverTarget) {
+        // Gently move camera toward hover target
+        camera.position.lerp(hoverTarget.position, delta * 2);
+        // Gently look toward the hovered world
+        const currentLookAt = new THREE.Vector3(0, 0, 0);
+        currentLookAt.lerp(hoverTarget.lookAt, delta * 3);
+      } else {
+        // Return to default position when not hovering
+        camera.position.lerp(defaultCameraPos.current, delta * 1.5);
+      }
     }
   });
 
@@ -136,7 +151,13 @@ function ObservatoryScene({
               world={world}
               position={position}
               onClick={(worldObj, pos) => onWorldClick(worldObj, pos)}
-              onHover={onHoverWorld}
+              onHover={(worldObj) => {
+                if (worldObj) {
+                  onHoverWorld?.(worldObj, new THREE.Vector3(...position));
+                } else {
+                  onHoverWorld?.(null);
+                }
+              }}
             />
           );
         })}
@@ -157,9 +178,26 @@ function LoadingFallback() {
 
 export function Observatory({ worlds, onSelectWorld, onHoverWorld }: ObservatoryProps) {
   const [hoveredWorld, setHoveredWorld] = useState<World | null>(null);
-  const { cameraState, zoomToWorld, resetCamera } = useObservatoryCamera();
+  const [hoveredPosition, setHoveredPosition] = useState<THREE.Vector3 | null>(null);
+  const { cameraState, hoverTarget, zoomToWorld, resetCamera, zoomToHover } = useObservatoryCamera();
   const [isEntering, setIsEntering] = useState(false);
   const isClient = useIsClient();
+
+  // World positions for hover lookup
+  const worldPositions = useMemo(() => {
+    return worlds.map((_, index) => {
+      const total = worlds.length;
+      if (total === 1) return new THREE.Vector3(0, 0, 0);
+      const angle = (index / total) * Math.PI * 4;
+      const radius = 3 + (index / total) * 5;
+      const height = Math.sin(index * 0.5) * 2;
+      return new THREE.Vector3(
+        Math.cos(angle) * radius,
+        height,
+        Math.sin(angle) * radius
+      );
+    });
+  }, [worlds.length]);
 
   // Handle world click - zoom in with warp effect then navigate
   const handleWorldClick = useCallback((world: World, position: THREE.Vector3) => {
@@ -180,11 +218,19 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
     });
   }, [isEntering, zoomToWorld, onSelectWorld, resetCamera]);
 
-  // Handle hover
-  const handleHover = useCallback((world: World | null) => {
+  // Handle hover with camera zoom
+  const handleHover = useCallback((world: World | null, position?: THREE.Vector3) => {
     setHoveredWorld(world);
+    setHoveredPosition(position || null);
     onHoverWorld?.(world);
-  }, [onHoverWorld]);
+
+    // Trigger camera zoom toward hovered world
+    if (world && position && !isEntering) {
+      zoomToHover(position);
+    } else {
+      zoomToHover(null);
+    }
+  }, [onHoverWorld, zoomToHover, isEntering]);
 
   // Get world name for hover display
   const getWorldName = (world: World): string => {
@@ -235,6 +281,7 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
             onSelectWorld={onSelectWorld}
             onHoverWorld={handleHover}
             cameraState={cameraState}
+            hoverTarget={hoverTarget}
             onWorldClick={handleWorldClick}
           />
         </Suspense>

@@ -129,11 +129,35 @@ export function useObservatoryCamera() {
     }));
   }, []);
 
+  // Gentle zoom toward a hovered world (non-blocking, smooth)
+  const [hoverTarget, setHoverTarget] = useState<{
+    position: THREE.Vector3;
+    lookAt: THREE.Vector3;
+  } | null>(null);
+
+  const zoomToHover = useCallback((worldPosition: THREE.Vector3 | null) => {
+    if (!worldPosition) {
+      setHoverTarget(null);
+      return;
+    }
+
+    // Calculate a position slightly closer to the world
+    const direction = worldPosition.clone().normalize();
+    const hoverPosition = DEFAULT_POSITION.clone().add(direction.multiplyScalar(3));
+
+    setHoverTarget({
+      position: hoverPosition,
+      lookAt: worldPosition,
+    });
+  }, []);
+
   return {
     cameraState,
+    hoverTarget,
     zoomToWorld,
     resetCamera,
     panTo,
+    zoomToHover,
   };
 }
 
