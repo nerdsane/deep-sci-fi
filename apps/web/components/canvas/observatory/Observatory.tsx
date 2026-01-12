@@ -8,6 +8,7 @@ import type { World } from '@/types/dsf';
 import { WorldOrb } from './WorldOrb';
 import { StarField, NebulaClouds } from './StarField';
 import { WarpTunnel } from './WarpTunnel';
+import { AgentPresence } from './AgentPresence';
 import { useObservatoryCamera, type CameraState } from './useObservatoryCamera';
 import './observatory.css';
 
@@ -162,6 +163,14 @@ function ObservatoryScene({
           );
         })}
       </group>
+
+      {/* Agent presence - AI glyph floating in space */}
+      {!cameraState.isTransitioning && (
+        <AgentPresence
+          position={[-8, 3, -5]}
+          isThinking={false}
+        />
+      )}
     </>
   );
 }
