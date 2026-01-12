@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-10
 **Updated:** 2026-01-11
-**Status:** IN_PROGRESS (Phase 1 Complete)
+**Status:** IN_PROGRESS (Phase 2 Complete)
 **Type:** Vision + Implementation Plan
 
 ---
@@ -494,6 +494,79 @@ export function Observatory(...) {
 - Updated z-index layering: shader (0), observatory (2), header (100)
 
 **Commit:** `d99ba29` - "fix: resolve Observatory full-screen rendering and R3F initialization"
+
+---
+
+### Phase 2: Observatory Enhancements - COMPLETE (2026-01-11)
+
+**Features Implemented:**
+
+1. **Zoom-to-Enter Animation** (`WarpTunnel.tsx`, `useObservatoryCamera.tsx`)
+   - Phased animation system: approach → warp → arrive
+   - WarpTunnel component with streaking stars, cylinder effect, destination flash
+   - Dramatic warp overlay with spinning radial lines
+   - FOV changes during warp for zoom effect
+   - Custom easing functions for smooth transitions
+   - **Commit:** `0c95852` - "feat: implement zoom-to-enter warp animation"
+
+2. **Hover Zoom/Reveal Interactions**
+   - Camera gently moves toward hovered world orbs
+   - Non-blocking animation (doesn't interfere with OrbitControls)
+   - Returns to default position when not hovering
+   - **Commit:** `0c95852` - (included in warp animation commit)
+
+3. **Soft Nebula Styling** (`WorldOrb.tsx`, `StarField.tsx`)
+   - SoftAtmosphereShader with fresnel-based soft edges
+   - SoftRingShader for planetary rings
+   - Gaussian mist falloff for atmospheric glow
+   - Nebula clouds in star field with additive blending
+   - **Commits:** Multiple styling fixes for soft edges
+
+4. **Agent Presence Glyph** (`AgentPresence.tsx`)
+   - Glowing icosahedron core with custom shader
+   - Orbital rings with counter-rotation
+   - Floating particles in spherical distribution
+   - Color changes: cyan (idle) → magenta (thinking)
+   - Gentle floating animation
+   - **Commit:** `bf20f35` - "feat: add Agent presence glyph to Observatory"
+
+5. **Floating Suggestion System** (`FloatingSuggestions.tsx`)
+   - 3D-positioned suggestion bubbles near agent
+   - `useSuggestions` hook for state management
+   - Contextual prompts based on user behavior:
+     - Welcome suggestion on first load (2s delay)
+     - Idle detection (15s) triggers discovery prompts
+     - Lingering hover (3s) triggers explore prompts
+   - Suggestion types: explore, create, discover, continue
+   - Priority-based colors (high=cyan, medium=blue, low=gray)
+   - Type-based icons (◇, ✦, ⟡, →)
+   - Connection lines to agent position
+   - Staggered appearance animation
+   - Click and dismiss handlers
+   - **Commit:** `03e600c` - "feat: add floating suggestion system to Observatory"
+
+**Files Created/Modified:**
+```
+apps/web/components/canvas/observatory/
+├── WarpTunnel.tsx          # NEW: Warp effect during world entry
+├── AgentPresence.tsx       # NEW: AI glyph floating in space
+├── FloatingSuggestions.tsx # NEW: Contextual suggestion bubbles
+├── useObservatoryCamera.tsx # Enhanced: phased animation, hover zoom
+├── Observatory.tsx          # Enhanced: integrated all components
+├── WorldOrb.tsx             # Enhanced: soft atmosphere shaders
+├── StarField.tsx            # Enhanced: nebula clouds
+├── observatory.css          # Enhanced: warp overlay styles
+└── index.ts                 # Updated: new exports
+```
+
+**Browser Testing Results:**
+- ✅ Zoom-to-enter animation plays when clicking world orbs
+- ✅ Warp tunnel effect visible during transition
+- ✅ Hover zoom moves camera toward hovered world
+- ✅ Agent presence glyph renders with glow and particles
+- ✅ Floating suggestions appear after 2-second delay
+- ✅ Suggestions dismissed on click
+- ✅ All effects gracefully disabled during transitions
 
 ---
 
