@@ -44,37 +44,49 @@ const SoftPlanetMaterial = {
     void main() {
       vec3 viewDir = normalize(vViewPosition);
 
-      // Fresnel effect - stronger glow at edges
+      // Ultra-soft fresnel for misty edges
       float fresnel = 1.0 - abs(dot(viewDir, vNormal));
-      fresnel = pow(fresnel, 2.0);
 
-      // Soft core with glowing edge
-      float coreFade = 1.0 - fresnel * 0.6;
+      // Multiple falloff curves for nebula-like softness
+      float softEdge = pow(fresnel, 1.5);
+      float mistEdge = pow(fresnel, 0.8);
+      float hazeEdge = pow(fresnel, 0.5);
 
-      // Mix base color with glow at edges
-      vec3 finalColor = mix(baseColor * 0.8, glowColor, fresnel * glowIntensity);
+      // Gaussian-like core fade
+      float coreFade = exp(-fresnel * fresnel * 2.0);
+
+      // Blend multiple soft layers
+      float edgeGlow = softEdge * 0.4 + mistEdge * 0.3 + hazeEdge * 0.2;
+
+      // Mix base color with glow - more glow at edges
+      vec3 mistColor = mix(glowColor, vec3(0.7, 0.5, 0.9), hazeEdge * 0.3);
+      vec3 finalColor = mix(baseColor * 0.7, mistColor, edgeGlow * glowIntensity);
 
       // Add inner luminosity
-      finalColor += baseColor * 0.2;
+      finalColor += baseColor * coreFade * 0.3;
 
-      // Soft alpha at edges
-      float alpha = coreFade * opacity;
+      // Ultra-soft alpha at edges - fade to mist
+      float alpha = (coreFade * 0.7 + (1.0 - hazeEdge) * 0.3) * opacity;
 
       gl_FragColor = vec4(finalColor, alpha);
     }
   `,
 };
 
-// Soft, multi-layered atmospheric glow
+// Ultra-soft, multi-layered atmospheric glow - nebula/mist style
 function AtmosphericGlow({ color, intensity, hovered }: { color: string; intensity: number; hovered: boolean }) {
   const layers = useMemo(() => {
-    const baseIntensity = hovered ? intensity * 1.5 : intensity;
+    const baseIntensity = hovered ? intensity * 1.8 : intensity;
+    // More layers with gentler falloff for mist effect
     return [
-      { scale: 1.15, opacity: 0.25 * baseIntensity },
-      { scale: 1.35, opacity: 0.15 * baseIntensity },
-      { scale: 1.6, opacity: 0.08 * baseIntensity },
-      { scale: 2.0, opacity: 0.04 * baseIntensity },
-      { scale: 2.5, opacity: 0.02 * baseIntensity },
+      { scale: 1.08, opacity: 0.35 * baseIntensity },
+      { scale: 1.18, opacity: 0.28 * baseIntensity },
+      { scale: 1.32, opacity: 0.20 * baseIntensity },
+      { scale: 1.5, opacity: 0.14 * baseIntensity },
+      { scale: 1.75, opacity: 0.09 * baseIntensity },
+      { scale: 2.1, opacity: 0.05 * baseIntensity },
+      { scale: 2.6, opacity: 0.03 * baseIntensity },
+      { scale: 3.2, opacity: 0.015 * baseIntensity },
     ];
   }, [intensity, hovered]);
 
