@@ -9,6 +9,7 @@ import { WorldOrb } from './WorldOrb';
 import { StarField, NebulaClouds } from './StarField';
 import { WarpTunnel } from './WarpTunnel';
 import { AgentPresence } from './AgentPresence';
+import { FloatingSuggestions, useSuggestions, type Suggestion } from './FloatingSuggestions';
 import { useObservatoryCamera, type CameraState } from './useObservatoryCamera';
 import './observatory.css';
 
@@ -27,6 +28,9 @@ export interface ObservatoryProps {
   onHoverWorld?: (world: World | null) => void;
 }
 
+// Agent position constant
+const AGENT_POSITION: [number, number, number] = [-8, 3, -5];
+
 // Inner scene component that has access to Three.js context
 function ObservatoryScene({
   worlds,
@@ -35,6 +39,10 @@ function ObservatoryScene({
   cameraState,
   hoverTarget,
   onWorldClick,
+  suggestions,
+  isAgentThinking,
+  onSuggestionClick,
+  onSuggestionDismiss,
 }: {
   worlds: World[];
   onSelectWorld: (world: World) => void;
@@ -42,6 +50,10 @@ function ObservatoryScene({
   cameraState: CameraState;
   hoverTarget: { position: THREE.Vector3; lookAt: THREE.Vector3 } | null;
   onWorldClick: (world: World, position: THREE.Vector3) => void;
+  suggestions: Suggestion[];
+  isAgentThinking: boolean;
+  onSuggestionClick?: (suggestion: Suggestion) => void;
+  onSuggestionDismiss?: (suggestion: Suggestion) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
@@ -167,8 +179,18 @@ function ObservatoryScene({
       {/* Agent presence - AI glyph floating in space */}
       {!cameraState.isTransitioning && (
         <AgentPresence
-          position={[-8, 3, -5]}
-          isThinking={false}
+          position={AGENT_POSITION}
+          isThinking={isAgentThinking}
+        />
+      )}
+
+      {/* Floating suggestions from the agent */}
+      {!cameraState.isTransitioning && suggestions.length > 0 && (
+        <FloatingSuggestions
+          suggestions={suggestions}
+          agentPosition={AGENT_POSITION}
+          onSuggestionClick={onSuggestionClick}
+          onDismiss={onSuggestionDismiss}
         />
       )}
     </>
@@ -191,6 +213,85 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
   const { cameraState, hoverTarget, zoomToWorld, resetCamera, zoomToHover } = useObservatoryCamera();
   const [isEntering, setIsEntering] = useState(false);
   const isClient = useIsClient();
+
+  // Suggestion system
+  const {
+    suggestions,
+    isThinking: isAgentThinking,
+    addSuggestion,
+    removeSuggestion,
+    generateSuggestion,
+  } = useSuggestions();
+
+  // Track user behavior for contextual prompts
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasShownWelcome = useRef(false);
+
+  // Welcome suggestion on first load
+  useEffect(() => {
+    if (isClient && !hasShownWelcome.current) {
+      hasShownWelcome.current = true;
+      const timer = setTimeout(() => {
+        if (worlds.length === 0) {
+          generateSuggestion('explore', { worldCount: 0 });
+        } else {
+          addSuggestion({
+            text: 'Hover over a world to peek inside, or click to enter.',
+            type: 'explore',
+            priority: 'low',
+          });
+        }
+      }, 2000); // Show after 2 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [isClient, worlds.length]);
+
+  // Idle detection - suggest after 15 seconds of no interaction
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
+      idleTimerRef.current = setTimeout(() => {
+        if (worlds.length > 0 && suggestions.length === 0) {
+          generateSuggestion('discover', { worldCount: worlds.length });
+        }
+      }, 15000);
+    };
+
+    // Reset on any interaction
+    const handleInteraction = () => resetIdleTimer();
+    window.addEventListener('mousemove', handleInteraction);
+    window.addEventListener('click', handleInteraction);
+
+    resetIdleTimer();
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      window.removeEventListener('mousemove', handleInteraction);
+      window.removeEventListener('click', handleInteraction);
+    };
+  }, [worlds.length, suggestions.length]);
+
+  // Handle suggestion click
+  const handleSuggestionClick = useCallback((suggestion: Suggestion) => {
+    removeSuggestion(suggestion.id);
+
+    // Handle different suggestion types
+    if (suggestion.type === 'create') {
+      // Could trigger world creation modal
+      console.log('Create world suggestion clicked');
+    } else if (suggestion.type === 'explore' && suggestion.worldId) {
+      // Could highlight or zoom to specific world
+      console.log('Explore world:', suggestion.worldId);
+    }
+  }, [removeSuggestion]);
+
+  // Handle suggestion dismiss
+  const handleSuggestionDismiss = useCallback((suggestion: Suggestion) => {
+    removeSuggestion(suggestion.id);
+  }, [removeSuggestion]);
 
   // World positions for hover lookup
   const worldPositions = useMemo(() => {
@@ -227,19 +328,37 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
     });
   }, [isEntering, zoomToWorld, onSelectWorld, resetCamera]);
 
-  // Handle hover with camera zoom
+  // Handle hover with camera zoom and lingering detection
   const handleHover = useCallback((world: World | null, position?: THREE.Vector3) => {
     setHoveredWorld(world);
     setHoveredPosition(position || null);
     onHoverWorld?.(world);
 
+    // Clear any existing hover timer
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+
     // Trigger camera zoom toward hovered world
     if (world && position && !isEntering) {
       zoomToHover(position);
+
+      // Lingering detection - show suggestion after 3 seconds of hovering
+      hoverTimerRef.current = setTimeout(() => {
+        if (suggestions.length < 3) { // Don't overwhelm with suggestions
+          addSuggestion({
+            text: `There's more to discover in this world. Want to dive deeper?`,
+            type: 'explore',
+            priority: 'medium',
+            worldId: (world as any).id,
+          });
+        }
+      }, 3000);
     } else {
       zoomToHover(null);
     }
-  }, [onHoverWorld, zoomToHover, isEntering]);
+  }, [onHoverWorld, zoomToHover, isEntering, suggestions.length, addSuggestion]);
 
   // Get world name for hover display
   const getWorldName = (world: World): string => {
@@ -292,6 +411,10 @@ export function Observatory({ worlds, onSelectWorld, onHoverWorld }: Observatory
             cameraState={cameraState}
             hoverTarget={hoverTarget}
             onWorldClick={handleWorldClick}
+            suggestions={suggestions}
+            isAgentThinking={isAgentThinking}
+            onSuggestionClick={handleSuggestionClick}
+            onSuggestionDismiss={handleSuggestionDismiss}
           />
         </Suspense>
 
