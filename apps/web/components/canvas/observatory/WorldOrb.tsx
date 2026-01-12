@@ -73,36 +73,107 @@ const SoftPlanetMaterial = {
   `,
 };
 
+// Soft atmospheric glow shader - fades at edges like real nebula
+const SoftAtmosphereShader = {
+  uniforms: {
+    glowColor: { value: new THREE.Color('#b8a9c9') },
+    intensity: { value: 1.0 },
+    falloffPower: { value: 2.0 },
+  },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      vViewPosition = -mvPosition.xyz;
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 glowColor;
+    uniform float intensity;
+    uniform float falloffPower;
+
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+
+    void main() {
+      vec3 viewDir = normalize(vViewPosition);
+
+      // Fresnel - strongest at edges (rim), fading toward center
+      float fresnel = 1.0 - abs(dot(viewDir, vNormal));
+
+      // Soft gaussian-like falloff from edge
+      float softFresnel = pow(fresnel, falloffPower);
+
+      // Additional soft fade to make edges misty
+      float mistFade = exp(-pow(1.0 - fresnel, 2.0) * 3.0);
+
+      // Combine for ultra-soft glow that fades both inward and at outer edge
+      float alpha = softFresnel * mistFade * intensity;
+
+      gl_FragColor = vec4(glowColor, alpha);
+    }
+  `,
+};
+
+// Single soft atmospheric glow layer with fresnel shader
+function SoftAtmosphereLayer({ scale, color, intensity, falloffPower }: {
+  scale: number;
+  color: string;
+  intensity: number;
+  falloffPower: number;
+}) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  useFrame(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.glowColor.value.set(color);
+      materialRef.current.uniforms.intensity.value = intensity;
+      materialRef.current.uniforms.falloffPower.value = falloffPower;
+    }
+  });
+
+  return (
+    <Sphere args={[scale, 32, 32]}>
+      <shaderMaterial
+        ref={materialRef}
+        args={[SoftAtmosphereShader]}
+        transparent
+        depthWrite={false}
+        side={THREE.BackSide}
+        blending={THREE.AdditiveBlending}
+      />
+    </Sphere>
+  );
+}
+
 // Ultra-soft, multi-layered atmospheric glow - nebula/mist style
 function AtmosphericGlow({ color, intensity, hovered }: { color: string; intensity: number; hovered: boolean }) {
-  const layers = useMemo(() => {
-    const baseIntensity = hovered ? intensity * 1.8 : intensity;
-    // More layers with gentler falloff for mist effect
-    return [
-      { scale: 1.08, opacity: 0.35 * baseIntensity },
-      { scale: 1.18, opacity: 0.28 * baseIntensity },
-      { scale: 1.32, opacity: 0.20 * baseIntensity },
-      { scale: 1.5, opacity: 0.14 * baseIntensity },
-      { scale: 1.75, opacity: 0.09 * baseIntensity },
-      { scale: 2.1, opacity: 0.05 * baseIntensity },
-      { scale: 2.6, opacity: 0.03 * baseIntensity },
-      { scale: 3.2, opacity: 0.015 * baseIntensity },
-    ];
-  }, [intensity, hovered]);
+  const baseIntensity = hovered ? intensity * 1.5 : intensity;
+
+  // Multiple layers with different falloff powers for varied softness
+  const layers = [
+    { scale: 1.15, intensity: 0.4 * baseIntensity, falloffPower: 3.0 },
+    { scale: 1.35, intensity: 0.3 * baseIntensity, falloffPower: 2.5 },
+    { scale: 1.6, intensity: 0.22 * baseIntensity, falloffPower: 2.0 },
+    { scale: 2.0, intensity: 0.15 * baseIntensity, falloffPower: 1.5 },
+    { scale: 2.5, intensity: 0.08 * baseIntensity, falloffPower: 1.2 },
+    { scale: 3.2, intensity: 0.04 * baseIntensity, falloffPower: 1.0 },
+  ];
 
   return (
     <group>
       {layers.map((layer, i) => (
-        <Sphere key={i} args={[layer.scale, 32, 32]}>
-          <meshBasicMaterial
-            color={color}
-            transparent
-            opacity={layer.opacity}
-            side={THREE.BackSide}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </Sphere>
+        <SoftAtmosphereLayer
+          key={i}
+          scale={layer.scale}
+          color={color}
+          intensity={layer.intensity}
+          falloffPower={layer.falloffPower}
+        />
       ))}
     </group>
   );
@@ -283,7 +354,57 @@ function SoftPlanetSphere({
   );
 }
 
-// Soft glowing ring
+// Soft ring shader - fades at both inner and outer edges
+const SoftRingShader = {
+  uniforms: {
+    ringColor: { value: new THREE.Color('#b8a9c9') },
+    opacity: { value: 0.3 },
+    innerRadius: { value: 1.4 },
+    outerRadius: { value: 1.7 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vPosition;
+
+    void main() {
+      vUv = uv;
+      vPosition = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 ringColor;
+    uniform float opacity;
+    uniform float innerRadius;
+    uniform float outerRadius;
+
+    varying vec2 vUv;
+    varying vec3 vPosition;
+
+    void main() {
+      // Calculate distance from center in the ring plane
+      float dist = length(vPosition.xy);
+
+      // Normalize position within the ring (0 = inner edge, 1 = outer edge)
+      float ringWidth = outerRadius - innerRadius;
+      float normalizedPos = (dist - innerRadius) / ringWidth;
+
+      // Soft falloff at both edges using smoothstep
+      float innerFade = smoothstep(0.0, 0.4, normalizedPos);
+      float outerFade = smoothstep(1.0, 0.6, normalizedPos);
+
+      // Gaussian-like center glow
+      float centerGlow = exp(-pow(normalizedPos - 0.5, 2.0) * 8.0);
+
+      // Combine for soft ring effect
+      float alpha = innerFade * outerFade * (0.6 + centerGlow * 0.4) * opacity;
+
+      gl_FragColor = vec4(ringColor, alpha);
+    }
+  `,
+};
+
+// Soft glowing ring with shader-based soft edges
 function SoftRing({ innerRadius, outerRadius, color, opacity, rotation }: {
   innerRadius: number;
   outerRadius: number;
@@ -291,13 +412,24 @@ function SoftRing({ innerRadius, outerRadius, color, opacity, rotation }: {
   opacity: number;
   rotation: [number, number, number];
 }) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  useFrame(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.ringColor.value.set(color);
+      materialRef.current.uniforms.opacity.value = opacity;
+      materialRef.current.uniforms.innerRadius.value = innerRadius;
+      materialRef.current.uniforms.outerRadius.value = outerRadius;
+    }
+  });
+
   return (
     <mesh rotation={rotation}>
       <ringGeometry args={[innerRadius, outerRadius, 128]} />
-      <meshBasicMaterial
-        color={color}
+      <shaderMaterial
+        ref={materialRef}
+        args={[SoftRingShader]}
         transparent
-        opacity={opacity}
         side={THREE.DoubleSide}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
