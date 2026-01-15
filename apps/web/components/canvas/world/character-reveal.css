@@ -1,0 +1,216 @@
+/* CharacterReveal - Observatory Aesthetic */
+
+.character-reveal {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.character-reveal:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+  border-color: var(--border-accent);
+}
+
+.character-reveal--revealed {
+  border-color: var(--border-accent);
+}
+
+.character-reveal--locked {
+  filter: grayscale(100%);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.character-reveal--locked:hover {
+  transform: scale(1);
+  box-shadow: none;
+}
+
+/* Character silhouette/image */
+.character-reveal__visual {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(0, 255, 204, 0.1), transparent);
+  overflow: hidden;
+}
+
+.character-reveal__silhouette {
+  font-size: 5rem;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 204, 0.5));
+  opacity: 0.3;
+  transition: all 0.3s ease;
+}
+
+.character-reveal:hover .character-reveal__silhouette {
+  opacity: 0.6;
+  transform: scale(1.1);
+}
+
+.character-reveal__silhouette--unrevealed {
+  filter: blur(8px) drop-shadow(0 0 20px rgba(0, 255, 204, 0.3));
+}
+
+.character-reveal__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.character-reveal__image--revealed {
+  opacity: 1;
+}
+
+/* Reveal effect overlay */
+.character-reveal__overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(0, 255, 204, 0.3), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.character-reveal__overlay--revealing {
+  opacity: 1;
+  animation: revealFlash 1s ease-out;
+}
+
+/* Character info */
+.character-reveal__info {
+  padding: var(--space-4);
+}
+
+.character-reveal__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--neon-cyan);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.character-reveal__name--unrevealed {
+  color: var(--text-tertiary);
+  filter: blur(4px);
+}
+
+.character-reveal__description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-family: var(--font-sans);
+  margin-bottom: var(--space-3);
+}
+
+.character-reveal__description--unrevealed {
+  filter: blur(2px);
+  opacity: 0.5;
+}
+
+/* Status badge */
+.character-reveal__status {
+  display: inline-block;
+  padding: 0.25rem var(--space-3);
+  background: rgba(0, 255, 204, 0.2);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 12px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.character-reveal__status--unrevealed {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-subtle);
+  color: var(--text-tertiary);
+}
+
+/* Reveal prompt */
+.character-reveal__prompt {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: rgba(0, 255, 204, 0.1);
+  border: 1px solid rgba(0, 255, 204, 0.3);
+  border-radius: 6px;
+  text-align: center;
+  color: var(--neon-cyan);
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+}
+
+.character-reveal:hover .character-reveal__prompt {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes revealFlash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Dramatic reveal animation */
+@keyframes dramaticReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+    filter: blur(20px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+.character-reveal__visual--dramatic {
+  animation: dramaticReveal 1.5s ease-out;
+}
+
+/* Subtle reveal animation */
+@keyframes subtleReveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.character-reveal__visual--subtle {
+  animation: subtleReveal 0.8s ease-out;
+}

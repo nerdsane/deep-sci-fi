@@ -340,3 +340,37 @@
     gap: 1.25rem;
   }
 }
+
+/* ============================================================================
+   PHASE 3 ENHANCEMENTS - Grids for enhanced components
+   ============================================================================ */
+
+.world-space__map-container {
+  height: 600px;
+  background: rgba(10, 10, 10, 0.3);
+  border: 1px solid var(--border-accent);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.world-space__tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.world-space__characters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.world-space__stories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}

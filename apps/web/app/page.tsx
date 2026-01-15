@@ -7,7 +7,7 @@ import type { ComponentSpec } from '@/components/canvas/types';
 import { DynamicRenderer } from '@/components/canvas/DynamicRenderer';
 import { MountPoint } from '@/components/canvas/MountPoint';
 import { ImmersiveStoryReader } from '@/components/canvas/story';
-import { WorldSpace } from '@/components/canvas/world';
+import { WorldSpace, WorldSpaceEnhanced } from '@/components/canvas/world';
 import { WelcomeSpace } from '@/components/canvas/welcome';
 
 // Dynamic import for Observatory to avoid SSR issues with Three.js
@@ -629,7 +629,7 @@ function App() {
             )}
 
             {state.view === 'world' && state.selectedWorld && (
-              <WorldSpace
+              <WorldSpaceEnhanced
                 world={state.selectedWorld}
                 stories={state.stories.filter(
                   (s) => s.world_checkpoint === getWorldCheckpointName(state.selectedWorld!)
