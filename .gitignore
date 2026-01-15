@@ -104,3 +104,7 @@ override.tf.json
 .ws.pid
 .ui.log
 .ws.log
+
+# Local trajectory experiment files (not for git)
+trajectory-experiments.md
+trajectory-*.json
