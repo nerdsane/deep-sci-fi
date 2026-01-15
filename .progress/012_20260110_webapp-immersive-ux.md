@@ -1,7 +1,7 @@
 # Web App Immersive UX Implementation
 
 **Created:** 2026-01-10
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Type:** Implementation
 
 ---
@@ -107,7 +107,7 @@ apps/web/
 - [x] Phase 3: GSAP Scroll Animations (useGsapAnimations.tsx with staggered reveal hooks)
 - [x] Phase 4: 3D Card Effects (TiltCard.tsx using react-parallax-tilt)
 - [x] Phase 5: Procedural Audio (useProceduralAudio.tsx with Web Audio API)
-- [ ] Phase 6: Polish (pending testing)
+- [x] Phase 6: Polish (browser testing complete)
 
 ## Implementation Notes
 
@@ -165,3 +165,95 @@ apps/web/
 - GSAP staggered reveal animation on world cards grid
 - Audio feedback on card hover and click
 - Removed ScrollSection wrapper (GSAP handles animation now)
+
+---
+
+## Browser Testing Results (2026-01-10)
+
+### Test Environment
+- Browser: Chrome via claude-in-chrome MCP
+- URL: http://localhost:3030
+- Dev Server: Next.js 14.2.35
+
+### Features Verified
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| WebGL Shader Background | ✅ Pass | Teal/cyan nebula with animated stars visible |
+| World Cards Display | ✅ Pass | 3 worlds with cover images rendering correctly |
+| 3D Tilt Hover Effect | ✅ Pass | react-parallax-tilt working on card hover |
+| GSAP Staggered Reveal | ✅ Pass | Cards animate in on scroll |
+| Navigation: WelcomeSpace → WorldSpace | ✅ Pass | Click on card navigates to world detail |
+| Navigation: WorldSpace → WelcomeSpace | ✅ Pass | Back button returns to home |
+| Hero Section Parallax | ✅ Pass | Large cover image in WorldSpace |
+| Audio Controls | ✅ Pass | Volume slider visible in bottom right |
+| Breadcrumb Navigation | ✅ Pass | Shows world context in header |
+
+### Issues Resolved During Testing
+1. TypeScript JSX parsing - Renamed .ts files to .tsx
+2. Module resolution - Removed .js extensions from imports
+3. Webpack cache corruption - Cleared .next directory and restarted dev server
+
+### Status: COMPLETE
+All immersive UX features implemented and verified working in browser.
+
+---
+
+## Bug Fix: Shader Background Positioning (2026-01-10)
+
+**Issue:** User reported shader background was behind the ENTIRE screen (including chat sidebar), but should only be behind the canvas container.
+
+**Root Cause:**
+1. ShaderBackground was in ImmersiveLayout which wraps the entire app
+2. ShaderBackground used Tailwind CSS classes (`absolute inset-0`) but project doesn't use Tailwind
+3. Classes were present in DOM but had no effect (no Tailwind CSS processing)
+
+**Solution:**
+1. Moved ShaderBackground from `ImmersiveLayout.tsx` to inside `.canvas-container` in `page.tsx`
+2. Updated `globals.css`: Added `position: relative` and `isolation: isolate` to `.canvas-container`
+3. Updated `ShaderBackground.tsx`: Replaced Tailwind classes with inline React styles:
+   ```tsx
+   const baseStyle: React.CSSProperties = {
+     position: "absolute",
+     top: 0, left: 0, right: 0, bottom: 0,
+     width: "100%", height: "100%",
+     pointerEvents: "none",
+     zIndex: 0,
+   };
+   ```
+4. Updated `canvas.css`: Added `z-index: 1` to `.app` class
+
+**Result:** Shader now renders only within canvas-container (left side), chat sidebar (right side) has clean dark background.
+
+---
+
+## Responsive UI Scaling (2026-01-10)
+
+**User Request:** Make the UI responsive - compact on MacBook Pro screens, original/larger sizes on bigger desktop screens (1600px+, 1920px+).
+
+**Changes Made:**
+
+### Base Compact Layout (Default)
+- Hero height: 85vh for full variant
+- World cards: 110px image height, smaller fonts (0.6rem premise)
+- Grid: 220px min column width
+- Typography: 6px base spacing scale
+
+### Large Desktop (1600px+)
+- Hero height: 90vh for full variant
+- World cards: 160px image height, larger fonts
+- Grid: 320px min column width
+- Typography: 8px base spacing scale (original)
+
+### Extra Large Desktop (1920px+)
+- Hero height: 95vh for full variant
+- World cards: 200px image height
+- Grid: 380px min column width
+- Typography: 10px base spacing scale
+
+**Files Modified:**
+- `apps/web/app/canvas.css` - CSS variable overrides in media queries for spacing, typography, world cards
+- `apps/web/components/canvas/experience/experience.css` - Hero heights and title/subtitle sizing
+- `apps/web/components/canvas/world/world-space.css` - Section padding, card sizes, grid layouts
+
+**Commit:** `feat: add responsive scaling for larger desktop screens`
