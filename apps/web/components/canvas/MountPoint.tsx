@@ -3,10 +3,14 @@
  *
  * This component acts as a placeholder where agents can inject dynamic UI.
  * Multiple components can be mounted at the same target.
+ *
+ * Phase 0 Migration: Supports both legacy ComponentSpec and json-render tree format
  */
 
 import type { ComponentSpec } from './types';
+import type { JsonRenderTree } from '../../agent-bus/types';
 import { DynamicRenderer } from './DynamicRenderer';
+import { AgentUIRenderer } from '../../lib/agent-ui/renderer';
 
 interface MountPointProps {
   /**
@@ -17,8 +21,16 @@ interface MountPointProps {
 
   /**
    * Agent UI components for this target (from agentUI state)
+   *
+   * Phase 0 Migration: Supports both formats
+   * - spec: Legacy ComponentSpec format (backwards compatibility)
+   * - tree: New json-render format (preferred)
    */
-  components: Array<{ componentId: string; spec: ComponentSpec }>;
+  components: Array<{
+    componentId: string;
+    spec?: ComponentSpec; // Legacy format
+    tree?: JsonRenderTree; // New json-render format
+  }>;
 
   /**
    * Callback for user interactions
@@ -78,12 +90,23 @@ export function MountPoint({
       data-target={target}
       style={containerStyle}
     >
-      {components.map(({ componentId, spec }) => (
+      {components.map(({ componentId, spec, tree }) => (
         <div key={componentId} className="mount-point-item">
-          <DynamicRenderer
-            spec={spec}
-            onInteraction={onInteraction}
-          />
+          {/* Phase 0 Migration: Prefer tree format, fallback to spec */}
+          {tree ? (
+            <AgentUIRenderer
+              tree={tree}
+              onAction={(action: string, params: any) => {
+                // Convert json-render action to interaction message
+                onInteraction(componentId, action, params);
+              }}
+            />
+          ) : spec ? (
+            <DynamicRenderer
+              spec={spec}
+              onInteraction={onInteraction}
+            />
+          ) : null}
         </div>
       ))}
     </div>
