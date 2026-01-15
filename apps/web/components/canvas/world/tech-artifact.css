@@ -1,0 +1,241 @@
+/* TechArtifact - Observatory Aesthetic */
+
+.tech-artifact {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: rgba(10, 10, 10, 0.95);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+.tech-artifact--technology {
+  border: 1px solid rgba(0, 255, 204, 0.3);
+}
+
+.tech-artifact--device {
+  border: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.tech-artifact--vehicle {
+  border: 1px solid rgba(0, 136, 255, 0.3);
+}
+
+.tech-artifact--structure {
+  border: 1px solid rgba(255, 136, 0, 0.3);
+}
+
+.tech-artifact--weapon {
+  border: 1px solid rgba(255, 0, 0, 0.3);
+}
+
+.tech-artifact--tool {
+  border: 1px solid rgba(136, 255, 0, 0.3);
+}
+
+.tech-artifact:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+}
+
+.tech-artifact--locked {
+  filter: grayscale(100%);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tech-artifact--unknown {
+  padding: var(--space-5);
+  background: rgba(10, 10, 10, 0.8);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* Header */
+.tech-artifact__header {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tech-artifact__title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tech-artifact__icon {
+  font-size: 1.5rem;
+}
+
+.tech-artifact__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  color: var(--neon-cyan);
+}
+
+.tech-artifact--locked .tech-artifact__name {
+  color: var(--text-tertiary);
+}
+
+.tech-artifact__category {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--space-1);
+}
+
+/* 3D Display */
+.tech-artifact__display {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  overflow: hidden;
+}
+
+.tech-artifact__display--rotatable {
+  cursor: grab;
+}
+
+.tech-artifact__display--dragging {
+  cursor: grabbing;
+}
+
+.tech-artifact__3d-object {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justifycontent: center;
+  font-size: 4rem;
+  border-radius: 50%;
+  transition: transform 0.1s ease;
+}
+
+.tech-artifact__3d-object--technology {
+  background: linear-gradient(135deg, rgba(0, 255, 204, 0.2), transparent);
+  border: 2px solid rgba(0, 255, 204, 0.3);
+}
+
+.tech-artifact__3d-object--device {
+  background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), transparent);
+  border: 2px solid rgba(0, 255, 255, 0.3);
+}
+
+.tech-artifact__3d-object--vehicle {
+  background: linear-gradient(135deg, rgba(0, 136, 255, 0.2), transparent);
+  border: 2px solid rgba(0, 136, 255, 0.3);
+}
+
+.tech-artifact__3d-object--structure {
+  background: linear-gradient(135deg, rgba(255, 136, 0, 0.2), transparent);
+  border: 2px solid rgba(255, 136, 0, 0.3);
+}
+
+.tech-artifact__3d-object--weapon {
+  background: linear-gradient(135deg, rgba(255, 0, 0, 0.2), transparent);
+  border: 2px solid rgba(255, 0, 0, 0.3);
+}
+
+.tech-artifact__3d-object--tool {
+  background: linear-gradient(135deg, rgba(136, 255, 0, 0.2), transparent);
+  border: 2px solid rgba(136, 255, 0, 0.3);
+}
+
+.tech-artifact__hint {
+  position: absolute;
+  bottom: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* Description */
+.tech-artifact__description {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+/* Specifications */
+.tech-artifact__specs {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.tech-artifact__specs--expanded {
+  max-height: 300px;
+}
+
+.tech-artifact__specs-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--neon-cyan);
+  margin-bottom: var(--space-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.tech-artifact__specs-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tech-artifact__spec {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  padding: var(--space-2);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.tech-artifact__spec-name {
+  color: var(--text-secondary);
+}
+
+.tech-artifact__spec-value {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+/* Inspect Button */
+.tech-artifact__inspect-btn {
+  margin: var(--space-3);
+  padding: var(--space-3);
+  background: transparent;
+  border: 1px solid rgba(0, 255, 204, 0.4);
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.tech-artifact__inspect-btn:hover {
+  background: rgba(0, 255, 204, 0.1);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+}
