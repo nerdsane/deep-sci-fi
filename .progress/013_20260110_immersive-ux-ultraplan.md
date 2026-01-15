@@ -241,6 +241,13 @@ Visual indicators for:
 
 **Goal:** Transform world view into explorable space
 
+**Parallelizable:** ✅ YES - Can run alongside Phase 0 (Protocol migration)
+
+**Coordination:**
+- Week 1: Share TypeScript prop interfaces with Phase 0 agent
+- Use current Agent Bus protocol initially
+- Phase 0 agent will add components to catalog as you build them
+
 1. **Interactive World Map**
    - Location visualization system
    - Hover previews
@@ -293,6 +300,110 @@ Visual indicators for:
    - Touch controls for 3D
    - Simplified observatory for small screens
    - VN mode optimization
+
+---
+
+## Parallel Development Coordination Strategy
+
+### Overview
+
+**Phase 0 (Agent A)** and **Phase 3 (Agent B)** can run **concurrently** with minimal coordination.
+
+### Timeline
+
+```
+Week 1:
+├─ Agent A: Setup json-render, migrate existing components
+└─ Agent B: Build InteractiveWorldMap, define prop interfaces
+
+Week 2:
+├─ Agent A: Add Phase 3 components to catalog (as they're built)
+└─ Agent B: Build TechArtifact, CharacterReveal components
+
+Week 3:
+├─ Agent A: Streaming support, finalize catalog
+└─ Agent B: Story portals, atmospheric integration
+
+Week 4+:
+└─ Both: Merge, test, Phase 4 kicks off
+```
+
+### Coordination Points
+
+**Week 1 (End):**
+- **Agent B delivers:** TypeScript prop interfaces for all Phase 3 components
+- **Format:**
+  ```typescript
+  // apps/web/components/canvas/world/types.ts
+  export interface WorldMapProps {
+    worldId: string;
+    locations: Location[];
+    connections?: Connection[];
+  }
+  ```
+- **Agent A receives:** Interfaces and converts to Zod schemas for catalog
+
+**Week 2 (Ongoing):**
+- **Agent B:** Commits components as they're built (using current Agent Bus)
+- **Agent A:** Adds committed components to json-render catalog incrementally
+
+**Week 3 (Merge):**
+- **Agent A:** Finalizes catalog with all Phase 3 components
+- **Both:** Test that Phase 3 components work with json-render renderer
+- **Resolve:** Any prop mismatches or validation issues
+
+### Shared Files (Minimal Conflict)
+
+**Agent A touches:**
+- `letta-code/src/agent-bus/` (protocol layer)
+- `letta-code/src/tools/canvas_ui.ts` (tool definitions)
+- `apps/web/lib/agent-ui/catalog.ts` (NEW - component catalog)
+- `apps/web/lib/agent-ui/renderer.tsx` (NEW - json-render integration)
+
+**Agent B touches:**
+- `apps/web/components/canvas/world/` (NEW - world components)
+- `apps/web/components/canvas/story/` (story components - Phase 4)
+- `apps/web/components/canvas/atmosphere/` (NEW - ambient systems)
+
+**Overlap:** NONE (different directories)
+
+### Communication Protocol
+
+**Via Git commits:**
+1. Agent B commits components with clear prop interfaces in comments
+2. Agent A reads committed code and adds to catalog
+3. Both agents use `.progress/` markdown files for status updates
+
+**Via .progress files:**
+- Agent A: `.progress/015_phase0_standards_migration_status.md`
+- Agent B: `.progress/016_phase3_world_space_status.md`
+
+**Status updates format:**
+```markdown
+## Week 1 Status
+- [x] InteractiveWorldMap - Props defined, component built
+- [ ] TechArtifact - In progress
+
+## Prop Interfaces Ready for Catalog:
+- WorldMapProps (see types.ts:12)
+- TechArtifactProps (WIP)
+```
+
+### Fallback: If Agents Need to Sync
+
+If props change significantly during development:
+1. Agent B updates interface in `types.ts`
+2. Agent B notes change in status file
+3. Agent A re-reads and updates catalog schema
+4. Zod validation catches mismatches in testing
+
+### Success Criteria
+
+✅ **End of Week 3:**
+- All Phase 3 components in json-render catalog
+- All components render via json-render Renderer
+- Agent tools emit json-render tree format
+- Type safety validated (Zod schemas passing)
 
 ---
 
@@ -620,16 +731,22 @@ According to [2026 research](https://medium.com/@akshaychame2/the-complete-guide
 
 ### Implementation Strategy
 
-**Phase 0: Standards Migration (Before Phase 3)** - 2 weeks
+**IMPORTANT:** Phases 0 and 3 can run **IN PARALLEL** with minimal coordination (see coordination strategy below).
 
-**Goal:** Adopt AG-UI or A2UI protocol without changing UX
+**Phase 0: Standards Migration** - 2 weeks (Backend/Protocol Layer)
+
+**Goal:** Adopt json-render protocol without changing UX
+
+**Parallelizable:** ✅ YES - Can run alongside Phase 3 (Frontend components)
 
 **Tasks:**
-1. Install CopilotKit or build A2UI renderer
-2. Define component catalog with Zod schemas (type safety + security)
-3. Migrate Agent Bus message types to AG-UI events or A2UI JSON
-4. Update agent tools to emit standard format
-5. Add streaming support (React Server Components)
+1. Install json-render (`@json-render/core`, `@json-render/react`)
+2. Define component catalog with Zod schemas (start with existing components)
+3. Migrate Agent Bus message types to json-render tree format
+4. Update agent tools (`canvas_ui.ts`) to emit json-render format
+5. Add streaming support (progressive rendering)
+6. **Week 1 checkpoint:** Get prop interfaces from Phase 3 agent
+7. **Week 2+:** Add Phase 3 components to catalog as they're built
 
 **Example Migration:**
 ```typescript
