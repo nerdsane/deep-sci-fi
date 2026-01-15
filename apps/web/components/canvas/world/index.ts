@@ -1,6 +1,10 @@
-// Existing component
+// Existing components
 export { WorldSpace } from './WorldSpace';
 export type { WorldSpaceProps } from './WorldSpace';
+
+// Phase 3 Enhanced WorldSpace
+export { WorldSpaceEnhanced } from './WorldSpaceEnhanced';
+export type { WorldSpaceEnhancedProps } from './WorldSpaceEnhanced';
 
 // Phase 3 Components
 export { InteractiveWorldMap } from './InteractiveWorldMap';
