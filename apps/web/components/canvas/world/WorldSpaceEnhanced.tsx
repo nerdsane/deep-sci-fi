@@ -169,14 +169,7 @@ export const WorldSpaceEnhanced = React.memo(function WorldSpaceEnhanced({
               <span className="world-space__section-icon">◈</span>
               World Map
             </h2>
-            <div style={{
-              height: '600px',
-              background: 'rgba(10, 10, 10, 0.3)',
-              border: '1px solid rgba(0, 255, 204, 0.2)',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              marginTop: '1rem',
-            }}>
+            <div className="world-space__map-container">
               <InteractiveWorldMap
                 worldId={world.id}
                 locations={mapLocations}
@@ -200,12 +193,7 @@ export const WorldSpaceEnhanced = React.memo(function WorldSpaceEnhanced({
               <span className="world-space__section-icon">✦</span>
               Technologies
             </h2>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-              gap: '2rem',
-              marginTop: '1rem',
-            }}>
+            <div className="world-space__tech-grid">
               {technologies.map((tech, i) => (
                 <ScrollSection key={tech.id} animation="scale" delay={i * 100}>
                   <TechArtifact
@@ -232,12 +220,7 @@ export const WorldSpaceEnhanced = React.memo(function WorldSpaceEnhanced({
               <span className="world-space__section-icon">◉</span>
               Characters
             </h2>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-              gap: '2rem',
-              marginTop: '1rem',
-            }}>
+            <div className="world-space__characters-grid">
               {characters.map((char, i) => (
                 <ScrollSection key={char.id} animation="fade-up" delay={i * 100}>
                   <CharacterReveal
@@ -262,12 +245,7 @@ export const WorldSpaceEnhanced = React.memo(function WorldSpaceEnhanced({
             <span className="world-space__section-icon">→</span>
             Stories
           </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-            gap: '2rem',
-            marginTop: '1rem',
-          }}>
+          <div className="world-space__stories-grid">
             {stories.map((story, i) => (
               <ScrollSection key={story.id} animation="fade-up" delay={i * 100}>
                 <StoryPortal

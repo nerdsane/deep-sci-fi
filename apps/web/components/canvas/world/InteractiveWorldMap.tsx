@@ -13,6 +13,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import type { InteractiveWorldMapProps, Location, Connection } from './types';
+import './interactive-world-map.css';
 
 export function InteractiveWorldMap({
   worldId,
@@ -302,54 +303,23 @@ export function InteractiveWorldMap({
 
       {/* Hover preview */}
       {hoveredLocation && (
-        <div
-          className="location-preview"
-          style={{
-            position: 'absolute',
-            bottom: '1rem',
-            left: '1rem',
-            maxWidth: '300px',
-            padding: '1rem',
-            background: 'rgba(10, 10, 10, 0.95)',
-            border: '1px solid rgba(0, 255, 204, 0.3)',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-sans)',
-            fontSize: '0.9rem',
-            color: 'var(--color-text-primary, #c8c8c8)',
-            pointerEvents: 'none',
-          }}
-        >
+        <div className="location-preview">
           {(() => {
             const location = locations.find((loc) => loc.id === hoveredLocation);
             if (!location) return null;
 
             return (
               <>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '1rem',
-                    color: 'var(--color-teal, #00ffcc)',
-                    marginBottom: '0.5rem',
-                  }}
-                >
+                <div className="location-preview__name">
                   {location.name}
                 </div>
                 {location.description && (
-                  <div style={{ color: 'var(--color-text-secondary, #8a8a8a)', fontSize: '0.85rem' }}>
+                  <div className="location-preview__description">
                     {location.description}
                   </div>
                 )}
                 {location.type && (
-                  <div
-                    style={{
-                      marginTop: '0.5rem',
-                      fontSize: '0.75rem',
-                      color: 'var(--color-text-tertiary, #5a5a5a)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
+                  <div className="location-preview__type">
                     {location.type}
                   </div>
                 )}
@@ -361,39 +331,12 @@ export function InteractiveWorldMap({
 
       {/* Controls hint */}
       {(allowZoom || allowPan) && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '1rem',
-            right: '1rem',
-            padding: '0.5rem 0.75rem',
-            background: 'rgba(10, 10, 10, 0.8)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.7rem',
-            color: 'var(--color-text-tertiary, #5a5a5a)',
-            pointerEvents: 'none',
-          }}
-        >
+        <div className="map-controls-hint">
           {allowZoom && 'Scroll to zoom • '}
           {allowPan && 'Drag to pan'}
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%,
-          100% {
-            opacity: 0.2;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.4;
-            transform: scale(1.5);
-          }
-        }
-      `}</style>
     </div>
   );
 }
