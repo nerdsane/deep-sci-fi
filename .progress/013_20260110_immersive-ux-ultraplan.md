@@ -1,8 +1,8 @@
 # Immersive UX Ultra-Plan: Making Users WANT to Stay
 
 **Created:** 2026-01-10
-**Updated:** 2026-01-11
-**Status:** IN_PROGRESS (Phase 2 Complete)
+**Updated:** 2026-01-15
+**Status:** IN_PROGRESS (Phase 2 Complete, Agent-UI Standards Research Added)
 **Type:** Vision + Implementation Plan
 
 ---
@@ -567,6 +567,163 @@ apps/web/components/canvas/observatory/
 - ✅ Floating suggestions appear after 2-second delay
 - ✅ Suggestions dismissed on click
 - ✅ All effects gracefully disabled during transitions
+
+---
+
+## Agent-Driven UI Standards: Leveraging the Ecosystem (Added 2026-01-15)
+
+### Research Summary
+
+Comprehensive research (see [014_agent-driven-ui-research.md](.progress/014_20260115_agent-driven-ui-research.md)) reveals that the agent-driven generative UI space has **rapidly matured** in late 2025-early 2026 with clear industry standards emerging.
+
+### Key Finding
+
+**We're building a custom wheel when standard APIs exist.** Our custom Agent Bus (WebSocket-based) is valid but lacks:
+- Industry-standard protocol
+- Type safety
+- Streaming support
+- Component catalog (security)
+- Cross-platform support
+
+**However:** Our **3D Observatory spatial UI is unique** and should remain our core differentiator.
+
+### The 2026 Landscape: Five Key Approaches
+
+| Approach | Best For | Adoption |
+|----------|----------|----------|
+| [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) | Web-only React apps | 20M+ downloads |
+| [Google A2UI](https://github.com/google/A2UI) | Cross-platform (web/mobile/desktop) | v0.8 Public Preview |
+| [AG-UI + CopilotKit](https://www.copilotkit.ai/ag-ui) | Agent framework flexibility | 50K+ downloads (YC W25) |
+| [assistant-ui](https://github.com/assistant-ui/assistant-ui) | Composable primitives (Radix-style) | 6.9K GitHub stars |
+| [MCP Apps](https://modelcontextprotocol.io/) | Anthropic ecosystem | Linux Foundation standard |
+
+### Three Generative UI Patterns
+
+According to [2026 research](https://medium.com/@akshaychame2/the-complete-guide-to-generative-ui-frameworks-in-2026-fde71c4fa8cc):
+
+1. **Static Generative UI** - Pre-defined components, agent selects which to use
+2. **Declarative Generative UI (A2UI)** - Agent sends JSON spec, client renders from catalog ⭐ **Recommended**
+3. **Open-Ended Generative UI** - Agent generates complete HTML/UI (security risk)
+
+### Recommendation: Hybrid Approach
+
+**Adopt standards for protocol, innovate on spatial UX:**
+
+| Layer | Strategy | Why |
+|-------|----------|-----|
+| **Agent Protocol** | Adopt AG-UI or A2UI | Industry standard, type-safe, secure |
+| **Component Rendering** | CopilotKit or assistant-ui | Proven runtime, streaming support |
+| **Spatial Experience** | Keep custom 3D | **Our unique differentiator** |
+| **World Exploration** | Keep custom immersive UX | **Core innovation** |
+| **Story Reading** | Keep cinematic approach | **Core innovation** |
+| **Agent Presence** | Keep 3D glyph in space | **Core innovation** |
+
+### Implementation Strategy
+
+**Phase 0: Standards Migration (Before Phase 3)** - 2 weeks
+
+**Goal:** Adopt AG-UI or A2UI protocol without changing UX
+
+**Tasks:**
+1. Install CopilotKit or build A2UI renderer
+2. Define component catalog with Zod schemas (type safety + security)
+3. Migrate Agent Bus message types to AG-UI events or A2UI JSON
+4. Update agent tools to emit standard format
+5. Add streaming support (React Server Components)
+
+**Example Migration:**
+```typescript
+// BEFORE (custom)
+agentBus.emit({
+  type: 'canvas_ui',
+  component: 'WorldOrb',
+  props: { worldId: 'abc' }
+});
+
+// AFTER (AG-UI)
+copilot.emitGenerativeUI({
+  component: 'WorldOrb',
+  props: { worldId: 'abc' }
+});
+
+// OR (A2UI hybrid)
+agentBus.emit({
+  type: 'canvas_ui',
+  payload: {
+    type: 'world_orb',
+    props: { worldId: 'abc' }
+  }
+});
+```
+
+**Component Catalog (Security + Type Safety):**
+```typescript
+import { z } from 'zod';
+
+export const COMPONENT_CATALOG = {
+  WorldOrb: {
+    component: WorldOrb,
+    schema: z.object({
+      worldId: z.string(),
+      position: z.array(z.number()).length(3),
+      scale: z.number().optional()
+    })
+  },
+  ImmersiveStoryReader: {
+    component: ImmersiveStoryReader,
+    schema: z.object({
+      storyId: z.string(),
+      mode: z.enum(['scroll', 'vn', 'hybrid'])
+    })
+  }
+};
+```
+
+**Files to Change:**
+```
+letta-code/src/agent-bus/
+├── types.ts          → Use AG-UI event types or A2UI JSON
+├── server.ts         → Integrate standard runtime
+└── client.ts         → Use CopilotKit or A2UI renderer
+
+letta-code/src/tools/
+└── canvas_ui.ts      → Emit AG-UI or A2UI format
+
+apps/web/lib/
+└── agent-ui/
+    ├── catalog.ts    → Component catalog with schemas
+    └── renderer.tsx  → Standard renderer (CopilotKit or A2UI)
+```
+
+### Key Insights from 2026 Research
+
+From [State of Design 2026](https://tejjj.medium.com/state-of-design-2026-when-interfaces-become-agents-fc967be10cba) and [spatial UI trends](https://dev.to/pixel_mosaic/top-uiux-design-trends-for-2026-ai-first-context-aware-interfaces-spatial-experiences-166j):
+
+1. **Agentic AI is mainstream** - Interfaces now anticipate needs and take initiative
+2. **Spatial computing market: $280.5B by 2028** (23.4% CAGR)
+3. **Trust is the key UX currency** - Explainability moved from compliance to core design
+4. **Agency requires control** - Users grant autonomy only to transparent systems
+5. **Multimodal is standard** - Voice, gesture, gaze, touch combined fluidly
+
+### What This Means for Deep Sci-Fi
+
+**Be boring where it helps (protocol), be innovative where it matters (spatial UX).**
+
+**Use Industry Standards For:**
+- Agent-to-UI protocol (AG-UI or A2UI)
+- Component rendering (CopilotKit or assistant-ui)
+- Type safety (Zod schemas)
+- Security (component catalog)
+- Streaming (React Server Components)
+
+**Innovate On:**
+- 3D Observatory (spatial exploration)
+- Immersive world spaces (interactive maps, 3D artifacts)
+- Cinematic story reading (VN mode, kinetic typography)
+- Agent presence in 3D space (visual glyph, floating suggestions)
+- Multi-sensory atmosphere (audio, particles, shaders)
+
+**Result:** Standards-compliant foundation + cutting-edge spatial experiences = Best of both worlds.
 
 ---
 
