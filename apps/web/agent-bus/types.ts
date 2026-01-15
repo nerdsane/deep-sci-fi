@@ -2,9 +2,26 @@
  * Agent Bus - Message Protocol
  *
  * Bidirectional communication between Agent/CLI and Canvas UI
+ *
+ * Phase 0 Migration: Adding json-render tree format support
+ * - spec: Legacy ComponentSpec format (backwards compatibility)
+ * - tree: New json-render tree format (type-safe, validated by Zod)
  */
 
 import type { ComponentSpec } from '../components/canvas/types';
+
+/**
+ * json-render tree format
+ *
+ * Standard format from Vercel's json-render framework
+ * See: https://json-render.dev/
+ */
+export interface JsonRenderTree {
+  type: string; // Component name from catalog
+  props: Record<string, unknown>; // Validated by Zod schema
+  key: string; // Unique identifier for this component instance
+  children?: JsonRenderTree[]; // Nested children
+}
 
 // ============================================================================
 // Message Types
@@ -12,13 +29,24 @@ import type { ComponentSpec } from '../components/canvas/types';
 
 /**
  * Agent → Canvas: Create or update UI components
+ *
+ * Phase 0 Migration:
+ * - Supports both `spec` (legacy) and `tree` (json-render) formats
+ * - During transition, renderer checks for `tree` first, then falls back to `spec`
+ * - Once migration is complete, `spec` field will be removed
  */
 export interface CanvasUIMessage {
   type: 'canvas_ui';
   action: 'create' | 'update' | 'remove';
   target: string; // Mount point: 'story_segment_123', 'world_overview', 'floating'
   componentId: string; // Unique ID for this component
-  spec?: ComponentSpec; // The UI component spec (omit for 'remove')
+
+  // Legacy format (Phase 0: backwards compatibility)
+  spec?: ComponentSpec; // OLD: Custom ComponentSpec format
+
+  // New format (Phase 0: json-render migration)
+  tree?: JsonRenderTree; // NEW: json-render tree format with Zod validation
+
   mode?: 'overlay' | 'fullscreen' | 'inline'; // How to display
 }
 
