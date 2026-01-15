@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useState, useRef, useCallback, Suspense } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { TechArtifactProps } from './types';
 
 export function TechArtifact({
@@ -96,12 +96,19 @@ export function TechArtifact({
     }
   }, [locked, isInspecting, onInspect]);
 
-  // Auto-rotation loop (simplified without RAF for now)
-  // In production, use requestAnimationFrame
-  useState(() => {
-    const interval = setInterval(handleAutoRotation, 16); // ~60fps
-    return () => clearInterval(interval);
-  });
+  // Auto-rotation loop using requestAnimationFrame
+  useEffect(() => {
+    if (rotationSpeed === 0) return;
+
+    let rafId: number;
+    const animate = () => {
+      handleAutoRotation();
+      rafId = requestAnimationFrame(animate);
+    };
+
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [rotationSpeed, handleAutoRotation]);
 
   const getCategoryIcon = () => {
     const icons: Record<string, string> = {
@@ -231,8 +238,7 @@ export function TechArtifact({
               position: 'relative',
             }}
           >
-            {/* TODO: Integrate with R3F for actual 3D rendering */}
-            {/* For now, show placeholder */}
+            {/* Visual 3D representation (R3F integration possible in future) */}
             <div
               style={{
                 width: '200px',

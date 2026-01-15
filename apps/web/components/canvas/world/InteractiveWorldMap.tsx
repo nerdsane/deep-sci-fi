@@ -201,9 +201,6 @@ export function InteractiveWorldMap({
                   transition: 'stroke 0.2s ease',
                 }}
                 onClick={() => handleConnectionClick(connection.id)}
-                onMouseEnter={() => {
-                  /* TODO: Show connection info */
-                }}
               />
             );
           })}
