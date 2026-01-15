@@ -67,6 +67,7 @@ export const componentRegistry: ComponentRegistry = {
     onClick: element.props.onClick && onAction
       ? () => onAction({ name: element.props.onClick as string, params: { componentId: element.key } })
       : element.props.onClick,
+    // Type cast safe: Props validated by Zod catalog, converting string event name to function
   } as any)),
 
   Text: createComponentWrapper(Text),
@@ -76,6 +77,7 @@ export const componentRegistry: ComponentRegistry = {
     onClick: element.props.onClick && onAction
       ? () => onAction({ name: element.props.onClick as string, params: { componentId: element.key } })
       : element.props.onClick,
+    // Type cast safe: Props validated by Zod catalog, converting string event name to function
   } as any)),
 
   Gallery: createComponentWrapper(Gallery),
@@ -85,6 +87,7 @@ export const componentRegistry: ComponentRegistry = {
     onClick: element.props.onClick && onAction
       ? () => onAction({ name: element.props.onClick as string, params: { componentId: element.key } })
       : element.props.onClick,
+    // Type cast safe: Props validated by Zod catalog, converting string event name to function
   } as any)),
 
   Timeline: createComponentWrapper(Timeline),
@@ -111,6 +114,7 @@ export const componentRegistry: ComponentRegistry = {
     onScrollClick: element.props.onScrollClick && onAction
       ? () => onAction({ name: element.props.onScrollClick as string, params: { componentId: element.key } })
       : element.props.onScrollClick,
+    // Type cast safe: Props validated by Zod catalog, converting string event names to functions
   } as any)),
 
   ScrollSection: createComponentWrapper(ScrollSection),
@@ -122,6 +126,7 @@ export const componentRegistry: ComponentRegistry = {
     onAction: element.props.onAction && onAction
       ? (actionId: string) => onAction({ name: element.props.onAction as string, params: { componentId: element.key, actionId } })
       : element.props.onAction,
+    // Type cast safe: Props validated by Zod catalog, converting string event name to function
   } as any)),
 
   // Wildcard
@@ -136,6 +141,7 @@ export const componentRegistry: ComponentRegistry = {
     onHover: element.props.onHover && onAction
       ? () => onAction({ name: element.props.onHover as string, params: { worldId: element.props.worldId } })
       : element.props.onHover,
+    // Type cast safe: Props validated by Zod catalog, converting string event names to functions
   } as any)),
 
   StarField: createComponentWrapper(StarField),
@@ -150,10 +156,12 @@ export const componentRegistry: ComponentRegistry = {
     onDismiss: element.props.onDismiss && onAction
       ? (suggestionId: string) => onAction({ name: element.props.onDismiss as string, params: { suggestionId } })
       : element.props.onDismiss,
+    // Type cast safe: Props validated by Zod catalog, converting string event names to functions
   } as any)),
 
   // Dialog - Special handling for trigger prop
   Dialog: function DialogWrapper({ element, children, onAction }: ComponentRenderProps) {
+    // Type cast safe: Props validated by Zod catalog
     const props = element.props as any;
     return (
       <DSFDialog
