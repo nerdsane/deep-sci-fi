@@ -10,7 +10,7 @@
 import type { ComponentSpec } from './types';
 import type { JsonRenderTree } from '../../agent-bus/types';
 import { DynamicRenderer } from './DynamicRenderer';
-import { AgentUIRenderer } from '../../lib/agent-ui/renderer';
+import { AgentUIRenderer, convertToUITree } from '../../lib/agent-ui/renderer';
 
 interface MountPointProps {
   /**
@@ -95,10 +95,10 @@ export function MountPoint({
           {/* Phase 0 Migration: Prefer tree format, fallback to spec */}
           {tree ? (
             <AgentUIRenderer
-              tree={tree}
-              onAction={(action: string, params: any) => {
+              tree={convertToUITree(tree)}
+              onAction={(action) => {
                 // Convert json-render action to interaction message
-                onInteraction(componentId, action, params);
+                onInteraction(componentId, action.name, action.params, action.name);
               }}
             />
           ) : spec ? (
