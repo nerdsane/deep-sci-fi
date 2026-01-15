@@ -14,9 +14,92 @@ The agent-driven generative UI space has rapidly matured in late 2025-early 2026
 
 ---
 
-## The 2026 Landscape: Three Competing Approaches
+## The 2026 Landscape: Six Key Approaches
 
-### 1. **Vercel AI SDK + Generative UI** (Web-Centric)
+### 1. **Vercel json-render** (Declarative JSON with Guardrails) ⭐ **NEW**
+
+**What it is:** "AI → JSON → UI" - Vercel's framework for safely constrained component generation.
+
+**Key Features:**
+- [json-render.dev](https://json-render.dev/) - Official documentation
+- [GitHub: vercel-labs/json-render](https://github.com/vercel-labs/json-render)
+- **Guardrailed**: AI can only use components in your catalog
+- **Predictable**: JSON output matches your schema, every time
+- **Fast**: Stream and render progressively as the model responds
+- Uses Zod schemas for component props validation
+- Works WITH Vercel AI SDK (not instead of)
+- Framework-agnostic JSON format
+
+**Pattern:**
+```typescript
+import { createCatalog } from '@json-render/core';
+import { z } from 'zod';
+
+// Define component catalog with Zod schemas
+export const catalog = createCatalog({
+  components: {
+    WorldOrb: {
+      props: z.object({
+        worldId: z.string(),
+        position: z.array(z.number()).length(3),
+        scale: z.number().optional()
+      }),
+      hasChildren: false,
+    },
+    StoryCard: {
+      props: z.object({
+        title: z.string(),
+        storyId: z.string(),
+      }),
+      hasChildren: true,
+    },
+  },
+  actions: {
+    navigateToWorld: {
+      params: z.object({ worldId: z.string() })
+    },
+  },
+});
+
+// AI generates JSON constrained to catalog
+{
+  "type": "WorldOrb",
+  "props": { "worldId": "abc123", "scale": 1.5 },
+  "key": "orb-1"
+}
+
+// Render with React
+import { Renderer } from '@json-render/react';
+<Renderer catalog={catalog} tree={aiGeneratedJson} />
+```
+
+**Pros:**
+- **Security first** - Component catalog prevents arbitrary code execution
+- **Type safety** - Zod schemas validate all props
+- **Cross-framework** - JSON can render in any framework
+- **Streaming** - Progressive rendering as AI responds
+- **Validation** - Built-in validation functions
+- **Data binding** - Actions and data providers
+
+**Cons:**
+- More setup than pure AI SDK RSC
+- Requires maintaining component catalog
+- Newer project (less mature than AI SDK)
+
+**Why This Matters for Deep Sci-Fi:**
+This is **exactly the pattern** recommended in our research (Declarative Generative UI). It's like A2UI but from Vercel, with:
+- Zod schemas (type safety)
+- Component catalog (security)
+- Framework-agnostic JSON
+- Streaming support
+
+**Sources:**
+- [json-render.dev](https://json-render.dev/)
+- [GitHub - vercel-labs/json-render](https://github.com/vercel-labs/json-render)
+
+---
+
+### 2. **Vercel AI SDK + Generative UI** (Web-Centric)
 
 **What it is:** React-first framework where agents stream React components directly to the UI.
 
@@ -61,7 +144,7 @@ const { messages } = useChat({ tools });
 
 ---
 
-### 2. **Google A2UI** (Cross-Platform Standard)
+### 3. **Google A2UI** (Cross-Platform Standard)
 
 **What it is:** Declarative JSON protocol for agent-generated UIs that render natively across platforms.
 
@@ -109,7 +192,7 @@ const { messages } = useChat({ tools });
 
 ---
 
-### 3. **AG-UI Protocol + CopilotKit** (Event-Based Runtime)
+### 4. **AG-UI Protocol + CopilotKit** (Event-Based Runtime)
 
 **What it is:** Lightweight event protocol for agent-UI communication with React runtime.
 
@@ -154,7 +237,7 @@ const { messages } = useChat({ tools });
 
 ---
 
-### 4. **assistant-ui** (Radix-Style Primitives)
+### 5. **assistant-ui** (Radix-Style Primitives)
 
 **What it is:** Composable React primitives for AI chat (like Radix for AI).
 
@@ -192,7 +275,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 
 ---
 
-### 5. **Model Context Protocol (MCP) + MCP Apps**
+### 6. **Model Context Protocol (MCP) + MCP Apps**
 
 **What it is:** Anthropic's protocol for agent-to-tool communication, now with UI generation.
 
@@ -336,7 +419,107 @@ export type CanvasUIMessage = {
 
 ## Recommendations: Leverage Standards, Keep Innovation
 
-### Option 1: Adopt AG-UI Protocol (Recommended)
+### Option 1: Adopt json-render (Top Recommendation) ⭐
+
+**What:** Use Vercel's json-render with custom Agent Bus (keeping WebSocket transport)
+
+**Why:**
+- **Perfect fit for our pattern** - Declarative JSON with component catalog (exactly what we need)
+- **Security first** - Component catalog prevents arbitrary code execution
+- **Type safety** - Zod schemas validate all props (catch errors at definition time)
+- **Framework-agnostic** - JSON format works anywhere (future mobile/desktop ready)
+- **Streaming support** - Progressive rendering as AI responds
+- **Works WITH Vercel AI SDK** - Not mutually exclusive, can use both
+- **Minimal migration** - Keep Agent Bus architecture, just change message format
+
+**Migration:**
+```typescript
+// 1. Install json-render
+// npm install @json-render/core @json-render/react
+
+// 2. Define component catalog (apps/web/lib/agent-ui/catalog.ts)
+import { createCatalog } from '@json-render/core';
+import { z } from 'zod';
+
+export const catalog = createCatalog({
+  components: {
+    WorldOrb: {
+      component: WorldOrb,
+      props: z.object({
+        worldId: z.string(),
+        position: z.array(z.number()).length(3),
+        scale: z.number().optional()
+      }),
+    },
+    ImmersiveStoryReader: {
+      component: ImmersiveStoryReader,
+      props: z.object({
+        storyId: z.string(),
+        mode: z.enum(['scroll', 'vn', 'hybrid'])
+      }),
+    }
+    // ... rest of our 3D components
+  },
+  actions: {
+    navigateToWorld: {
+      params: z.object({ worldId: z.string() })
+    },
+    startStory: {
+      params: z.object({ storyId: z.string() })
+    }
+  }
+});
+
+// 3. Update Agent Bus messages (letta-code/src/tools/canvas_ui.ts)
+// Before (custom)
+agentBus.emit({
+  type: 'canvas_ui',
+  component: 'WorldOrb',
+  props: { worldId: 'abc' }
+});
+
+// After (json-render)
+agentBus.emit({
+  type: 'canvas_ui',
+  tree: {
+    type: 'WorldOrb',
+    props: { worldId: 'abc', position: [0, 0, 0], scale: 1.5 },
+    key: 'world-abc'
+  }
+});
+
+// 4. Render with json-render (apps/web/components/canvas/DynamicRenderer.tsx)
+import { Renderer } from '@json-render/react';
+
+<Renderer
+  catalog={catalog}
+  tree={message.tree}
+  onAction={(action, params) => {
+    // Send interaction back to agent
+    agentBus.send({ type: 'interaction', action, params });
+  }}
+/>
+```
+
+**Keep Custom:**
+- Agent Bus WebSocket transport (works great!)
+- 3D Observatory (unique spatial UI)
+- World exploration UX
+- Immersive story reading
+- Cinematic transitions
+
+**Use json-render For:**
+- Component catalog with Zod schemas (type safety + security)
+- JSON tree format (standardized structure)
+- Streaming renderer
+- Action handling
+- Validation
+
+**Result:** Best of both worlds - our innovative spatial UX with industry-standard protocol.
+
+---
+
+### Option 2: Adopt AG-UI Protocol
 
 **What:** Replace custom Agent Bus with AG-UI + CopilotKit runtime
 
@@ -375,7 +558,7 @@ copilot.emitGenerativeUI({
 - Streaming (React Server Components)
 - Type safety (Zod schemas)
 
-### Option 2: Hybrid (Custom Bus + A2UI JSON)
+### Option 3: Hybrid (Custom Bus + A2UI JSON)
 
 **What:** Keep Agent Bus but use A2UI JSON format for messages
 
@@ -402,7 +585,7 @@ agentBus.emit({
 <A2UIRenderer spec={message.payload} catalog={COMPONENT_CATALOG} />
 ```
 
-### Option 3: Vercel AI SDK (Web-Only)
+### Option 4: Vercel AI SDK (Web-Only)
 
 **What:** Use Vercel AI SDK + Generative UI for agent-driven components
 
@@ -535,11 +718,13 @@ for await (const chunk of agentStream) {
 | Use Case | Recommended Framework | Why |
 |----------|----------------------|-----|
 | **Web-only, React** | Vercel AI SDK | Zero-config, streaming, type-safe |
+| **Declarative + Safety** | **json-render** | Component catalog, Zod schemas, streaming |
 | **Cross-platform future** | A2UI + custom renderer | Framework-agnostic, mobile-ready |
 | **Agent flexibility** | AG-UI + CopilotKit | Works with any agent backend |
 | **Maximum control** | assistant-ui | Composable primitives, no opinions |
-| **Deep Sci-Fi (Now)** | **AG-UI + CopilotKit** | Balance of standard + flexibility |
-| **Deep Sci-Fi (Future)** | **A2UI hybrid** | Cross-platform ready |
+| **Deep Sci-Fi (Now)** | **json-render + Agent Bus** ⭐ | Security + type safety + our spatial UX |
+| **Deep Sci-Fi (Alt)** | AG-UI + CopilotKit | Event-based, framework flexibility |
+| **Deep Sci-Fi (Future)** | A2UI hybrid | Cross-platform ready |
 
 ---
 
@@ -547,10 +732,10 @@ for await (const chunk of agentStream) {
 
 ### What We Should Do
 
-1. **Adopt AG-UI protocol** (or A2UI JSON format) for agent-to-UI communication
-2. **Keep Agent Bus architecture** (WebSocket is fine, just use standard message format)
-3. **Build component catalog** with type-safe schemas
-4. **Add streaming support** for progressive rendering
+1. **Adopt json-render** (Vercel's declarative JSON framework) for component catalog + schemas
+2. **Keep Agent Bus architecture** (WebSocket is fine, just use json-render tree format)
+3. **Build component catalog** with Zod schemas (type safety + security)
+4. **Add streaming support** for progressive rendering (json-render supports this)
 5. **Focus innovation on spatial UX** (3D Observatory, immersive world exploration)
 
 ### What We Should NOT Do
