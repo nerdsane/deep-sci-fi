@@ -135,19 +135,38 @@ export async function cacheMemoryBlocks(
   memoryBlocks: CreatedBlock[]
 ): Promise<void> {
   try {
-    await db.agentSession.upsert({
-      where: { agentId },
-      create: {
-        agentId,
-        userId,
-        worldId,
-        memoryBlocks: memoryBlocks,
-        lastActiveAt: new Date(),
-      },
-      update: {
-        memoryBlocks: memoryBlocks,
-        lastActiveAt: new Date(),
-      },
+    // Use a transaction to handle unique constraint conflicts
+    // When a new agent is created for an existing user/world, we need to
+    // delete the old AgentSession first since userId and worldId are unique
+    await db.$transaction(async (tx: any) => {
+      // Delete any existing session for this userId or worldId (if provided)
+      // This handles the case where a new agent replaces an old one
+      if (userId) {
+        await tx.agentSession.deleteMany({
+          where: { userId, NOT: { agentId } },
+        });
+      }
+      if (worldId) {
+        await tx.agentSession.deleteMany({
+          where: { worldId, NOT: { agentId } },
+        });
+      }
+
+      // Now upsert the new session
+      await tx.agentSession.upsert({
+        where: { agentId },
+        create: {
+          agentId,
+          userId,
+          worldId,
+          memoryBlocks: memoryBlocks,
+          lastActiveAt: new Date(),
+        },
+        update: {
+          memoryBlocks: memoryBlocks,
+          lastActiveAt: new Date(),
+        },
+      });
     });
 
     console.log(`Cached memory blocks for agent ${agentId}`);
