@@ -76,11 +76,16 @@ export async function getMessages(
     where.createdAt = { lt: before };
   }
 
-  return db.chatMessage.findMany({
+  // Get the most recent messages by ordering desc and taking limit
+  // Then reverse to display in chronological order (oldest to newest within the selected set)
+  const messages = await db.chatMessage.findMany({
     where,
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
     take: limit,
   });
+
+  // Reverse to display in chronological order (oldest first within the recent batch)
+  return messages.reverse();
 }
 
 /**
