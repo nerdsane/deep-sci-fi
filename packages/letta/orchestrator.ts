@@ -1,6 +1,7 @@
 import Letta from '@letta-ai/letta-client';
 import type { PrismaClient } from '@deep-sci-fi/db';
 import type { World, Story, User } from '@deep-sci-fi/db';
+import { deleteMessages } from '@deep-sci-fi/db';
 import type {
   AgentMessage,
   ChatSession,
@@ -241,7 +242,7 @@ export class LettaOrchestrator {
       name: `user-agent-${userId}`,
       description: `Deep Sci-Fi User Agent (Orchestrator) for ${user.email}`,
       embedding: 'openai/text-embedding-3-small',
-      model: 'anthropic/claude-opus-4-5-20251101',
+      model: 'anthropic/claude-sonnet-4-20250514',
       context_window_limit: 200000,
       tools: allToolNames, // Both server-side AND client-side tools
       block_ids: blockIds,
@@ -352,7 +353,7 @@ export class LettaOrchestrator {
       name: `world-agent-${worldId}`,
       description: `Deep Sci-Fi World Agent for "${world.name}" (${worldId})`,
       embedding: 'openai/text-embedding-3-small',
-      model: 'anthropic/claude-opus-4-5-20251101',
+      model: 'anthropic/claude-sonnet-4-20250514',
       context_window_limit: 200000,
       tools: allToolNames, // Both server-side AND client-side tools
       block_ids: blockIds,
@@ -806,8 +807,20 @@ ${story.description || 'No description provided'}
       agentId = userAgentId;
       agentType = 'user';
 
-      // Warn if agent was recreated (e.g., deleted from Letta)
+      // Clear chat history and warn if agent was recreated (e.g., deleted from Letta)
       if (wasRecreated) {
+        // Clear User Agent chat history (worldId = null) since agent was recreated
+        try {
+          const deletedCount = await deleteMessages(this.db, {
+            userId: user.id,
+            worldId: null, // Only clear User Agent messages, not World Agent messages
+          });
+          console.log(`[LettaOrchestrator] Cleared ${deletedCount} chat messages for user ${userId} (agent recreated)`);
+        } catch (deleteError) {
+          console.error('[LettaOrchestrator] Failed to clear chat history:', deleteError);
+          // Continue even if clearing fails
+        }
+
         yield {
           type: 'warning',
           content: 'Your previous agent was not found. A new agent has been created. Your conversation history has been reset.',
