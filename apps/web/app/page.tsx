@@ -15,6 +15,13 @@ const Observatory = dynamic(
   () => import('@/components/canvas/observatory/Observatory').then(mod => mod.Observatory),
   { ssr: false, loading: () => <div className="loading-screen"><div className="loading-spinner"></div><p>Loading 3D Observatory...</p></div> }
 );
+
+// Dynamic import for ImmersiveWorldSpace to avoid SSR issues with Three.js
+const ImmersiveWorldSpace = dynamic(
+  () => import('@/components/canvas/world-space').then(mod => mod.ImmersiveWorldSpace),
+  { ssr: false, loading: () => <div className="loading-screen"><div className="loading-spinner"></div><p>Entering World Space...</p></div> }
+);
+
 import { FeedbackProvider, useFeedbackSafe } from '@/components/canvas/context/FeedbackContext';
 import { ToastContainer, AgentStatus } from '@/components/canvas/feedback';
 import { FloatingInput, useFloatingInput, InteractiveElement, type ElementType } from '@/components/canvas/interaction';
@@ -629,19 +636,22 @@ function App() {
             )}
 
             {state.view === 'world' && state.selectedWorld && (
-              <WorldSpaceEnhanced
+              <ImmersiveWorldSpace
                 world={state.selectedWorld}
                 stories={state.stories.filter(
                   (s) => s.world_checkpoint === getWorldCheckpointName(state.selectedWorld!)
                 )}
                 onSelectStory={selectStory}
-                onStartNewStory={() => {
-                  const checkpoint = getWorldCheckpointName(state.selectedWorld!);
-                  fetch(`/api/world/${checkpoint}/new-story`, { method: 'POST' })
-                    .then(() => loadData())
-                    .catch(console.error);
+                onExploreElement={(elementId, elementType) => {
+                  handleElementAction('explore', elementId, elementType as ElementType);
                 }}
-                onElementAction={handleElementAction}
+                onBack={() => {
+                  setState((s) => ({
+                    ...s,
+                    view: 'canvas',
+                    selectedWorld: null,
+                  }));
+                }}
               />
             )}
 
