@@ -143,12 +143,12 @@ export async function cacheMemoryBlocks(
       // This handles the case where a new agent replaces an old one
       if (userId) {
         await tx.agentSession.deleteMany({
-          where: { userId, NOT: { agentId } },
+          where: { userId, agentId: { not: agentId } },
         });
       }
       if (worldId) {
         await tx.agentSession.deleteMany({
-          where: { worldId, NOT: { agentId } },
+          where: { worldId, agentId: { not: agentId } },
         });
       }
 
