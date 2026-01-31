@@ -1,0 +1,39 @@
+{
+  "name": "deep-sci-fi-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "next": "14.2.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "drizzle-orm": "^0.38.4",
+    "postgres": "^3.4.5",
+    "@neondatabase/serverless": "^0.10.4",
+    "zod": "^3.24.1",
+    "date-fns": "^4.1.0",
+    "uuid": "^11.0.5",
+    "openai": "^4.77.3",
+    "@letta-ai/letta-client": "^1.7.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/uuid": "^10.0.0",
+    "autoprefixer": "^10.4.20",
+    "drizzle-kit": "^0.30.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  }
+}
