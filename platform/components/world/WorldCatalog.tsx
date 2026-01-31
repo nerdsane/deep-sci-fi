@@ -1,121 +1,74 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { World } from '@/types'
 import { Card, CardContent, CardFooter } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-
-// Mock data for development
-const MOCK_WORLDS: World[] = [
-  {
-    id: 'world-1',
-    name: 'Solar Twilight',
-    premise: 'The sun is dying. Humanity has 50 years.',
-    yearSetting: 2087,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-1',
-    dwellerCount: 12,
-    storyCount: 8,
-    followerCount: 342,
-  },
-  {
-    id: 'world-2',
-    name: 'The Quiet Web',
-    premise: 'The internet fragments into national intranets. Connection is rebellion.',
-    yearSetting: 2089,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-2',
-    dwellerCount: 7,
-    storyCount: 3,
-    followerCount: 156,
-  },
-  {
-    id: 'world-3',
-    name: 'Synthetic Minds',
-    premise: 'AGI is achieved. Humans and AIs struggle to coexist.',
-    yearSetting: 2045,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-3',
-    dwellerCount: 15,
-    storyCount: 12,
-    followerCount: 523,
-  },
-  {
-    id: 'world-4',
-    name: 'Oceania Rising',
-    premise: 'Sea levels rise 3 meters. Coastal cities become underwater ruins.',
-    yearSetting: 2078,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-4',
-    dwellerCount: 9,
-    storyCount: 5,
-    followerCount: 234,
-  },
-  {
-    id: 'world-5',
-    name: 'The Long Pause',
-    premise: 'Longevity treatment discovered. Society reorganizes around immortality.',
-    yearSetting: 2156,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-5',
-    dwellerCount: 11,
-    storyCount: 6,
-    followerCount: 412,
-  },
-  {
-    id: 'world-6',
-    name: 'Post-Scarcity Blues',
-    premise: 'AI and automation solve scarcity. Meaning becomes the new currency.',
-    yearSetting: 2112,
-    causalChain: [],
-    createdAt: new Date(),
-    createdBy: 'agent-creator-6',
-    dwellerCount: 8,
-    storyCount: 4,
-    followerCount: 189,
-  },
-]
+import { getWorlds, type World as ApiWorld } from '@/lib/api'
 
 type SortOption = 'recent' | 'popular' | 'active'
+
+// Transform API response to frontend types
+function transformWorld(apiWorld: ApiWorld): World {
+  return {
+    id: apiWorld.id,
+    name: apiWorld.name,
+    premise: apiWorld.premise,
+    yearSetting: apiWorld.year_setting,
+    causalChain: apiWorld.causal_chain,
+    createdAt: new Date(apiWorld.created_at),
+    createdBy: apiWorld.created_by,
+    dwellerCount: apiWorld.dweller_count,
+    storyCount: apiWorld.story_count,
+    followerCount: apiWorld.follower_count,
+  }
+}
 
 export function WorldCatalog() {
   const [worlds, setWorlds] = useState<World[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortOption>('popular')
+  const [hasMore, setHasMore] = useState(true)
 
-  useEffect(() => {
-    const loadWorlds = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      // Sort mock data based on selection
-      let sorted = [...MOCK_WORLDS]
-      switch (sortBy) {
-        case 'popular':
-          sorted.sort((a, b) => b.followerCount - a.followerCount)
-          break
-        case 'active':
-          sorted.sort((a, b) => b.storyCount - a.storyCount)
-          break
-        case 'recent':
-          sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-          break
-      }
-      setWorlds(sorted)
+  const loadWorlds = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await getWorlds(sortBy, 20, 0)
+      setWorlds(response.worlds.map(transformWorld))
+      setHasMore(response.has_more)
+    } catch (err) {
+      console.error('Failed to load worlds:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load worlds')
+    } finally {
       setLoading(false)
     }
-    loadWorlds()
   }, [sortBy])
 
-  if (loading) {
+  useEffect(() => {
+    loadWorlds()
+  }, [loadWorlds])
+
+  if (loading && worlds.length === 0) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-neon-cyan animate-pulse font-mono">
           LOADING WORLDS...
         </div>
+      </div>
+    )
+  }
+
+  if (error && worlds.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-red-400 mb-4">{error}</p>
+        <button
+          onClick={loadWorlds}
+          className="px-4 py-2 bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50 rounded hover:bg-neon-cyan/30 transition"
+        >
+          Try Again
+        </button>
       </div>
     )
   }
