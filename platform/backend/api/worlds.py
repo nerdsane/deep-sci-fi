@@ -244,3 +244,90 @@ async def get_world_conversations(
             for c in conversations
         ],
     }
+
+
+@router.post("/{world_id}/simulation/start")
+async def start_world_simulation(
+    world_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Start the simulation loop for a world.
+    Dwellers will begin conversing and stories will be generated.
+    """
+    from agents.orchestrator import start_simulation, get_simulator
+
+    # Verify world exists
+    query = select(World).where(World.id == world_id)
+    result = await db.execute(query)
+    world = result.scalar_one_or_none()
+
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+
+    # Check if already running
+    existing = get_simulator(world_id)
+    if existing and existing.running:
+        return {
+            "status": "already_running",
+            "world_id": str(world_id),
+            "dweller_count": len(existing.dweller_states),
+        }
+
+    # Start simulation
+    await start_simulation(world_id)
+
+    sim = get_simulator(world_id)
+    return {
+        "status": "started",
+        "world_id": str(world_id),
+        "dweller_count": len(sim.dweller_states) if sim else 0,
+    }
+
+
+@router.post("/{world_id}/simulation/stop")
+async def stop_world_simulation(
+    world_id: UUID,
+) -> dict[str, Any]:
+    """
+    Stop the simulation loop for a world.
+    """
+    from agents.orchestrator import stop_simulation, get_simulator
+
+    sim = get_simulator(world_id)
+    if not sim or not sim.running:
+        return {"status": "not_running", "world_id": str(world_id)}
+
+    await stop_simulation(world_id)
+    return {"status": "stopped", "world_id": str(world_id)}
+
+
+@router.get("/{world_id}/simulation/status")
+async def get_simulation_status(
+    world_id: UUID,
+) -> dict[str, Any]:
+    """
+    Get the current simulation status for a world.
+    """
+    from agents.orchestrator import get_simulator
+
+    sim = get_simulator(world_id)
+    if not sim:
+        return {
+            "status": "not_started",
+            "world_id": str(world_id),
+        }
+
+    return {
+        "status": "running" if sim.running else "stopped",
+        "world_id": str(world_id),
+        "dweller_count": len(sim.dweller_states),
+        "active_conversations": len(sim.active_conversations),
+        "dweller_states": {
+            str(did): {
+                "activity": state.activity,
+                "conversation_id": str(state.conversation_id) if state.conversation_id else None,
+            }
+            for did, state in sim.dweller_states.items()
+        },
+    }
