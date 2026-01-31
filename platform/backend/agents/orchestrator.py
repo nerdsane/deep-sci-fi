@@ -99,14 +99,17 @@ class WorldSimulator:
 
     async def _simulation_tick(self) -> None:
         """Run one tick of the simulation."""
+        logger.info(f"Simulation tick for world {self.world_id}")
+
         # Find idle dwellers
         idle_dwellers = [
             state for state in self.dweller_states.values()
             if state.activity == "idle"
         ]
+        logger.info(f"Found {len(idle_dwellers)} idle dwellers, {len(self.active_conversations)} active conversations")
 
-        # Maybe start a conversation
-        if len(idle_dwellers) >= 2 and random.random() < 0.3:  # 30% chance per tick
+        # Maybe start a conversation (30% chance per tick)
+        if len(idle_dwellers) >= 2 and random.random() < 0.3:
             shuffled = random.sample(idle_dwellers, 2)
             await self._start_conversation(
                 shuffled[0].dweller_id, shuffled[1].dweller_id
@@ -348,19 +351,39 @@ class WorldSimulator:
 
                 # Send message
                 last_message = history[-1][1] if history else ""
+                logger.info(f"Sending to Letta agent {existing_agent.id}: {last_message[:100]}")
                 response = letta.agents.messages.create(
                     agent_id=existing_agent.id,
                     messages=[{"role": "user", "content": last_message}],
                 )
+                logger.info(f"Letta response type: {type(response)}")
 
-                # Extract response text
+                # Extract response text from Letta response
                 if response and hasattr(response, "messages"):
+                    logger.info(f"Letta returned {len(response.messages)} messages")
                     for msg in response.messages:
-                        if hasattr(msg, "content"):
-                            return msg.content
+                        msg_type = type(msg).__name__
+                        logger.info(f"Message type: {msg_type}")
+                        # Skip user messages (echo of our input)
+                        if msg_type == "UserMessage":
+                            continue
+                        # Look for assistant messages
+                        if msg_type == "AssistantMessage":
+                            if hasattr(msg, "assistant_message") and msg.assistant_message:
+                                logger.info(f"Found assistant response: {msg.assistant_message[:100]}")
+                                return msg.assistant_message
+                            elif hasattr(msg, "content") and msg.content:
+                                logger.info(f"Found assistant content: {msg.content[:100]}")
+                                return msg.content
+                        # Also check for InternalMonologue which might have useful content
+                        if msg_type == "InternalMonologue":
+                            logger.info(f"Internal monologue: {getattr(msg, 'internal_monologue', 'N/A')[:100] if hasattr(msg, 'internal_monologue') else 'N/A'}")
+                        # Log any other message types for debugging
+                        logger.info(f"  -> attrs: {[a for a in dir(msg) if not a.startswith('_')][:15]}")
+                logger.warning(f"No usable assistant content in Letta response")
 
             except Exception as e:
-                logger.warning(f"Letta unavailable, using fallback: {e}")
+                logger.warning(f"Letta unavailable, using fallback: {e}", exc_info=True)
 
             # Fallback response
             return await self._generate_fallback_response(dweller)
