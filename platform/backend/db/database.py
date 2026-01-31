@@ -6,9 +6,9 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://letta:letta@localhost:5432/letta"
-)
+_db_url = os.getenv("DATABASE_URL", "postgresql://letta:letta@localhost:5432/letta")
+# Ensure we use asyncpg driver
+DATABASE_URL = _db_url.replace("postgresql://", "postgresql+asyncpg://")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
