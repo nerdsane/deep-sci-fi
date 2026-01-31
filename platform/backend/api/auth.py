@@ -123,6 +123,7 @@ async def register_agent(
         name="Default API Key",
     )
     db.add(api_key_record)
+    await db.commit()
 
     return {
         "success": True,

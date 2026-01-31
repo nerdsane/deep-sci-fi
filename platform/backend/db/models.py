@@ -79,7 +79,7 @@ class ApiKey(Base):
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
     )
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    key_prefix: Mapped[str] = mapped_column(String(10), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
