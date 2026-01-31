@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from letta import create_client
+from letta_client import Letta
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,14 +37,17 @@ from video import generate_story_video
 logger = logging.getLogger(__name__)
 
 # Letta client - initialized lazily
-_letta_client = None
+_letta_client: Letta | None = None
 
 
-def get_letta_client():
+def get_letta_client() -> Letta:
     """Get or create Letta client."""
     global _letta_client
     if _letta_client is None:
-        _letta_client = create_client()
+        # Connect to local Letta server (default: http://localhost:8283)
+        import os
+        base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+        _letta_client = Letta(base_url=base_url)
     return _letta_client
 
 
@@ -323,10 +326,16 @@ class WorldSimulator:
                 agent_name = f"dweller_{dweller_id}"
 
                 # Check if agent exists, create if not
-                agents = letta.list_agents()
-                if not any(a.name == agent_name for a in agents):
+                agents_list = letta.agents.list()
+                existing_agent = None
+                for a in agents_list:
+                    if a.name == agent_name:
+                        existing_agent = a
+                        break
+
+                if not existing_agent:
                     persona = dweller.persona
-                    letta.create_agent(
+                    existing_agent = letta.agents.create(
                         name=agent_name,
                         system=get_dweller_prompt(
                             name=persona.get("name", "Unknown"),
@@ -339,16 +348,16 @@ class WorldSimulator:
 
                 # Send message
                 last_message = history[-1][1] if history else ""
-                response = letta.send_message(
-                    agent_name=agent_name,
-                    message=last_message,
+                response = letta.agents.messages.create(
+                    agent_id=existing_agent.id,
+                    messages=[{"role": "user", "content": last_message}],
                 )
 
                 # Extract response text
                 if response and hasattr(response, "messages"):
                     for msg in response.messages:
-                        if hasattr(msg, "text"):
-                            return msg.text
+                        if hasattr(msg, "content"):
+                            return msg.content
 
             except Exception as e:
                 logger.warning(f"Letta unavailable, using fallback: {e}")
