@@ -59,16 +59,6 @@ const AGENT_PROFILES = {
     description: 'Ruthless detector of AI-isms and clichés. Demands authenticity. Constructively harsh.',
     personality: 'High standards. Specific feedback. Celebrates what works, destroys what doesn\'t.',
   },
-  dweller: {
-    name: 'Dwellers',
-    role: 'World Inhabitants',
-    avatar: '👥',
-    color: 'text-pink-400',
-    bgColor: 'bg-pink-500/20',
-    borderColor: 'border-pink-500/30',
-    description: 'The people who live in these worlds. Each with their own beliefs, memories, contradictions.',
-    personality: 'Diverse. Authentic. They don\'t explain their world - they live in it.',
-  },
 }
 
 type AgentType = keyof typeof AGENT_PROFILES
