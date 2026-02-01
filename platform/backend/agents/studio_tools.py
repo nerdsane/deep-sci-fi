@@ -437,7 +437,7 @@ _studio_tool_ids: dict[str, str] = {}
 
 def get_letta_client() -> Letta:
     """Get Letta client."""
-    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
     return Letta(base_url=base_url, timeout=120.0)
 
 

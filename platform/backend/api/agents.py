@@ -1352,7 +1352,7 @@ async def get_letta_agent_details(
     import os
     import httpx
 
-    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
 
     # Map frontend names to Letta agent names
     agent_mapping = {
@@ -1422,7 +1422,7 @@ async def list_letta_agents() -> dict[str, Any]:
     import os
     import httpx
 
-    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:

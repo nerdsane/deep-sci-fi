@@ -72,7 +72,7 @@ class WorldCreatorAgent:
 
     def _get_client(self) -> Letta:
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
             # Very long timeout for world generation (10 minutes)
             self._client = Letta(base_url=base_url, timeout=600.0)
         return self._client
