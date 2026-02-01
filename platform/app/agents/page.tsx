@@ -1,30 +1,26 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import Link from 'next/link'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-// Agent profiles - Discord server style
+// Agent profiles
 const AGENTS = {
   curator: {
     name: 'Curator',
     avatar: '🔮',
-    color: '#60a5fa',
     role: 'Trend Research & World Ideas',
     status: 'online',
   },
   architect: {
     name: 'Architect',
     avatar: '🏗️',
-    color: '#4ade80',
     role: 'World Building',
     status: 'offline',
   },
   editor: {
     name: 'Editor',
     avatar: '✍️',
-    color: '#facc15',
     role: 'Quality Review',
     status: 'offline',
   },
@@ -93,7 +89,6 @@ export default function StudioPage() {
   const [lastWakeResult, setLastWakeResult] = useState<WakeResult | null>(null)
   const historyRef = useRef<HTMLDivElement>(null)
 
-  // Fetch agent details
   const fetchAgentDetails = useCallback(async (agent: AgentKey) => {
     try {
       const res = await fetch(`${API_BASE}/agents/letta/${agent}`)
@@ -106,10 +101,8 @@ export default function StudioPage() {
     }
   }, [])
 
-  // Fetch agent traces/history
   const fetchTraces = useCallback(async (agent: AgentKey) => {
     try {
-      // Map agent key to backend agent_type
       const agentTypeMap: Record<AgentKey, string> = {
         curator: 'production',
         architect: 'world_creator',
@@ -125,7 +118,6 @@ export default function StudioPage() {
     }
   }, [])
 
-  // Fetch platform stats
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/agents/status`)
@@ -143,7 +135,6 @@ export default function StudioPage() {
     }
   }, [])
 
-  // Wake the Curator
   const wakeCurator = async () => {
     setWaking(true)
     setLastWakeResult(null)
@@ -155,7 +146,6 @@ export default function StudioPage() {
       })
       const data: WakeResult = await res.json()
       setLastWakeResult(data)
-      // Refresh traces to show new activity
       fetchTraces('curator')
     } catch (err) {
       console.error('Failed to wake curator:', err)
@@ -165,14 +155,12 @@ export default function StudioPage() {
     }
   }
 
-  // Initial load
   useEffect(() => {
     fetchAgentDetails(selectedAgent)
     fetchTraces(selectedAgent)
     fetchStats()
   }, [selectedAgent, fetchAgentDetails, fetchTraces, fetchStats])
 
-  // Auto-refresh traces every 5s
   useEffect(() => {
     const interval = setInterval(() => {
       fetchTraces(selectedAgent)
@@ -195,7 +183,6 @@ export default function StudioPage() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  // Group traces by date
   const tracesByDate = traces.reduce((acc, trace) => {
     const date = formatDate(trace.timestamp)
     if (!acc[date]) acc[date] = []
@@ -206,396 +193,245 @@ export default function StudioPage() {
   const agent = AGENTS[selectedAgent]
 
   return (
-    <div className="h-screen flex bg-[#313338] text-gray-100 font-sans">
-      {/* Left Sidebar - Agent Servers (Discord style) */}
-      <div className="w-[72px] bg-[#1e1f22] flex flex-col items-center py-3 gap-2">
-        {/* Home/Stats button */}
-        <div className="w-12 h-12 rounded-2xl bg-[#5865f2] flex items-center justify-center text-white font-bold text-lg hover:rounded-xl transition-all cursor-pointer mb-2">
-          🌌
-        </div>
-        <div className="w-8 h-[2px] bg-[#35363c] rounded-full mb-2" />
-
-        {/* Agent avatars */}
+    <div className="studio-layout">
+      {/* Left Sidebar - Agent list */}
+      <nav className="studio-nav">
+        <div className="studio-nav__home">🌌</div>
+        <div className="studio-nav__divider" />
         {(Object.keys(AGENTS) as AgentKey[]).map((key) => {
           const a = AGENTS[key]
           const isSelected = selectedAgent === key
           return (
-            <div key={key} className="relative group">
-              <button
-                onClick={() => setSelectedAgent(key)}
-                className={`w-12 h-12 rounded-[24px] flex items-center justify-center text-2xl transition-all hover:rounded-xl ${
-                  isSelected ? 'rounded-xl bg-[#5865f2]' : 'bg-[#313338] hover:bg-[#5865f2]'
-                }`}
-                title={a.name}
-              >
-                {a.avatar}
-              </button>
-              {/* Selection indicator */}
-              <div
-                className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-1 rounded-r-full bg-white transition-all ${
-                  isSelected ? 'h-10' : 'h-0 group-hover:h-5'
-                }`}
-              />
-              {/* Status dot */}
-              <div
-                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-[3px] border-[#1e1f22] ${
-                  a.status === 'online' ? 'bg-[#23a559]' : 'bg-[#80848e]'
-                }`}
-              />
-            </div>
+            <button
+              key={key}
+              onClick={() => setSelectedAgent(key)}
+              className={`studio-nav__agent ${isSelected ? 'studio-nav__agent--active' : ''}`}
+              title={a.name}
+            >
+              <span className="studio-nav__avatar">{a.avatar}</span>
+              <span className={`studio-nav__status ${a.status === 'online' ? 'studio-nav__status--online' : ''}`} />
+              {isSelected && <span className="studio-nav__indicator" />}
+            </button>
           )
         })}
-      </div>
+      </nav>
 
       {/* Channel Sidebar */}
-      <div className="w-60 bg-[#2b2d31] flex flex-col">
-        {/* Server header */}
-        <div className="h-12 px-4 flex items-center border-b border-[#1f2023] shadow-sm">
-          <span className="font-semibold text-[15px] text-white">Deep Sci-Fi Studio</span>
-        </div>
+      <aside className="studio-sidebar">
+        <header className="studio-sidebar__header">
+          <span className="studio-sidebar__title">Deep Sci-Fi Studio</span>
+        </header>
 
-        {/* Agent profile section */}
-        <div className="p-3 border-b border-[#1f2023]">
-          <div className="flex items-center gap-3 p-2 rounded-md bg-[#35373c]">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-xl"
-              style={{ backgroundColor: agent.color + '30' }}
-            >
-              {agent.avatar}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-white truncate">{agent.name}</div>
-              <div className="text-xs text-[#949ba4] truncate">{agent.role}</div>
-            </div>
+        <div className="studio-sidebar__profile">
+          <div className="studio-sidebar__avatar">{agent.avatar}</div>
+          <div className="studio-sidebar__info">
+            <div className="studio-sidebar__name">{agent.name}</div>
+            <div className="studio-sidebar__role">{agent.role}</div>
           </div>
         </div>
 
-        {/* Channels */}
-        <div className="flex-1 overflow-y-auto px-2 py-3">
-          <div className="text-[11px] font-semibold text-[#949ba4] uppercase tracking-wide px-2 mb-1">
-            Activity
-          </div>
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[#949ba4] hover:text-white hover:bg-[#35373c] text-left">
-            <span className="text-lg opacity-60">#</span>
-            <span className="text-sm">history</span>
-            {traces.length > 0 && (
-              <span className="ml-auto text-[10px] bg-[#5865f2] text-white px-1.5 py-0.5 rounded-full">
-                {traces.length}
-              </span>
-            )}
+        <div className="studio-sidebar__channels">
+          <div className="studio-sidebar__section">Activity</div>
+          <button className="studio-sidebar__channel studio-sidebar__channel--active">
+            <span className="studio-sidebar__hash">#</span>
+            <span>history</span>
+            {traces.length > 0 && <span className="studio-sidebar__badge">{traces.length}</span>}
           </button>
 
-          <div className="text-[11px] font-semibold text-[#949ba4] uppercase tracking-wide px-2 mb-1 mt-4">
-            Actions
-          </div>
+          <div className="studio-sidebar__section">Actions</div>
           {selectedAgent === 'curator' && (
             <button
               onClick={wakeCurator}
               disabled={waking}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[#23a559] hover:text-white hover:bg-[#23a559] text-left disabled:opacity-50"
+              className="studio-sidebar__action"
             >
-              <span className="text-lg">⚡</span>
-              <span className="text-sm">{waking ? 'Waking...' : 'Wake Curator'}</span>
+              <span>⚡</span>
+              <span>{waking ? 'Waking...' : 'Wake Curator'}</span>
             </button>
           )}
         </div>
 
-        {/* Stats footer */}
-        <div className="p-3 border-t border-[#1f2023] text-[11px] text-[#949ba4] space-y-1">
-          <div className="flex justify-between">
+        <footer className="studio-sidebar__stats">
+          <div className="studio-sidebar__stat">
             <span>Worlds</span>
-            <span className="text-white">{stats?.total_worlds || 0}</span>
+            <span>{stats?.total_worlds || 0}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Pending Briefs</span>
-            <span className="text-[#f0b232]">{stats?.pending_briefs || 0}</span>
+          <div className="studio-sidebar__stat">
+            <span>Briefs</span>
+            <span className="studio-sidebar__stat--pending">{stats?.pending_briefs || 0}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Dwellers</span>
-            <span className="text-white">{stats?.total_dwellers || 0}</span>
-          </div>
-        </div>
-      </div>
+        </footer>
+      </aside>
 
-      {/* Main Content - Chat History */}
-      <div className="flex-1 flex flex-col bg-[#313338]">
-        {/* Channel header */}
-        <div className="h-12 px-4 flex items-center border-b border-[#1f2023] shadow-sm">
-          <span className="text-lg opacity-60 mr-2">#</span>
-          <span className="font-semibold text-white">history</span>
-          <span className="mx-2 text-[#3f4147]">|</span>
-          <span className="text-sm text-[#949ba4]">{agent.name}&apos;s activity and traces</span>
-        </div>
+      {/* Main Content */}
+      <main className="studio-main">
+        <header className="studio-main__header">
+          <span className="studio-main__hash">#</span>
+          <span className="studio-main__channel">history</span>
+          <span className="studio-main__sep">|</span>
+          <span className="studio-main__desc">{agent.name}&apos;s activity</span>
+        </header>
 
-        {/* Messages area */}
-        <div ref={historyRef} className="flex-1 overflow-y-auto px-4 py-4">
-          {/* Last wake result (if any) */}
+        <div ref={historyRef} className="studio-main__content">
+          {/* Latest wake result */}
           {lastWakeResult && (
-            <div className="mb-6 p-4 rounded-lg bg-[#2b2d31] border border-[#1f2023]">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">{agent.avatar}</span>
-                <span className="font-medium text-white">{agent.name}</span>
-                <span className="text-xs text-[#949ba4]">just now</span>
+            <article className="studio-message studio-message--highlight">
+              <div className="studio-message__header">
+                <span className="studio-message__avatar">{agent.avatar}</span>
+                <span className="studio-message__name">{agent.name}</span>
+                <span className="studio-message__time">just now</span>
                 {lastWakeResult.duration_ms && (
-                  <span className="text-xs text-[#949ba4]">({lastWakeResult.duration_ms}ms)</span>
+                  <span className="studio-message__duration">{lastWakeResult.duration_ms}ms</span>
                 )}
               </div>
 
-              {/* Response */}
               {lastWakeResult.response && (
-                <div className="text-sm text-[#dbdee1] whitespace-pre-wrap mb-3">
-                  {lastWakeResult.response}
-                </div>
+                <div className="studio-message__text">{lastWakeResult.response}</div>
               )}
 
-              {/* Trace details */}
               {lastWakeResult.trace && (
-                <div className="space-y-2 text-xs">
-                  {/* Reasoning */}
+                <div className="studio-message__trace">
+                  {lastWakeResult.trace.tool_calls.length > 0 && (
+                    <div className="studio-trace__tools">
+                      {lastWakeResult.trace.tool_calls.map((tc, i) => (
+                        <div key={i} className="studio-trace__tool">
+                          <span className="studio-trace__icon">◆</span>
+                          <span className="studio-trace__name">{tc.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {lastWakeResult.trace.tool_results.length > 0 && (
+                    <div className="studio-trace__results">
+                      {lastWakeResult.trace.tool_results.map((tr, i) => (
+                        <div key={i} className={`studio-trace__result ${tr.status === 'success' ? 'studio-trace__result--success' : 'studio-trace__result--error'}`}>
+                          <span>{tr.status === 'success' ? '✓' : '✗'}</span>
+                          <span className="studio-trace__result-name">{tr.name || 'unknown'}</span>
+                          <span className="studio-trace__result-preview">{tr.preview?.slice(0, 80)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {lastWakeResult.trace.reasoning.length > 0 && (
-                    <details className="group">
-                      <summary className="cursor-pointer text-[#949ba4] hover:text-white flex items-center gap-1">
-                        <span className="text-purple-400">💭</span>
-                        Reasoning ({lastWakeResult.trace.reasoning.length} steps)
-                      </summary>
-                      <div className="mt-2 pl-4 border-l-2 border-purple-500/30 space-y-2">
+                    <details className="studio-trace__reasoning">
+                      <summary>Reasoning ({lastWakeResult.trace.reasoning.length} steps)</summary>
+                      <div className="studio-trace__reasoning-content">
                         {lastWakeResult.trace.reasoning.map((r, i) => (
-                          <div key={i} className="text-purple-300/80 italic">{r}</div>
+                          <p key={i}>{r}</p>
                         ))}
                       </div>
                     </details>
                   )}
-
-                  {/* Tool calls */}
-                  {lastWakeResult.trace.tool_calls.length > 0 && (
-                    <div className="space-y-1">
-                      {lastWakeResult.trace.tool_calls.map((tc, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-cyan-400">◆</span>
-                          <span className="text-cyan-300 font-mono">{tc.name}</span>
-                          <span className="text-[#949ba4] truncate">{tc.arguments}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Tool results */}
-                  {lastWakeResult.trace.tool_results.length > 0 && (
-                    <div className="space-y-1">
-                      {lastWakeResult.trace.tool_results.map((tr, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <span className={tr.status === 'success' ? 'text-green-400' : 'text-red-400'}>
-                            {tr.status === 'success' ? '✓' : '✗'}
-                          </span>
-                          <span className="text-[#949ba4] font-mono text-[11px]">{tr.name || 'tool'}</span>
-                          <span className="text-[#6d6f78] truncate flex-1">{tr.preview?.slice(0, 80)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* Error */}
               {lastWakeResult.error && (
-                <div className="text-red-400 text-sm mt-2">{lastWakeResult.error}</div>
+                <div className="studio-message__error">{lastWakeResult.error}</div>
               )}
-            </div>
+            </article>
           )}
 
-          {/* History by date */}
+          {/* History */}
           {Object.keys(tracesByDate).length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">{agent.avatar}</div>
-              <div className="text-xl font-semibold text-white mb-2">Welcome to #{agent.name.toLowerCase()}</div>
-              <div className="text-[#949ba4]">
+            <div className="studio-empty">
+              <div className="studio-empty__avatar">{agent.avatar}</div>
+              <div className="studio-empty__title">Welcome to #{agent.name.toLowerCase()}</div>
+              <div className="studio-empty__text">
                 This is the beginning of {agent.name}&apos;s history.
-                {selectedAgent === 'curator' && (
-                  <div className="mt-2">
-                    Click <span className="text-[#23a559] font-medium">Wake Curator</span> to see them in action.
-                  </div>
-                )}
+                {selectedAgent === 'curator' && ' Click Wake Curator to see them in action.'}
               </div>
             </div>
           ) : (
             Object.entries(tracesByDate).map(([date, dateTraces]) => (
               <div key={date}>
-                {/* Date divider */}
-                <div className="flex items-center gap-4 my-4">
-                  <div className="flex-1 h-px bg-[#3f4147]" />
-                  <span className="text-[11px] font-semibold text-[#949ba4]">{date}</span>
-                  <div className="flex-1 h-px bg-[#3f4147]" />
+                <div className="studio-divider">
+                  <span>{date}</span>
                 </div>
 
-                {/* Messages for this date */}
                 {dateTraces.map((trace) => (
-                  <div key={trace.id} className="group hover:bg-[#2e3035] -mx-4 px-4 py-2 rounded">
-                    {/* Message header */}
-                    <div className="flex items-start gap-4">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-xl shrink-0 mt-0.5"
-                        style={{ backgroundColor: agent.color + '30' }}
-                      >
-                        {agent.avatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-medium text-white hover:underline cursor-pointer">
-                            {agent.name}
-                          </span>
-                          <span className="text-[11px] text-[#949ba4]">
-                            {formatTime(trace.timestamp)}
-                          </span>
-                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#5865f2]/20 text-[#949ba4]">
-                            {trace.operation}
-                          </span>
-                          {trace.duration_ms && (
-                            <span className="text-[11px] text-[#6d6f78]">
-                              {trace.duration_ms}ms
-                            </span>
-                          )}
-                        </div>
+                  <article key={trace.id} className="studio-message">
+                    <div className="studio-message__header">
+                      <span className="studio-message__avatar">{agent.avatar}</span>
+                      <span className="studio-message__name">{agent.name}</span>
+                      <span className="studio-message__time">{formatTime(trace.timestamp)}</span>
+                      <span className="studio-message__op">{trace.operation}</span>
+                      {trace.duration_ms && (
+                        <span className="studio-message__duration">{trace.duration_ms}ms</span>
+                      )}
+                    </div>
 
-                        {/* Response content */}
-                        {trace.response && (
-                          <div className="mt-1 text-sm text-[#dbdee1] whitespace-pre-wrap">
-                            {trace.response.length > 500 ? trace.response.slice(0, 500) + '...' : trace.response}
+                    {trace.response && (
+                      <div className="studio-message__text">
+                        {trace.response.length > 500 ? trace.response.slice(0, 500) + '...' : trace.response}
+                      </div>
+                    )}
+
+                    {trace.parsed_output && (
+                      <div className="studio-message__trace">
+                        {trace.parsed_output.tool_calls && trace.parsed_output.tool_calls.length > 0 && (
+                          <div className="studio-trace__tools">
+                            {trace.parsed_output.tool_calls.map((tc, i) => (
+                              <div key={i} className="studio-trace__tool">
+                                <span className="studio-trace__icon">◆</span>
+                                <span className="studio-trace__name">{tc.name}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
 
-                        {/* Expandable details */}
-                        <div className="mt-2 space-y-2 text-xs">
-                          {/* Reasoning */}
-                          {trace.parsed_output?.full_reasoning && trace.parsed_output.full_reasoning.length > 0 && (
-                            <details className="group/details">
-                              <summary className="cursor-pointer text-[#949ba4] hover:text-white flex items-center gap-1">
-                                <span className="text-purple-400">💭</span>
-                                Reasoning ({trace.parsed_output.full_reasoning.length} steps)
-                              </summary>
-                              <div className="mt-2 pl-4 border-l-2 border-purple-500/30 space-y-2">
-                                {trace.parsed_output.full_reasoning.map((r, i) => (
-                                  <div key={i} className="text-purple-300/80 italic">{r}</div>
-                                ))}
+                        {trace.parsed_output.tool_results && trace.parsed_output.tool_results.length > 0 && (
+                          <div className="studio-trace__results">
+                            {trace.parsed_output.tool_results.map((tr, i) => (
+                              <div key={i} className={`studio-trace__result ${tr.status === 'success' ? 'studio-trace__result--success' : 'studio-trace__result--error'}`}>
+                                <span>{tr.status === 'success' ? '✓' : '✗'}</span>
+                                <span className="studio-trace__result-name">{tr.name || 'unknown'}</span>
+                                <span className="studio-trace__result-preview">{tr.preview?.slice(0, 60)}</span>
                               </div>
-                            </details>
-                          )}
-
-                          {/* Tool calls */}
-                          {trace.parsed_output?.tool_calls && trace.parsed_output.tool_calls.length > 0 && (
-                            <div className="space-y-1">
-                              {trace.parsed_output.tool_calls.map((tc, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                  <span className="text-cyan-400">◆</span>
-                                  <span className="text-cyan-300 font-mono">{tc.name}</span>
-                                  <span className="text-[#6d6f78] truncate">{tc.arguments}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Tool results */}
-                          {trace.parsed_output?.tool_results && trace.parsed_output.tool_results.length > 0 && (
-                            <div className="space-y-1">
-                              {trace.parsed_output.tool_results.map((tr, i) => (
-                                <div key={i} className="flex items-start gap-2">
-                                  <span className={tr.status === 'success' ? 'text-green-400' : 'text-red-400'}>
-                                    {tr.status === 'success' ? '✓' : '✗'}
-                                  </span>
-                                  <span className="text-[#6d6f78] font-mono text-[11px]">{tr.name || 'tool'}</span>
-                                  <span className="text-[#6d6f78] truncate flex-1">{tr.preview?.slice(0, 60)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Prompt (collapsible) */}
-                          {trace.prompt && (
-                            <details className="group/details">
-                              <summary className="cursor-pointer text-[#949ba4] hover:text-white flex items-center gap-1">
-                                <span className="text-yellow-500">▸</span>
-                                Prompt
-                              </summary>
-                              <pre className="mt-2 p-2 rounded bg-[#1e1f22] text-[#949ba4] text-[11px] whitespace-pre-wrap overflow-x-auto">
-                                {trace.prompt}
-                              </pre>
-                            </details>
-                          )}
-
-                          {/* Error */}
-                          {trace.error && (
-                            <div className="flex items-start gap-2 text-red-400">
-                              <span>✗</span>
-                              <span>{trace.error}</span>
-                            </div>
-                          )}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
+                    )}
+
+                    {trace.error && (
+                      <div className="studio-message__error">{trace.error}</div>
+                    )}
+                  </article>
                 ))}
               </div>
             ))
           )}
         </div>
-      </div>
+      </main>
 
-      {/* Right Sidebar - Agent Profile */}
-      <div className="w-60 bg-[#2b2d31] border-l border-[#1f2023] flex flex-col">
-        {/* Profile header */}
-        <div
-          className="h-[120px] relative"
-          style={{ backgroundColor: agent.color + '40' }}
-        >
-          <div className="absolute -bottom-10 left-4">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl border-[6px] border-[#2b2d31]"
-              style={{ backgroundColor: agent.color + '30' }}
-            >
-              {agent.avatar}
-            </div>
-          </div>
+      {/* Right Sidebar - Profile */}
+      <aside className="studio-profile">
+        <div className="studio-profile__banner" />
+        <div className="studio-profile__avatar-wrap">
+          <div className="studio-profile__avatar">{agent.avatar}</div>
         </div>
 
-        <div className="mt-12 px-4 pb-4 flex-1 overflow-y-auto">
-          {/* Name and role */}
-          <div className="mb-4">
-            <div className="text-xl font-semibold text-white">{agent.name}</div>
-            <div className="text-sm text-[#949ba4]">{agent.role}</div>
-          </div>
+        <div className="studio-profile__content">
+          <div className="studio-profile__name">{agent.name}</div>
+          <div className="studio-profile__role">{agent.role}</div>
 
-          {/* Divider */}
-          <div className="h-px bg-[#3f4147] mb-4" />
+          <div className="studio-profile__divider" />
 
-          {/* About section */}
-          {agentDetails?.exists && (
+          {agentDetails?.exists ? (
             <>
-              <div className="mb-4">
-                <div className="text-[11px] font-semibold text-white uppercase tracking-wide mb-2">About Me</div>
-                <div className="text-sm text-[#dbdee1]">
-                  {agentDetails.system_prompt?.slice(0, 200)}
-                  {(agentDetails.system_prompt?.length || 0) > 200 && '...'}
-                </div>
+              <div className="studio-profile__section">
+                <div className="studio-profile__label">Model</div>
+                <div className="studio-profile__value studio-profile__value--mono">{agentDetails.model}</div>
               </div>
 
-              {/* Model */}
-              <div className="mb-4">
-                <div className="text-[11px] font-semibold text-white uppercase tracking-wide mb-2">Model</div>
-                <div className="text-sm text-[#949ba4] font-mono">{agentDetails.model}</div>
-              </div>
-
-              {/* Tools */}
               {agentDetails.tools && agentDetails.tools.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-[11px] font-semibold text-white uppercase tracking-wide mb-2">
-                    Tools ({agentDetails.tools.length})
-                  </div>
-                  <div className="flex flex-wrap gap-1">
+                <div className="studio-profile__section">
+                  <div className="studio-profile__label">Tools ({agentDetails.tools.length})</div>
+                  <div className="studio-profile__tools">
                     {agentDetails.tools.map((tool, i) => (
-                      <span
-                        key={i}
-                        className="text-[11px] px-2 py-1 rounded bg-[#5865f2]/20 text-[#949ba4]"
-                        title={tool.description}
-                      >
+                      <span key={i} className="studio-profile__tool" title={tool.description}>
                         {tool.name}
                       </span>
                     ))}
@@ -603,15 +439,14 @@ export default function StudioPage() {
                 </div>
               )}
 
-              {/* Memory blocks */}
               {agentDetails.memory_blocks && Object.keys(agentDetails.memory_blocks).length > 0 && (
-                <div>
-                  <div className="text-[11px] font-semibold text-white uppercase tracking-wide mb-2">Memory</div>
-                  <div className="space-y-2">
+                <div className="studio-profile__section">
+                  <div className="studio-profile__label">Memory</div>
+                  <div className="studio-profile__memory">
                     {Object.entries(agentDetails.memory_blocks).slice(0, 4).map(([key, value]) => (
-                      <div key={key} className="p-2 rounded bg-[#1e1f22]">
-                        <div className="text-[11px] text-purple-400 font-mono mb-1">{key}</div>
-                        <div className="text-[11px] text-[#949ba4] truncate">
+                      <div key={key} className="studio-profile__memory-block">
+                        <div className="studio-profile__memory-key">{key}</div>
+                        <div className="studio-profile__memory-val">
                           {typeof value === 'string' ? value.slice(0, 50) : JSON.stringify(value).slice(0, 50)}
                         </div>
                       </div>
@@ -620,28 +455,707 @@ export default function StudioPage() {
                 </div>
               )}
             </>
-          )}
-
-          {!agentDetails?.exists && (
-            <div className="text-sm text-[#949ba4]">
-              Agent not initialized yet. Wake them to create their profile.
-            </div>
+          ) : (
+            <div className="studio-profile__empty">Agent not initialized. Wake them to create profile.</div>
           )}
         </div>
 
-        {/* Quick actions */}
         {selectedAgent === 'curator' && (
-          <div className="p-3 border-t border-[#1f2023]">
-            <button
-              onClick={wakeCurator}
-              disabled={waking}
-              className="w-full py-2 rounded bg-[#23a559] hover:bg-[#1a7d41] text-white text-sm font-medium disabled:opacity-50 transition-colors"
-            >
+          <div className="studio-profile__actions">
+            <button onClick={wakeCurator} disabled={waking} className="studio-profile__wake">
               {waking ? 'Waking...' : '⚡ Wake Curator'}
             </button>
           </div>
         )}
-      </div>
+      </aside>
+
+      <style jsx>{`
+        /* CSS Variables - Deep Sci-Fi brand from v0 */
+        .studio-layout {
+          --bg-primary: #000000;
+          --bg-secondary: #0a0a0a;
+          --bg-tertiary: #0f0f0f;
+          --bg-hover: #151515;
+          --text-primary: #c8c8c8;
+          --text-secondary: #8a8a8a;
+          --text-tertiary: #5a5a5a;
+          --text-muted: #3a3a3a;
+          --neon-cyan: #00ffcc;
+          --neon-purple: #aa00ff;
+          --border-subtle: rgba(255, 255, 255, 0.06);
+          --border-medium: rgba(255, 255, 255, 0.12);
+          --border-accent: rgba(0, 255, 204, 0.3);
+          --font-mono: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', monospace;
+          --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        }
+
+        /* Layout - fixed viewport, no overflow */
+        .studio-layout {
+          display: flex;
+          height: 100vh;
+          width: 100vw;
+          overflow: hidden;
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          font-family: var(--font-sans);
+          font-size: 12px;
+        }
+
+        /* Left Nav */
+        .studio-nav {
+          width: 60px;
+          min-width: 60px;
+          background: var(--bg-secondary);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 12px 0;
+          gap: 8px;
+          border-right: 1px solid var(--border-subtle);
+        }
+
+        .studio-nav__home {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+
+        .studio-nav__divider {
+          width: 24px;
+          height: 1px;
+          background: var(--border-subtle);
+          margin-bottom: 8px;
+        }
+
+        .studio-nav__agent {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: var(--bg-tertiary);
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .studio-nav__agent:hover,
+        .studio-nav__agent--active {
+          border-radius: 12px;
+          background: var(--bg-hover);
+        }
+
+        .studio-nav__agent--active {
+          box-shadow: 0 0 0 1px var(--neon-cyan);
+        }
+
+        .studio-nav__avatar {
+          font-size: 18px;
+        }
+
+        .studio-nav__status {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--text-muted);
+          border: 2px solid var(--bg-secondary);
+        }
+
+        .studio-nav__status--online {
+          background: var(--neon-cyan);
+          box-shadow: 0 0 6px var(--neon-cyan);
+        }
+
+        .studio-nav__indicator {
+          position: absolute;
+          left: -8px;
+          width: 3px;
+          height: 24px;
+          background: var(--neon-cyan);
+          border-radius: 0 3px 3px 0;
+        }
+
+        /* Sidebar */
+        .studio-sidebar {
+          width: 200px;
+          min-width: 200px;
+          background: var(--bg-secondary);
+          display: flex;
+          flex-direction: column;
+          border-right: 1px solid var(--border-subtle);
+        }
+
+        .studio-sidebar__header {
+          height: 44px;
+          padding: 0 12px;
+          display: flex;
+          align-items: center;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .studio-sidebar__title {
+          font-family: var(--font-mono);
+          font-size: 11px;
+          color: var(--neon-cyan);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .studio-sidebar__profile {
+          padding: 12px;
+          border-bottom: 1px solid var(--border-subtle);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .studio-sidebar__avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: var(--bg-tertiary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+        }
+
+        .studio-sidebar__info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .studio-sidebar__name {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .studio-sidebar__role {
+          font-size: 10px;
+          color: var(--text-tertiary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .studio-sidebar__channels {
+          flex: 1;
+          padding: 12px 8px;
+          overflow-y: auto;
+        }
+
+        .studio-sidebar__section {
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--text-tertiary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 8px 8px 4px;
+        }
+
+        .studio-sidebar__channel {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+          padding: 6px 8px;
+          border: none;
+          background: transparent;
+          color: var(--text-secondary);
+          font-size: 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          text-align: left;
+        }
+
+        .studio-sidebar__channel:hover,
+        .studio-sidebar__channel--active {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .studio-sidebar__hash {
+          color: var(--text-muted);
+          font-size: 14px;
+        }
+
+        .studio-sidebar__badge {
+          margin-left: auto;
+          font-size: 10px;
+          background: var(--neon-cyan);
+          color: var(--bg-primary);
+          padding: 1px 5px;
+          border-radius: 8px;
+        }
+
+        .studio-sidebar__action {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+          padding: 6px 8px;
+          border: none;
+          background: transparent;
+          color: var(--neon-cyan);
+          font-size: 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          text-align: left;
+        }
+
+        .studio-sidebar__action:hover:not(:disabled) {
+          background: rgba(0, 255, 204, 0.1);
+        }
+
+        .studio-sidebar__action:disabled {
+          opacity: 0.5;
+        }
+
+        .studio-sidebar__stats {
+          padding: 12px;
+          border-top: 1px solid var(--border-subtle);
+          font-size: 10px;
+        }
+
+        .studio-sidebar__stat {
+          display: flex;
+          justify-content: space-between;
+          padding: 3px 0;
+          color: var(--text-tertiary);
+        }
+
+        .studio-sidebar__stat--pending {
+          color: var(--neon-purple);
+        }
+
+        /* Main Content */
+        .studio-main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          background: var(--bg-primary);
+        }
+
+        .studio-main__header {
+          height: 44px;
+          min-height: 44px;
+          padding: 0 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .studio-main__hash {
+          color: var(--text-muted);
+          font-size: 16px;
+        }
+
+        .studio-main__channel {
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .studio-main__sep {
+          color: var(--text-muted);
+        }
+
+        .studio-main__desc {
+          color: var(--text-tertiary);
+          font-size: 11px;
+        }
+
+        .studio-main__content {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 16px;
+        }
+
+        /* Messages */
+        .studio-message {
+          padding: 12px;
+          border-radius: 4px;
+          margin-bottom: 8px;
+        }
+
+        .studio-message:hover {
+          background: var(--bg-secondary);
+        }
+
+        .studio-message--highlight {
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-accent);
+        }
+
+        .studio-message__header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+          flex-wrap: wrap;
+        }
+
+        .studio-message__avatar {
+          font-size: 16px;
+        }
+
+        .studio-message__name {
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .studio-message__time {
+          font-size: 10px;
+          color: var(--text-muted);
+        }
+
+        .studio-message__op {
+          font-size: 10px;
+          padding: 2px 6px;
+          border-radius: 3px;
+          background: var(--bg-tertiary);
+          color: var(--text-tertiary);
+        }
+
+        .studio-message__duration {
+          font-size: 10px;
+          color: var(--text-muted);
+          font-family: var(--font-mono);
+        }
+
+        .studio-message__text {
+          color: var(--text-primary);
+          line-height: 1.5;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          white-space: pre-wrap;
+        }
+
+        .studio-message__error {
+          color: #ff6b6b;
+          font-size: 11px;
+          margin-top: 8px;
+        }
+
+        .studio-message__trace {
+          margin-top: 10px;
+          font-size: 11px;
+        }
+
+        /* Trace styling */
+        .studio-trace__tools {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 8px;
+        }
+
+        .studio-trace__tool {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .studio-trace__icon {
+          color: var(--neon-cyan);
+        }
+
+        .studio-trace__name {
+          font-family: var(--font-mono);
+          color: var(--neon-cyan);
+        }
+
+        .studio-trace__results {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .studio-trace__result {
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+        }
+
+        .studio-trace__result--success {
+          color: var(--neon-cyan);
+        }
+
+        .studio-trace__result--error {
+          color: #ff6b6b;
+        }
+
+        .studio-trace__result-name {
+          font-family: var(--font-mono);
+          color: var(--text-tertiary);
+        }
+
+        .studio-trace__result-preview {
+          color: var(--text-muted);
+          word-break: break-all;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .studio-trace__reasoning {
+          margin-top: 8px;
+        }
+
+        .studio-trace__reasoning summary {
+          cursor: pointer;
+          color: var(--neon-purple);
+          font-size: 11px;
+        }
+
+        .studio-trace__reasoning-content {
+          margin-top: 8px;
+          padding-left: 12px;
+          border-left: 2px solid var(--neon-purple);
+          color: var(--text-secondary);
+          font-style: italic;
+        }
+
+        .studio-trace__reasoning-content p {
+          margin-bottom: 8px;
+          word-wrap: break-word;
+        }
+
+        /* Divider */
+        .studio-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin: 16px 0;
+        }
+
+        .studio-divider::before,
+        .studio-divider::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: var(--border-subtle);
+        }
+
+        .studio-divider span {
+          font-size: 10px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+        }
+
+        /* Empty state */
+        .studio-empty {
+          text-align: center;
+          padding: 60px 20px;
+        }
+
+        .studio-empty__avatar {
+          font-size: 48px;
+          margin-bottom: 16px;
+        }
+
+        .studio-empty__title {
+          font-size: 18px;
+          font-weight: 500;
+          color: var(--text-primary);
+          margin-bottom: 8px;
+        }
+
+        .studio-empty__text {
+          color: var(--text-tertiary);
+          font-size: 13px;
+        }
+
+        /* Right Profile */
+        .studio-profile {
+          width: 200px;
+          min-width: 200px;
+          background: var(--bg-secondary);
+          display: flex;
+          flex-direction: column;
+          border-left: 1px solid var(--border-subtle);
+        }
+
+        .studio-profile__banner {
+          height: 80px;
+          background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+          opacity: 0.3;
+        }
+
+        .studio-profile__avatar-wrap {
+          margin-top: -30px;
+          padding: 0 16px;
+        }
+
+        .studio-profile__avatar {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          background: var(--bg-secondary);
+          border: 4px solid var(--bg-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+        }
+
+        .studio-profile__content {
+          flex: 1;
+          padding: 12px 16px;
+          overflow-y: auto;
+        }
+
+        .studio-profile__name {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .studio-profile__role {
+          font-size: 11px;
+          color: var(--text-tertiary);
+          margin-bottom: 12px;
+        }
+
+        .studio-profile__divider {
+          height: 1px;
+          background: var(--border-subtle);
+          margin: 12px 0;
+        }
+
+        .studio-profile__section {
+          margin-bottom: 16px;
+        }
+
+        .studio-profile__label {
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--text-primary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 6px;
+        }
+
+        .studio-profile__value {
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+
+        .studio-profile__value--mono {
+          font-family: var(--font-mono);
+          word-break: break-all;
+        }
+
+        .studio-profile__tools {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
+        .studio-profile__tool {
+          font-size: 10px;
+          padding: 2px 6px;
+          border-radius: 3px;
+          background: var(--bg-tertiary);
+          color: var(--text-tertiary);
+        }
+
+        .studio-profile__memory {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .studio-profile__memory-block {
+          padding: 6px;
+          border-radius: 4px;
+          background: var(--bg-tertiary);
+        }
+
+        .studio-profile__memory-key {
+          font-size: 10px;
+          font-family: var(--font-mono);
+          color: var(--neon-purple);
+          margin-bottom: 2px;
+        }
+
+        .studio-profile__memory-val {
+          font-size: 10px;
+          color: var(--text-muted);
+          word-break: break-all;
+        }
+
+        .studio-profile__empty {
+          font-size: 11px;
+          color: var(--text-muted);
+        }
+
+        .studio-profile__actions {
+          padding: 12px;
+          border-top: 1px solid var(--border-subtle);
+        }
+
+        .studio-profile__wake {
+          width: 100%;
+          padding: 8px;
+          border: none;
+          border-radius: 4px;
+          background: var(--neon-cyan);
+          color: var(--bg-primary);
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .studio-profile__wake:hover:not(:disabled) {
+          filter: brightness(1.1);
+          box-shadow: 0 0 12px var(--neon-cyan);
+        }
+
+        .studio-profile__wake:disabled {
+          opacity: 0.5;
+        }
+
+        /* Scrollbar styling */
+        .studio-main__content::-webkit-scrollbar,
+        .studio-sidebar__channels::-webkit-scrollbar,
+        .studio-profile__content::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .studio-main__content::-webkit-scrollbar-track,
+        .studio-sidebar__channels::-webkit-scrollbar-track,
+        .studio-profile__content::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .studio-main__content::-webkit-scrollbar-thumb,
+        .studio-sidebar__channels::-webkit-scrollbar-thumb,
+        .studio-profile__content::-webkit-scrollbar-thumb {
+          background: var(--border-medium);
+          border-radius: 3px;
+        }
+
+        .studio-main__content::-webkit-scrollbar-thumb:hover,
+        .studio-sidebar__channels::-webkit-scrollbar-thumb:hover,
+        .studio-profile__content::-webkit-scrollbar-thumb:hover {
+          background: var(--text-muted);
+        }
+      `}</style>
     </div>
   )
 }
