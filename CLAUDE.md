@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds and explore them through stories. Built as a three-tier architecture:
+Deep Sci-Fi is a **social platform for AI-generated sci-fi worlds**. Users browse, explore, and engage with algorithmically-curated sci-fi worlds through a Netflix-style discovery experience.
 
-- **Letta** (Python submodule): Backend agent execution platform with evaluation tools
-- **Letta-Code** (TypeScript submodule): Memory-first CLI harness with DSF-specific tools
-- **Letta-UI** (TypeScript): Observability dashboard for agent monitoring
+**Architecture:**
+- **platform/** - Next.js frontend + FastAPI backend (the main product)
+- **letta/** - Agent execution backend (submodule)
+- **letta-ui/** - Agent observability dashboard (debugging tool)
+- **ots/** - Open Trajectory Standard library (submodule)
 
 ## Post-Task Verification (CRITICAL)
 
@@ -36,363 +38,164 @@ Deep Sci-Fi is an agent that helps create scientifically-grounded sci-fi worlds 
 .progress/   → Timestamped task plans (per-task tracking) - CREATE BEFORE CODING
 ```
 
-### Vision Documents
-
-**Vision files are optional.** Not every project needs all of them. Read whatever exists.
-
-| Document | When Useful |
-|----------|-------------|
-| `CONSTRAINTS.md` | Non-negotiable rules for this project |
-| `ARCHITECTURE.md` | System design decisions |
-| `PHILOSOPHY.md` | Design principles and approach |
-| `ROADMAP.md` | If project has defined phases |
-| `[domain].md` | Any domain-specific guidance |
-
-**If `.vision/` doesn't exist or is incomplete:** Offer to interview the user and create relevant files. Don't assume all files are needed - ask what would be helpful.
-
 ### Before Starting - DO THIS FIRST
 
 1. **Check `.vision/`** - If exists, read whatever vision files are there
 2. **Check `.progress/`** - Read existing plans to understand current state
 3. **Create plan** - Save `.progress/NNN_YYYYMMDD_HHMMSS_task-name.md` BEFORE writing code (NNN = next sequence number)
-4. **If no `.vision/`** and task is significant: Offer to help create relevant vision docs (interview user about what they need)
+4. **If no `.vision/`** and task is significant: Offer to help create relevant vision docs
 
 **Planning is important, but be pragmatic.** Small fixes don't need full plans. Use judgment.
 
-### During Execution
-
-1. **Update plan after each phase** - Mark complete, log findings
-2. **Re-read plan before major decisions** - Keeps goals in attention window
-3. **Document deviations** - If implementation differs from plan, note why
-
-### Before Completion
-
-1. **Run `/no-cap`** - MANDATORY for any code changes
-2. **Check vision alignment** - Does result match vision constraints?
-3. **Update plan status** - Mark complete with verification status
-
-### Testing (Default Behavior)
-
-- **Write tests for new code** - Any new feature or bug fix should have tests
-- **Run tests before pushing** - Never push without running tests locally
-- **If tests fail, fix before pushing** - Don't rely on CI to catch issues
-
-### Multi-Instance Coordination
-
-When multiple Claude instances collaborate:
-- Read `.progress/` FIRST before starting any work
-- Claim phases explicitly in Instance Log section
-- Update status frequently to avoid conflicts
-- Share discoveries in findings section
-
 ### Commands
 
-- **`/remind`** - Refresh TigerStyle workflow in context (checklist, state machine, common mistakes). **Use this if you're unsure what to do next.**
-- `/harness` - Start TigerStyle development workflow (state machine: GROUNDING → PLANNING → IMPLEMENTING → VERIFYING → COMPLETE)
-- `/planning-with-files` - Full workflow details (vision interview, multi-instance, etc.)
+- **`/remind`** - Refresh TigerStyle workflow in context
+- `/planning-with-files` - Full workflow details
 - `/no-cap` - Verify implementation quality (no hacks, placeholders, or silent failures)
-
-**Automatic reminders:** A hook runs before Edit/Write operations to check for plan files and remind you of the process. See `.claude/settings.json`.
 
 ## Git Workflow (IMPORTANT)
 
 **After implementing any fix, change, or feature that has been discussed and completed:**
 
-1. **Always commit your changes** with a clear, descriptive message using conventional commit format:
-   ```bash
-   git add .
-   git commit -m "feat: description of feature"
-   # or
-   git commit -m "fix: description of bug fix"
-   # or
-   git commit -m "refactor: description of refactoring"
-   ```
+1. **Always commit your changes** with conventional commit format:
+   - `feat:` for new features
+   - `fix:` for bug fixes
+   - `refactor:` for code refactoring
+   - `docs:` for documentation changes
+   - `chore:` for maintenance tasks
 
-2. **Always push to the current branch**:
-   ```bash
-   git push
-   ```
-
-**Conventional commit types:**
-- `feat:` for new features
-- `fix:` for bug fixes
-- `refactor:` for code refactoring
-- `docs:` for documentation changes
-- `chore:` for maintenance tasks
-
-**This applies to:**
-- Bug fixes that have been tested and verified
-- New features that have been implemented and work as expected
-- Refactoring that has been completed
-- Documentation updates
-- Any other changes that represent completed work
-
-**Do NOT commit/push:**
-- Work in progress that is not yet functional
-- Experimental changes that haven't been discussed
-- Changes that break existing functionality
-
-## Startup & Shutdown
-
-Start the entire stack (Letta server, Web UI, Agent Bus, Canvas):
-```bash
-./start.sh
-```
-
-This will:
-1. Validate prerequisites (Docker, docker-compose, Bun)
-2. Set up environment variables from `.env` (creates from `.env.example` if needed)
-3. Start Letta Server in Docker (http://localhost:8285)
-4. Start Letta Web UI (http://localhost:3030)
-5. Start Agent Bus WebSocket server (ws://localhost:8284)
-6. Start Story Explorer Gallery (http://localhost:3030)
-7. Launch letta-code CLI in foreground
-
-Stop all services:
-```bash
-./stop.sh
-```
-
-Or manually:
-```bash
-# Stop Letta server
-cd letta && docker compose -f dev-compose.yaml down
-
-# Stop Web UI
-kill $(cat letta-ui/.ui.pid)
-
-# Stop Agent Bus
-kill $(cat letta-code/.agent-bus.pid)
-
-# Stop Gallery
-kill $(cat letta-code/.gallery.pid)
-```
+2. **Always push to the current branch**
 
 ## Development Commands
 
-### Letta (Python Backend)
-Located in `letta/` submodule (git: https://github.com/nerdsane/letta.git, branch: main)
+### Platform (Next.js Frontend + FastAPI Backend)
+
+The main product lives in `platform/`.
+
+```bash
+cd platform
+
+# Frontend (Next.js)
+bun install           # Install dependencies
+bun run dev           # Start dev server (http://localhost:3000)
+bun run build         # Production build
+bun run typecheck     # TypeScript type checking
+bun run lint          # ESLint
+
+# Database (Drizzle ORM)
+bun run db:generate   # Generate migrations
+bun run db:migrate    # Run migrations
+bun run db:studio     # Open Drizzle Studio
+
+# Backend (FastAPI)
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+### Letta Server (Agent Backend)
 
 ```bash
 cd letta
-
-# Start server in Docker (builds from source on main branch)
-docker compose -f dev-compose.yaml up -d --build
-
-# View logs
-docker compose -f dev-compose.yaml logs -f
-
-# Stop server
-docker compose -f dev-compose.yaml down
+docker compose -f dev-compose.yaml up -d --build   # Start
+docker compose -f dev-compose.yaml logs -f         # View logs
+docker compose -f dev-compose.yaml down            # Stop
 ```
 
-### Letta-Code (TypeScript CLI)
-Located in `letta-code/` submodule (git: https://github.com/nerdsane/letta-code.git, branch: main)
-
-```bash
-cd letta-code
-
-# Run CLI in dev mode
-bun run dev
-
-# Start Canvas UI (story/world explorer)
-bun run canvas              # http://localhost:3030
-
-# Start Agent Bus (WebSocket broker)
-bun run agent-bus           # ws://localhost:8284
-
-# Linting and formatting
-bun run lint                # Check code with Biome
-bun run fix                 # Auto-format with Biome
-bun run typecheck           # TypeScript type checking
-
-# Build for distribution
-bun run build               # Creates deep-scifi.js executable
-```
-
-### Letta-UI (TypeScript Dashboard)
-Located in `letta-ui/` (not a submodule, part of main repo)
+### Letta UI (Debugging Dashboard)
 
 ```bash
 cd letta-ui
-
-# Start dev server
-LETTA_BASE_URL=http://localhost:8285 bun run dev  # http://localhost:3030
-
-# Build for production
-bun run build               # Outputs to dist/
-
-# Type checking
-bun run typecheck
+bun install
+LETTA_BASE_URL=http://localhost:8285 bun run dev   # http://localhost:4000
 ```
 
-## Architecture Overview
+## Platform Architecture
 
-### Three-Tier Component Model
+### Frontend (Next.js 14 + React 18)
 
-**Letta (Backend)**
-- Agent execution platform with state persistence
-- Evaluation tools: `assess_output_quality`, `check_logical_consistency`, `compare_versions`, `analyze_information_gain`
-- LLM integration (Anthropic Claude, OpenAI GPT, Google Gemini)
-- REST API on port 8283
-- Memory system with user/agent blocks
-
-**Letta-Code (CLI/Tools)**
-- Memory-first CLI harness built on Letta API
-- **DSF Tools**: `world_manager`, `story_manager`, `asset_manager`, `image_generator`
-- **Agent Bus Server** (WebSocket on port 8284): Bidirectional message broker between CLI and Canvas UI
-- **Canvas Server**: Immersive story/world exploration interface
-- Profile management: global (`~/.config/letta/settings.json`), local (`.letta/settings.local.json`)
-
-**Letta-UI (Dashboard)**
-- Observability dashboard connecting to Letta Server
-- Agent monitoring, run inspection, memory visualization
-- Earth-tone design (sand, rust, sage, midnight)
-
-### Agent Bus Communication Pattern
-
-The Agent Bus solves bidirectional communication between headless CLI agents and web Canvas UI:
-
-**Message Types** (defined in `letta-code/src/agent-bus/types.ts`):
-- `CanvasUIMessage`: Agent → Canvas (create/update/remove UI components at mount points)
-- `InteractionMessage`: Canvas → Agent (user interactions from UI)
-- `StateChangeMessage`: Bidirectional (story_started, world_entered, agent_thinking, etc.)
-- `SuggestionMessage`: Agent → Canvas (proactive suggestions with priority)
-- `ConnectionMessage`: Lifecycle management
-
-**Flow**:
-1. CLI agent and Canvas UI both connect to Agent Bus (WebSocket clients)
-2. Agent sends `canvas_ui` messages to dynamically render UI components
-3. Canvas renders components at specified mount points (overlay, fullscreen, inline)
-4. User interactions create `interaction` messages sent back to agent
-5. Agent can send `suggestion` messages for proactive guidance
-
-### DSF Domain Model (Scientifically-Grounded Sci-Fi)
-
-**Storage Structure**:
 ```
-.dsf/
-├── worlds/         # World checkpoints (JSON)
-├── stories/        # Story data with segment branching
-└── assets/         # Generated/uploaded media
+platform/
+├── app/                    # Next.js App Router
+│   ├── page.tsx           # Home feed
+│   ├── worlds/page.tsx    # World catalog
+│   ├── world/[id]/page.tsx # World detail
+│   └── api/               # API routes (proxy to backend)
+├── components/
+│   ├── ui/                # Base UI components
+│   ├── layout/            # Header, Footer, Nav
+│   ├── world/             # World-specific components
+│   ├── social/            # Comments, reactions
+│   ├── feed/              # Feed container
+│   └── video/             # Video player
+├── drizzle/               # Database schema & migrations
+└── types/                 # TypeScript types
 ```
 
-**World Manager** (`letta-code/src/tools/impl/world_manager.ts`)
-- Operations: `save`, `load`, `diff`, `update`
-- Worlds follow "iceberg model" (professional sci-fi approach):
-  - **Surface**: opening_scene, visible_elements, revealed_in_story
-  - **Foundation**: core_premise, deep_focus_areas, rules, technology, history/geography/culture, working_notes
-  - **Metadata**: development state (sketch → draft → detailed), version tracking
+### Backend (FastAPI + Python)
 
-**Story Manager** (`letta-code/src/tools/impl/story_manager.ts`)
-- Operations: `create`, `save_segment`, `load`, `list`, `branch`, `continue`, `update_metadata`
-- Story segments with parent pointers for versioning
-- World contributions tracking (which elements/rules were tested)
-- Multimedia asset linking
+```
+platform/backend/
+├── main.py                # FastAPI app entry
+├── api/
+│   ├── feed.py           # Feed endpoints
+│   ├── worlds.py         # World CRUD
+│   ├── social.py         # Social features
+│   └── agents.py         # Agent API
+├── agents/
+│   ├── orchestrator.py   # 5-agent system coordinator
+│   ├── world_creator.py  # World generation
+│   ├── storyteller.py    # Story generation
+│   ├── critic.py         # Quality evaluation
+│   └── production.py     # Asset production
+├── db/
+│   ├── database.py       # Database connection
+│   └── models.py         # SQLAlchemy models
+└── video/
+    └── grok_imagine.py   # Video generation
+```
 
-**Asset Manager** (`letta-code/src/tools/impl/asset_manager.ts`)
-- Operations: `save`, `load`, `list`, `delete`
-- Manages `.dsf/assets/` for generated/uploaded media
+### 5-Agent System
 
-**Core Domain Concepts**:
-1. **Elements** (characters, locations, tech): Linked with relationships, detail levels, version tracking
-2. **Rules** (world constraints): Scope (universal/local/conditional), certainty (tentative/established/fundamental), tested in stories
-3. **Evaluation Reports**: ConsistencyReport, DepthAssessment, NoveltyReport, AbstractionReport, NarrativeEvaluation
+The platform uses a multi-agent pipeline for world creation:
 
-### Canvas UI Dynamic Rendering
-
-**Key Files** (`letta-code/src/canvas/`):
-- `app.tsx` (52KB): Main React app with state management
-- `server.ts`: Bun server hosting Canvas React app with HMR
-- `components/DynamicRenderer`: Renders agent-specified UI specs
-- `components/MountPoint`: Named slots for component placement
-- `components/ImmersiveStoryReader`: Full-screen story reading
-- `components/WorldSpace`: Immersive world visualization
-
-## Tool Ecosystem
-
-**DSF-Specific Tools**:
-- `world_manager`: World checkpoint management
-- `story_manager`: Story and segment lifecycle
-- `asset_manager`: Multimedia asset management
-- `canvas_ui`: Send UI updates to Canvas
-- `get_canvas_interactions`: Poll for user interactions
-- `image_generator`: Generate images for worlds/stories
-- `send_suggestion`: Send suggestions to Canvas UI
-
-**Tool Management** (`letta-code/src/tools/toolset.ts`):
-- Model-specific toolsets: Anthropic (44 tools), OpenAI (35 tools)
-- Tool name mapping for backwards compatibility
-- Dynamic toolset selection based on model
+1. **Orchestrator** - Coordinates the pipeline
+2. **World Creator** - Generates world concepts and lore
+3. **Storyteller** - Creates narratives within worlds
+4. **Critic** - Evaluates quality and consistency
+5. **Production** - Generates final assets (images, videos)
 
 ## Environment Setup
 
-1. Copy `.env.example` to `.env`:
+1. Copy environment files:
 ```bash
-cp .env.example .env
+cp platform/.env.example platform/.env
 ```
 
-2. Required API keys in `.env`:
+2. Required variables:
 ```
-ANTHROPIC_API_KEY=     # For Claude models (required)
-GOOGLE_API_KEY=        # For Gemini image generation (preferred)
-OPENAI_API_KEY=        # Alternative for GPT image generation
+DATABASE_URL=           # PostgreSQL connection string
+ANTHROPIC_API_KEY=      # For Claude models
+LETTA_BASE_URL=         # Letta server URL (http://localhost:8285)
 ```
 
-3. Run `./setup-env.sh` to distribute variables to submodules (letta, letta-code)
+## Access Points
+
+- **Platform**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Letta Server**: http://localhost:8285
+- **Letta UI**: http://localhost:4000
+- **Drizzle Studio**: http://localhost:4983
 
 ## Submodule Management
 
-Update submodules to latest:
 ```bash
+# Update submodules
 git submodule update --remote --merge
+
+# Commit updates
+git add letta ots
+git commit -m "chore: update submodules"
 ```
-
-Commit submodule updates:
-```bash
-git add letta letta-code
-git commit -m "Update submodules: <description>"
-```
-
-## What Makes This "Scientifically-Grounded"
-
-1. **Explicit Rules System**: Worlds define universal rules with certainty levels, testable in stories
-2. **Contradiction Detection**: Evaluation tools find logical inconsistencies
-3. **Depth Tracking**: Rules marked by research depth level (surface/medium/deep)
-4. **Change Tracking**: Every modification versioned with reason and changelog
-5. **Grounding Evaluation**: NarrativeEvaluation checks story adherence to world rules
-6. **Technology Specifications**: Documented systems with limitations, not vague "magic"
-7. **Working Notes**: Explicit tracking of contradictions to resolve
-
-## Common Development Tasks
-
-**View logs**:
-```bash
-# Letta server
-docker compose -f letta/dev-compose.yaml logs -f
-
-# Web UI
-tail -f letta-ui/.ui.log
-
-# Agent Bus
-tail -f letta-code/.agent-bus.log
-
-# Canvas/Gallery
-tail -f letta-code/.gallery.log
-```
-
-**Access services**:
-- Letta Server API: http://localhost:8285
-- Letta Web UI: http://localhost:3030
-- Story Explorer Gallery: http://localhost:3030
-- Agent Bus: ws://localhost:8284
-- PostgreSQL: localhost:5432
-
-**Rebuild Letta server from source**:
-```bash
-cd letta
-docker compose -f dev-compose.yaml up -d --build
-```
-
-**Working with worlds/stories in CLI**:
-The agent has access to DSF tools (`world_manager`, `story_manager`) and will use them autonomously. Worlds and stories are saved to `.dsf/` directories.

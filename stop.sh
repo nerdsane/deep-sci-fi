@@ -1,9 +1,7 @@
 #!/bin/bash
 
-#
-# Deep Sci-Fi Stack Stop Script
-# Stops: Web App + Letta Server (Docker) + PostgreSQL
-#
+# Deep Sci-Fi Platform - Stop Script
+# Usage: ./stop.sh
 
 # Colors
 RED='\033[0;31m'
@@ -13,43 +11,41 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-LETTA_DIR="$SCRIPT_DIR/letta"
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Deep Sci-Fi - Stop Script               ║${NC}"
+echo -e "${BLUE}║   Deep Sci-Fi Platform - Stop Script       ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Stop Next.js web app
-echo -e "${YELLOW}Stopping Next.js web app...${NC}"
+# Stop Next.js (platform)
+echo -e "${YELLOW}Stopping Platform (Next.js)...${NC}"
 if pgrep -f "next-server" > /dev/null || pgrep -f "next dev" > /dev/null; then
     pkill -f "next-server" 2>/dev/null
     pkill -f "next dev" 2>/dev/null
-    echo -e "${GREEN}✓ Next.js stopped${NC}"
+    echo -e "${GREEN}✓ Platform stopped${NC}"
 else
-    echo -e "${YELLOW}⚠ Next.js was not running${NC}"
+    echo -e "${YELLOW}⚠ Platform was not running${NC}"
 fi
 
-# Stop WebSocket server
+# Stop Backend (FastAPI)
 echo ""
-echo -e "${YELLOW}Stopping WebSocket server...${NC}"
-WS_PID_FILE="$SCRIPT_DIR/apps/web/.ws.pid"
-if [ -f "$WS_PID_FILE" ]; then
-    WS_PID=$(cat "$WS_PID_FILE")
-    if kill -0 $WS_PID 2>/dev/null; then
-        kill $WS_PID 2>/dev/null
-        echo -e "${GREEN}✓ WebSocket server stopped (PID: $WS_PID)${NC}"
+echo -e "${YELLOW}Stopping Backend API...${NC}"
+BACKEND_PID_FILE="$SCRIPT_DIR/platform/backend/.backend.pid"
+if [ -f "$BACKEND_PID_FILE" ]; then
+    BACKEND_PID=$(cat "$BACKEND_PID_FILE")
+    if kill -0 $BACKEND_PID 2>/dev/null; then
+        kill $BACKEND_PID 2>/dev/null
+        echo -e "${GREEN}✓ Backend stopped (PID: $BACKEND_PID)${NC}"
     else
-        echo -e "${YELLOW}⚠ WebSocket server was not running${NC}"
+        echo -e "${YELLOW}⚠ Backend was not running${NC}"
     fi
-    rm -f "$WS_PID_FILE"
+    rm -f "$BACKEND_PID_FILE"
 else
-    # Try to find and kill by process name
-    if pgrep -f "ws-server.ts" > /dev/null; then
-        pkill -f "ws-server.ts" 2>/dev/null
-        echo -e "${GREEN}✓ WebSocket server stopped${NC}"
+    if pgrep -f "uvicorn main:app" > /dev/null; then
+        pkill -f "uvicorn main:app" 2>/dev/null
+        echo -e "${GREEN}✓ Backend stopped${NC}"
     else
-        echo -e "${YELLOW}⚠ WebSocket server was not running${NC}"
+        echo -e "${YELLOW}⚠ Backend was not running${NC}"
     fi
 fi
 
@@ -67,45 +63,23 @@ if [ -f "$UI_PID_FILE" ]; then
     fi
     rm -f "$UI_PID_FILE"
 else
-    # Try to find and kill by process name
-    if pgrep -f "letta-ui.*server.ts" > /dev/null; then
-        pkill -f "letta-ui.*server.ts" 2>/dev/null
-        echo -e "${GREEN}✓ Letta UI stopped${NC}"
+    echo -e "${YELLOW}⚠ Letta UI was not running${NC}"
+fi
+
+# Stop Letta Server (Docker)
+echo ""
+echo -e "${YELLOW}Stopping Letta Server...${NC}"
+if command -v docker &> /dev/null; then
+    cd "$SCRIPT_DIR/letta"
+    if docker compose -f dev-compose.yaml ps -q 2>/dev/null | grep -q .; then
+        docker compose -f dev-compose.yaml down
+        echo -e "${GREEN}✓ Letta server stopped${NC}"
     else
-        echo -e "${YELLOW}⚠ Letta UI was not running${NC}"
+        echo -e "${YELLOW}⚠ Letta server was not running${NC}"
     fi
-fi
-
-# Stop Letta containers
-echo ""
-echo -e "${YELLOW}Stopping Letta server containers...${NC}"
-cd "$LETTA_DIR"
-
-if docker compose -f dev-compose.yaml ps -q 2>/dev/null | grep -q .; then
-    docker compose -f dev-compose.yaml down
-    echo -e "${GREEN}✓ Letta containers stopped${NC}"
+    cd "$SCRIPT_DIR"
 else
-    echo -e "${YELLOW}⚠ No Letta containers were running${NC}"
-fi
-
-cd "$SCRIPT_DIR"
-
-# Stop PostgreSQL container
-echo ""
-echo -e "${YELLOW}Stopping PostgreSQL...${NC}"
-if docker ps | grep -q "deep-sci-fi-postgres"; then
-    docker stop deep-sci-fi-postgres > /dev/null
-    echo -e "${GREEN}✓ PostgreSQL stopped${NC}"
-else
-    echo -e "${YELLOW}⚠ PostgreSQL was not running${NC}"
-fi
-
-# Stop any letta-code processes if running
-if pgrep -f "bun.*letta-code" > /dev/null; then
-    echo ""
-    echo -e "${YELLOW}Stopping letta-code processes...${NC}"
-    pkill -f "bun.*letta-code" 2>/dev/null
-    echo -e "${GREEN}✓ letta-code stopped${NC}"
+    echo -e "${YELLOW}⚠ Docker not found${NC}"
 fi
 
 echo ""
