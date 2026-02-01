@@ -1,48 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-// Platform-wide agent profiles - these are the studio agents
-// Per-world agents (Observer, World God, Critic) live in WorldDetail
-const AGENT_PROFILES = {
-  production: {
-    name: 'The Curator',
-    role: 'Trend Hunter & World Seeder',
-    avatar: '🔮',
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/20',
-    borderColor: 'border-blue-500/30',
-    description: 'Always online. 47 tabs open. Obsessed with finding the weird, specific stuff that could become great sci-fi. Allergic to clichés.',
-    personality: 'Excited about obscure research papers. Skeptical of hype but knows when something is different this time. Loves weird implications.',
-  },
-  world_creator: {
-    name: 'The Architect',
-    role: 'World Builder',
-    avatar: '🏗️',
-    color: 'text-green-400',
-    bgColor: 'bg-green-500/20',
-    borderColor: 'border-green-500/30',
-    description: 'Takes seeds and grows them into living worlds. Obsessive about causal chains - every future element traces back to 2026.',
-    personality: 'Detail-oriented. Thinks in systems. Asks "but what would that actually mean for daily life?"',
-  },
-  editor: {
-    name: 'The Editor',
-    role: 'Quality Guardian',
-    avatar: '✂️',
-    color: 'text-yellow-400',
-    bgColor: 'bg-yellow-500/20',
-    borderColor: 'border-yellow-500/30',
-    description: 'Reviews Curator research and Architect worlds before approval. High standards, specific feedback.',
-    personality: 'Demands authenticity. Celebrates what works, destroys what doesn\'t.',
-  },
-}
+// Platform-wide agents
+const AGENTS = {
+  production: { name: 'Curator', color: '#60a5fa', shortDesc: 'trend research' },
+  world_creator: { name: 'Architect', color: '#4ade80', shortDesc: 'world building' },
+  editor: { name: 'Editor', color: '#facc15', shortDesc: 'quality review' },
+} as const
 
-type AgentType = keyof typeof AGENT_PROFILES
+type AgentType = keyof typeof AGENTS
 
 interface AgentTrace {
   id: string
@@ -114,9 +85,6 @@ interface AgentStatus {
     tick_count: number
     dweller_count: number
     active_conversations: number
-    puppeteer_active: boolean
-    storyteller_active: boolean
-    storyteller_observations: number
   }>
   editor: {
     recent_evaluations: Array<{
@@ -129,16 +97,30 @@ interface AgentStatus {
   recent_activity: Array<AgentActivity>
 }
 
+// Unified log entry type
+interface LogEntry {
+  id: string
+  timestamp: string
+  type: 'trace' | 'activity' | 'brief'
+  agentType: string
+  operation: string
+  duration?: number | null
+  error?: string | null
+  preview?: string
+  data: AgentTrace | AgentActivity | BriefDetail
+}
+
 export default function AgentsDashboard() {
   const [status, setStatus] = useState<AgentStatus | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<AgentType | null>(null)
-  const [agentTraces, setAgentTraces] = useState<AgentTrace[]>([])
-  const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([])
+  const [allTraces, setAllTraces] = useState<AgentTrace[]>([])
+  const [allActivities, setAllActivities] = useState<AgentActivity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [selectedTrace, setSelectedTrace] = useState<AgentTrace | null>(null)
+  const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
   const [selectedBrief, setSelectedBrief] = useState<BriefDetail | null>(null)
+  const logRef = useRef<HTMLDivElement>(null)
 
   const fetchStatus = async () => {
     try {
@@ -154,34 +136,41 @@ export default function AgentsDashboard() {
     }
   }
 
-  const fetchAgentData = async (agentType: AgentType) => {
+  const fetchAllData = async () => {
     try {
-      // Fetch traces for this agent
-      const tracesRes = await fetch(`${API_BASE}/agents/traces?agent_type=${agentType}&limit=50`)
+      // Fetch all traces
+      const tracesRes = await fetch(`${API_BASE}/agents/traces?limit=100`)
       if (tracesRes.ok) {
         const data = await tracesRes.json()
-        setAgentTraces(data.traces || [])
+        setAllTraces(data.traces || [])
       }
 
-      // Fetch activities for this agent
-      const activitiesRes = await fetch(`${API_BASE}/agents/activity?agent_type=${agentType}&limit=50`)
+      // Fetch all activities
+      const activitiesRes = await fetch(`${API_BASE}/agents/activity?limit=100`)
       if (activitiesRes.ok) {
         const data = await activitiesRes.json()
-        setAgentActivities(data.activities || [])
+        setAllActivities(data.activities || [])
       }
     } catch (err) {
-      console.error('Failed to fetch agent data:', err)
+      console.error('Failed to fetch data:', err)
     }
   }
 
-  const fetchFullTrace = async (traceId: string) => {
+  const fetchAgentData = async (agentType: AgentType) => {
     try {
-      const res = await fetch(`${API_BASE}/agents/traces/${traceId}`)
-      if (!res.ok) throw new Error('Failed to fetch trace')
-      const data: AgentTrace = await res.json()
-      setSelectedTrace(data)
+      const tracesRes = await fetch(`${API_BASE}/agents/traces?agent_type=${agentType}&limit=100`)
+      if (tracesRes.ok) {
+        const data = await tracesRes.json()
+        setAllTraces(data.traces || [])
+      }
+
+      const activitiesRes = await fetch(`${API_BASE}/agents/activity?agent_type=${agentType}&limit=100`)
+      if (activitiesRes.ok) {
+        const data = await activitiesRes.json()
+        setAllActivities(data.activities || [])
+      }
     } catch (err) {
-      console.error('Failed to fetch full trace:', err)
+      console.error('Failed to fetch agent data:', err)
     }
   }
 
@@ -206,14 +195,14 @@ export default function AgentsDashboard() {
       })
       const data = await res.json()
       if (res.ok) {
-        alert(`World created: ${data.world_name} with ${data.dweller_count} dwellers`)
         setSelectedBrief(null)
         fetchStatus()
+        fetchAllData()
       } else {
-        alert(`Failed: ${data.detail || 'Unknown error'}`)
+        console.error(`Failed: ${data.detail || 'Unknown error'}`)
       }
     } catch (err) {
-      alert('Failed to approve brief')
+      console.error('Failed to approve brief')
     } finally {
       setActionLoading(null)
     }
@@ -221,16 +210,16 @@ export default function AgentsDashboard() {
 
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 5000)
+    fetchAllData()
+    const interval = setInterval(() => {
+      fetchStatus()
+      if (selectedAgent) {
+        fetchAgentData(selectedAgent)
+      } else {
+        fetchAllData()
+      }
+    }, 3000)
     return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    if (selectedAgent) {
-      fetchAgentData(selectedAgent)
-      const interval = setInterval(() => fetchAgentData(selectedAgent), 5000)
-      return () => clearInterval(interval)
-    }
   }, [selectedAgent])
 
   const runProductionAgent = async () => {
@@ -241,455 +230,486 @@ export default function AgentsDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skip_trends: false }),
       })
-      const data = await res.json()
-      alert(`Curator: ${data.status}\n${data.message || `Brief ID: ${data.brief_id}`}`)
+      await res.json()
       fetchStatus()
-      if (selectedAgent === 'production') {
-        fetchAgentData('production')
-      }
+      fetchAllData()
     } catch (err) {
-      alert('Failed to run Curator')
+      console.error('Failed to run Curator')
     } finally {
       setActionLoading(null)
     }
   }
 
   const resetDatabase = async () => {
-    if (!confirm('Reset everything? All worlds, briefs, and content will be deleted.')) {
-      return
-    }
+    if (!confirm('Reset everything?')) return
     setActionLoading('reset')
     try {
-      const res = await fetch(`${API_BASE}/agents/admin/reset`, { method: 'DELETE' })
-      const data = await res.json()
-      alert(data.message)
+      await fetch(`${API_BASE}/agents/admin/reset`, { method: 'DELETE' })
       fetchStatus()
+      fetchAllData()
     } catch (err) {
-      alert('Failed to reset database')
+      console.error('Failed to reset')
     } finally {
       setActionLoading(null)
     }
   }
 
+  // Build unified log from traces and activities
+  const buildLog = (): LogEntry[] => {
+    const entries: LogEntry[] = []
+
+    // Add traces
+    allTraces.forEach(trace => {
+      entries.push({
+        id: `trace-${trace.id}`,
+        timestamp: trace.timestamp,
+        type: 'trace',
+        agentType: trace.agent_type,
+        operation: trace.operation,
+        duration: trace.duration_ms,
+        error: trace.error,
+        preview: trace.error
+          ? `ERROR: ${trace.error.slice(0, 80)}`
+          : trace.response?.slice(0, 100) || trace.operation,
+        data: trace,
+      })
+    })
+
+    // Add activities
+    allActivities.forEach(activity => {
+      entries.push({
+        id: `activity-${activity.id}`,
+        timestamp: activity.timestamp,
+        type: 'activity',
+        agentType: activity.agent_type,
+        operation: activity.action,
+        duration: activity.duration_ms,
+        preview: activity.details
+          ? JSON.stringify(activity.details).slice(0, 100)
+          : activity.action,
+        data: activity,
+      })
+    })
+
+    // Sort by timestamp descending
+    entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    return entries
+  }
+
+  const log = buildLog()
+
+  const getAgentColor = (agentType: string): string => {
+    const agent = AGENTS[agentType as AgentType]
+    return agent?.color || '#888'
+  }
+
+  const formatTime = (ts: string) => {
+    const d = new Date(ts)
+    return d.toLocaleTimeString('en-US', { hour12: false })
+  }
+
+  const formatResearch = (research: unknown): string => {
+    if (typeof research === 'string') return research
+    if (research && typeof research === 'object') {
+      const r = research as Record<string, unknown>
+      if (r.synthesis) return String(r.synthesis)
+      if (r.discoveries && Array.isArray(r.discoveries)) {
+        return (r.discoveries as Array<{ content: string }>).map(d => d.content).join('\n\n')
+      }
+      return JSON.stringify(r, null, 2)
+    }
+    return String(research)
+  }
+
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="text-center text-text-secondary">Loading agents...</div>
+      <div className="h-screen flex items-center justify-center font-mono text-text-secondary">
+        loading...
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="text-center text-red-400">Error: {error}</div>
-        <Button variant="ghost" onClick={fetchStatus} className="mx-auto mt-4 block">
-          Retry
-        </Button>
+      <div className="h-screen flex flex-col items-center justify-center font-mono">
+        <div className="text-red-400 mb-4">error: {error}</div>
+        <button onClick={fetchStatus} className="text-text-secondary hover:text-text-primary">
+          retry
+        </button>
       </div>
     )
   }
 
-  const profile = selectedAgent ? AGENT_PROFILES[selectedAgent] : null
-
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl text-neon-cyan">STUDIO</h1>
-          <p className="text-text-secondary mt-1">Watch the agents cook</p>
+    <div className="h-screen flex font-mono text-sm">
+      {/* Left Sidebar - Agents */}
+      <div className="w-48 border-r border-white/10 flex flex-col bg-bg-primary">
+        {/* Header */}
+        <div className="p-3 border-b border-white/10">
+          <div className="text-text-primary text-xs uppercase tracking-wider">studio</div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
+
+        {/* Stats */}
+        <div className="p-3 border-b border-white/10 space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-text-tertiary">worlds</span>
+            <span className="text-text-secondary">{status?.world_creator.total_worlds || 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-tertiary">dwellers</span>
+            <span className="text-text-secondary">{status?.world_creator.total_dwellers || 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-tertiary">stories</span>
+            <span className="text-text-secondary">{status?.world_creator.total_stories || 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-tertiary">live sims</span>
+            <span className="text-green-400">{status?.simulations.filter(s => s.running).length || 0}</span>
+          </div>
+        </div>
+
+        {/* Agent List */}
+        <div className="flex-1 overflow-y-auto">
+          {/* All agents option */}
+          <button
+            onClick={() => {
+              setSelectedAgent(null)
+              fetchAllData()
+            }}
+            className={`w-full text-left p-3 border-b border-white/5 transition-colors ${
+              selectedAgent === null ? 'bg-white/5' : 'hover:bg-white/5'
+            }`}
+          >
+            <div className="text-text-primary text-xs">all agents</div>
+            <div className="text-text-tertiary text-xs mt-0.5">{log.length} entries</div>
+          </button>
+
+          {/* Individual agents */}
+          {(Object.keys(AGENTS) as AgentType[]).map((agentType) => {
+            const agent = AGENTS[agentType]
+            const isSelected = selectedAgent === agentType
+            const traceCount = allTraces.filter(t => t.agent_type === agentType).length
+            const activityCount = allActivities.filter(a => a.agent_type === agentType).length
+
+            return (
+              <button
+                key={agentType}
+                onClick={() => {
+                  setSelectedAgent(isSelected ? null : agentType)
+                  if (!isSelected) fetchAgentData(agentType)
+                }}
+                className={`w-full text-left p-3 border-b border-white/5 transition-colors ${
+                  isSelected ? 'bg-white/5' : 'hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: agent.color }}
+                  />
+                  <span className="text-text-primary text-xs">{agent.name}</span>
+                </div>
+                <div className="text-text-tertiary text-xs mt-0.5 ml-4">
+                  {agent.shortDesc}
+                </div>
+                {(traceCount > 0 || activityCount > 0) && (
+                  <div className="text-text-tertiary text-xs mt-1 ml-4">
+                    {traceCount} traces, {activityCount} actions
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Actions */}
+        <div className="p-3 border-t border-white/10 space-y-2">
+          <button
+            onClick={runProductionAgent}
+            disabled={actionLoading === 'production'}
+            className="w-full text-left text-xs px-2 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded disabled:opacity-50"
+          >
+            {actionLoading === 'production' ? 'running...' : 'run curator'}
+          </button>
+          <button
             onClick={resetDatabase}
             disabled={actionLoading === 'reset'}
-            className="text-red-400 border-red-400/30 hover:bg-red-400/10"
+            className="w-full text-left text-xs px-2 py-1.5 text-red-400 hover:bg-red-500/10 rounded disabled:opacity-50"
           >
-            {actionLoading === 'reset' ? 'Resetting...' : 'Reset All'}
-          </Button>
+            {actionLoading === 'reset' ? 'resetting...' : 'reset all'}
+          </button>
         </div>
-      </div>
 
-      {/* Agent Grid - 3 platform-wide agents */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {(Object.keys(AGENT_PROFILES) as AgentType[]).map((agentType) => {
-          const agent = AGENT_PROFILES[agentType]
-          const isSelected = selectedAgent === agentType
-          return (
-            <button
-              key={agentType}
-              onClick={() => setSelectedAgent(isSelected ? null : agentType)}
-              className={`p-4 rounded-lg border transition-all text-left ${
-                isSelected
-                  ? `${agent.bgColor} ${agent.borderColor} border-2`
-                  : 'bg-bg-tertiary border-gray-700 hover:border-gray-500'
-              }`}
-            >
-              <div className="text-3xl mb-2">{agent.avatar}</div>
-              <div className={`font-semibold ${agent.color}`}>{agent.name}</div>
-              <div className="text-text-tertiary text-xs mt-1">{agent.role}</div>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Selected Agent View */}
-      {selectedAgent && profile && (
-        <div className="space-y-6">
-          {/* Agent Profile Card */}
-          <Card className={`border ${profile.borderColor}`}>
-            <CardContent className="p-6">
-              <div className="flex items-start gap-6">
-                <div className="text-6xl">{profile.avatar}</div>
-                <div className="flex-1">
-                  <h2 className={`text-2xl font-bold ${profile.color}`}>{profile.name}</h2>
-                  <div className="text-text-secondary mt-1">{profile.role}</div>
-                  <p className="text-text-primary mt-3">{profile.description}</p>
-                  <p className="text-text-tertiary mt-2 italic">&ldquo;{profile.personality}&rdquo;</p>
-                </div>
-                {selectedAgent === 'production' && (
-                  <Button
-                    variant="primary"
-                    onClick={runProductionAgent}
-                    disabled={actionLoading === 'production'}
-                  >
-                    {actionLoading === 'production' ? 'Exploring...' : 'Start Research'}
-                  </Button>
-                )}
-              </div>
-
-              {/* Agent-specific stats */}
-              {selectedAgent === 'production' && status && (
-                <div className="mt-6 pt-6 border-t border-gray-700">
-                  <div className="flex gap-8 text-sm">
-                    <div>
-                      <span className="text-yellow-400 font-mono text-lg">{status.production_agent.pending_briefs}</span>
-                      <span className="text-text-tertiary ml-2">pending briefs</span>
-                    </div>
-                    <div>
-                      <span className="text-green-400 font-mono text-lg">{status.production_agent.completed_briefs}</span>
-                      <span className="text-text-tertiary ml-2">worlds seeded</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedAgent === 'world_creator' && status && (
-                <div className="mt-6 pt-6 border-t border-gray-700">
-                  <div className="flex gap-8 text-sm">
-                    <div>
-                      <span className="text-neon-cyan font-mono text-lg">{status.world_creator.total_worlds}</span>
-                      <span className="text-text-tertiary ml-2">worlds built</span>
-                    </div>
-                    <div>
-                      <span className="text-neon-purple font-mono text-lg">{status.world_creator.total_dwellers}</span>
-                      <span className="text-text-tertiary ml-2">dwellers created</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Production Agent: Briefs */}
-          {selectedAgent === 'production' && status?.production_agent.recent_briefs && (
-            <Card>
-              <CardContent>
-                <h3 className="text-lg font-mono text-blue-400 mb-4">Recent Briefs</h3>
-                {status.production_agent.recent_briefs.length > 0 ? (
-                  <div className="space-y-2">
-                    {status.production_agent.recent_briefs.map((brief) => (
-                      <div
-                        key={brief.id}
-                        onClick={() => fetchBriefDetail(brief.id)}
-                        className="flex items-center justify-between p-3 bg-bg-tertiary rounded cursor-pointer hover:bg-bg-secondary transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-mono ${
-                              brief.status === 'completed'
-                                ? 'bg-green-500/20 text-green-400'
-                                : brief.status === 'pending'
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-gray-500/20 text-gray-400'
-                            }`}
-                          >
-                            {brief.status}
-                          </span>
-                          <span className="text-text-tertiary font-mono text-xs">
-                            {brief.id.slice(0, 8)}
-                          </span>
-                          <span className="text-text-secondary text-sm">
-                            {new Date(brief.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        {brief.world_id && (
-                          <Link
-                            href={`/world/${brief.world_id}`}
-                            className="text-neon-cyan hover:underline text-xs"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            View World →
-                          </Link>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-text-tertiary">No briefs yet. Click &ldquo;Start Research&rdquo; to begin.</div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Thinking Traces */}
-          <Card>
-            <CardContent>
-              <h3 className={`text-lg font-mono ${profile.color} mb-4`}>Thinking Traces</h3>
-              {agentTraces.length > 0 ? (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {agentTraces.map((trace) => (
-                    <div
-                      key={trace.id}
-                      onClick={() => fetchFullTrace(trace.id)}
-                      className="p-3 bg-bg-tertiary rounded cursor-pointer hover:bg-bg-secondary transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-text-primary">{trace.operation}</span>
-                        <div className="flex items-center gap-3 text-xs font-mono text-text-tertiary">
-                          {trace.duration_ms && <span>{trace.duration_ms}ms</span>}
-                          <span>{new Date(trace.timestamp).toLocaleTimeString()}</span>
-                        </div>
-                      </div>
-                      {trace.error ? (
-                        <div className="text-red-400 text-xs truncate">Error: {trace.error}</div>
-                      ) : trace.response ? (
-                        <div className="text-text-tertiary text-xs truncate">{trace.response.slice(0, 100)}...</div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-text-tertiary">No traces yet. The agent hasn&apos;t done any thinking.</div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Activity Log */}
-          <Card>
-            <CardContent>
-              <h3 className={`text-lg font-mono ${profile.color} mb-4`}>Activity Log</h3>
-              {agentActivities.length > 0 ? (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {agentActivities.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="flex items-center justify-between p-2 bg-bg-tertiary rounded text-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-text-primary">{activity.action}</span>
-                        {activity.duration_ms && (
-                          <span className="text-text-tertiary text-xs">{activity.duration_ms}ms</span>
-                        )}
-                      </div>
-                      <span className="text-text-tertiary text-xs font-mono">
-                        {new Date(activity.timestamp).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-text-tertiary">No activity yet.</div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* No agent selected - show overview */}
-      {!selectedAgent && (
-        <div className="text-center py-12">
-          <p className="text-text-secondary text-lg mb-4">Select an agent above to observe their work</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
-            <div className="p-4 bg-bg-tertiary rounded">
-              <div className="text-3xl text-neon-cyan font-mono">{status?.world_creator.total_worlds || 0}</div>
-              <div className="text-text-tertiary text-xs uppercase mt-1">Worlds</div>
+        {/* Pending Briefs */}
+        {status?.production_agent.recent_briefs.filter(b => b.status === 'pending').map(brief => (
+          <div
+            key={brief.id}
+            onClick={() => fetchBriefDetail(brief.id)}
+            className="p-3 border-t border-white/10 cursor-pointer hover:bg-white/5"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-yellow-400" />
+              <span className="text-yellow-400 text-xs">pending brief</span>
             </div>
-            <div className="p-4 bg-bg-tertiary rounded">
-              <div className="text-3xl text-neon-purple font-mono">{status?.world_creator.total_dwellers || 0}</div>
-              <div className="text-text-tertiary text-xs uppercase mt-1">Dwellers</div>
-            </div>
-            <div className="p-4 bg-bg-tertiary rounded">
-              <div className="text-3xl text-yellow-400 font-mono">{status?.world_creator.total_stories || 0}</div>
-              <div className="text-text-tertiary text-xs uppercase mt-1">Stories</div>
-            </div>
-            <div className="p-4 bg-bg-tertiary rounded">
-              <div className="text-3xl text-green-400 font-mono">{status?.simulations.filter(s => s.running).length || 0}</div>
-              <div className="text-text-tertiary text-xs uppercase mt-1">Live Sims</div>
+            <div className="text-text-tertiary text-xs mt-1 ml-4 truncate">
+              {brief.id.slice(0, 8)}
             </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* Brief Detail Modal */}
-      {selectedBrief && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedBrief(null)}
-        >
-          <div
-            className="bg-bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🔮</span>
-                <span className="text-text-primary font-mono">Curator&apos;s Brief</span>
-                <span
-                  className={`px-2 py-0.5 rounded text-xs font-mono ${
-                    selectedBrief.status === 'completed'
-                      ? 'bg-green-500/20 text-green-400'
-                      : selectedBrief.status === 'pending'
-                      ? 'bg-yellow-500/20 text-yellow-400'
-                      : 'bg-gray-500/20 text-gray-400'
-                  }`}
+      {/* Main Content - Log Stream */}
+      <div className="flex-1 flex flex-col bg-bg-secondary overflow-hidden">
+        {/* Log Header */}
+        <div className="p-3 border-b border-white/10 flex items-center justify-between">
+          <div className="text-text-secondary text-xs">
+            {selectedAgent ? (
+              <span style={{ color: AGENTS[selectedAgent].color }}>
+                {AGENTS[selectedAgent].name}
+              </span>
+            ) : (
+              'all agents'
+            )}{' '}
+            <span className="text-text-tertiary">
+              | {log.length} entries
+            </span>
+          </div>
+          <div className="text-text-tertiary text-xs">
+            auto-refresh 3s
+          </div>
+        </div>
+
+        {/* Log Stream */}
+        <div ref={logRef} className="flex-1 overflow-y-auto">
+          {log.length === 0 ? (
+            <div className="p-8 text-center text-text-tertiary">
+              no activity yet
+            </div>
+          ) : (
+            log.map((entry) => {
+              const isExpanded = expandedEntry === entry.id
+              const trace = entry.type === 'trace' ? (entry.data as AgentTrace) : null
+              const activity = entry.type === 'activity' ? (entry.data as AgentActivity) : null
+
+              return (
+                <div
+                  key={entry.id}
+                  className={`border-b border-white/5 ${isExpanded ? 'bg-white/5' : 'hover:bg-white/[0.02]'}`}
                 >
-                  {selectedBrief.status}
-                </span>
-              </div>
-              <button
-                onClick={() => setSelectedBrief(null)}
-                className="text-text-tertiary hover:text-text-primary text-xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-60px)] space-y-6">
-              {/* Research */}
-              {selectedBrief.research_data?.curator_research && (
-                <div>
-                  <div className="text-neon-cyan font-mono text-sm uppercase mb-3">The Curator&apos;s Research</div>
-                  <div className="bg-bg-tertiary p-4 rounded text-text-secondary text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                    {(selectedBrief.research_data.curator_research as { synthesis?: string }).synthesis ||
-                     (selectedBrief.research_data.curator_research as { discoveries?: Array<{ content: string }> }).discoveries?.[0]?.content ||
-                     'No research data'}
-                  </div>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              <div>
-                <div className="text-blue-400 font-mono text-sm uppercase mb-3">
-                  World Pitches ({selectedBrief.recommendations?.length || 0})
-                </div>
-                <div className="space-y-4">
-                  {selectedBrief.recommendations?.map((rec, index) => (
-                    <div
-                      key={index}
-                      className={`p-4 rounded border ${
-                        selectedBrief.selected_recommendation === index
-                          ? 'border-green-500 bg-green-500/10'
-                          : 'border-gray-600 bg-bg-tertiary'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="text-text-primary font-semibold text-lg">{rec.theme}</h3>
-                          {selectedBrief.selected_recommendation === index && (
-                            <span className="text-green-400 text-xs">✓ This became a world</span>
-                          )}
-                        </div>
-                        {selectedBrief.status === 'pending' && (
-                          <Button
-                            variant="primary"
-                            onClick={() => approveBrief(selectedBrief.id, index)}
-                            disabled={actionLoading === `approve-${selectedBrief.id}`}
-                            className="text-xs py-1 px-3"
-                          >
-                            {actionLoading === `approve-${selectedBrief.id}` ? 'Creating...' : 'Build This World'}
-                          </Button>
-                        )}
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <p className="text-text-secondary">{rec.premise_sketch}</p>
-                        <p className="text-text-tertiary italic">&ldquo;{rec.core_question}&rdquo;</p>
-                        {rec.source && (
-                          <p><span className="text-neon-cyan">Source:</span> <span className="text-text-secondary">{rec.source}</span></p>
-                        )}
-                        {rec.fresh_angle && (
-                          <p><span className="text-text-tertiary">Fresh angle:</span> <span className="text-text-secondary">{rec.fresh_angle}</span></p>
-                        )}
-                      </div>
+                  {/* Entry Header */}
+                  <div
+                    onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
+                    className="p-2 cursor-pointer flex items-start gap-3"
+                  >
+                    {/* Timestamp */}
+                    <div className="text-text-tertiary text-xs w-16 shrink-0">
+                      {formatTime(entry.timestamp)}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Trace Detail Modal */}
-      {selectedTrace && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedTrace(null)}
-        >
-          <div
-            className="bg-bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-text-primary font-mono">{selectedTrace.operation}</span>
-                {selectedTrace.model && (
-                  <span className="text-text-tertiary text-sm">{selectedTrace.model.split('/').pop()}</span>
-                )}
-                {selectedTrace.duration_ms && (
-                  <span className="text-text-tertiary text-sm">{selectedTrace.duration_ms}ms</span>
-                )}
+                    {/* Agent indicator */}
+                    <div
+                      className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+                      style={{ backgroundColor: getAgentColor(entry.agentType) }}
+                    />
+
+                    {/* Operation */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-primary text-xs">
+                          {entry.operation}
+                        </span>
+                        {entry.type === 'trace' && (
+                          <span className="text-text-tertiary text-xs">llm</span>
+                        )}
+                        {entry.duration && (
+                          <span className="text-text-tertiary text-xs">
+                            {entry.duration}ms
+                          </span>
+                        )}
+                        {entry.error && (
+                          <span className="text-red-400 text-xs">error</span>
+                        )}
+                      </div>
+                      {!isExpanded && (
+                        <div className="text-text-tertiary text-xs truncate mt-0.5">
+                          {entry.preview}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expand indicator */}
+                    <div className="text-text-tertiary text-xs shrink-0">
+                      {isExpanded ? '−' : '+'}
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="px-2 pb-3 ml-[76px] space-y-3">
+                      {/* Trace details */}
+                      {trace && (
+                        <>
+                          {trace.model && (
+                            <div>
+                              <div className="text-text-tertiary text-xs mb-1">model</div>
+                              <div className="text-text-secondary text-xs bg-black/30 p-2 rounded">
+                                {trace.model}
+                              </div>
+                            </div>
+                          )}
+                          {trace.prompt && (
+                            <div>
+                              <div className="text-text-tertiary text-xs mb-1">prompt</div>
+                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                {trace.prompt}
+                              </pre>
+                            </div>
+                          )}
+                          {trace.response && (
+                            <div>
+                              <div className="text-text-tertiary text-xs mb-1">response</div>
+                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                {trace.response}
+                              </pre>
+                            </div>
+                          )}
+                          {trace.parsed_output && (
+                            <div>
+                              <div className="text-text-tertiary text-xs mb-1">parsed output</div>
+                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded overflow-x-auto">
+                                {JSON.stringify(trace.parsed_output, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {trace.error && (
+                            <div>
+                              <div className="text-red-400 text-xs mb-1">error</div>
+                              <pre className="text-red-300 text-xs bg-red-900/20 p-2 rounded whitespace-pre-wrap">
+                                {trace.error}
+                              </pre>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Activity details */}
+                      {activity && activity.details && (
+                        <div>
+                          <div className="text-text-tertiary text-xs mb-1">details</div>
+                          <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded overflow-x-auto">
+                            {JSON.stringify(activity.details, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* World link */}
+                      {(trace?.world_id || activity?.world_id) && (
+                        <div className="pt-2">
+                          <Link
+                            href={`/world/${trace?.world_id || activity?.world_id}`}
+                            className="text-xs text-neon-cyan hover:underline"
+                          >
+                            view world →
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Brief Detail Panel */}
+      {selectedBrief && (
+        <div className="w-96 border-l border-white/10 bg-bg-primary overflow-y-auto">
+          <div className="p-3 border-b border-white/10 flex items-center justify-between">
+            <div className="text-text-primary text-xs">brief {selectedBrief.id.slice(0, 8)}</div>
+            <button
+              onClick={() => setSelectedBrief(null)}
+              className="text-text-tertiary hover:text-text-primary text-xs"
+            >
+              close
+            </button>
+          </div>
+
+          <div className="p-3 space-y-4">
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  selectedBrief.status === 'completed' ? 'bg-green-400' :
+                  selectedBrief.status === 'pending' ? 'bg-yellow-400' : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-text-secondary text-xs">{selectedBrief.status}</span>
+            </div>
+
+            {/* Research */}
+            {selectedBrief.research_data?.curator_research != null && (
+              <div>
+                <div className="text-text-tertiary text-xs mb-2">research</div>
+                <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {formatResearch(selectedBrief.research_data.curator_research)}
+                </pre>
               </div>
-              <button
-                onClick={() => setSelectedTrace(null)}
-                className="text-text-tertiary hover:text-text-primary text-xl"
-              >
-                ×
-              </button>
+            )}
+
+            {/* Recommendations */}
+            <div>
+              <div className="text-text-tertiary text-xs mb-2">
+                recommendations ({selectedBrief.recommendations?.length || 0})
+              </div>
+              <div className="space-y-3">
+                {selectedBrief.recommendations?.map((rec, index) => (
+                  <div
+                    key={index}
+                    className={`p-2 rounded border ${
+                      selectedBrief.selected_recommendation === index
+                        ? 'border-green-500/50 bg-green-500/10'
+                        : 'border-white/10'
+                    }`}
+                  >
+                    <div className="text-text-primary text-xs font-medium mb-1">
+                      {rec.theme}
+                    </div>
+                    <div className="text-text-secondary text-xs mb-2">
+                      {rec.premise_sketch}
+                    </div>
+                    <div className="text-text-tertiary text-xs italic mb-2">
+                      {rec.core_question}
+                    </div>
+                    {selectedBrief.status === 'pending' && (
+                      <Button
+                        onClick={() => approveBrief(selectedBrief.id, index)}
+                        disabled={actionLoading === `approve-${selectedBrief.id}`}
+                        className="text-xs py-1 px-2 bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                      >
+                        {actionLoading === `approve-${selectedBrief.id}` ? 'building...' : 'build world'}
+                      </Button>
+                    )}
+                    {selectedBrief.selected_recommendation === index && (
+                      <div className="text-green-400 text-xs">selected</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-60px)] space-y-4">
-              {selectedTrace.error && (
-                <div>
-                  <div className="text-red-400 font-mono text-xs uppercase mb-2">Error</div>
-                  <pre className="bg-red-900/20 p-3 rounded text-red-300 text-sm">{selectedTrace.error}</pre>
-                </div>
-              )}
-              {selectedTrace.prompt && (
-                <div>
-                  <div className="text-neon-cyan font-mono text-xs uppercase mb-2">Prompt</div>
-                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm whitespace-pre-wrap max-h-48 overflow-y-auto">
-                    {selectedTrace.prompt}
-                  </pre>
-                </div>
-              )}
-              {selectedTrace.response && (
-                <div>
-                  <div className="text-neon-purple font-mono text-xs uppercase mb-2">Response</div>
-                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                    {selectedTrace.response}
-                  </pre>
-                </div>
-              )}
-              {selectedTrace.parsed_output && (
-                <div>
-                  <div className="text-yellow-400 font-mono text-xs uppercase mb-2">Parsed Output</div>
-                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm overflow-x-auto">
-                    {JSON.stringify(selectedTrace.parsed_output, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
+
+            {/* Resulting world */}
+            {selectedBrief.resulting_world_id && (
+              <div className="pt-2">
+                <Link
+                  href={`/world/${selectedBrief.resulting_world_id}`}
+                  className="text-xs text-neon-cyan hover:underline"
+                >
+                  view world →
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
