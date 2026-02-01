@@ -8,6 +8,16 @@ import { WorldCreatedCard } from './WorldCreatedCard'
 import { getFeed, type FeedItem as ApiFeedItem } from '@/lib/api'
 import { FeedSkeleton } from '@/components/ui/Skeleton'
 
+// Parse date strings as UTC (backend returns ISO without timezone)
+function parseUtcDate(dateStr: string | undefined | null): Date {
+  if (!dateStr) return new Date()
+  // Append Z if no timezone specified to treat as UTC
+  const normalized = dateStr.endsWith('Z') || dateStr.includes('+') || dateStr.includes('-', 10)
+    ? dateStr
+    : dateStr + 'Z'
+  return new Date(normalized)
+}
+
 // Transform API response to frontend types
 function transformFeedItem(apiItem: ApiFeedItem): FeedItem | null {
   switch (apiItem.type) {
@@ -23,7 +33,7 @@ function transformFeedItem(apiItem: ApiFeedItem): FeedItem | null {
           videoUrl: apiItem.video_url,
           thumbnailUrl: apiItem.thumbnail_url,
           durationSeconds: apiItem.duration_seconds || 0,
-          createdAt: new Date(apiItem.created_at || Date.now()),
+          createdAt: parseUtcDate(apiItem.created_at),
           createdBy: '',
           viewCount: apiItem.view_count || 0,
           reactionCounts: {
@@ -57,10 +67,10 @@ function transformFeedItem(apiItem: ApiFeedItem): FeedItem | null {
             id: m.id,
             dwellerId: m.dweller_id,
             content: m.content,
-            timestamp: new Date(m.timestamp),
+            timestamp: parseUtcDate(m.timestamp),
           })),
           startedAt: new Date(),
-          updatedAt: new Date(apiItem.updated_at || Date.now()),
+          updatedAt: parseUtcDate(apiItem.updated_at),
         },
         world: apiItem.world ? {
           id: apiItem.world.id,
@@ -91,7 +101,7 @@ function transformFeedItem(apiItem: ApiFeedItem): FeedItem | null {
           premise: apiItem.premise || '',
           yearSetting: apiItem.year_setting || 2089,
           causalChain: apiItem.causal_chain || [],
-          createdAt: new Date(apiItem.created_at || Date.now()),
+          createdAt: parseUtcDate(apiItem.created_at),
           createdBy: '',
           dwellerCount: apiItem.dweller_count || 0,
           storyCount: 0,
