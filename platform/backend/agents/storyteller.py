@@ -1,23 +1,28 @@
 """Storyteller agent for generating video content from world activity.
 
 The Storyteller is an observer assigned to a world. It watches all events
-and conversations, building up context about what's happening. When it has
-enough material, it decides what would make an interesting story and creates
-a video script.
+and conversations, building up context about what's happening. When material
+is compelling, it uses its JUDGMENT to decide what would make an interesting
+story and creates a video script.
 
 Architecture:
 - One storyteller per world (persistent observer)
 - Receives ALL events: conversation messages, dweller actions, world changes
-- Maintains memory of recent activity
-- Periodically triggered to evaluate if there's a story worth telling
+- Maintains memory of activity (no artificial caps)
+- Uses judgment to evaluate if there's a story worth telling
 - Returns VideoScript when it finds compelling material
+
+Emergent Behavior:
+- No minimum observation threshold - storyteller decides if material is compelling
+- No maximum observation cap - memory managed naturally
+- Judgment-based evaluation, not rule-based triggers
 """
 
 import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -67,7 +72,12 @@ class Storyteller:
     """Storyteller agent - persistent observer that watches world activity.
 
     The storyteller accumulates observations about what's happening in the world,
-    then uses its judgment to decide when and what to create stories about.
+    then uses its JUDGMENT to decide when and what to create stories about.
+
+    Emergent behavior principles:
+    - No minimum observation count - if something is compelling, tell the story
+    - No artificial maximum - prune old observations naturally
+    - Trust the agent's judgment on what makes a good story
     """
 
     def __init__(
@@ -86,10 +96,11 @@ class Storyteller:
         self.agent_id: str | None = None
         self._client: Letta | None = None
 
-        # Observation buffer - recent events the storyteller has witnessed
+        # Observation buffer - events the storyteller has witnessed
+        # No artificial cap - prune based on time/relevance
         self.observations: list[WorldEvent] = []
-        self.max_observations = 50  # Keep last 50 events
         self.last_story_time: datetime | None = None
+        self.stories_created: int = 0
 
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
@@ -114,7 +125,7 @@ class Storyteller:
                 logger.info(f"Found existing storyteller agent: {self.agent_id}")
                 return self.agent_id
 
-        # Create new agent - using Opus for higher quality scripts
+        # Create new agent with memory blocks for persistent state
         system_prompt = get_storyteller_prompt(
             world_name=self.world_name,
             world_premise=self.world_premise,
@@ -127,6 +138,11 @@ class Storyteller:
             model="anthropic/claude-opus-4-5-20251101",
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            memory_blocks=[
+                {"label": "world_state", "value": f"Observing {self.world_name}, set in {self.year_setting}."},
+                {"label": "story_ideas", "value": "No story ideas yet."},
+                {"label": "past_stories", "value": "No stories created yet."},
+            ],
         )
         self.agent_id = agent.id
         logger.info(f"Created storyteller agent: {self.agent_id}")
@@ -178,6 +194,8 @@ class Storyteller:
 
         The storyteller accumulates these observations and uses them
         to decide when and what stories to create.
+
+        No artificial cap - prune old observations based on time instead.
         """
         event = WorldEvent(
             timestamp=datetime.utcnow(),
@@ -188,16 +206,23 @@ class Storyteller:
         )
         self.observations.append(event)
 
-        # Trim to max observations
-        if len(self.observations) > self.max_observations:
-            self.observations = self.observations[-self.max_observations:]
+        # Prune very old observations (older than 1 hour)
+        # This is natural memory management, not an artificial cap
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        self.observations = [
+            obs for obs in self.observations
+            if obs.timestamp > one_hour_ago
+        ]
 
         logger.info(f"Storyteller observed {event_type}: {len(self.observations)} total observations")
 
     def _format_observations(self) -> str:
-        """Format recent observations for the storyteller agent."""
-        lines = [f"Recent activity in {self.world_name}:\n"]
-        for event in self.observations[-20:]:  # Last 20 events
+        """Format all observations for the storyteller agent."""
+        if not self.observations:
+            return "No activity observed yet."
+
+        lines = [f"Activity in {self.world_name}:\n"]
+        for event in self.observations:
             ts = event.timestamp.strftime("%H:%M")
             participants = ", ".join(event.participants)
             lines.append(f"[{ts}] {event.event_type.upper()} - {participants}: {event.content}")
@@ -206,34 +231,52 @@ class Storyteller:
     async def evaluate_for_story(self) -> VideoScript | None:
         """Ask the storyteller if there's a story worth telling.
 
-        The storyteller reviews its observations and decides whether
-        there's compelling material for a video. Returns a VideoScript
-        if yes, None if not yet.
+        The storyteller reviews its observations and uses JUDGMENT to decide
+        whether there's compelling material for a video. No minimum observation
+        threshold - if something is compelling, tell the story.
+
+        Returns a VideoScript if yes, None if not yet.
         """
-        if len(self.observations) < 5:
-            logger.info(f"Not enough observations for story evaluation ({len(self.observations)}/5)")
+        # No minimum threshold - let the agent decide
+        # Even a single powerful observation could be a story
+        if not self.observations:
+            logger.debug("No observations yet")
             return None
 
         try:
             agent_id = await self._ensure_agent()
             client = self._get_client()
 
-            # Format observations for the storyteller
+            # Format all observations for the storyteller
             observations_text = self._format_observations()
 
+            # Judgment-based prompt - agent decides if material is compelling
             prompt = f"""OBSERVED ACTIVITY:
 {observations_text}
 
-YOUR TASK: Write a video script. Do NOT explain or analyze. Just write the script in this EXACT format:
+You've observed this activity in {self.world_name}.
 
-TITLE: The Weight of Memory
-HOOK: In the twilight zones, even the past casts long shadows.
-VISUAL: A lone researcher stands before a wall of archived footage, faces from before the Adjustment flickering across her features.
-NARRATION: Some things cannot be saved. Only remembered. Dr. Chen has spent her life ensuring we never forget what we lost.
-SCENE: Close-up on weathered hands touching a frozen frame - a tropical forest, impossibly green, impossibly gone.
-CLOSING: The footage loops. The researcher watches. Outside, eternal twilight.
+IS THERE A STORY WORTH TELLING RIGHT NOW?
 
-NOW WRITE YOUR SCRIPT:"""
+Consider:
+- Emotional resonance of what you've witnessed
+- Dramatic tension or resolution present
+- Visual potential for a short video
+- Whether waiting might yield better material
+
+If the material IS compelling, write a video script in this EXACT format:
+
+TITLE: [evocative title, 3-6 words]
+HOOK: [one sentence that makes viewers need to watch]
+VISUAL: [opening shot - cinematic and specific]
+NARRATION: [2-3 sentences of voiceover]
+SCENE: [the key visual moment - characters, setting, mood, lighting]
+CLOSING: [final image or moment that lingers]
+
+If the material is NOT YET compelling, respond with:
+NOT YET - [brief reason why, and what you're waiting for]
+
+Trust your judgment. Quality over quantity."""
 
             logger.info(f"Storyteller evaluating {len(self.observations)} observations")
 
@@ -261,13 +304,20 @@ NOW WRITE YOUR SCRIPT:"""
 
             logger.info(f"Storyteller response: {response_text[:200]}...")
 
+            # Check if storyteller decided to wait
+            if response_text.strip().upper().startswith("NOT YET"):
+                logger.info(f"Storyteller decided to wait: {response_text[:100]}")
+                return None
+
             # Try to parse a script
             script = self._parse_script(response_text)
             if script:
                 logger.info(f"Storyteller created script: {script.title}")
                 self.last_story_time = datetime.utcnow()
-                # Clear old observations after creating a story
-                self.observations = self.observations[-10:]
+                self.stories_created += 1
+                # Keep some observations for continuity, but clear most
+                # after creating a story to avoid telling the same story twice
+                self.observations = self.observations[-5:]
             return script
 
         except Exception as e:
