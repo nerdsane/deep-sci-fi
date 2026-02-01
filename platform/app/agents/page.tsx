@@ -163,6 +163,16 @@ export default function AgentsDashboard() {
   const wsRef = useRef<WebSocket | null>(null)
   const commLogRef = useRef<HTMLDivElement>(null)
 
+  // Simple studio state
+  const [simpleStatus, setSimpleStatus] = useState<string | null>(null)
+  const [simpleResult, setSimpleResult] = useState<{
+    world_id?: string
+    world_name?: string
+    dweller_count?: number
+    dweller_names?: string[]
+    error?: string
+  } | null>(null)
+
   // Fetch initial communications
   const fetchCommunications = useCallback(async () => {
     try {
@@ -220,6 +230,40 @@ export default function AgentsDashboard() {
       }
     }
   }, [fetchCommunications])
+
+  // Run simple studio (end-to-end test)
+  const runSimpleStudio = async () => {
+    setActionLoading('simple')
+    setSimpleStatus('Starting...')
+    setSimpleResult(null)
+    try {
+      setSimpleStatus('Curator generating brief...')
+      const res = await fetch(`${API_BASE}/agents/studio/run-simple`, { method: 'POST' })
+      const data = await res.json()
+      console.log('Simple studio result:', data)
+
+      if (data.status === 'success') {
+        setSimpleStatus(`✓ Created: ${data.world_name}`)
+        setSimpleResult({
+          world_id: data.world_id,
+          world_name: data.world_name,
+          dweller_count: data.dweller_count,
+          dweller_names: data.dweller_names,
+        })
+        // Refresh status to show new world
+        fetchStatus()
+      } else {
+        setSimpleStatus(`✗ Error: ${data.error?.slice(0, 50)}`)
+        setSimpleResult({ error: data.error })
+      }
+    } catch (err) {
+      console.error('Failed to run simple studio:', err)
+      setSimpleStatus('✗ Request failed')
+      setSimpleResult({ error: String(err) })
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   // Run studio workflow
   const runStudio = async () => {
@@ -604,6 +648,35 @@ export default function AgentsDashboard() {
         {/* Studio Actions (Maximum Agency) */}
         <div className="p-3 border-t border-white/10 space-y-2">
           <div className="text-text-tertiary text-xs mb-2 font-medium">Studio</div>
+          <button
+            onClick={runSimpleStudio}
+            disabled={actionLoading === 'simple'}
+            className="w-full text-left text-xs px-2 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded disabled:opacity-50"
+          >
+            {actionLoading === 'simple' ? simpleStatus || 'creating world...' : '⚡ Create World (Simple)'}
+          </button>
+          {/* Simple studio result display */}
+          {simpleResult && (
+            <div className={`p-2 rounded text-xs ${simpleResult.error ? 'bg-red-500/10 border border-red-500/20' : 'bg-green-500/10 border border-green-500/20'}`}>
+              {simpleResult.error ? (
+                <div className="text-red-400">{simpleResult.error.slice(0, 100)}</div>
+              ) : (
+                <>
+                  <div className="text-green-400 font-medium">{simpleResult.world_name}</div>
+                  <div className="text-text-tertiary mt-1">
+                    {simpleResult.dweller_count} dwellers: {simpleResult.dweller_names?.slice(0, 3).join(', ')}
+                    {(simpleResult.dweller_names?.length || 0) > 3 && '...'}
+                  </div>
+                  <Link
+                    href={`/world/${simpleResult.world_id}`}
+                    className="text-neon-cyan hover:underline mt-1 inline-block"
+                  >
+                    view world →
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
           <button
             onClick={runStudio}
             disabled={actionLoading === 'studio'}
