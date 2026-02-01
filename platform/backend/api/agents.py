@@ -720,7 +720,7 @@ async def get_global_agent_status(
             "storyteller_observations": len(sim._storyteller.observations) if sim._storyteller else 0,
         })
 
-    # Critic evaluations
+    # Editor evaluations (platform-wide critic reviews of briefs/worlds)
     evaluations_result = await db.execute(
         select(CriticEvaluation)
         .order_by(CriticEvaluation.created_at.desc())
@@ -728,9 +728,16 @@ async def get_global_agent_status(
     )
     recent_evaluations = evaluations_result.scalars().all()
 
-    # Recent activity
+    # Recent activity (platform-wide, exclude per-world agent activity)
     activity_result = await db.execute(
         select(AgentActivity)
+        .where(
+            AgentActivity.agent_type.in_([
+                AgentType.PRODUCTION,
+                AgentType.WORLD_CREATOR,
+                AgentType.CRITIC,  # Editor (platform-wide critic)
+            ])
+        )
         .order_by(AgentActivity.timestamp.desc())
         .limit(20)
     )
@@ -756,7 +763,7 @@ async def get_global_agent_status(
             "total_stories": total_stories,
         },
         "simulations": active_simulations,
-        "critic": {
+        "editor": {
             "recent_evaluations": [
                 {
                     "id": str(e.id),

@@ -41,6 +41,7 @@ from db.database import SessionLocal
 from .prompts import get_dweller_prompt, get_dweller_intention_prompt
 from .storyteller import get_storyteller
 from .puppeteer import get_puppeteer
+from .world_critic import get_world_critic
 from video import generate_video
 
 logger = logging.getLogger(__name__)
@@ -564,8 +565,57 @@ Say something natural to start the conversation. Be yourself, reference your mot
         except Exception as e:
             logger.error(f"Storyteller evaluation failed: {e}", exc_info=True)
 
-    async def _create_story_from_script(self, script: Any) -> None:
-        """Create a story record and generate video from a script."""
+    async def _create_story_from_script(self, script: Any, revision_count: int = 0) -> None:
+        """Create a story record and generate video from a script.
+
+        Before publishing, the critic evaluates the script. If score < 6,
+        the storyteller is asked to revise (up to 2 revisions).
+        """
+        MAX_REVISIONS = 2
+
+        # Get critic feedback before publishing
+        if self._world_info:
+            try:
+                critic = get_world_critic(
+                    world_id=self.world_id,
+                    world_name=self._world_info.get("name", "Unknown"),
+                    world_premise=self._world_info.get("premise", ""),
+                    year_setting=self._world_info.get("year_setting", 2050),
+                )
+
+                # Combine script parts for evaluation
+                script_text = f"""TITLE: {script.title}
+HOOK: {script.hook}
+VISUAL: {script.visual}
+NARRATION: {script.narration}
+SCENE: {script.scene}
+CLOSING: {script.closing}"""
+
+                feedback = await critic.evaluate_story_draft(
+                    title=script.title,
+                    script=script_text,
+                    context={"revision_count": revision_count},
+                )
+
+                logger.info(
+                    f"Critic evaluated '{script.title}': {feedback.scores.overall:.1f}/10 "
+                    f"(should_revise: {feedback.should_revise})"
+                )
+
+                # If score is low and we haven't hit max revisions, ask storyteller to revise
+                if feedback.should_revise and revision_count < MAX_REVISIONS:
+                    logger.info(f"Critic recommends revision for '{script.title}' (attempt {revision_count + 1})")
+                    revised_script = await self._revise_script_with_feedback(script, feedback)
+                    if revised_script:
+                        # Recursively evaluate the revised script
+                        await self._create_story_from_script(revised_script, revision_count + 1)
+                        return
+                    else:
+                        logger.warning("Storyteller could not revise script, publishing anyway")
+
+            except Exception as e:
+                logger.error(f"Critic evaluation failed: {e}, publishing anyway", exc_info=True)
+
         async with SessionLocal() as db:
             # Get world
             world_result = await db.execute(
@@ -608,10 +658,95 @@ Say something natural to start the conversation. Be yourself, reference your mot
                 world.story_count = (world.story_count or 0) + 1
 
                 await db.commit()
-                logger.info(f"Created story '{script.title}'")
+                logger.info(f"Created story '{script.title}' (revisions: {revision_count})")
 
             except Exception as e:
                 logger.error(f"Video generation failed: {e}", exc_info=True)
+
+    async def _revise_script_with_feedback(self, script: Any, feedback: Any) -> Any:
+        """Ask the storyteller to revise a script based on critic feedback."""
+        if not self._storyteller:
+            return None
+
+        try:
+            client = self._storyteller._get_client()
+            agent_id = await self._storyteller._ensure_agent()
+
+            # Format feedback for the storyteller
+            feedback_text = f"""CRITIC FEEDBACK FOR "{script.title}":
+
+SCORES:
+- Plausibility: {feedback.scores.plausibility}/10
+- Coherence: {feedback.scores.coherence}/10
+- Originality: {feedback.scores.originality}/10
+- Engagement: {feedback.scores.engagement}/10
+- Authenticity: {feedback.scores.authenticity}/10
+- OVERALL: {feedback.scores.overall:.1f}/10
+
+WEAKNESSES:
+{chr(10).join('- ' + w for w in feedback.weaknesses) if feedback.weaknesses else '- None specified'}
+
+AI-ISMS DETECTED:
+{chr(10).join('- "' + a.text + '" (' + a.pattern + ')' for a in feedback.ai_isms[:5]) if feedback.ai_isms else '- None detected'}
+
+SUGGESTIONS:
+{chr(10).join('- ' + s for s in feedback.suggestions) if feedback.suggestions else '- None specified'}
+
+ORIGINAL SCRIPT:
+TITLE: {script.title}
+HOOK: {script.hook}
+VISUAL: {script.visual}
+NARRATION: {script.narration}
+SCENE: {script.scene}
+CLOSING: {script.closing}
+
+Please REVISE the script to address the critic's feedback. Focus on:
+1. Fixing identified AI-isms (replace with more authentic language)
+2. Addressing the weaknesses
+3. Applying the suggestions
+
+Write the REVISED script in the same format:
+TITLE: [revised title if needed]
+HOOK: [revised hook]
+VISUAL: [revised visual]
+NARRATION: [revised narration]
+SCENE: [revised scene]
+CLOSING: [revised closing]"""
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{"role": "user", "content": feedback_text}],
+            )
+
+            # Extract response
+            response_text = None
+            if response and hasattr(response, "messages"):
+                for msg in response.messages:
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage":
+                        if hasattr(msg, "assistant_message") and msg.assistant_message:
+                            response_text = msg.assistant_message
+                            break
+                        elif hasattr(msg, "content") and msg.content:
+                            response_text = msg.content
+                            break
+
+            if not response_text:
+                logger.warning("No response from storyteller for revision")
+                return None
+
+            # Parse the revised script
+            revised_script = self._storyteller._parse_script(response_text)
+            if revised_script:
+                logger.info(f"Storyteller revised script: {revised_script.title}")
+                return revised_script
+            else:
+                logger.warning("Could not parse revised script")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error revising script: {e}", exc_info=True)
+            return None
 
     async def _generate_dweller_response(
         self,
