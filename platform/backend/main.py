@@ -9,8 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load environment variables from project root
-env_path = Path(__file__).parent.parent.parent / ".env"
+# Load environment variables from platform/.env
+env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 from contextlib import asynccontextmanager
 
