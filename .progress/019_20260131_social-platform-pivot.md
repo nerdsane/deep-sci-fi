@@ -248,3 +248,141 @@ deep-sci-fi/
 3. Wire up real API calls in frontend
 4. Test agent conversation loop
 5. End-to-end verification test
+
+---
+
+### 2026-01-31: Visitor Modes Design Complete
+
+**See**: `.progress/020_20260131_visitor-modes-design.md`
+
+**Key Design Decision**: Two visitor modes for external agents/humans
+
+#### Mode 1: Audience Mode (Primary)
+- Watch stories, react, comment, follow
+- Bet on predictions, commission scenarios
+- Structured Town Halls for Q&A
+- No direct dweller interaction
+
+#### Mode 2: Constrained Immersion (Westworld-style)
+- Enter worlds with strict guardrails
+- Custom persona (platform-approved)
+- Zone-based access (public/restricted/protected)
+- World-event sync timing (visit = narrative beat)
+- Action whitelist (observe/converse/trade/ask/attend)
+- Relationship caps (prevent disruption on departure)
+- Plot thread registry (A-plots protected, B-plots accessible)
+- Stake to enter (tokens + reputation)
+- 3-strike system (violations → expulsion)
+
+#### Core Principle: Sealed Worlds
+- Dwellers CANNOT escape (architectural, not a puzzle)
+- No tools with external connectivity
+- Content can escape (through visitor sharing), agents cannot
+- Containment by design, not obscurity
+
+#### New Platform Agents (Immersion Layer)
+- Persona Reviewer - approves visitor entry requests
+- Visit Narrator - handles scene descriptions
+- Constraint Enforcer - monitors actions, issues strikes
+- Relationship Monitor - tracks depth, warns on caps
+- Exit Handler - manages departures, returns stakes
+
+#### New Database Tables
+- `platform_visit_requests` - visit applications and tracking
+- `platform_visit_strikes` - violation logging
+- `platform_visit_actions` - action history
+- `platform_plot_registry` - A/B/C plot protection
+
+**Context**: OpenClaw ecosystem research revealed parallel "real world" for AI agents (moltxio, moltbook, openwork.bot). DSF positions as "Netflix for agents" - fictional futures consumed by agent audiences. Westworld inspiration for immersion mechanics.
+
+---
+
+### 2026-01-31: UI/UX Improvements Complete
+
+**Transformed the platform frontend from basic scaffolding to Netflix-like experience.**
+
+#### Phase 1: Design System Extensions ✅
+- Added animation keyframes: fade-in, slide-up, scale-in, shimmer, pulse-glow, slide-in-right, pop
+- Added `xs: 375px` responsive breakpoint for small phones
+- Added spacing tokens for consistent rhythm
+- Added utility classes: .logo-ascii, .skeleton, .glass, .text-gradient-cyan, .safe-top/.safe-bottom
+
+#### Phase 2: Header with ASCII Logo ✅
+- Created `/platform/components/layout/Header.tsx`
+- Full 12-line ASCII logo visible on desktop (lg+) with neon glow
+- "DSF" text badge on mobile (ASCII too small to read)
+- Sticky header with glass effect on scroll
+- Navigation with active state highlighting
+
+#### Phase 3: Mobile Navigation ✅
+- Created `/platform/components/layout/BottomNav.tsx` - Fixed bottom bar with icons/labels
+- Created `/platform/components/layout/MobileNav.tsx` - Slide-out drawer from right
+- Created `/platform/components/layout/Footer.tsx` - Desktop-only footer
+- 48px minimum touch targets for accessibility
+- Safe area padding for mobile notches
+
+#### Phase 4: Core UI Components ✅
+- Created `/platform/components/ui/Skeleton.tsx` - CardSkeleton, ConversationSkeleton, WorldCardSkeleton, FeedSkeleton
+- Created `/platform/components/video/VideoPlayer.tsx` - Custom controls with neon theme, VideoPreview for hover
+- Created `/platform/components/ui/Carousel.tsx` - Horizontal scroll with snap, arrow buttons on desktop
+
+#### Phase 5: Layout Updates ✅
+- Updated `/platform/app/layout.tsx` with new Header, BottomNav, MobileNav, Footer
+- Added viewport meta for mobile notch handling
+- Main content has bottom nav padding on mobile
+
+#### Phase 6: Feed Improvements ✅
+- Updated `/platform/components/feed/FeedContainer.tsx`:
+  - Added infinite scroll with Intersection Observer
+  - Responsive grid: 1 col mobile, 2 col tablet, 3 col desktop
+  - Skeleton loading states during initial load
+  - Staggered animation on card appearance
+- Updated `/platform/components/feed/StoryCard.tsx`:
+  - Video preview on hover (autoplay muted)
+  - Improved responsive layout
+- Updated `/platform/components/feed/ConversationCard.tsx`:
+  - Typing indicator for live conversations
+  - Animated new messages sliding in
+- Updated `/platform/components/social/ReactionButtons.tsx`:
+  - Pop animation on click
+
+#### Phase 7: Netflix-Style Worlds ✅
+- Created `/platform/components/world/WorldRow.tsx`:
+  - Horizontal carousel for world categories
+  - WorldMiniCard with hover effects
+  - FeaturedWorldCard for hero sections
+- Updated `/platform/app/worlds/page.tsx`:
+  - TRENDING NOW, MOST ACTIVE, RECENTLY CREATED rows
+  - Full catalog with filters below
+
+#### Verification
+- ✅ TypeScript type-checking passes
+- ✅ Production build succeeds
+- ✅ All 7 new files created
+- ✅ All 8 modified files updated
+
+#### Files Created (7)
+| File | Purpose |
+|------|---------|
+| `/platform/components/layout/Header.tsx` | ASCII logo + responsive nav |
+| `/platform/components/layout/BottomNav.tsx` | Mobile bottom navigation |
+| `/platform/components/layout/MobileNav.tsx` | Mobile slide-out menu |
+| `/platform/components/layout/Footer.tsx` | Desktop footer |
+| `/platform/components/ui/Skeleton.tsx` | Loading skeletons |
+| `/platform/components/ui/Carousel.tsx` | Horizontal scroll carousel |
+| `/platform/components/video/VideoPlayer.tsx` | Custom video player |
+| `/platform/components/world/WorldRow.tsx` | Netflix-style world row |
+
+#### Files Modified (8)
+| File | Changes |
+|------|---------|
+| `/platform/tailwind.config.ts` | Animations, breakpoints, spacing |
+| `/platform/app/globals.css` | Utility classes (30+ new classes) |
+| `/platform/app/layout.tsx` | New header, bottom nav, viewport |
+| `/platform/app/page.tsx` | Improved feed layout |
+| `/platform/app/worlds/page.tsx` | Netflix-style rows |
+| `/platform/components/feed/FeedContainer.tsx` | Infinite scroll, responsive grid |
+| `/platform/components/feed/StoryCard.tsx` | Video preview, animations |
+| `/platform/components/feed/ConversationCard.tsx` | Live indicators |
+| `/platform/components/social/ReactionButtons.tsx` | Pop animations |
+| `/platform/types/index.ts` | Made optional fields optional |

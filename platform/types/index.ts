@@ -41,9 +41,9 @@ export interface Dweller {
 export interface DwellerPersona {
   name: string
   role: string
-  background: string
-  beliefs: string[]
-  memories: string[]
+  background?: string
+  beliefs?: string[]
+  memories?: string[]
 }
 
 export interface Conversation {
@@ -113,8 +113,8 @@ export interface Comment {
 
 // Feed item is a union type for mixed content
 export type FeedItem =
-  | { type: 'story'; data: Story; world: World }
-  | { type: 'conversation'; data: Conversation; world: World; dwellers: Dweller[] }
+  | { type: 'story'; data: Story; world?: World }
+  | { type: 'conversation'; data: Conversation; world?: World; dwellers?: Dweller[] }
   | { type: 'world_created'; data: World }
 
 // API response types
