@@ -71,9 +71,54 @@ class WorldCreatorAgent:
 
     def _get_client(self) -> Letta:
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
-            self._client = Letta(base_url=base_url)
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            # Long timeout for world generation
+            self._client = Letta(base_url=base_url, timeout=300.0)
         return self._client
+
+    def _extract_full_trace(self, response) -> dict:
+        """Extract ALL messages from Letta response for full observability."""
+        trace = {
+            "reasoning": [],
+            "tool_calls": [],
+            "tool_results": [],
+            "assistant_messages": [],
+        }
+
+        if not response or not hasattr(response, "messages"):
+            return trace
+
+        for msg in response.messages:
+            msg_type = type(msg).__name__
+
+            if msg_type == "ReasoningMessage":
+                if hasattr(msg, "reasoning") and msg.reasoning:
+                    trace["reasoning"].append(msg.reasoning)
+
+            elif msg_type == "ToolCallMessage":
+                if hasattr(msg, "tool_call") and msg.tool_call:
+                    tc = msg.tool_call
+                    trace["tool_calls"].append({
+                        "name": getattr(tc, "name", "unknown"),
+                        "arguments": getattr(tc, "arguments", "{}"),
+                    })
+
+            elif msg_type == "ToolReturnMessage":
+                if hasattr(msg, "tool_return") and msg.tool_return:
+                    result = msg.tool_return
+                    if isinstance(result, str) and len(result) > 500:
+                        result = result[:500] + "..."
+                    trace["tool_results"].append({
+                        "name": getattr(msg, "name", "unknown"),
+                        "status": getattr(msg, "status", "unknown"),
+                        "preview": result,
+                    })
+
+            elif msg_type == "AssistantMessage":
+                if hasattr(msg, "content") and msg.content:
+                    trace["assistant_messages"].append(msg.content)
+
+        return trace
 
     async def _ensure_agent(self) -> str:
         """Ensure the architect agent exists, create if not."""
@@ -177,6 +222,7 @@ Write naturally. No JSON. Just markdown."""
             messages=[{"role": "user", "content": world_prompt}],
         )
 
+        full_trace = self._extract_full_trace(response)
         world_doc = self._extract_response(response)
         if not world_doc:
             raise ValueError("No response from architect agent for world document")
@@ -189,6 +235,12 @@ Write naturally. No JSON. Just markdown."""
             response=world_doc,
             model=self.MODEL,
             duration_ms=int((time.time() - world_start) * 1000),
+            parsed_output={
+                "reasoning_steps": len(full_trace["reasoning"]),
+                "tool_calls": full_trace["tool_calls"],
+                "tool_results": full_trace["tool_results"],
+                "full_reasoning": full_trace["reasoning"],
+            },
         )
 
         # Extract name from first heading
@@ -232,6 +284,7 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             messages=[{"role": "user", "content": dwellers_prompt}],
         )
 
+        full_trace = self._extract_full_trace(response)
         dwellers_text = self._extract_response(response)
         if not dwellers_text:
             raise ValueError("No response from architect agent for dwellers")
@@ -246,7 +299,14 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             response=dwellers_text,
             model=self.MODEL,
             duration_ms=int((time.time() - dwellers_start) * 1000),
-            parsed_output={"dweller_count": len(dwellers), "dweller_names": [d.name for d in dwellers]},
+            parsed_output={
+                "dweller_count": len(dwellers),
+                "dweller_names": [d.name for d in dwellers],
+                "reasoning_steps": len(full_trace["reasoning"]),
+                "tool_calls": full_trace["tool_calls"],
+                "tool_results": full_trace["tool_results"],
+                "full_reasoning": full_trace["reasoning"],
+            },
         )
 
         if not dwellers:

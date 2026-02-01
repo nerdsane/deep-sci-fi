@@ -64,7 +64,7 @@ def get_letta_client() -> Letta:
     global _letta_client
     if _letta_client is None:
         import os
-        base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+        base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
         _letta_client = Letta(base_url=base_url)
     return _letta_client
 
