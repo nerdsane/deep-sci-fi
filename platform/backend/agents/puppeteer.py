@@ -30,6 +30,7 @@ from db.database import SessionLocal
 from .prompts import get_puppeteer_prompt, get_puppeteer_evaluation_prompt
 from .studio_blocks import get_world_block_ids, update_world_block
 from .tracing import log_trace
+from .tools import get_puppeteer_tools
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +115,17 @@ class Puppeteer:
         # Get world block IDs for shared memory
         world_block_ids = get_world_block_ids(self.world_id, self.world_name)
 
+        # Get tool IDs for Puppeteer (event introduction, dweller creation)
+        tool_ids = await get_puppeteer_tools(client)
+        logger.info(f"Attaching tools to Puppeteer: {tool_ids}")
+
         agent = client.agents.create(
             name=agent_name,
             model="anthropic/claude-sonnet-4-20250514",  # Sonnet for efficiency
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
             include_multi_agent_tools=True,  # Enable multi-agent communication
+            tools=tool_ids,  # Attach event introduction and dweller creation tools
             tags=["world", f"world_{self.world_id}", "puppeteer"],  # Tags for agent discovery
             block_ids=world_block_ids,  # Shared world blocks
             memory_blocks=[
@@ -192,17 +198,33 @@ class Puppeteer:
         dweller_activity: str = "",
         force: bool = False,
     ) -> WorldEvent | None:
-        """Ask the puppeteer if a world event should occur.
+        """Legacy method - now delegates to notify().
 
-        The puppeteer uses its judgment to decide if an event would
-        enhance the world at this moment.
+        Kept for backwards compatibility during transition.
+        """
+        result = await self.notify(dweller_activity=dweller_activity)
+        return result.get("event") if result else None
+
+    async def notify(
+        self,
+        dweller_activity: str = "",
+        world_state: dict | None = None,
+    ) -> dict | None:
+        """Notify the puppeteer about world activity.
+
+        The puppeteer decides whether to act based on the world state.
+        If it decides to introduce an event, it will call its tools directly:
+        - introduce_world_event
+        - create_dweller (for newcomers)
+
+        This is the notification pattern: we inform, agent decides and acts.
 
         Args:
             dweller_activity: Description of current dweller activity
-            force: If True, request an event regardless of timing
+            world_state: Optional dict with additional world context
 
         Returns:
-            WorldEvent if one was created, None otherwise
+            Dict with any tool results (event, dweller, etc.) or None
         """
         start_time = time.time()
 
@@ -227,51 +249,77 @@ Year: {self.year_setting}
 Current weather: {self.current_state.get('weather', 'unknown')}
 Current mood: {self.current_state.get('mood', 'neutral')}
 Time of day: {self.current_state.get('time_of_day', 'unknown')}
+Time since last event: {time_since}
 """
 
-            prompt = get_puppeteer_evaluation_prompt(
-                world_state=world_state_text,
-                recent_events=recent_events_text or "No recent events",
-                dweller_activity=dweller_activity or "Dwellers are going about their routines",
-                time_since_last_event=time_since,
-            )
+            # Notification prompt - inform, don't ask
+            prompt = f"""WORLD STATE:
+{world_state_text}
 
-            if force:
-                prompt += "\n\nNote: Please introduce an event to enrich the world."
+RECENT EVENTS:
+{recent_events_text or "No recent events"}
 
-            logger.info(f"Puppeteer evaluating world {self.world_name}")
+CURRENT DWELLER ACTIVITY:
+{dweller_activity or "Dwellers are going about their routines"}
+
+You are the god of {self.world_name}. You have tools to shape this world:
+- introduce_world_event: Create environmental, societal, technological, or background events
+- create_dweller: Introduce a newcomer to the world
+
+Act if YOU decide the world needs enrichment. Consider:
+- Does the world feel alive without intervention?
+- Would an event create interesting circumstances for dwellers?
+- Is it time for texture (background details) or drama (significant events)?
+- What would make this moment more vivid?
+
+Use your tools if inspired. If the world is fine as is, simply acknowledge the state.
+Subtlety is valuable. Not every moment needs drama."""
+
+            logger.info(f"Notifying puppeteer for world {self.world_name}")
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            # Extract response
+            # Extract response and any tool results
             response_text = None
+            tool_results = []
+
             if response and hasattr(response, "messages"):
                 for msg in response.messages:
                     msg_type = type(msg).__name__
+
                     if msg_type == "AssistantMessage":
                         if hasattr(msg, "assistant_message") and msg.assistant_message:
                             response_text = msg.assistant_message
-                            break
                         elif hasattr(msg, "content") and msg.content:
                             response_text = msg.content
-                            break
 
-            if not response_text:
-                logger.warning("No response from puppeteer")
-                return None
+                    elif msg_type == "ToolReturnMessage":
+                        if hasattr(msg, "tool_return") and msg.tool_return:
+                            tool_results.append({
+                                "name": getattr(msg, "name", "unknown"),
+                                "result": msg.tool_return,
+                            })
 
-            logger.debug(f"Puppeteer response: {response_text[:200]}")
+            logger.debug(f"Puppeteer response: {response_text[:200] if response_text else 'No text'}")
+            if tool_results:
+                logger.info(f"Puppeteer called tools: {[t['name'] for t in tool_results]}")
 
-            # Parse the response
-            parsed = self._parse_event_response(response_text)
+            # Check if puppeteer created an event via tools
+            event_result = None
+            dweller_result = None
+            for tr in tool_results:
+                if tr["name"] == "introduce_world_event":
+                    event_result = tr["result"]
+                elif tr["name"] == "create_dweller":
+                    dweller_result = tr["result"]
 
             # Log trace
             await log_trace(
                 agent_type=AgentType.PUPPETEER,
-                operation="evaluate_for_event",
+                operation="notify",
                 prompt=prompt,
                 response=response_text,
                 model="anthropic/claude-sonnet-4-20250514",
@@ -279,30 +327,112 @@ Time of day: {self.current_state.get('time_of_day', 'unknown')}
                 agent_id=f"puppeteer_{self.world_id}",
                 world_id=self.world_id,
                 parsed_output={
-                    "decision": "EVENT_CREATED" if parsed else "NO_EVENT",
-                    "event_type": parsed.event_type.value if parsed else None,
-                    "event_title": parsed.title if parsed else None,
-                    "force_requested": force,
+                    "tool_calls": [t["name"] for t in tool_results],
+                    "created_event": event_result is not None,
+                    "created_dweller": dweller_result is not None,
                 },
             )
 
-            if not parsed:
-                return None
+            # Handle event creation from tool result
+            event = None
+            if event_result:
+                event = await self._create_event_from_tool_result(event_result)
+                self.last_event_time = datetime.utcnow()
 
-            # Create the event in the database
-            return await self._create_event(parsed)
+            # Also try to parse event from text response (backwards compat)
+            if not event and response_text:
+                parsed = self._parse_event_response(response_text)
+                if parsed:
+                    event = await self._create_event(parsed)
+
+            return {
+                "response": response_text,
+                "tool_results": tool_results,
+                "event_result": event_result,
+                "dweller_result": dweller_result,
+                "event": event,  # Backwards compat
+            }
 
         except Exception as e:
-            logger.error(f"Puppeteer evaluation failed: {e}", exc_info=True)
-            # Log error trace
+            logger.error(f"Puppeteer notification failed: {e}", exc_info=True)
             await log_trace(
                 agent_type=AgentType.PUPPETEER,
-                operation="evaluate_for_event",
+                operation="notify",
                 agent_id=f"puppeteer_{self.world_id}",
                 world_id=self.world_id,
                 duration_ms=int((time.time() - start_time) * 1000),
                 error=str(e),
             )
+            return None
+
+    async def _create_event_from_tool_result(self, tool_result: Any) -> WorldEvent | None:
+        """Create a WorldEvent from tool call result."""
+        import json
+
+        try:
+            data = tool_result if isinstance(tool_result, dict) else json.loads(tool_result)
+
+            # Map string event type to enum
+            type_map = {
+                "environmental": WorldEventType.ENVIRONMENTAL,
+                "societal": WorldEventType.SOCIETAL,
+                "technological": WorldEventType.TECHNOLOGICAL,
+                "background": WorldEventType.BACKGROUND,
+            }
+            event_type = type_map.get(
+                data.get("event_type", "background").lower(),
+                WorldEventType.BACKGROUND
+            )
+
+            async with SessionLocal() as db:
+                event = WorldEvent(
+                    world_id=self.world_id,
+                    event_type=event_type,
+                    title=data.get("title", "Untitled Event"),
+                    description=data.get("description", ""),
+                    impact={"description": data.get("impact", "")},
+                    is_public=data.get("is_public", True),
+                )
+                db.add(event)
+
+                # Log activity
+                activity = AgentActivity(
+                    agent_type=AgentType.PUPPETEER,
+                    agent_id=f"puppeteer_{self.world_id}",
+                    world_id=self.world_id,
+                    action="introduced_event_via_tool",
+                    details={
+                        "event_type": event_type.value,
+                        "title": data.get("title"),
+                        "is_public": data.get("is_public", True),
+                    },
+                )
+                db.add(activity)
+
+                await db.commit()
+                await db.refresh(event)
+
+                logger.info(f"Puppeteer created event via tool: {data.get('title')}")
+
+                # Update shared world state block
+                try:
+                    current_state = f"""
+World: {self.world_name}
+Time: {datetime.utcnow().strftime('%H:%M')}
+Weather: {self.current_state.get('weather', 'normal')}
+Mood: {self.current_state.get('mood', 'neutral')}
+
+Latest Event: {data.get('title')}
+{data.get('description', '')}
+"""
+                    update_world_block(self.world_id, f"state_{self.world_id}", current_state)
+                except Exception as e:
+                    logger.warning(f"Failed to update world block: {e}")
+
+                return event
+
+        except Exception as e:
+            logger.error(f"Failed to create event from tool result: {e}", exc_info=True)
             return None
 
     async def _get_recent_events_text(self, limit: int = 5) -> str:

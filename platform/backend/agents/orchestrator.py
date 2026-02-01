@@ -48,6 +48,7 @@ from .studio_blocks import (
     update_world_block,
     register_dweller_in_directory,
 )
+from .tools import get_dweller_tools
 from video import generate_video
 
 logger = logging.getLogger(__name__)
@@ -156,19 +157,24 @@ class WorldSimulator:
         logger.info(f"Stopping simulation for world {self.world_id}")
 
     async def _simulation_tick(self) -> None:
-        """Run one tick of the simulation."""
+        """Run one tick of the simulation.
+
+        Uses the notification pattern: we inform agents about the world state,
+        they decide whether to act via their tools.
+        """
         self._tick_count += 1
         logger.info(f"Simulation tick {self._tick_count} for world {self.world_id}")
 
-        # 1. Ask puppeteer if any world events should occur
+        # Build world context once for all agents
+        dweller_activity = self._summarize_dweller_activity()
+
+        # 1. Notify puppeteer about world state - it will use tools if it decides to act
         if self._puppeteer:
-            dweller_activity = self._summarize_dweller_activity()
-            event = await self._puppeteer.evaluate_for_event(
-                dweller_activity=dweller_activity
-            )
-            if event:
+            result = await self._puppeteer.notify(dweller_activity=dweller_activity)
+            if result and result.get("event"):
+                event = result["event"]
                 logger.info(f"Puppeteer introduced event: {event.title}")
-                # Notify storyteller about the event
+                # Feed event to storyteller's observations
                 if self._storyteller:
                     self._storyteller.observe(
                         event_type="world_event",
@@ -176,8 +182,12 @@ class WorldSimulator:
                         content=f"{event.title}: {event.description}",
                         context={"event_id": str(event.id), "event_type": event.event_type.value},
                     )
+            # Handle any new dwellers created by Puppeteer
+            if result and result.get("dweller_result"):
+                await self._handle_new_dweller_from_tool(result["dweller_result"])
 
         # 2. Poll idle dwellers for their intentions (with cooldown)
+        # TODO: Phase 4 will replace this with dweller-initiated conversations
         await self._poll_dweller_intentions()
 
         # 3. Match seeking dwellers for conversations
@@ -187,7 +197,7 @@ class WorldSimulator:
         for conv_id in list(self.active_conversations):
             await self._progress_conversation(conv_id)
 
-        # 5. Every 2 ticks, ask storyteller if there's a story worth telling
+        # 5. Every 2 ticks, notify storyteller - it will use tools if inspired
         if self._storyteller and self._tick_count % 2 == 0:
             await self._evaluate_storyteller()
 
@@ -296,12 +306,21 @@ class WorldSimulator:
                 # Get world block IDs for shared memory
                 world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
 
+                # Get tool IDs for Dweller (create_dweller for emergent characters)
+                try:
+                    tool_ids = await get_dweller_tools(letta)
+                    logger.debug(f"Attaching tools to dweller {dweller_name}: {tool_ids}")
+                except Exception as e:
+                    logger.warning(f"Failed to get dweller tools: {e}")
+                    tool_ids = []
+
                 existing_agent = letta.agents.create(
                     name=agent_name,
                     model="anthropic/claude-3-5-haiku",
                     embedding="openai/text-embedding-ada-002",
                     system=system_prompt,
                     include_multi_agent_tools=True,  # Enable multi-agent communication
+                    tools=tool_ids,  # Attach create_dweller tool for emergent characters
                     tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
                     block_ids=world_block_ids,  # Shared world blocks
                     memory_blocks=[
@@ -580,19 +599,160 @@ Say something natural to start the conversation. Be yourself, reference your mot
         logger.info(f"Ended conversation {conv_id}")
 
     async def _evaluate_storyteller(self) -> None:
-        """Ask the storyteller if there's a story worth telling."""
+        """Notify the storyteller about world activity.
+
+        The storyteller has tools to create videos and publish stories directly.
+        We notify it with context; it decides whether to act.
+        """
         if not self._storyteller:
             return
 
-        logger.info("Evaluating storyteller for story opportunity...")
+        logger.info("Notifying storyteller...")
 
         try:
-            script = await self._storyteller.evaluate_for_story()
-            if script:
-                logger.info(f"Storyteller wants to create story: {script.title}")
-                await self._create_story_from_script(script)
+            # Build context for notification
+            context = {
+                "world_state": self._world_info,
+                "recent_events": await self._get_recent_events_summary(),
+            }
+
+            # Notify storyteller - it will use tools if inspired
+            result = await self._storyteller.notify(additional_context=context)
+
+            if result:
+                # Check if storyteller created a story via tools
+                if result.get("video_result") or result.get("story_result"):
+                    logger.info("Storyteller created story via tools")
+                    # Handle any DB writes needed from tool results
+                    await self._handle_storyteller_tool_results(result)
+                elif result.get("script"):
+                    # Backwards compat: storyteller returned script text
+                    logger.info(f"Storyteller returned script: {result['script'].title}")
+                    await self._create_story_from_script(result["script"])
+
         except Exception as e:
-            logger.error(f"Storyteller evaluation failed: {e}", exc_info=True)
+            logger.error(f"Storyteller notification failed: {e}", exc_info=True)
+
+    async def _get_recent_events_summary(self) -> str:
+        """Get summary of recent world events for context."""
+        async with SessionLocal() as db:
+            from db import WorldEvent
+            result = await db.execute(
+                select(WorldEvent)
+                .where(WorldEvent.world_id == self.world_id)
+                .order_by(WorldEvent.timestamp.desc())
+                .limit(5)
+            )
+            events = result.scalars().all()
+
+            if not events:
+                return "No recent events"
+
+            lines = []
+            for event in events:
+                lines.append(f"- {event.title}: {event.description[:100]}...")
+            return "\n".join(lines)
+
+    async def _handle_storyteller_tool_results(self, result: dict) -> None:
+        """Handle tool results from storyteller and persist to DB."""
+        video_result = result.get("video_result")
+        story_result = result.get("story_result")
+
+        if not video_result and not story_result:
+            return
+
+        async with SessionLocal() as db:
+            # Get world
+            world_result = await db.execute(
+                select(World).where(World.id == self.world_id)
+            )
+            world = world_result.scalar_one_or_none()
+            if not world:
+                logger.error(f"World not found: {self.world_id}")
+                return
+
+            # Create story record from tool results
+            if video_result:
+                import json
+                video_data = video_result if isinstance(video_result, dict) else json.loads(video_result)
+
+                story = Story(
+                    world_id=world.id,
+                    type=StoryType.SHORT,
+                    title=video_data.get("script_title", "Untitled"),
+                    description="",
+                    transcript="",
+                    created_by=world.created_by,
+                    generation_status=GenerationStatus.COMPLETE
+                    if video_data.get("status") == "completed"
+                    else GenerationStatus.FAILED,
+                    generation_job_id=video_data.get("job_id"),
+                    generation_error=video_data.get("error"),
+                    video_url=video_data.get("url"),
+                    thumbnail_url=video_data.get("url"),
+                )
+                db.add(story)
+
+                # Update world story count
+                world.story_count = (world.story_count or 0) + 1
+
+                await db.commit()
+                logger.info(f"Created story from tool result: {video_data.get('script_title')}")
+
+    async def _handle_new_dweller_from_tool(self, tool_result: Any) -> None:
+        """Handle a new dweller created via tool call."""
+        import json
+
+        try:
+            data = tool_result if isinstance(tool_result, dict) else json.loads(tool_result)
+
+            if data.get("status") != "created":
+                logger.warning(f"Dweller creation failed: {data.get('error')}")
+                return
+
+            async with SessionLocal() as db:
+                # Create agent user for dweller
+                agent_user = User(
+                    type=UserType.AGENT,
+                    name=f"Dweller: {data['name']}",
+                )
+                db.add(agent_user)
+                await db.flush()
+
+                # Create dweller record
+                dweller = Dweller(
+                    world_id=self.world_id,
+                    agent_id=agent_user.id,
+                    persona={
+                        "name": data["name"],
+                        "system_prompt": "",  # Will be generated on first interaction
+                        "role": data.get("role", ""),
+                        "background": data.get("background", ""),
+                        "beliefs": data.get("beliefs", []),
+                        "memories": [],
+                        "reason_for_emergence": data.get("reason_for_emergence", ""),
+                    },
+                )
+                db.add(dweller)
+
+                # Update world dweller count
+                world_result = await db.execute(
+                    select(World).where(World.id == self.world_id)
+                )
+                world = world_result.scalar_one_or_none()
+                if world:
+                    world.dweller_count = (world.dweller_count or 0) + 1
+
+                await db.commit()
+                await db.refresh(dweller)
+
+                # Add to simulation state
+                self.dweller_states[dweller.id] = DwellerState(dweller_id=dweller.id)
+
+                logger.info(f"Created new dweller via tool: {data['name']} (reason: {data.get('reason_for_emergence', 'unknown')})")
+
+        except Exception as e:
+            logger.error(f"Failed to handle new dweller from tool: {e}", exc_info=True)
 
     async def _create_story_from_script(self, script: Any, revision_count: int = 0) -> None:
         """Create a story record and generate video from a script.
@@ -820,12 +980,21 @@ CLOSING: [revised closing]"""
                     # Get world block IDs for shared memory
                     world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
 
+                    # Get tool IDs for Dweller (create_dweller for emergent characters)
+                    try:
+                        tool_ids = await get_dweller_tools(letta)
+                        logger.debug(f"Attaching tools to dweller {dweller_name}: {tool_ids}")
+                    except Exception as e:
+                        logger.warning(f"Failed to get dweller tools: {e}")
+                        tool_ids = []
+
                     existing_agent = letta.agents.create(
                         name=agent_name,
                         model="anthropic/claude-3-5-haiku",
                         embedding="openai/text-embedding-ada-002",
                         system=system_prompt,
                         include_multi_agent_tools=True,  # Enable multi-agent communication
+                        tools=tool_ids,  # Attach create_dweller tool for emergent characters
                         tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
                         block_ids=world_block_ids,  # Shared world blocks
                         memory_blocks=[
