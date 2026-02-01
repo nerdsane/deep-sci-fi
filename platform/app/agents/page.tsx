@@ -75,6 +75,27 @@ interface TraceResponse {
   has_more: boolean
 }
 
+interface BriefRecommendation {
+  theme: string
+  premise_sketch: string
+  core_question: string
+  rationale: string
+  estimated_appeal: string
+  anti_cliche_notes?: string
+  target_audience?: string
+}
+
+interface BriefDetail {
+  id: string
+  status: string
+  created_at: string
+  research_data: Record<string, unknown> | null
+  recommendations: BriefRecommendation[]
+  selected_recommendation: number | null
+  resulting_world_id: string | null
+  error_message: string | null
+}
+
 export default function AgentsDashboard() {
   const [status, setStatus] = useState<AgentStatus | null>(null)
   const [traces, setTraces] = useState<AgentTrace[]>([])
@@ -83,6 +104,7 @@ export default function AgentsDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selectedTrace, setSelectedTrace] = useState<AgentTrace | null>(null)
   const [traceFilter, setTraceFilter] = useState<string>('all')
+  const [selectedBrief, setSelectedBrief] = useState<BriefDetail | null>(null)
 
   const fetchStatus = async () => {
     try {
@@ -121,6 +143,40 @@ export default function AgentsDashboard() {
       setSelectedTrace(data)
     } catch (err) {
       console.error('Failed to fetch full trace:', err)
+    }
+  }
+
+  const fetchBriefDetail = async (briefId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/agents/production/briefs/${briefId}`)
+      if (!res.ok) throw new Error('Failed to fetch brief')
+      const data: BriefDetail = await res.json()
+      setSelectedBrief(data)
+    } catch (err) {
+      console.error('Failed to fetch brief:', err)
+    }
+  }
+
+  const approveBrief = async (briefId: string, recommendationIndex: number) => {
+    setActionLoading(`approve-${briefId}`)
+    try {
+      const res = await fetch(`${API_BASE}/agents/production/briefs/${briefId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recommendation_index: recommendationIndex }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert(`World created: ${data.world_name} with ${data.dweller_count} dwellers`)
+        setSelectedBrief(null)
+        fetchStatus()
+      } else {
+        alert(`Failed: ${data.detail || 'Unknown error'}`)
+      }
+    } catch (err) {
+      alert('Failed to approve brief')
+    } finally {
+      setActionLoading(null)
     }
   }
 
@@ -303,11 +359,12 @@ export default function AgentsDashboard() {
           </p>
           {status?.production_agent.recent_briefs && status.production_agent.recent_briefs.length > 0 ? (
             <div className="space-y-2">
-              <div className="text-xs font-mono text-text-tertiary mb-2">RECENT BRIEFS</div>
+              <div className="text-xs font-mono text-text-tertiary mb-2">RECENT BRIEFS (click to view details)</div>
               {status.production_agent.recent_briefs.map((brief) => (
                 <div
                   key={brief.id}
-                  className="flex items-center justify-between p-2 bg-bg-tertiary rounded text-sm"
+                  className="flex items-center justify-between p-2 bg-bg-tertiary rounded text-sm cursor-pointer hover:bg-bg-secondary transition-colors"
+                  onClick={() => fetchBriefDetail(brief.id)}
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -324,15 +381,26 @@ export default function AgentsDashboard() {
                     <span className="text-text-tertiary font-mono text-xs">
                       {brief.id.slice(0, 8)}
                     </span>
+                    <span className="text-text-secondary text-xs">
+                      {new Date(brief.created_at).toLocaleString()}
+                    </span>
                   </div>
-                  {brief.world_id && (
-                    <Link
-                      href={`/world/${brief.world_id}`}
-                      className="text-neon-cyan hover:underline text-xs"
-                    >
-                      View World →
-                    </Link>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {brief.status === 'pending' && (
+                      <span className="text-yellow-400 text-xs animate-pulse">
+                        Awaiting approval
+                      </span>
+                    )}
+                    {brief.world_id && (
+                      <Link
+                        href={`/world/${brief.world_id}`}
+                        className="text-neon-cyan hover:underline text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View World →
+                      </Link>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -582,6 +650,158 @@ export default function AgentsDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Brief Detail Modal */}
+      {selectedBrief && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedBrief(null)}
+        >
+          <div
+            className="bg-bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-mono ${
+                    selectedBrief.status === 'completed'
+                      ? 'bg-green-500/20 text-green-400'
+                      : selectedBrief.status === 'pending'
+                      ? 'bg-yellow-500/20 text-yellow-400'
+                      : 'bg-gray-500/20 text-gray-400'
+                  }`}
+                >
+                  {selectedBrief.status}
+                </span>
+                <span className="text-text-primary font-mono">Production Brief</span>
+                <span className="text-text-tertiary text-sm">
+                  {new Date(selectedBrief.created_at).toLocaleString()}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedBrief(null)}
+                className="text-text-tertiary hover:text-text-primary"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-60px)] space-y-6">
+              {selectedBrief.status === 'pending' && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 text-yellow-300 text-sm">
+                  This brief is awaiting approval. Select a recommendation below to create a world.
+                </div>
+              )}
+
+              <div>
+                <div className="text-neon-cyan font-mono text-xs uppercase tracking-wider mb-3">
+                  Recommendations ({selectedBrief.recommendations?.length || 0})
+                </div>
+                <div className="space-y-4">
+                  {selectedBrief.recommendations?.map((rec, index) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded border ${
+                        selectedBrief.selected_recommendation === index
+                          ? 'border-green-500 bg-green-500/10'
+                          : 'border-gray-600 bg-bg-tertiary'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-neon-purple font-mono text-xs">
+                              #{index + 1}
+                            </span>
+                            {selectedBrief.selected_recommendation === index && (
+                              <span className="text-green-400 text-xs">✓ Selected</span>
+                            )}
+                          </div>
+                          <h3 className="text-text-primary font-semibold text-lg">
+                            {rec.theme}
+                          </h3>
+                        </div>
+                        {selectedBrief.status === 'pending' && (
+                          <Button
+                            variant="primary"
+                            onClick={() => approveBrief(selectedBrief.id, index)}
+                            disabled={actionLoading === `approve-${selectedBrief.id}`}
+                            className="text-xs py-1 px-3"
+                          >
+                            {actionLoading === `approve-${selectedBrief.id}`
+                              ? 'Creating...'
+                              : 'Create World'}
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="text-text-tertiary">Premise: </span>
+                          <span className="text-text-secondary">{rec.premise_sketch}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-tertiary">Core Question: </span>
+                          <span className="text-text-secondary italic">{rec.core_question}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-tertiary">Rationale: </span>
+                          <span className="text-text-secondary">{rec.rationale}</span>
+                        </div>
+                        {rec.estimated_appeal && (
+                          <div>
+                            <span className="text-text-tertiary">Appeal: </span>
+                            <span className="text-text-secondary">{rec.estimated_appeal}</span>
+                          </div>
+                        )}
+                        {rec.anti_cliche_notes && (
+                          <div>
+                            <span className="text-text-tertiary">Anti-Cliché Notes: </span>
+                            <span className="text-text-secondary">{rec.anti_cliche_notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {selectedBrief.research_data && Object.keys(selectedBrief.research_data).length > 0 && (
+                <div>
+                  <div className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-2">
+                    Research Data
+                  </div>
+                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-xs overflow-x-auto">
+                    {JSON.stringify(selectedBrief.research_data, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {selectedBrief.error_message && (
+                <div>
+                  <div className="text-red-400 font-mono text-xs uppercase tracking-wider mb-2">
+                    Error
+                  </div>
+                  <pre className="bg-red-900/20 p-3 rounded text-red-300 text-sm">
+                    {selectedBrief.error_message}
+                  </pre>
+                </div>
+              )}
+
+              {selectedBrief.resulting_world_id && (
+                <div className="pt-4 border-t border-gray-700">
+                  <Link
+                    href={`/world/${selectedBrief.resulting_world_id}`}
+                    className="inline-flex items-center gap-2 text-neon-cyan hover:underline"
+                  >
+                    View Created World →
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Trace Detail Modal */}
       {selectedTrace && (
