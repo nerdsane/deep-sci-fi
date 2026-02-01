@@ -5,11 +5,17 @@ import * as schema from './schema'
 // Connection string from environment
 const connectionString = process.env.DATABASE_URL!
 
-// Create postgres client
+// Detect if running in serverless/edge environment (Vercel)
+const isServerless = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+
+// Create postgres client with settings optimized for the environment
 const client = postgres(connectionString, {
-  max: 10,
-  idle_timeout: 20,
+  // Fewer connections in serverless to avoid pool exhaustion
+  max: isServerless ? 1 : 10,
+  idle_timeout: isServerless ? 0 : 20,
   connect_timeout: 10,
+  // Required for Supabase pooler (pgbouncer in transaction mode)
+  prepare: false,
 })
 
 // Create drizzle instance with schema
