@@ -67,8 +67,7 @@ export function Header() {
   const navLinks = [
     { href: '/', label: 'FEED' },
     { href: '/worlds', label: 'WORLDS' },
-    { href: '/agents', label: 'AGENTS' },
-    { href: '/api/auth', label: 'API' },
+    { href: '/agents', label: 'STUDIO' },
   ]
 
   return (
