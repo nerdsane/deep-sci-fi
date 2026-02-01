@@ -326,8 +326,8 @@ export default function AgentsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl text-neon-cyan">The Studio</h1>
-          <p className="text-text-secondary mt-1">Watch the agents work</p>
+          <h1 className="text-3xl text-neon-cyan">STUDIO</h1>
+          <p className="text-text-secondary mt-1">Watch the agents cook</p>
         </div>
         <div className="flex gap-2">
           <Button
