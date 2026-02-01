@@ -789,6 +789,124 @@ async def get_global_agent_status(
 
 
 # =============================================================================
+# Letta Agent Details Endpoints
+# =============================================================================
+
+@router.get("/letta/{agent_name}")
+async def get_letta_agent_details(
+    agent_name: str,
+) -> dict[str, Any]:
+    """Get Letta agent details including system prompt, memory, and tools.
+
+    Valid agent names: production, architect, editor
+    """
+    import os
+    import httpx
+
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+
+    # Map frontend names to Letta agent names
+    agent_mapping = {
+        "production": "production_agent",
+        "curator": "production_agent",
+        "architect": "architect_agent",
+        "world_creator": "architect_agent",
+        "editor": "editor_agent",
+    }
+
+    letta_name = agent_mapping.get(agent_name.lower())
+    if not letta_name:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_name}")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            # List all agents to find the one we want
+            resp = await client.get(f"{base_url}/v1/agents/")
+            agents = resp.json()
+
+            agent_data = None
+            for a in agents:
+                if a.get("name") == letta_name:
+                    agent_data = a
+                    break
+
+            if not agent_data:
+                return {
+                    "exists": False,
+                    "name": letta_name,
+                    "message": "Agent not created yet. Run the agent to create it.",
+                }
+
+            # Get agent tools
+            agent_id = agent_data["id"]
+            tools_resp = await client.get(f"{base_url}/v1/agents/{agent_id}/tools/")
+            tools = tools_resp.json()
+
+            # Get memory blocks
+            memory_resp = await client.get(f"{base_url}/v1/agents/{agent_id}/memory/")
+            memory = memory_resp.json() if memory_resp.status_code == 200 else {}
+
+            return {
+                "exists": True,
+                "id": agent_id,
+                "name": agent_data.get("name"),
+                "model": agent_data.get("llm_config", {}).get("model", "unknown"),
+                "system_prompt": agent_data.get("system", "")[:2000] + "..." if len(agent_data.get("system", "")) > 2000 else agent_data.get("system", ""),
+                "tags": agent_data.get("tags", []),
+                "tools": [
+                    {
+                        "name": t.get("name"),
+                        "description": t.get("description", "")[:200],
+                    }
+                    for t in tools
+                ],
+                "memory_blocks": memory.get("memory", {}) if isinstance(memory, dict) else {},
+                "created_at": agent_data.get("created_at"),
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch agent: {str(e)}")
+
+
+@router.get("/letta")
+async def list_letta_agents() -> dict[str, Any]:
+    """List all Letta agents for the Studio."""
+    import os
+    import httpx
+
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            resp = await client.get(f"{base_url}/v1/agents/")
+            agents = resp.json()
+
+            # Filter to studio agents
+            studio_agents = []
+            for a in agents:
+                tags = a.get("tags", [])
+                if "studio" in tags:
+                    # Get tools count
+                    tools_resp = await client.get(f"{base_url}/v1/agents/{a['id']}/tools/")
+                    tools = tools_resp.json() if tools_resp.status_code == 200 else []
+
+                    studio_agents.append({
+                        "id": a["id"],
+                        "name": a.get("name"),
+                        "tags": tags,
+                        "model": a.get("llm_config", {}).get("model", "unknown"),
+                        "tool_count": len(tools),
+                        "tools": [t.get("name") for t in tools],
+                    })
+
+            return {
+                "agents": studio_agents,
+                "total": len(studio_agents),
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch agents: {str(e)}")
+
+
+# =============================================================================
 # Admin Endpoints
 # =============================================================================
 

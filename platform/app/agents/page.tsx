@@ -15,6 +15,18 @@ const AGENTS = {
 
 type AgentType = keyof typeof AGENTS
 
+interface LettaAgentDetails {
+  exists: boolean
+  id?: string
+  name?: string
+  model?: string
+  system_prompt?: string
+  tags?: string[]
+  tools?: { name: string; description: string }[]
+  memory_blocks?: Record<string, unknown>
+  message?: string
+}
+
 interface AgentTrace {
   id: string
   timestamp: string
@@ -113,6 +125,7 @@ interface LogEntry {
 export default function AgentsDashboard() {
   const [status, setStatus] = useState<AgentStatus | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<AgentType | null>(null)
+  const [agentDetails, setAgentDetails] = useState<LettaAgentDetails | null>(null)
   const [allTraces, setAllTraces] = useState<AgentTrace[]>([])
   const [allActivities, setAllActivities] = useState<AgentActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,6 +133,7 @@ export default function AgentsDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
   const [selectedBrief, setSelectedBrief] = useState<BriefDetail | null>(null)
+  const [showAgentDetails, setShowAgentDetails] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   const fetchStatus = async () => {
@@ -133,6 +147,19 @@ export default function AgentsDashboard() {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAgentDetails = async (agentType: AgentType) => {
+    try {
+      const res = await fetch(`${API_BASE}/agents/letta/${agentType}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAgentDetails(data)
+        setShowAgentDetails(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch agent details:', err)
     }
   }
 
@@ -394,32 +421,50 @@ export default function AgentsDashboard() {
             const activityCount = allActivities.filter(a => a.agent_type === agentType).length
 
             return (
-              <button
-                key={agentType}
-                onClick={() => {
-                  setSelectedAgent(isSelected ? null : agentType)
-                  if (!isSelected) fetchAgentData(agentType)
-                }}
-                className={`w-full text-left p-3 border-b border-white/5 transition-colors ${
-                  isSelected ? 'bg-white/5' : 'hover:bg-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: agent.color }}
-                  />
-                  <span className="text-text-primary text-xs">{agent.name}</span>
-                </div>
-                <div className="text-text-tertiary text-xs mt-0.5 ml-4">
-                  {agent.shortDesc}
-                </div>
-                {(traceCount > 0 || activityCount > 0) && (
-                  <div className="text-text-tertiary text-xs mt-1 ml-4">
-                    {traceCount} traces, {activityCount} actions
+              <div key={agentType} className="border-b border-white/5">
+                <button
+                  onClick={() => {
+                    setSelectedAgent(isSelected ? null : agentType)
+                    if (!isSelected) {
+                      fetchAgentData(agentType)
+                      fetchAgentDetails(agentType)
+                    } else {
+                      setShowAgentDetails(false)
+                    }
+                  }}
+                  className={`w-full text-left p-3 transition-colors ${
+                    isSelected ? 'bg-white/5' : 'hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: agent.color }}
+                    />
+                    <span className="text-text-primary text-xs">{agent.name}</span>
                   </div>
+                  <div className="text-text-tertiary text-xs mt-0.5 ml-4">
+                    {agent.shortDesc}
+                  </div>
+                  {(traceCount > 0 || activityCount > 0) && (
+                    <div className="text-text-tertiary text-xs mt-1 ml-4">
+                      {traceCount} traces, {activityCount} actions
+                    </div>
+                  )}
+                </button>
+                {/* Info button */}
+                {isSelected && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowAgentDetails(!showAgentDetails)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-text-tertiary hover:text-text-secondary bg-white/5"
+                  >
+                    {showAgentDetails ? '▾ hide details' : '▸ show details'}
+                  </button>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
@@ -507,43 +552,88 @@ export default function AgentsDashboard() {
                     )}
                   </div>
 
-                  {/* Trace: show prompt, response, output inline */}
+                  {/* Trace: Claude Code style - thinking, tool calls, response */}
                   {trace && (
                     <>
+                      {/* Thinking/Reasoning (collapsible) */}
+                      {trace.parsed_output?.full_reasoning && Array.isArray(trace.parsed_output.full_reasoning) && trace.parsed_output.full_reasoning.length > 0 && (
+                        <details className="ml-16 group">
+                          <summary className="flex items-center gap-2 cursor-pointer text-text-tertiary hover:text-text-secondary">
+                            <span className="text-purple-400 text-xs">⟡</span>
+                            <span className="text-xs">thinking ({(trace.parsed_output.full_reasoning as string[]).length} steps)</span>
+                          </summary>
+                          <div className="mt-1 pl-4 border-l border-purple-400/30 space-y-2">
+                            {(trace.parsed_output.full_reasoning as string[]).map((thought, i) => (
+                              <pre key={i} className="text-purple-300/70 text-xs whitespace-pre-wrap italic">
+                                {thought}
+                              </pre>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+
+                      {/* Tool Calls - Claude Code style */}
+                      {trace.parsed_output?.tool_calls && Array.isArray(trace.parsed_output.tool_calls) && (trace.parsed_output.tool_calls as Array<{name: string, arguments: Record<string, unknown>}>).map((call, i) => (
+                        <div key={i} className="ml-16 flex items-start gap-2">
+                          <span className="text-cyan-400 shrink-0">◆</span>
+                          <span className="text-cyan-400 text-xs font-medium">{call.name}</span>
+                          <span className="text-text-tertiary text-xs">
+                            {typeof call.arguments === 'string'
+                              ? call.arguments
+                              : JSON.stringify(call.arguments)}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Tool results */}
+                      {trace.parsed_output?.tool_results && Array.isArray(trace.parsed_output.tool_results) && (trace.parsed_output.tool_results as Array<{name: string, status: string, preview: string}>).map((result, i) => (
+                        <div key={i} className="ml-16 flex items-start gap-2">
+                          <span className={`shrink-0 ${result.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                            {result.status === 'success' ? '✓' : '✗'}
+                          </span>
+                          <span className="text-green-400/70 text-xs font-medium">{result.name}</span>
+                          <span className="text-text-tertiary text-xs truncate max-w-md">
+                            {result.preview?.slice(0, 100)}...
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Prompt (input) */}
                       {trace.prompt && (
-                        <div className="flex items-start gap-2 ml-16">
-                          <span className="text-yellow-500 shrink-0">&gt;</span>
-                          <pre className="text-text-tertiary text-xs whitespace-pre-wrap break-all flex-1">
-                            {trace.prompt.length > 500 ? trace.prompt.slice(0, 500) + '...' : trace.prompt}
+                        <details className="ml-16 group">
+                          <summary className="flex items-center gap-2 cursor-pointer text-text-tertiary hover:text-text-secondary">
+                            <span className="text-yellow-500 text-xs">▸</span>
+                            <span className="text-xs">prompt</span>
+                          </summary>
+                          <pre className="mt-1 pl-4 text-text-tertiary text-xs whitespace-pre-wrap break-all border-l border-yellow-500/30">
+                            {trace.prompt}
                           </pre>
-                        </div>
+                        </details>
                       )}
+
+                      {/* Response (output) */}
                       {trace.response && (
-                        <div className="flex items-start gap-2 ml-16">
-                          <span className="text-green-500 shrink-0">&lt;</span>
+                        <div className="ml-16 flex items-start gap-2">
+                          <span className="text-green-500 shrink-0">→</span>
                           <pre className="text-text-secondary text-xs whitespace-pre-wrap break-all flex-1">
-                            {trace.response.length > 800 ? trace.response.slice(0, 800) + '...' : trace.response}
+                            {trace.response.length > 600 ? trace.response.slice(0, 600) + '...' : trace.response}
                           </pre>
                         </div>
                       )}
-                      {trace.parsed_output && (
-                        <div className="flex items-start gap-2 ml-16">
-                          <span className="text-blue-400 shrink-0">=</span>
-                          <pre className="text-blue-300 text-xs whitespace-pre-wrap break-all flex-1">
-                            {JSON.stringify(trace.parsed_output, null, 2)}
-                          </pre>
-                        </div>
-                      )}
+
+                      {/* Error */}
                       {trace.error && (
-                        <div className="flex items-start gap-2 ml-16">
-                          <span className="text-red-500 shrink-0">!</span>
+                        <div className="ml-16 flex items-start gap-2">
+                          <span className="text-red-500 shrink-0">✗</span>
                           <pre className="text-red-400 text-xs whitespace-pre-wrap break-all flex-1">
                             {trace.error}
                           </pre>
                         </div>
                       )}
+
+                      {/* World link */}
                       {trace.world_id && (
-                        <div className="flex items-start gap-2 ml-16">
+                        <div className="ml-16 flex items-center gap-2">
                           <span className="text-text-tertiary shrink-0">@</span>
                           <Link href={`/world/${trace.world_id}`} className="text-neon-cyan text-xs hover:underline">
                             world/{trace.world_id.slice(0, 8)}
@@ -580,6 +670,99 @@ export default function AgentsDashboard() {
           )}
         </div>
       </div>
+
+      {/* Agent Details Panel */}
+      {showAgentDetails && selectedAgent && agentDetails && (
+        <div className="w-80 border-l border-white/10 bg-bg-primary overflow-y-auto">
+          <div className="p-3 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: AGENTS[selectedAgent].color }}
+              />
+              <span className="text-text-primary text-xs">{AGENTS[selectedAgent].name}</span>
+            </div>
+            <button
+              onClick={() => setShowAgentDetails(false)}
+              className="text-text-tertiary hover:text-text-primary text-xs"
+            >
+              close
+            </button>
+          </div>
+
+          <div className="p-3 space-y-4">
+            {!agentDetails.exists ? (
+              <div className="text-text-tertiary text-xs">
+                {agentDetails.message || 'Agent not created yet'}
+              </div>
+            ) : (
+              <>
+                {/* Model */}
+                <div>
+                  <div className="text-text-tertiary text-xs mb-1">model</div>
+                  <div className="text-text-secondary text-xs font-mono">{agentDetails.model}</div>
+                </div>
+
+                {/* Tools */}
+                {agentDetails.tools && agentDetails.tools.length > 0 && (
+                  <div>
+                    <div className="text-text-tertiary text-xs mb-1">tools ({agentDetails.tools.length})</div>
+                    <div className="space-y-1">
+                      {agentDetails.tools.map((tool, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-cyan-400 text-xs">◆</span>
+                          <span className="text-text-secondary text-xs">{tool.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {agentDetails.tags && agentDetails.tags.length > 0 && (
+                  <div>
+                    <div className="text-text-tertiary text-xs mb-1">tags</div>
+                    <div className="flex flex-wrap gap-1">
+                      {agentDetails.tags.map((tag, i) => (
+                        <span key={i} className="text-xs px-1.5 py-0.5 bg-white/10 rounded text-text-secondary">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* System Prompt */}
+                {agentDetails.system_prompt && (
+                  <div>
+                    <div className="text-text-tertiary text-xs mb-1">personality</div>
+                    <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-64 overflow-y-auto">
+                      {agentDetails.system_prompt}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Memory Blocks */}
+                {agentDetails.memory_blocks && Object.keys(agentDetails.memory_blocks).length > 0 && (
+                  <div>
+                    <div className="text-text-tertiary text-xs mb-1">memory</div>
+                    <div className="space-y-2">
+                      {Object.entries(agentDetails.memory_blocks).map(([key, value]) => (
+                        <div key={key} className="bg-black/30 p-2 rounded">
+                          <div className="text-purple-400 text-xs font-mono mb-1">{key}</div>
+                          <pre className="text-text-tertiary text-xs whitespace-pre-wrap">
+                            {typeof value === 'string' ? value.slice(0, 200) : JSON.stringify(value, null, 2).slice(0, 200)}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Brief Detail Panel */}
       {selectedBrief && (

@@ -84,7 +84,7 @@ class Puppeteer:
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
             self._client = Letta(base_url=base_url)
         return self._client
 
