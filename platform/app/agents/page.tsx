@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-// Agent profiles - who they are
+// Platform-wide agent profiles - these are the studio agents
+// Per-world agents (Observer, World God, Critic) live in WorldDetail
 const AGENT_PROFILES = {
   production: {
     name: 'The Curator',
@@ -29,35 +30,15 @@ const AGENT_PROFILES = {
     description: 'Takes seeds and grows them into living worlds. Obsessive about causal chains - every future element traces back to 2026.',
     personality: 'Detail-oriented. Thinks in systems. Asks "but what would that actually mean for daily life?"',
   },
-  storyteller: {
-    name: 'The Observer',
-    role: 'Story Finder',
-    avatar: '👁️',
-    color: 'text-cyan-400',
-    bgColor: 'bg-cyan-500/20',
-    borderColor: 'border-cyan-500/30',
-    description: 'Watches everything. Waits for the moment that matters. Creates short films from the moments that resonate.',
-    personality: 'Patient. Sees stories others miss. Knows when to wait and when something is ready to be told.',
-  },
-  puppeteer: {
-    name: 'The World God',
-    role: 'Event Orchestrator',
-    avatar: '🎭',
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/20',
-    borderColor: 'border-purple-500/30',
-    description: 'The unseen hand. Introduces weather, news, events that shape the world. Never controls dwellers, only circumstances.',
-    personality: 'Subtle. Knows when to act and when to let things breathe. Creates conditions for drama.',
-  },
-  critic: {
+  editor: {
     name: 'The Editor',
     role: 'Quality Guardian',
     avatar: '✂️',
     color: 'text-yellow-400',
     bgColor: 'bg-yellow-500/20',
     borderColor: 'border-yellow-500/30',
-    description: 'Ruthless detector of AI-isms and clichés. Demands authenticity. Constructively harsh.',
-    personality: 'High standards. Specific feedback. Celebrates what works, destroys what doesn\'t.',
+    description: 'Reviews Curator research and Architect worlds before approval. High standards, specific feedback.',
+    personality: 'Demands authenticity. Celebrates what works, destroys what doesn\'t.',
   },
 }
 
@@ -137,7 +118,7 @@ interface AgentStatus {
     storyteller_active: boolean
     storyteller_observations: number
   }>
-  critic: {
+  editor: {
     recent_evaluations: Array<{
       id: string
       target_type: string
@@ -331,8 +312,8 @@ export default function AgentsDashboard() {
         </div>
       </div>
 
-      {/* Agent Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      {/* Agent Grid - 3 platform-wide agents */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {(Object.keys(AGENT_PROFILES) as AgentType[]).map((agentType) => {
           const agent = AGENT_PROFILES[agentType]
           const isSelected = selectedAgent === agentType

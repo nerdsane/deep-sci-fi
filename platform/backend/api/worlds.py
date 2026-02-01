@@ -369,9 +369,10 @@ async def get_world_agents(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Get per-world agent status including Puppeteer and Storyteller.
+    Get per-world agent status including Puppeteer, Storyteller, and Critic.
     """
     from agents.orchestrator import get_simulator
+    from agents.world_critic import get_critic_status_for_world
 
     # Check simulation status
     sim = get_simulator(world_id)
@@ -424,6 +425,9 @@ async def get_world_agents(
         "last_activity": storyteller_activities[0].timestamp.isoformat() if storyteller_activities else None,
     }
 
+    # Get critic info for this world
+    critic_info = await get_critic_status_for_world(world_id)
+
     # Get dweller agent states
     dweller_agents = []
     if sim:
@@ -439,6 +443,7 @@ async def get_world_agents(
         "simulation_status": simulation_status,
         "puppeteer": puppeteer_info,
         "storyteller": storyteller_info,
+        "critic": critic_info,
         "dweller_agents": dweller_agents,
         "tick_count": sim._tick_count if sim else 0,
     }
