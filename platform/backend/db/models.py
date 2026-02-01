@@ -6,9 +6,11 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -30,6 +32,32 @@ class UserType(str, enum.Enum):
 class StoryType(str, enum.Enum):
     SHORT = "short"
     LONG = "long"
+
+
+class BriefStatus(str, enum.Enum):
+    """Status of a production brief."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CREATING = "creating"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class CriticTargetType(str, enum.Enum):
+    """Type of entity being evaluated by critic."""
+    WORLD = "world"
+    STORY = "story"
+    CONVERSATION = "conversation"
+
+
+class AgentType(str, enum.Enum):
+    """Types of agents in the system."""
+    PRODUCTION = "production"
+    WORLD_CREATOR = "world_creator"
+    DWELLER = "dweller"
+    STORYTELLER = "storyteller"
+    CRITIC = "critic"
 
 
 class GenerationStatus(str, enum.Enum):
@@ -336,4 +364,140 @@ class Comment(Base):
         Index("comment_target_idx", "target_type", "target_id"),
         Index("comment_parent_idx", "parent_id"),
         Index("comment_created_at_idx", "created_at"),
+    )
+
+
+class ProductionBrief(Base):
+    """Briefs from Production Agent recommending worlds to create.
+
+    The Production Agent researches current trends and engagement data,
+    then generates briefs with multiple world theme recommendations.
+    """
+
+    __tablename__ = "platform_production_briefs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Research data that informed this brief
+    research_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Contains: trends, engagement_analysis, market_gaps, etc.
+
+    # World theme recommendations (3-5 options)
+    recommendations: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    # Each recommendation: {theme, premise_sketch, target_audience, rationale, estimated_appeal}
+
+    # Which recommendation was selected (0-indexed)
+    selected_recommendation: Mapped[int | None] = mapped_column(Integer)
+
+    # The world created from this brief (if any)
+    resulting_world_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="SET NULL")
+    )
+
+    # Status tracking
+    status: Mapped[BriefStatus] = mapped_column(
+        Enum(BriefStatus), default=BriefStatus.PENDING, nullable=False
+    )
+
+    # Error message if creation failed
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("brief_status_idx", "status"),
+        Index("brief_created_at_idx", "created_at"),
+    )
+
+
+class CriticEvaluation(Base):
+    """Quality evaluations from the Critic Agent.
+
+    The Critic evaluates worlds, stories, and conversations for:
+    - Plausibility and coherence
+    - Originality (avoiding clichés)
+    - AI-ism detection (phrases that sound AI-generated)
+    - Engagement potential
+    """
+
+    __tablename__ = "platform_critic_evaluations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # What's being evaluated
+    target_type: Mapped[CriticTargetType] = mapped_column(
+        Enum(CriticTargetType), nullable=False
+    )
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Detailed evaluation scores and feedback
+    evaluation: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Contains: {
+    #   scores: {plausibility, coherence, originality, engagement, ...},
+    #   feedback: {strengths: [], weaknesses: [], suggestions: []},
+    #   rubric_version: str
+    # }
+
+    # Specific AI-isms detected (phrases/patterns)
+    ai_isms_detected: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+    # Overall quality score (0-10)
+    overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+
+    __table_args__ = (
+        Index("critic_target_idx", "target_type", "target_id"),
+        Index("critic_score_idx", "overall_score"),
+        Index("critic_created_at_idx", "created_at"),
+    )
+
+
+class AgentActivity(Base):
+    """Activity log for agent observability.
+
+    Tracks what agents are doing for the UI activity feed.
+    """
+
+    __tablename__ = "platform_agent_activity"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Which agent type performed the action
+    agent_type: Mapped[AgentType] = mapped_column(Enum(AgentType), nullable=False)
+
+    # Specific agent instance ID (for dwellers/storytellers)
+    agent_id: Mapped[str | None] = mapped_column(String(255))
+
+    # Associated world (if any)
+    world_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="SET NULL")
+    )
+
+    # Action description
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Examples: "researched_trends", "created_world", "evaluated_story", "started_conversation"
+
+    # Additional details
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Flexible storage for action-specific data
+
+    # How long the action took
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+
+    __table_args__ = (
+        Index("activity_timestamp_idx", "timestamp"),
+        Index("activity_agent_type_idx", "agent_type"),
+        Index("activity_world_idx", "world_id"),
     )

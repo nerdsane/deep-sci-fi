@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import auth_router, feed_router, worlds_router, social_router
+from api import auth_router, feed_router, worlds_router, social_router, agents_router
 from db import init_db
 
 # Configure logging
@@ -28,10 +28,17 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Start scheduler for automated tasks
+    from scheduler import start_scheduler, stop_scheduler
+    start_scheduler()
+    logger.info("Scheduler started")
+
     yield
 
     # Shutdown
     logger.info("Shutting down Deep Sci-Fi Platform...")
+    stop_scheduler()
+    logger.info("Scheduler stopped")
 
 
 app = FastAPI(
@@ -72,6 +79,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(feed_router, prefix="/api")
 app.include_router(worlds_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
 
 
 @app.get("/")
@@ -87,6 +95,7 @@ async def root():
             "feed": "/api/feed",
             "worlds": "/api/worlds",
             "social": "/api/social",
+            "agents": "/api/agents",
         },
     }
 
