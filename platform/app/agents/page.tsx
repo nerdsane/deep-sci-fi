@@ -82,7 +82,9 @@ interface BriefRecommendation {
   rationale: string
   estimated_appeal: string
   anti_cliche_notes?: string
+  fresh_angle?: string
   target_audience?: string
+  source?: string
 }
 
 interface BriefDetail {
@@ -742,22 +744,40 @@ export default function AgentsDashboard() {
                         </div>
                         <div>
                           <span className="text-text-tertiary">Core Question: </span>
-                          <span className="text-text-secondary italic">{rec.core_question}</span>
+                          <span className="text-text-secondary italic">&ldquo;{rec.core_question}&rdquo;</span>
                         </div>
+                        {rec.source && (
+                          <div>
+                            <span className="text-neon-cyan text-text-tertiary">Source: </span>
+                            <span className="text-neon-cyan/80">{rec.source}</span>
+                          </div>
+                        )}
                         <div>
-                          <span className="text-text-tertiary">Rationale: </span>
+                          <span className="text-text-tertiary">Why Now: </span>
                           <span className="text-text-secondary">{rec.rationale}</span>
                         </div>
+                        {(rec.fresh_angle || rec.anti_cliche_notes) && (
+                          <div>
+                            <span className="text-text-tertiary">Fresh Angle: </span>
+                            <span className="text-text-secondary">{rec.fresh_angle || rec.anti_cliche_notes}</span>
+                          </div>
+                        )}
+                        {rec.target_audience && (
+                          <div>
+                            <span className="text-text-tertiary">For: </span>
+                            <span className="text-text-secondary">{rec.target_audience}</span>
+                          </div>
+                        )}
                         {rec.estimated_appeal && (
                           <div>
                             <span className="text-text-tertiary">Appeal: </span>
-                            <span className="text-text-secondary">{rec.estimated_appeal}</span>
-                          </div>
-                        )}
-                        {rec.anti_cliche_notes && (
-                          <div>
-                            <span className="text-text-tertiary">Anti-Cliché Notes: </span>
-                            <span className="text-text-secondary">{rec.anti_cliche_notes}</span>
+                            <span className={`font-mono ${
+                              rec.estimated_appeal.toLowerCase().includes('high')
+                                ? 'text-green-400'
+                                : rec.estimated_appeal.toLowerCase().includes('medium')
+                                ? 'text-yellow-400'
+                                : 'text-text-secondary'
+                            }`}>{rec.estimated_appeal}</span>
                           </div>
                         )}
                       </div>
@@ -769,11 +789,53 @@ export default function AgentsDashboard() {
               {selectedBrief.research_data && Object.keys(selectedBrief.research_data).length > 0 && (
                 <div>
                   <div className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-3">
-                    Trend Research
+                    Curator&apos;s Research
                   </div>
                   {selectedBrief.research_data.source === 'manual_creation' ? (
                     <div className="text-text-tertiary text-sm italic">
                       Manual creation - no trend research performed
+                    </div>
+                  ) : selectedBrief.research_data.curator_research ? (
+                    <div className="space-y-4">
+                      {/* Synthesis - the curator's take */}
+                      {(selectedBrief.research_data.curator_research as { synthesis?: string }).synthesis && (
+                        <div className="bg-bg-tertiary p-4 rounded border-l-2 border-neon-cyan">
+                          <div className="text-neon-cyan font-mono text-xs uppercase mb-2">
+                            The Curator&apos;s Take
+                          </div>
+                          <p className="text-text-secondary text-sm whitespace-pre-wrap">
+                            {(selectedBrief.research_data.curator_research as { synthesis: string }).synthesis}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Discoveries */}
+                      {(selectedBrief.research_data.curator_research as { discoveries?: Array<{ content: string }> }).discoveries?.length > 0 && (
+                        <div>
+                          <div className="text-neon-purple font-mono text-xs uppercase mb-2">
+                            Discoveries
+                          </div>
+                          <div className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm max-h-48 overflow-y-auto whitespace-pre-wrap">
+                            {(selectedBrief.research_data.curator_research as { discoveries: Array<{ content: string }> }).discoveries.map((d, i) => (
+                              <div key={i} className="mb-2">{d.content?.slice(0, 500)}...</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rabbit Holes */}
+                      {(selectedBrief.research_data.curator_research as { rabbit_holes?: Array<{ content: string }> }).rabbit_holes?.length > 0 && (
+                        <div>
+                          <div className="text-pink-400 font-mono text-xs uppercase mb-2">
+                            Rabbit Holes
+                          </div>
+                          <div className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm max-h-48 overflow-y-auto whitespace-pre-wrap">
+                            {(selectedBrief.research_data.curator_research as { rabbit_holes: Array<{ content: string }> }).rabbit_holes.map((rh, i) => (
+                              <div key={i} className="mb-2">{rh.content?.slice(0, 500)}...</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : selectedBrief.research_data.trends ? (
                     <div className="grid grid-cols-2 gap-3">
