@@ -41,6 +41,7 @@ interface AgentDetails {
 
 interface WakeResult {
   status: string
+  agent_created?: boolean
   response?: string
   actions_taken?: Array<{ type: string; tool?: string; action?: string }>
   world_ideas?: Array<Record<string, unknown>>
@@ -285,6 +286,13 @@ export default function StudioPage() {
                 )}
               </div>
 
+              {/* Show if agent was newly created */}
+              {lastWakeResult.agent_created && (
+                <div className="studio-message__notice studio-message__notice--created">
+                  ✨ Agent created - this is their first wake
+                </div>
+              )}
+
               {lastWakeResult.response && (
                 <div className="studio-message__text">{lastWakeResult.response}</div>
               )}
@@ -328,7 +336,10 @@ export default function StudioPage() {
               )}
 
               {lastWakeResult.error && (
-                <div className="studio-message__error">{lastWakeResult.error}</div>
+                <div className="studio-message__error">
+                  <span className="studio-message__error-icon">⚠</span>
+                  <span>{lastWakeResult.error}</span>
+                </div>
               )}
             </article>
           )}
@@ -489,11 +500,11 @@ export default function StudioPage() {
           --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
         }
 
-        /* Layout - fixed viewport, no overflow */
+        /* Layout - fill container, no overflow */
         .studio-layout {
           display: flex;
-          height: 100vh;
-          width: 100vw;
+          height: 100%;
+          width: 100%;
           overflow: hidden;
           background: var(--bg-primary);
           color: var(--text-primary);
@@ -505,6 +516,7 @@ export default function StudioPage() {
         .studio-nav {
           width: 60px;
           min-width: 60px;
+          height: 100%;
           background: var(--bg-secondary);
           display: flex;
           flex-direction: column;
@@ -512,6 +524,7 @@ export default function StudioPage() {
           padding: 12px 0;
           gap: 8px;
           border-right: 1px solid var(--border-subtle);
+          overflow-y: auto;
         }
 
         .studio-nav__home {
@@ -590,10 +603,12 @@ export default function StudioPage() {
         .studio-sidebar {
           width: 200px;
           min-width: 200px;
+          height: 100%;
           background: var(--bg-secondary);
           display: flex;
           flex-direction: column;
           border-right: 1px solid var(--border-subtle);
+          overflow: hidden;
         }
 
         .studio-sidebar__header {
@@ -652,6 +667,7 @@ export default function StudioPage() {
 
         .studio-sidebar__channels {
           flex: 1;
+          min-height: 0;
           padding: 12px 8px;
           overflow-y: auto;
         }
@@ -746,7 +762,10 @@ export default function StudioPage() {
           display: flex;
           flex-direction: column;
           min-width: 0;
+          min-height: 0;
+          height: 100%;
           background: var(--bg-primary);
+          overflow: hidden;
         }
 
         .studio-main__header {
@@ -780,6 +799,7 @@ export default function StudioPage() {
 
         .studio-main__content {
           flex: 1;
+          min-height: 0;
           overflow-y: auto;
           overflow-x: hidden;
           padding: 16px;
@@ -845,10 +865,37 @@ export default function StudioPage() {
           white-space: pre-wrap;
         }
 
+        .studio-message__notice {
+          font-size: 11px;
+          margin: 8px 0;
+          padding: 6px 10px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .studio-message__notice--created {
+          background: rgba(0, 255, 204, 0.1);
+          border: 1px solid rgba(0, 255, 204, 0.3);
+          color: var(--neon-cyan);
+        }
+
         .studio-message__error {
           color: #ff6b6b;
-          font-size: 11px;
+          font-size: 12px;
           margin-top: 8px;
+          padding: 10px 12px;
+          background: rgba(255, 107, 107, 0.1);
+          border: 1px solid rgba(255, 107, 107, 0.3);
+          border-radius: 4px;
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+        }
+
+        .studio-message__error-icon {
+          flex-shrink: 0;
         }
 
         .studio-message__trace {
@@ -983,10 +1030,12 @@ export default function StudioPage() {
         .studio-profile {
           width: 200px;
           min-width: 200px;
+          height: 100%;
           background: var(--bg-secondary);
           display: flex;
           flex-direction: column;
           border-left: 1px solid var(--border-subtle);
+          overflow: hidden;
         }
 
         .studio-profile__banner {
@@ -1014,6 +1063,7 @@ export default function StudioPage() {
 
         .studio-profile__content {
           flex: 1;
+          min-height: 0;
           padding: 12px 16px;
           overflow-y: auto;
         }

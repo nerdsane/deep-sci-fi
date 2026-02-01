@@ -54,7 +54,7 @@ class EditorAgent:
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
             # Long timeout for Opus 4.5 evaluation
             self._client = Letta(base_url=base_url, timeout=300.0)
         return self._client

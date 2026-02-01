@@ -90,7 +90,7 @@ class StudioOrchestrator:
     def _get_letta_client(self) -> Letta:
         """Get Letta client."""
         if self._letta_client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
             self._letta_client = Letta(base_url=base_url, timeout=120.0)
         return self._letta_client
 

@@ -88,15 +88,19 @@ class ProductionAgent:
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
             # Long timeout for Opus 4.5 with web search (can take 2+ minutes)
             self._client = Letta(base_url=base_url, timeout=300.0)
         return self._client
 
-    async def _ensure_agent(self) -> str:
-        """Ensure production agent exists, create if not."""
+    async def _ensure_agent(self) -> tuple[str, bool]:
+        """Ensure production agent exists, create if not.
+
+        Returns:
+            Tuple of (agent_id, was_created)
+        """
         if self._agent_id:
-            return self._agent_id
+            return self._agent_id, False
 
         client = self._get_client()
         agent_name = "production_agent"
@@ -107,7 +111,7 @@ class ProductionAgent:
             if agent.name == agent_name:
                 self._agent_id = agent.id
                 logger.info(f"Found existing production agent: {self._agent_id}")
-                return self._agent_id
+                return self._agent_id, False
 
         # Create new agent with web search tool and memory blocks
         system_prompt = get_production_prompt()
@@ -152,8 +156,8 @@ class ProductionAgent:
 
         agent = client.agents.create(**create_kwargs)
         self._agent_id = agent.id
-        logger.info(f"Created production agent: {self._agent_id}")
-        return self._agent_id
+        logger.info(f"Created new production agent: {self._agent_id}")
+        return self._agent_id, True
 
     async def research_trends(self) -> TrendResearch:
         """Let the Curator explore freely.
@@ -165,7 +169,7 @@ class ProductionAgent:
         research = TrendResearch()
 
         try:
-            agent_id = await self._ensure_agent()
+            agent_id, _ = await self._ensure_agent()
             client = self._get_client()
 
             # One prompt - let the Curator do their thing
@@ -374,7 +378,7 @@ Go explore. I'll wait."""
             engagement_analysis = await self.analyze_engagement()
 
         try:
-            agent_id = await self._ensure_agent()
+            agent_id, _ = await self._ensure_agent()
             client = self._get_client()
 
             # Format the curator's research
@@ -505,7 +509,7 @@ Status: PENDING - Ready for Architect to build
         Raises:
             ValueError: If agent fails to respond or gives unclear response
         """
-        agent_id = await self._ensure_agent()
+        agent_id, _ = await self._ensure_agent()
         client = self._get_client()
 
         prompt = f"""PLATFORM STATE EVALUATION
@@ -743,7 +747,7 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
             from .editor import get_editor
             from .world_creator import get_world_creator
 
-            agent_id = await self._ensure_agent()
+            agent_id, _ = await self._ensure_agent()
             editor = get_editor()
             await editor._ensure_agent()
             architect = get_world_creator()
@@ -938,9 +942,10 @@ Then generate updated recommendations as JSON."""
             dict with actions taken, world ideas found, full trace
         """
         start_time = time.time()
+        agent_created = False
 
         try:
-            agent_id = await self._ensure_agent()
+            agent_id, agent_created = await self._ensure_agent()
             client = self._get_client()
 
             # Gather platform context if not provided
@@ -1096,6 +1101,7 @@ Check your memory to see where you left off. What do you want to work on?"""
 
             return {
                 "status": "awake",
+                "agent_created": agent_created,
                 "response": response_text,
                 "actions_taken": actions_taken,
                 "world_ideas": world_ideas,
@@ -1110,9 +1116,14 @@ Check your memory to see where you left off. What do you want to work on?"""
 
         except Exception as e:
             logger.error(f"Curator wake failed: {e}", exc_info=True)
+            # Provide more specific error info for connection issues
+            error_msg = str(e)
+            if "connection" in error_msg.lower() or "connect" in error_msg.lower():
+                error_msg = f"Cannot connect to Letta server. Is it running? ({error_msg})"
             return {
                 "status": "error",
-                "error": str(e),
+                "error": error_msg,
+                "agent_created": agent_created,
                 "duration_ms": int((time.time() - start_time) * 1000),
             }
 
