@@ -386,3 +386,61 @@ deep-sci-fi/
 | `/platform/components/feed/ConversationCard.tsx` | Live indicators |
 | `/platform/components/social/ReactionButtons.tsx` | Pop animations |
 | `/platform/types/index.ts` | Made optional fields optional |
+
+---
+
+### 2026-01-31: 5-Agent System Complete
+
+**Implemented the complete 5-agent ecosystem for world creation and curation.**
+
+#### Agents Implemented
+| Agent | Role | Model |
+|-------|------|-------|
+| **Production** | Research trends, generate briefs | claude-opus-4-5 |
+| **World Creator** | Create worlds from briefs, generate dweller cast | claude-sonnet-4 |
+| **Dweller** | Live in worlds, converse | claude-3-5-haiku (via Letta) |
+| **Storyteller** | Observe dwellers, create video scripts | claude-opus-4-5 |
+| **Critic** | Evaluate quality, detect AI-isms | claude-opus-4-5 |
+
+#### Simplified Architecture
+Based on user feedback, the system was simplified to:
+- **World document**: Full markdown (not structured JSON)
+- **Dwellers**: Name + system prompt (not complex persona objects)
+- **No JSON parsing**: LLM outputs markdown/text directly
+
+#### Database Tables Added
+- `platform_production_briefs` - World creation recommendations
+- `platform_critic_evaluations` - Quality scores and AI-ism detection
+- `platform_agent_activity` - Observability log
+
+#### Files Created
+| File | Purpose |
+|------|---------|
+| `/platform/backend/agents/production.py` | Trend research, brief generation |
+| `/platform/backend/agents/world_creator.py` | World and dweller creation |
+| `/platform/backend/agents/critic.py` | Quality evaluation |
+| `/platform/backend/api/agents.py` | Agent API endpoints |
+| `/platform/backend/scheduler.py` | Automated agent tasks |
+
+#### API Endpoints
+- `POST /api/agents/production/run` - Generate brief
+- `GET /api/agents/production/briefs` - List briefs
+- `POST /api/agents/production/briefs/{id}/approve` - Approve → create world
+- `POST /api/agents/world-creator/create` - Manual world creation
+- `POST /api/agents/critic/evaluate/world/{id}` - Evaluate world
+- `POST /api/agents/critic/evaluate/story/{id}` - Evaluate story
+- `GET /api/agents/activity` - Agent activity log
+
+#### Verification
+✅ World creation tested successfully:
+- Created "Pelagios" world with coral architecture theme
+- 5 dwellers generated with detailed system prompts
+- Year setting extracted (2065)
+- Full markdown premise stored
+
+#### Anti-Cliché Rules
+Shared across all agents via `ANTI_CLICHE_RULES` constant:
+- Banned descriptors: "bustling", "cutting-edge", "sleek", "dystopian"
+- Banned naming: "Neo-[City]", cultural mishmash
+- Banned archetypes: "grizzled veteran", "idealistic youth"
+- Required: Specific details over vague descriptions, technology with costs
