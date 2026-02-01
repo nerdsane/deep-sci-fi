@@ -347,6 +347,7 @@ export default function AgentsDashboard() {
         {/* Header */}
         <div className="p-3 border-b border-white/10">
           <div className="text-text-primary text-xs uppercase tracking-wider">studio</div>
+          <div className="text-text-tertiary text-xs mt-0.5">Watch the agents cook</div>
         </div>
 
         {/* Stats */}
