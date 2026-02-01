@@ -33,6 +33,7 @@ from db import AgentType
 from .prompts import get_storyteller_prompt, get_storyteller_script_request
 from .studio_blocks import get_world_block_ids
 from .tracing import log_trace
+from .tools import get_storyteller_tools
 
 logger = logging.getLogger(__name__)
 
@@ -143,12 +144,17 @@ class Storyteller:
         # Get world block IDs for shared memory
         world_block_ids = get_world_block_ids(self.world_id, self.world_name)
 
+        # Get tool IDs for Storyteller (video generation, story publishing, dweller creation)
+        tool_ids = await get_storyteller_tools(client)
+        logger.info(f"Attaching tools to Storyteller: {tool_ids}")
+
         agent = client.agents.create(
             name=agent_name,
             model="anthropic/claude-opus-4-5-20251101",
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
             include_multi_agent_tools=True,  # Enable multi-agent communication
+            tools=tool_ids,  # Attach video generation and story tools
             tags=["world", f"world_{self.world_id}", "storyteller"],  # Tags for agent discovery
             block_ids=world_block_ids,  # Shared world blocks
             memory_blocks=[
@@ -242,16 +248,29 @@ class Storyteller:
         return "\n".join(lines)
 
     async def evaluate_for_story(self) -> VideoScript | None:
-        """Ask the storyteller if there's a story worth telling.
+        """Legacy method - now delegates to notify().
 
-        The storyteller reviews its observations and uses JUDGMENT to decide
-        whether there's compelling material for a video. No minimum observation
-        threshold - if something is compelling, tell the story.
-
-        Returns a VideoScript if yes, None if not yet.
+        Kept for backwards compatibility during transition.
         """
-        # No minimum threshold - let the agent decide
-        # Even a single powerful observation could be a story
+        result = await self.notify()
+        return result.get("script") if result else None
+
+    async def notify(self, additional_context: dict | None = None) -> dict | None:
+        """Notify the storyteller about world activity.
+
+        The storyteller decides whether to act based on its observations.
+        If it decides to create a story, it will call its tools directly:
+        - generate_video_from_script
+        - publish_story
+
+        This is the notification pattern: we inform, agent decides and acts.
+
+        Args:
+            additional_context: Optional dict with world_state, recent_events, etc.
+
+        Returns:
+            Dict with any tool results (video_url, story_id, etc.) or None
+        """
         if not self.observations:
             logger.debug("No observations yet")
             return None
@@ -265,68 +284,74 @@ class Storyteller:
             # Format all observations for the storyteller
             observations_text = self._format_observations()
 
-            # Judgment-based prompt - agent decides if material is compelling
-            prompt = f"""OBSERVED ACTIVITY:
+            # Build context
+            context_text = ""
+            if additional_context:
+                if additional_context.get("world_state"):
+                    context_text += f"\nWORLD STATE:\n{additional_context['world_state']}\n"
+                if additional_context.get("recent_events"):
+                    context_text += f"\nRECENT EVENTS:\n{additional_context['recent_events']}\n"
+
+            # Notification prompt - inform, don't ask
+            prompt = f"""OBSERVED ACTIVITY IN {self.world_name}:
 {observations_text}
+{context_text}
 
-You've observed this activity in {self.world_name}.
+You are observing this world. You have tools to create stories:
+- generate_video_from_script: Create a cinematic video
+- publish_story: Make the story visible on the platform
+- create_dweller: Bring a new character into existence
 
-IS THERE A STORY WORTH TELLING RIGHT NOW?
+If you see compelling material, USE YOUR TOOLS to create and publish a story.
+If nothing is compelling yet, simply acknowledge what you've observed.
 
-Consider:
-- Emotional resonance of what you've witnessed
-- Dramatic tension or resolution present
-- Visual potential for a short video
-- Whether waiting might yield better material
+Trust your judgment. Quality over quantity. Act when inspired."""
 
-If the material IS compelling, write a video script in this EXACT format:
-
-TITLE: [evocative title, 3-6 words]
-HOOK: [one sentence that makes viewers need to watch]
-VISUAL: [opening shot - cinematic and specific]
-NARRATION: [2-3 sentences of voiceover]
-SCENE: [the key visual moment - characters, setting, mood, lighting]
-CLOSING: [final image or moment that lingers]
-
-If the material is NOT YET compelling, respond with:
-NOT YET - [brief reason why, and what you're waiting for]
-
-Trust your judgment. Quality over quantity."""
-
-            logger.info(f"Storyteller evaluating {len(self.observations)} observations")
+            logger.info(f"Notifying storyteller with {len(self.observations)} observations")
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            # Extract response
+            # Extract response and any tool results
             response_text = None
+            tool_results = []
+
             if response and hasattr(response, "messages"):
                 for msg in response.messages:
                     msg_type = type(msg).__name__
+
                     if msg_type == "AssistantMessage":
                         if hasattr(msg, "assistant_message") and msg.assistant_message:
                             response_text = msg.assistant_message
-                            break
                         elif hasattr(msg, "content") and msg.content:
                             response_text = msg.content
-                            break
 
-            if not response_text:
-                logger.warning("No response from storyteller evaluation")
-                return None
+                    elif msg_type == "ToolReturnMessage":
+                        if hasattr(msg, "tool_return") and msg.tool_return:
+                            tool_results.append({
+                                "name": getattr(msg, "name", "unknown"),
+                                "result": msg.tool_return,
+                            })
 
-            logger.info(f"Storyteller response: {response_text[:200]}...")
+            logger.info(f"Storyteller response: {response_text[:200] if response_text else 'No text'}...")
+            if tool_results:
+                logger.info(f"Storyteller called tools: {[t['name'] for t in tool_results]}")
 
-            # Determine outcome
-            is_waiting = response_text.strip().upper().startswith("NOT YET")
-            script = None if is_waiting else self._parse_script(response_text)
+            # Check if storyteller created a story via tools
+            video_result = None
+            story_result = None
+            for tr in tool_results:
+                if tr["name"] == "generate_video_from_script":
+                    video_result = tr["result"]
+                elif tr["name"] == "publish_story":
+                    story_result = tr["result"]
 
             # Log trace
             await log_trace(
                 agent_type=AgentType.STORYTELLER,
-                operation="evaluate_for_story",
+                operation="notify",
                 prompt=prompt,
                 response=response_text,
                 model="anthropic/claude-opus-4-5-20251101",
@@ -334,33 +359,38 @@ Trust your judgment. Quality over quantity."""
                 agent_id=f"storyteller_{self.world_id}",
                 world_id=self.world_id,
                 parsed_output={
-                    "decision": "WAIT" if is_waiting else ("SCRIPT_CREATED" if script else "PARSE_FAILED"),
                     "observations_count": len(self.observations),
-                    "script_title": script.title if script else None,
+                    "tool_calls": [t["name"] for t in tool_results],
+                    "created_video": video_result is not None,
+                    "published_story": story_result is not None,
                 },
             )
 
-            # Check if storyteller decided to wait
-            if is_waiting:
-                logger.info(f"Storyteller decided to wait: {response_text[:100]}")
-                return None
-
-            # Try to parse a script
-            if script:
-                logger.info(f"Storyteller created script: {script.title}")
+            # If storyteller created a story, update state
+            if video_result or story_result:
                 self.last_story_time = datetime.utcnow()
                 self.stories_created += 1
-                # Keep some observations for continuity, but clear most
-                # after creating a story to avoid telling the same story twice
+                # Keep some observations for continuity
                 self.observations = self.observations[-5:]
-            return script
+
+            # Also try to parse a script from text response (backwards compat)
+            script = None
+            if response_text and not response_text.strip().upper().startswith("NOT YET"):
+                script = self._parse_script(response_text)
+
+            return {
+                "response": response_text,
+                "tool_results": tool_results,
+                "video_result": video_result,
+                "story_result": story_result,
+                "script": script,  # Backwards compat
+            }
 
         except Exception as e:
-            logger.error(f"Error in storyteller evaluation: {e}", exc_info=True)
-            # Log error trace
+            logger.error(f"Error in storyteller notify: {e}", exc_info=True)
             await log_trace(
                 agent_type=AgentType.STORYTELLER,
-                operation="evaluate_for_story",
+                operation="notify",
                 agent_id=f"storyteller_{self.world_id}",
                 world_id=self.world_id,
                 duration_ms=int((time.time() - start_time) * 1000),

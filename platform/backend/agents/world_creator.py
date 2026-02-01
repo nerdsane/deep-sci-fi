@@ -257,22 +257,30 @@ Write naturally. No JSON. Just markdown."""
         if year_match:
             year_setting = int(year_match.group(1))
 
-        # Step 2: Generate dwellers
-        dwellers_prompt = f"""Based on this world, create 4-5 characters who live there.
+        # Step 2: Generate seed dwellers
+        dwellers_prompt = f"""Based on this world, create SEED DWELLERS who will initially populate it.
 
 WORLD:
 {world_doc}
 
+Create 3-5 core characters who represent different perspectives on this world. These are the
+SEED dwellers - more inhabitants will emerge naturally through stories, events, and relationships.
+
 For each character, write:
 ---
-NAME: [Full name]
-ROLE: [Their occupation or role in society, e.g. "transit engineer", "street vendor", "researcher"]
+NAME: [Full name - culturally appropriate for the setting]
+ROLE: [Their function in society, e.g. "transit engineer", "street vendor", "researcher"]
 BACKGROUND: [One paragraph about their history, personality, and what drives them]
 SYSTEM PROMPT:
 [Complete system prompt for this character as an AI agent. Include their background, beliefs, personality, and how they should behave in conversations. Write in second person ("You are...")]
 ---
 
-Make them diverse in age, role, and perspective. Give them contradictions - no one is purely good or purely evil, optimistic or pessimistic.
+Requirements:
+- Diverse in age, role, and perspective
+- Give them contradictions - no one is purely good or evil, optimistic or pessimistic
+- Each should offer a different lens on this world
+- They should have connections to people NOT in this list (family, friends, rivals)
+  - These connections may later become real dwellers through emergence
 
 {ANTI_CLICHE_RULES}"""
 
