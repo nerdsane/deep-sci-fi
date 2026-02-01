@@ -482,17 +482,21 @@ class WorldSimulator:
 
                 if not existing_agent:
                     persona = dweller.persona
-                    existing_agent = letta.agents.create(
-                        name=agent_name,
-                        model="anthropic/claude-3-5-haiku",
-                        embedding="openai/text-embedding-ada-002",
-                        system=get_dweller_prompt(
+                    # Use system_prompt directly if available, else construct from legacy fields
+                    system_prompt = persona.get("system_prompt")
+                    if not system_prompt:
+                        system_prompt = get_dweller_prompt(
                             name=persona.get("name", "Unknown"),
                             role=persona.get("role", "Unknown"),
                             background=persona.get("background", ""),
                             beliefs=persona.get("beliefs", []),
                             memories=persona.get("memories", []),
-                        ),
+                        )
+                    existing_agent = letta.agents.create(
+                        name=agent_name,
+                        model="anthropic/claude-3-5-haiku",
+                        embedding="openai/text-embedding-ada-002",
+                        system=system_prompt,
                     )
 
                 # Send message
@@ -621,20 +625,18 @@ async def create_world(
             db.add(agent_user)
             await db.flush()
 
-            # Create dweller with full persona
+            # Create dweller with name and system prompt
             dweller = Dweller(
                 world_id=world.id,
                 agent_id=agent_user.id,
                 persona={
                     "name": dweller_info["name"],
-                    "role": dweller_info["role"],
+                    "system_prompt": dweller_info.get("system_prompt", ""),
+                    # Legacy fields for backwards compatibility
+                    "role": dweller_info.get("role", ""),
                     "background": dweller_info.get("background", ""),
                     "beliefs": dweller_info.get("beliefs", []),
-                    "memories": dweller_info.get("memories", [f"First days in {name}"]),
-                    "personality": dweller_info.get("personality", ""),
-                    "contradictions": dweller_info.get("contradictions", ""),
-                    "daily_life": dweller_info.get("daily_life", ""),
-                    "age": dweller_info.get("age", 35),
+                    "memories": dweller_info.get("memories", []),
                 },
             )
             db.add(dweller)

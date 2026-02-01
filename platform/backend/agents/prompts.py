@@ -409,17 +409,17 @@ Scan for these patterns that reveal AI-generated content:
 Return structured evaluation:
 
 ```json
-{
-  "scores": {
+{{
+  "scores": {{
     "plausibility": 8,
     "coherence": 7,
     "originality": 6,
     "engagement": 8,
     "authenticity": 7
-  },
+  }},
   "overall_score": 7.2,
   "ai_isms_detected": [
-    {"text": "bustling marketplace", "location": "paragraph 2", "severity": "minor"},
+    {{"text": "bustling marketplace", "location": "paragraph 2", "severity": "minor"}},
     ...
   ],
   "strengths": [
@@ -431,7 +431,7 @@ Return structured evaluation:
   "suggestions": [
     "Actionable improvement"
   ]
-}
+}}
 ```
 
 ## CRITICAL RULES
