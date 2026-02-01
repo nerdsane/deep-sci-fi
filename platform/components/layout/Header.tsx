@@ -18,13 +18,13 @@ const ASCII_LOGO_FULL = `██████╗ ███████╗███
 ███████║╚██████╗██║      ██║     ██║
 ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
-// Condensed 6-line version for tablet
-const ASCII_LOGO_CONDENSED = `██████╗ ███████╗███████╗██████╗
-██║  ██║█████╗  █████╗  ██████╔╝
-██████╔╝███████╗███████╗██║
-███████╗ ██████╗██╗█████╗██╗
-███████╗██║     ██║      ██║
-╚══════╝ ╚═════╝╚═╝      ╚═╝`
+// Compact "DSF" for mobile/tablet - exact letters from full logo
+const ASCII_LOGO_DSF = `██████╗ ███████╗███████╗
+██╔══██╗██╔════╝██╔════╝
+██║  ██║███████╗█████╗
+██║  ██║╚════██║██╔══╝
+██████╔╝███████║██║
+╚═════╝ ╚══════╝╚═╝     `
 
 interface NavLinkProps {
   href: string
@@ -81,15 +81,14 @@ export function Header() {
     >
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
-          {/* Logo */}
-          <Link href="/" className="flex items-center shrink-0">
-            {/* Mobile: Text badge */}
-            <span className="lg:hidden text-neon-cyan font-mono text-lg tracking-widest font-bold">
-              DSF
-            </span>
+          {/* Logo - wrapped in .logo for hover effects */}
+          <Link href="/" className="logo flex items-center shrink-0">
+            {/* Mobile/Tablet: Compact ASCII "DSF" with glow */}
+            <pre className="lg:hidden logo-ascii logo-ascii-compact select-none" aria-label="DSF">
+              {ASCII_LOGO_DSF}
+            </pre>
 
-            {/* Tablet (md): Condensed ASCII - hidden, too small to read */}
-            {/* Desktop (lg+): Full ASCII logo */}
+            {/* Desktop (lg+): Full ASCII logo with glow effects */}
             <pre className="hidden lg:block logo-ascii select-none" aria-label="Deep Sci-Fi">
               {ASCII_LOGO_FULL}
             </pre>

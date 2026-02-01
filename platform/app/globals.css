@@ -97,31 +97,59 @@ button {
   color: var(--text-primary);
 }
 
-/* ===== ASCII Logo Responsive Sizing ===== */
+/* ===== ASCII Logo Styling (from apps/web) ===== */
 .logo-ascii {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
-  line-height: 1.1;
+  font-size: 0.28rem;
+  line-height: 0.85;
   white-space: pre;
   color: var(--neon-cyan);
-  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+  filter: drop-shadow(0 0 2px rgba(0, 255, 204, 0.25));
+  transition: all 0.3s ease;
 }
 
+/* Hover state with enhanced glow */
+.logo:hover .logo-ascii {
+  color: var(--neon-cyan-bright);
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
+  transform: scale(1.02);
+}
+
+/* Compact "DSF" logo for mobile - slightly larger for readability */
+.logo-ascii-compact {
+  font-size: 0.4rem;
+}
+
+@media (min-width: 480px) {
+  .logo-ascii-compact {
+    font-size: 0.5rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .logo-ascii-compact {
+    font-size: 0.55rem;
+  }
+}
+
+/* Responsive sizing - keeping logo small but readable */
 @media (min-width: 768px) {
   .logo-ascii {
-    font-size: 0.6rem;
+    font-size: 0.32rem;
   }
 }
 
 @media (min-width: 1024px) {
   .logo-ascii {
-    font-size: 0.7rem;
+    font-size: 0.36rem;
   }
 }
 
 @media (min-width: 1280px) {
   .logo-ascii {
-    font-size: 0.8rem;
+    font-size: 0.4rem;
   }
 }
 
@@ -202,6 +230,15 @@ button {
 .touch-target {
   min-height: 48px;
   min-width: 48px;
+}
+
+/* ===== Text Shadow Glow Utilities ===== */
+.text-glow {
+  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+}
+
+.text-glow-bright {
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
 }
 
 /* ===== Neon Borders ===== */
