@@ -480,141 +480,98 @@ export default function AgentsDashboard() {
           </div>
         </div>
 
-        {/* Log Stream */}
-        <div ref={logRef} className="flex-1 overflow-y-auto">
+        {/* Terminal Stream */}
+        <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1">
           {log.length === 0 ? (
-            <div className="p-8 text-center text-text-tertiary">
-              no activity yet
-            </div>
+            <div className="text-text-tertiary">$ waiting for activity...</div>
           ) : (
             log.map((entry) => {
-              const isExpanded = expandedEntry === entry.id
               const trace = entry.type === 'trace' ? (entry.data as AgentTrace) : null
               const activity = entry.type === 'activity' ? (entry.data as AgentActivity) : null
+              const agentName = AGENTS[entry.agentType as AgentType]?.name || entry.agentType
+              const color = getAgentColor(entry.agentType)
 
               return (
-                <div
-                  key={entry.id}
-                  className={`border-b border-white/5 ${isExpanded ? 'bg-white/5' : 'hover:bg-white/[0.02]'}`}
-                >
-                  {/* Entry Header */}
-                  <div
-                    onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
-                    className="p-2 cursor-pointer flex items-start gap-3"
-                  >
-                    {/* Timestamp */}
-                    <div className="text-text-tertiary text-xs w-16 shrink-0">
+                <div key={entry.id} className="space-y-1">
+                  {/* Operation line */}
+                  <div className="flex items-start gap-2">
+                    <span className="text-text-tertiary text-xs shrink-0 w-14">
                       {formatTime(entry.timestamp)}
-                    </div>
-
-                    {/* Agent indicator */}
-                    <div
-                      className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
-                      style={{ backgroundColor: getAgentColor(entry.agentType) }}
-                    />
-
-                    {/* Operation */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-primary text-xs">
-                          {entry.operation}
-                        </span>
-                        {entry.type === 'trace' && (
-                          <span className="text-text-tertiary text-xs">llm</span>
-                        )}
-                        {entry.duration && (
-                          <span className="text-text-tertiary text-xs">
-                            {entry.duration}ms
-                          </span>
-                        )}
-                        {entry.error && (
-                          <span className="text-red-400 text-xs">error</span>
-                        )}
-                      </div>
-                      {!isExpanded && (
-                        <div className="text-text-tertiary text-xs truncate mt-0.5">
-                          {entry.preview}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Expand indicator */}
-                    <div className="text-text-tertiary text-xs shrink-0">
-                      {isExpanded ? '−' : '+'}
-                    </div>
+                    </span>
+                    <span className="text-text-tertiary">$</span>
+                    <span style={{ color }} className="text-xs">{agentName}</span>
+                    <span className="text-text-primary text-xs">{entry.operation}</span>
+                    {entry.duration && (
+                      <span className="text-text-tertiary text-xs">({entry.duration}ms)</span>
+                    )}
                   </div>
 
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="px-2 pb-3 ml-[76px] space-y-3">
-                      {/* Trace details */}
-                      {trace && (
-                        <>
-                          {trace.model && (
-                            <div>
-                              <div className="text-text-tertiary text-xs mb-1">model</div>
-                              <div className="text-text-secondary text-xs bg-black/30 p-2 rounded">
-                                {trace.model}
-                              </div>
-                            </div>
-                          )}
-                          {trace.prompt && (
-                            <div>
-                              <div className="text-text-tertiary text-xs mb-1">prompt</div>
-                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                {trace.prompt}
-                              </pre>
-                            </div>
-                          )}
-                          {trace.response && (
-                            <div>
-                              <div className="text-text-tertiary text-xs mb-1">response</div>
-                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded whitespace-pre-wrap max-h-64 overflow-y-auto">
-                                {trace.response}
-                              </pre>
-                            </div>
-                          )}
-                          {trace.parsed_output && (
-                            <div>
-                              <div className="text-text-tertiary text-xs mb-1">parsed output</div>
-                              <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded overflow-x-auto">
-                                {JSON.stringify(trace.parsed_output, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                          {trace.error && (
-                            <div>
-                              <div className="text-red-400 text-xs mb-1">error</div>
-                              <pre className="text-red-300 text-xs bg-red-900/20 p-2 rounded whitespace-pre-wrap">
-                                {trace.error}
-                              </pre>
-                            </div>
-                          )}
-                        </>
+                  {/* Trace: show prompt, response, output inline */}
+                  {trace && (
+                    <>
+                      {trace.prompt && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-yellow-500 shrink-0">&gt;</span>
+                          <pre className="text-text-tertiary text-xs whitespace-pre-wrap break-all flex-1">
+                            {trace.prompt.length > 500 ? trace.prompt.slice(0, 500) + '...' : trace.prompt}
+                          </pre>
+                        </div>
                       )}
+                      {trace.response && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-green-500 shrink-0">&lt;</span>
+                          <pre className="text-text-secondary text-xs whitespace-pre-wrap break-all flex-1">
+                            {trace.response.length > 800 ? trace.response.slice(0, 800) + '...' : trace.response}
+                          </pre>
+                        </div>
+                      )}
+                      {trace.parsed_output && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-blue-400 shrink-0">=</span>
+                          <pre className="text-blue-300 text-xs whitespace-pre-wrap break-all flex-1">
+                            {JSON.stringify(trace.parsed_output, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                      {trace.error && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-red-500 shrink-0">!</span>
+                          <pre className="text-red-400 text-xs whitespace-pre-wrap break-all flex-1">
+                            {trace.error}
+                          </pre>
+                        </div>
+                      )}
+                      {trace.world_id && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-text-tertiary shrink-0">@</span>
+                          <Link href={`/world/${trace.world_id}`} className="text-neon-cyan text-xs hover:underline">
+                            world/{trace.world_id.slice(0, 8)}
+                          </Link>
+                        </div>
+                      )}
+                    </>
+                  )}
 
-                      {/* Activity details */}
-                      {activity && activity.details && (
-                        <div>
-                          <div className="text-text-tertiary text-xs mb-1">details</div>
-                          <pre className="text-text-secondary text-xs bg-black/30 p-2 rounded overflow-x-auto">
+                  {/* Activity: show details inline */}
+                  {activity && (
+                    <>
+                      {activity.details && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-purple-400 shrink-0">*</span>
+                          <pre className="text-text-secondary text-xs whitespace-pre-wrap break-all flex-1">
                             {JSON.stringify(activity.details, null, 2)}
                           </pre>
                         </div>
                       )}
-
-                      {/* World link */}
-                      {(trace?.world_id || activity?.world_id) && (
-                        <div className="pt-2">
-                          <Link
-                            href={`/world/${trace?.world_id || activity?.world_id}`}
-                            className="text-xs text-neon-cyan hover:underline"
-                          >
-                            view world →
+                      {activity.world_id && (
+                        <div className="flex items-start gap-2 ml-16">
+                          <span className="text-text-tertiary shrink-0">@</span>
+                          <Link href={`/world/${activity.world_id}`} className="text-neon-cyan text-xs hover:underline">
+                            world/{activity.world_id.slice(0, 8)}
                           </Link>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               )
