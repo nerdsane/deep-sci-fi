@@ -177,8 +177,11 @@ export default function StudioPage() {
     const diffMin = Math.floor(diffSec / 60)
     const diffHour = Math.floor(diffMin / 60)
 
+    // Handle future timestamps or negative values (time sync issues)
+    if (diffSec < 0) return 'just now'
+
     // Show relative time for recent events
-    if (diffSec < 60) return `${diffSec}s ago`
+    if (diffSec < 60) return diffSec === 0 ? 'just now' : `${diffSec}s ago`
     if (diffMin < 60) return `${diffMin}m ago`
     if (diffHour < 24) return `${diffHour}h ago`
 
