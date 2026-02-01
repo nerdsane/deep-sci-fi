@@ -107,11 +107,23 @@ class ProductionAgent:
                 logger.info(f"Found existing production agent: {self._agent_id}")
                 return self._agent_id
 
-        # Create new agent with Exa search tool and memory blocks
+        # Create new agent with web search tool and memory blocks
         system_prompt = get_production_prompt()
 
         # Get studio block IDs for shared memory
         studio_block_ids = get_studio_block_ids()
+
+        # Find web_search tool ID
+        tool_ids = []
+        try:
+            tools_list = client.tools.list()
+            for tool in tools_list:
+                if tool.name == "web_search":
+                    tool_ids.append(tool.id)
+                    logger.info(f"Found web_search tool: {tool.id}")
+                    break
+        except Exception as e:
+            logger.warning(f"Failed to find web_search tool: {e}")
 
         # Create agent with web search, multi-agent tools, and persistent memory
         agent = client.agents.create(
@@ -119,7 +131,7 @@ class ProductionAgent:
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
-            tools=["web_search"],  # Enable web search tool
+            tool_ids=tool_ids,  # Attach tools by ID
             include_multi_agent_tools=True,  # Enable multi-agent communication
             tags=["studio", "curator"],  # Tags for agent discovery
             block_ids=studio_block_ids,  # Shared studio blocks
@@ -149,9 +161,17 @@ class ProductionAgent:
             # One prompt - let the Curator do their thing
             research_prompt = """Time to do what you do best - go down the rabbit hole.
 
-You have web search. Use it however you want. Follow your curiosity.
+USE YOUR web_search TOOL. Actually search for things. Don't just talk about searching.
 
-Some things you might explore (but don't let me limit you):
+Start with a few searches like:
+- "AI agents 2026 breakthroughs"
+- "synthetic biology 2026"
+- "climate technology working 2026"
+- Whatever else catches your curiosity
+
+Then follow threads. Search for more specific things based on what you find. Make connections.
+
+Some areas to explore (but don't let me limit you):
 - What's actually shipping in AI right now, not the hype
 - Weird biotech that sounds like fiction
 - Climate tech that's working
@@ -159,10 +179,10 @@ Some things you might explore (but don't let me limit you):
 - How digital culture is shifting
 - Any emerging tech that made you go "wait what"
 
-Search for whatever interests you. Follow threads. Make connections. Surprise yourself.
+IMPORTANT: Use the web_search tool multiple times. Follow the rabbit holes.
 
 When you're done exploring, tell me:
-1. What you found (the interesting stuff, not everything)
+1. What you found (the interesting stuff, not everything) - cite your sources
 2. What surprised you
 3. What connections you're seeing
 4. What feels like it could be a great sci-fi world seed
@@ -176,7 +196,10 @@ Go explore. I'll wait."""
                 messages=[{"role": "user", "content": research_prompt}],
             )
 
+            # Extract full trace for observability
+            full_trace = self._extract_full_trace(response)
             exploration_result = self._extract_response(response)
+
             if exploration_result:
                 research.discoveries.append({
                     "phase": "exploration",
@@ -187,7 +210,7 @@ Go explore. I'll wait."""
 
             research.timestamp = datetime.utcnow()
 
-            # Log trace
+            # Log trace with FULL agent activity (thinking, tool calls, results)
             await log_trace(
                 agent_type=AgentType.PRODUCTION,
                 operation="research_trends",
@@ -197,6 +220,10 @@ Go explore. I'll wait."""
                 duration_ms=int((time.time() - start_time) * 1000),
                 parsed_output={
                     "response_length": len(exploration_result) if exploration_result else 0,
+                    "reasoning_steps": len(full_trace["reasoning"]),
+                    "tool_calls": full_trace["tool_calls"],
+                    "tool_results_count": len(full_trace["tool_results"]),
+                    "full_reasoning": full_trace["reasoning"][:3],  # First 3 reasoning steps
                 },
             )
 
@@ -376,6 +403,8 @@ Pitch what excites YOU. Not what's safe."""
                 messages=[{"role": "user", "content": prompt}],
             )
 
+            # Extract full trace for observability
+            full_trace = self._extract_full_trace(response)
             result = self._extract_response(response)
             recommendations = []
 
@@ -389,7 +418,7 @@ Pitch what excites YOU. Not what's safe."""
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse recommendations JSON: {e}")
 
-            # Log trace for observability
+            # Log trace with FULL agent activity
             await log_trace(
                 agent_type=AgentType.PRODUCTION,
                 operation="generate_brief",
@@ -400,6 +429,9 @@ Pitch what excites YOU. Not what's safe."""
                 parsed_output={
                     "recommendation_count": len(recommendations),
                     "themes": [r.get("theme", "untitled") for r in recommendations] if recommendations else [],
+                    "reasoning_steps": len(full_trace["reasoning"]),
+                    "tool_calls": full_trace["tool_calls"],
+                    "full_reasoning": full_trace["reasoning"][:2],  # First 2 reasoning steps
                 },
             )
 
@@ -572,7 +604,7 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
             return False
 
     def _extract_response(self, response: Any) -> str | None:
-        """Extract text from Letta response."""
+        """Extract final assistant response from Letta response."""
         if response and hasattr(response, "messages"):
             for msg in response.messages:
                 msg_type = type(msg).__name__
@@ -582,6 +614,87 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
                     elif hasattr(msg, "content") and msg.content:
                         return msg.content
         return None
+
+    def _extract_full_trace(self, response: Any) -> dict:
+        """Extract ALL messages from Letta response for full observability.
+
+        Returns structured trace with reasoning, tool calls, and final response.
+        """
+        trace = {
+            "reasoning": [],
+            "tool_calls": [],
+            "tool_results": [],
+            "assistant_messages": [],
+            "raw_messages": [],
+        }
+
+        if not response or not hasattr(response, "messages"):
+            return trace
+
+        for msg in response.messages:
+            msg_type = type(msg).__name__
+
+            # Store raw message info
+            raw_msg = {"type": msg_type}
+
+            if msg_type == "ReasoningMessage":
+                # Agent's thinking/reasoning
+                if hasattr(msg, "reasoning") and msg.reasoning:
+                    trace["reasoning"].append(msg.reasoning)
+                    raw_msg["content"] = msg.reasoning
+                elif hasattr(msg, "content") and msg.content:
+                    trace["reasoning"].append(msg.content)
+                    raw_msg["content"] = msg.content
+
+            elif msg_type == "ToolCallMessage":
+                # Tool invocations (like web_search)
+                tool_info = {
+                    "name": getattr(msg, "tool_call", {}).get("name", "unknown") if hasattr(msg, "tool_call") else "unknown",
+                    "arguments": getattr(msg, "tool_call", {}).get("arguments", {}) if hasattr(msg, "tool_call") else {},
+                }
+                # Also try alternative attribute names
+                if hasattr(msg, "name"):
+                    tool_info["name"] = msg.name
+                if hasattr(msg, "arguments"):
+                    tool_info["arguments"] = msg.arguments
+                if hasattr(msg, "tool_name"):
+                    tool_info["name"] = msg.tool_name
+
+                trace["tool_calls"].append(tool_info)
+                raw_msg["tool"] = tool_info
+
+            elif msg_type == "ToolReturnMessage":
+                # Results from tools
+                result = None
+                if hasattr(msg, "tool_return") and msg.tool_return:
+                    result = msg.tool_return
+                elif hasattr(msg, "content") and msg.content:
+                    result = msg.content
+                elif hasattr(msg, "result") and msg.result:
+                    result = msg.result
+
+                if result:
+                    # Truncate long results
+                    if isinstance(result, str) and len(result) > 2000:
+                        result = result[:2000] + "..."
+                    trace["tool_results"].append(result)
+                    raw_msg["result"] = result
+
+            elif msg_type == "AssistantMessage":
+                # Final response
+                content = None
+                if hasattr(msg, "assistant_message") and msg.assistant_message:
+                    content = msg.assistant_message
+                elif hasattr(msg, "content") and msg.content:
+                    content = msg.content
+
+                if content:
+                    trace["assistant_messages"].append(content)
+                    raw_msg["content"] = content
+
+            trace["raw_messages"].append(raw_msg)
+
+        return trace
 
     def _extract_theme_keywords(self, premise: str) -> list[str]:
         """Extract theme keywords from a world premise."""
