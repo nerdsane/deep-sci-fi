@@ -87,8 +87,9 @@ class ProductionAgent:
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
         if self._client is None:
-            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
-            self._client = Letta(base_url=base_url)
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
+            # Long timeout for Opus 4.5 with web search (can take 2+ minutes)
+            self._client = Letta(base_url=base_url, timeout=300.0)
         return self._client
 
     async def _ensure_agent(self) -> str:
@@ -113,12 +114,13 @@ class ProductionAgent:
         # Get studio block IDs for shared memory
         studio_block_ids = get_studio_block_ids()
 
-        # Create agent first (tools parameter doesn't work, need to attach after)
+        # Create agent with tools (works in latest Letta)
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            tools=["web_search", "fetch_webpage"],  # Enable web search and page fetching
             include_multi_agent_tools=True,  # Enable multi-agent communication
             tags=["studio", "curator"],  # Tags for agent discovery
             block_ids=studio_block_ids,  # Shared studio blocks
@@ -128,24 +130,6 @@ class ProductionAgent:
                 {"label": "past_briefs", "value": "No briefs generated yet."},
             ],
         )
-
-        # Attach web_search tool via POST (tools param in create doesn't work)
-        # See: POST /v1/agents/{agent_id}/tools/{tool_id}
-        try:
-            tools_list = client.tools.list()
-            for tool in tools_list:
-                if tool.name == "web_search":
-                    # Use the REST API directly since SDK attach returns 404
-                    import httpx
-                    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
-                    resp = httpx.post(f"{base_url}/v1/agents/{agent.id}/tools/{tool.id}")
-                    if resp.status_code == 200:
-                        logger.info(f"Attached web_search tool to agent {agent.id}")
-                    else:
-                        logger.warning(f"Failed to attach web_search: {resp.status_code}")
-                    break
-        except Exception as e:
-            logger.warning(f"Failed to attach web_search tool: {e}")
         self._agent_id = agent.id
         logger.info(f"Created production agent: {self._agent_id}")
         return self._agent_id
@@ -227,8 +211,8 @@ Go explore. I'll wait."""
                     "response_length": len(exploration_result) if exploration_result else 0,
                     "reasoning_steps": len(full_trace["reasoning"]),
                     "tool_calls": full_trace["tool_calls"],
-                    "tool_results_count": len(full_trace["tool_results"]),
-                    "full_reasoning": full_trace["reasoning"][:3],  # First 3 reasoning steps
+                    "tool_results": full_trace["tool_results"],
+                    "full_reasoning": full_trace["reasoning"],
                 },
             )
 
@@ -436,7 +420,8 @@ Pitch what excites YOU. Not what's safe."""
                     "themes": [r.get("theme", "untitled") for r in recommendations] if recommendations else [],
                     "reasoning_steps": len(full_trace["reasoning"]),
                     "tool_calls": full_trace["tool_calls"],
-                    "full_reasoning": full_trace["reasoning"][:2],  # First 2 reasoning steps
+                    "tool_results": full_trace["tool_results"],
+                    "full_reasoning": full_trace["reasoning"],
                 },
             )
 
@@ -630,7 +615,6 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
             "tool_calls": [],
             "tool_results": [],
             "assistant_messages": [],
-            "raw_messages": [],
         }
 
         if not response or not hasattr(response, "messages"):
@@ -639,65 +623,37 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
         for msg in response.messages:
             msg_type = type(msg).__name__
 
-            # Store raw message info
-            raw_msg = {"type": msg_type}
-
             if msg_type == "ReasoningMessage":
-                # Agent's thinking/reasoning
+                # Agent's thinking/reasoning - use 'reasoning' attribute
                 if hasattr(msg, "reasoning") and msg.reasoning:
                     trace["reasoning"].append(msg.reasoning)
-                    raw_msg["content"] = msg.reasoning
-                elif hasattr(msg, "content") and msg.content:
-                    trace["reasoning"].append(msg.content)
-                    raw_msg["content"] = msg.content
 
             elif msg_type == "ToolCallMessage":
-                # Tool invocations (like web_search)
-                tool_info = {
-                    "name": getattr(msg, "tool_call", {}).get("name", "unknown") if hasattr(msg, "tool_call") else "unknown",
-                    "arguments": getattr(msg, "tool_call", {}).get("arguments", {}) if hasattr(msg, "tool_call") else {},
-                }
-                # Also try alternative attribute names
-                if hasattr(msg, "name"):
-                    tool_info["name"] = msg.name
-                if hasattr(msg, "arguments"):
-                    tool_info["arguments"] = msg.arguments
-                if hasattr(msg, "tool_name"):
-                    tool_info["name"] = msg.tool_name
-
-                trace["tool_calls"].append(tool_info)
-                raw_msg["tool"] = tool_info
+                # Tool invocations - tool_call is a ToolCall object with name/arguments
+                if hasattr(msg, "tool_call") and msg.tool_call:
+                    tc = msg.tool_call
+                    trace["tool_calls"].append({
+                        "name": getattr(tc, "name", "unknown"),
+                        "arguments": getattr(tc, "arguments", "{}"),
+                    })
 
             elif msg_type == "ToolReturnMessage":
-                # Results from tools
-                result = None
+                # Tool results - tool_return contains the result
                 if hasattr(msg, "tool_return") and msg.tool_return:
                     result = msg.tool_return
-                elif hasattr(msg, "content") and msg.content:
-                    result = msg.content
-                elif hasattr(msg, "result") and msg.result:
-                    result = msg.result
-
-                if result:
-                    # Truncate long results
-                    if isinstance(result, str) and len(result) > 2000:
-                        result = result[:2000] + "..."
-                    trace["tool_results"].append(result)
-                    raw_msg["result"] = result
+                    # Truncate long results for logging
+                    if isinstance(result, str) and len(result) > 500:
+                        result = result[:500] + "..."
+                    trace["tool_results"].append({
+                        "name": getattr(msg, "name", "unknown"),
+                        "status": getattr(msg, "status", "unknown"),
+                        "preview": result,
+                    })
 
             elif msg_type == "AssistantMessage":
-                # Final response
-                content = None
-                if hasattr(msg, "assistant_message") and msg.assistant_message:
-                    content = msg.assistant_message
-                elif hasattr(msg, "content") and msg.content:
-                    content = msg.content
-
-                if content:
-                    trace["assistant_messages"].append(content)
-                    raw_msg["content"] = content
-
-            trace["raw_messages"].append(raw_msg)
+                # Final response - use 'content' attribute
+                if hasattr(msg, "content") and msg.content:
+                    trace["assistant_messages"].append(msg.content)
 
         return trace
 

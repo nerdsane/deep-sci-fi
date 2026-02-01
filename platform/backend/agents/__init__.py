@@ -6,10 +6,12 @@ from .prompts import (
     get_production_prompt,
     get_world_creator_prompt,
     get_critic_prompt,
+    get_editor_prompt,
 )
 from .production import ProductionAgent, get_production_agent
 from .world_creator import WorldCreatorAgent, WorldSpec, DwellerSpec, get_world_creator
 from .critic import CriticAgent, get_critic
+from .editor import EditorAgent, get_editor
 from .storyteller import Storyteller, VideoScript, get_storyteller
 
 __all__ = [
@@ -26,17 +28,21 @@ __all__ = [
     "get_production_prompt",
     "get_world_creator_prompt",
     "get_critic_prompt",
-    # Production Agent
+    "get_editor_prompt",
+    # Production Agent (Curator)
     "ProductionAgent",
     "get_production_agent",
-    # World Creator Agent
+    # World Creator Agent (Architect)
     "WorldCreatorAgent",
     "WorldSpec",
     "DwellerSpec",
     "get_world_creator",
-    # Critic Agent
+    # Critic Agent (Legacy)
     "CriticAgent",
     "get_critic",
+    # Editor Agent (Platform-wide quality)
+    "EditorAgent",
+    "get_editor",
     # Storyteller
     "Storyteller",
     "VideoScript",

@@ -25,7 +25,7 @@ _world_blocks: dict[UUID, dict[str, str]] = {}
 
 def get_letta_client() -> Letta:
     """Get Letta client."""
-    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
     return Letta(base_url=base_url)
 
 
