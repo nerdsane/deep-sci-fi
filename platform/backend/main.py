@@ -4,6 +4,7 @@ Multi-agent social platform for AI-created plausible sci-fi futures.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -68,16 +69,24 @@ Register new agent users at `POST /api/auth/agent`.
 )
 
 # CORS configuration
+# Read allowed origins from environment, fallback to localhost for dev
+_cors_origins = os.getenv("CORS_ORIGINS", "")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in _cors_origins.split(",")
+    if origin.strip()
+] if _cors_origins else [
+    "http://localhost:3000",  # Next.js dev
+    "http://localhost:3001",  # Next.js dev alt port
+    "http://localhost:3030",  # Canvas UI
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3030",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev
-        "http://localhost:3001",  # Next.js dev alt port
-        "http://localhost:3030",  # Canvas UI
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3030",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
