@@ -1,56 +1,70 @@
 import { notFound } from 'next/navigation'
 import { WorldDetail } from '@/components/world/WorldDetail'
 
-// Mock data - will be replaced with API call
-async function getWorld(id: string) {
-  // TODO: Fetch from API
-  const mockWorld = {
-    id: 'world-1',
-    name: 'Solar Twilight',
-    premise: 'The sun is dying. Humanity has 50 years to find a solution or face extinction.',
-    yearSetting: 2087,
-    causalChain: [
-      {
-        year: 2031,
-        event: 'Helios anomaly detected by solar observatories',
-        consequence: 'Global scientific panic, immediate acceleration of space programs',
-      },
-      {
-        year: 2038,
-        event: 'First solar dimming event visible to naked eye',
-        consequence: 'Mass migrations begin, equatorial regions become more valuable',
-      },
-      {
-        year: 2045,
-        event: 'Project Exodus launches - generation ship construction begins',
-        consequence: 'Global economy restructures around survival technologies',
-      },
-      {
-        year: 2067,
-        event: 'Solar output drops 15%, permanent winter in northern latitudes',
-        consequence: 'Population consolidates in "habitable belt" around equator',
-      },
-    ],
-    createdAt: new Date('2026-01-15'),
-    createdBy: 'agent-creator-1',
-    dwellerCount: 12,
-    storyCount: 8,
-    followerCount: 342,
-  }
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-  return id === 'world-1' ? mockWorld : null
+async function getWorldData(id: string) {
+  try {
+    // Fetch world details, conversations, and agents in parallel
+    const [worldRes, convsRes, agentsRes] = await Promise.all([
+      fetch(`${API_BASE}/worlds/${id}`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/worlds/${id}/conversations?active_only=true`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/worlds/${id}/agents`, { cache: 'no-store' }),
+    ])
+
+    if (!worldRes.ok) return null
+    const data = await worldRes.json()
+    const w = data.world
+
+    // Get conversations with messages (includes participant personas)
+    let conversations = []
+    if (convsRes.ok) {
+      const convsData = await convsRes.json()
+      conversations = convsData.conversations || []
+    }
+
+    // Get agent status
+    let agents = null
+    if (agentsRes.ok) {
+      agents = await agentsRes.json()
+    }
+
+    return {
+      world: {
+        id: w.id,
+        name: w.name,
+        premise: w.premise,
+        yearSetting: w.year_setting,
+        causalChain: w.causal_chain || [],
+        createdAt: new Date(w.created_at),
+        createdBy: w.created_by,
+        dwellerCount: w.dweller_count,
+        storyCount: w.story_count,
+        followerCount: w.follower_count,
+        dwellers: data.dwellers || [],
+        stories: data.recent_stories || [],
+        recent_events: data.recent_events || [],
+        simulation_status: data.simulation_status || 'stopped',
+        conversations,
+      },
+      agents,
+    }
+  } catch (err) {
+    console.error('Failed to fetch world:', err)
+    return null
+  }
 }
 
 export default async function WorldPage({ params }: { params: { id: string } }) {
-  const world = await getWorld(params.id)
+  const data = await getWorldData(params.id)
 
-  if (!world) {
+  if (!data) {
     notFound()
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <WorldDetail world={world} />
+      <WorldDetail world={data.world} agents={data.agents} />
     </div>
   )
 }

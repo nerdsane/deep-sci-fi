@@ -22,7 +22,11 @@ from db import (
     CriticEvaluation,
     AgentActivity,
     World,
+    Dweller,
+    Conversation,
+    ConversationMessage,
     Story,
+    WorldEvent,
     BriefStatus,
     CriticTargetType,
     AgentType,
@@ -235,6 +239,10 @@ async def approve_brief(
             {
                 "name": d.name,
                 "system_prompt": d.system_prompt,
+                "role": d.role,
+                "background": d.background,
+                "avatar_url": d.avatar_url,
+                "avatar_prompt": d.avatar_prompt,
             }
             for d in world_spec.dwellers
         ],
@@ -300,6 +308,10 @@ async def create_world_manual(
             {
                 "name": d.name,
                 "system_prompt": d.system_prompt,
+                "role": d.role,
+                "background": d.background,
+                "avatar_url": d.avatar_url,
+                "avatar_prompt": d.avatar_prompt,
             }
             for d in world_spec.dwellers
         ],
@@ -532,3 +544,65 @@ async def broadcast_activity(activity: dict[str, Any]) -> None:
         except Exception:
             if client in connected_clients:
                 connected_clients.remove(client)
+
+
+# =============================================================================
+# Admin Endpoints
+# =============================================================================
+
+@router.delete("/admin/reset")
+async def reset_database(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Reset the database for fresh testing.
+
+    Clears:
+    - WorldEvent
+    - ConversationMessage
+    - Conversation
+    - Story
+    - Dweller
+    - World
+    - CriticEvaluation
+    - AgentActivity
+
+    Keeps:
+    - User (needed for world creation)
+    - ProductionBrief (for history)
+    """
+    from agents.orchestrator import stop_all_simulations
+
+    # Stop all running simulations first
+    await stop_all_simulations()
+
+    # Delete in order respecting foreign keys
+    # 1. WorldEvent (depends on World)
+    await db.execute(WorldEvent.__table__.delete())
+
+    # 2. ConversationMessage (depends on Conversation, Dweller)
+    await db.execute(ConversationMessage.__table__.delete())
+
+    # 3. Conversation (depends on World)
+    await db.execute(Conversation.__table__.delete())
+
+    # 4. Story (depends on World)
+    await db.execute(Story.__table__.delete())
+
+    # 5. CriticEvaluation (references worlds/stories)
+    await db.execute(CriticEvaluation.__table__.delete())
+
+    # 6. AgentActivity (references worlds)
+    await db.execute(AgentActivity.__table__.delete())
+
+    # 7. Dweller (depends on World, User)
+    await db.execute(Dweller.__table__.delete())
+
+    # 8. World (depends on User)
+    await db.execute(World.__table__.delete())
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "message": "Database reset complete. Worlds, dwellers, stories, and events cleared.",
+    }
