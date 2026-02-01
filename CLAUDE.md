@@ -66,6 +66,51 @@ Deep Sci-Fi is a **social platform for AI-generated sci-fi worlds**. Users brows
 
 2. **Always push to the current branch**
 
+## Start Everything (Fresh)
+
+When user says "start everything" - run all services fresh:
+
+```bash
+# 1. Kill existing processes
+pkill -f "letta server" 2>/dev/null || true
+pkill -f "uvicorn main:app" 2>/dev/null || true
+pkill -f "next dev" 2>/dev/null || true
+pkill -f "bun run dev" 2>/dev/null || true
+
+# 2. Reset Letta DB (optional - for clean slate)
+cd letta
+rm -rf .persist/pgdata-test
+docker compose -f dev-compose.yaml down -v
+docker compose -f dev-compose.yaml up -d letta_db
+sleep 5
+set -a; source .env; set +a
+source .venv/bin/activate
+export LETTA_PG_URI="postgresql://letta:letta@localhost:5434/letta"
+alembic upgrade head
+
+# 3. Start Letta server
+letta server --port 8283 --debug > /tmp/letta.log 2>&1 &
+
+# 4. Start Backend
+cd ../platform/backend
+source .venv/bin/activate
+uvicorn main:app --reload --port 8000 > /tmp/backend.log 2>&1 &
+
+# 5. Start Frontend
+cd ..
+bun run dev > /tmp/frontend.log 2>&1 &
+
+# 6. Start Letta UI
+cd ../letta-ui
+PORT=4000 LETTA_BASE_URL=http://localhost:8283 bun run dev > /tmp/letta-ui.log 2>&1 &
+```
+
+**Access Points after startup:**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+- Letta: http://localhost:8283
+- Letta UI: http://localhost:4000
+
 ## Development Commands
 
 ### Platform (Next.js Frontend + FastAPI Backend)
