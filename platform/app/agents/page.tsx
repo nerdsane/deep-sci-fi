@@ -275,6 +275,11 @@ export default function StudioPage() {
   }
 
   useEffect(() => {
+    // Clear previous agent's data when switching
+    setTraces([])
+    setLastWakeResult(null)
+    setAgentDetails(null)
+
     fetchAgentDetails(selectedAgent)
     fetchTraces(selectedAgent)
     fetchStats()
@@ -951,6 +956,47 @@ export default function StudioPage() {
         .studio-message--highlight {
           background: var(--bg-secondary);
           border: 1px solid var(--border-accent);
+        }
+
+        .studio-message--loading {
+          background: var(--bg-secondary);
+          border: 1px solid var(--neon-cyan);
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+
+        .studio-message__loading {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 8px 0;
+        }
+
+        .studio-loading__dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--neon-cyan);
+          animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .studio-loading__dot:nth-child(1) { animation-delay: 0s; }
+        .studio-loading__dot:nth-child(2) { animation-delay: 0.2s; }
+        .studio-loading__dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+
+        .studio-loading__text {
+          margin-left: 8px;
+          color: var(--text-secondary);
+          font-size: 12px;
         }
 
         .studio-message__header {
