@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, World, Dweller, Story, Conversation
+from db import get_db, World, Dweller, Story, Conversation, WorldEvent, AgentActivity, AgentType
 
 router = APIRouter(prefix="/worlds", tags=["worlds"])
 
@@ -73,6 +73,8 @@ async def get_world(
     """
     Get details for a specific world.
     """
+    from agents.orchestrator import get_simulator
+
     query = (
         select(World)
         .options(
@@ -88,6 +90,20 @@ async def get_world(
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
 
+    # Get simulation status
+    sim = get_simulator(world_id)
+    simulation_status = "running" if sim and sim.running else "stopped"
+
+    # Get recent world events
+    events_query = (
+        select(WorldEvent)
+        .where(WorldEvent.world_id == world_id, WorldEvent.is_active == True)
+        .order_by(WorldEvent.timestamp.desc())
+        .limit(5)
+    )
+    events_result = await db.execute(events_query)
+    events = events_result.scalars().all()
+
     return {
         "world": {
             "id": str(world.id),
@@ -100,6 +116,7 @@ async def get_world(
             "story_count": world.story_count,
             "follower_count": world.follower_count,
         },
+        "simulation_status": simulation_status,
         "dwellers": [
             {
                 "id": str(d.id),
@@ -115,6 +132,8 @@ async def get_world(
                 "type": s.type.value,
                 "title": s.title,
                 "description": s.description,
+                "transcript": s.transcript,  # Full storyteller script
+                "video_url": s.video_url,
                 "thumbnail_url": s.thumbnail_url,
                 "duration_seconds": s.duration_seconds,
                 "created_at": s.created_at.isoformat(),
@@ -122,6 +141,16 @@ async def get_world(
                 "reaction_counts": s.reaction_counts,
             }
             for s in sorted(world.stories, key=lambda x: x.created_at, reverse=True)[:10]
+        ],
+        "recent_events": [
+            {
+                "id": str(e.id),
+                "event_type": e.event_type.value,
+                "title": e.title,
+                "description": e.description,
+                "timestamp": e.timestamp.isoformat(),
+            }
+            for e in events
         ],
         "active_conversations": [
             {
@@ -166,6 +195,7 @@ async def get_world_stories(
                 "type": s.type.value,
                 "title": s.title,
                 "description": s.description,
+                "transcript": s.transcript,  # Full storyteller script
                 "video_url": s.video_url,
                 "thumbnail_url": s.thumbnail_url,
                 "duration_seconds": s.duration_seconds,
@@ -330,4 +360,136 @@ async def get_simulation_status(
             }
             for did, state in sim.dweller_states.items()
         },
+    }
+
+
+@router.get("/{world_id}/agents")
+async def get_world_agents(
+    world_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get per-world agent status including Puppeteer and Storyteller.
+    """
+    from agents.orchestrator import get_simulator
+
+    # Check simulation status
+    sim = get_simulator(world_id)
+    simulation_status = "running" if sim and sim.running else "stopped"
+
+    # Get recent puppeteer events
+    events_query = (
+        select(WorldEvent)
+        .where(WorldEvent.world_id == world_id)
+        .order_by(WorldEvent.timestamp.desc())
+        .limit(10)
+    )
+    events_result = await db.execute(events_query)
+    events = events_result.scalars().all()
+
+    # Get recent storyteller activity
+    storyteller_activity_query = (
+        select(AgentActivity)
+        .where(
+            AgentActivity.world_id == world_id,
+            AgentActivity.agent_type == AgentType.STORYTELLER,
+        )
+        .order_by(AgentActivity.timestamp.desc())
+        .limit(5)
+    )
+    storyteller_result = await db.execute(storyteller_activity_query)
+    storyteller_activities = storyteller_result.scalars().all()
+
+    # Get stories count for this world
+    stories_query = select(func.count()).select_from(Story).where(Story.world_id == world_id)
+    stories_result = await db.execute(stories_query)
+    stories_count = stories_result.scalar() or 0
+
+    # Get puppeteer info
+    puppeteer_info = {
+        "status": "active" if sim and sim._puppeteer else "inactive",
+        "events_count": len(events),
+        "last_event": events[0].timestamp.isoformat() if events else None,
+    }
+
+    # Get storyteller info
+    storyteller_observations = 0
+    if sim and sim._storyteller:
+        storyteller_observations = len(sim._storyteller.observations)
+
+    storyteller_info = {
+        "status": "active" if sim and sim._storyteller else "inactive",
+        "observations_count": storyteller_observations,
+        "stories_created": stories_count,
+        "last_activity": storyteller_activities[0].timestamp.isoformat() if storyteller_activities else None,
+    }
+
+    # Get dweller agent states
+    dweller_agents = []
+    if sim:
+        for dweller_id, state in sim.dweller_states.items():
+            dweller_agents.append({
+                "dweller_id": str(dweller_id),
+                "activity": state.activity,
+                "conversation_id": str(state.conversation_id) if state.conversation_id else None,
+                "last_active": state.last_active.isoformat(),
+            })
+
+    return {
+        "simulation_status": simulation_status,
+        "puppeteer": puppeteer_info,
+        "storyteller": storyteller_info,
+        "dweller_agents": dweller_agents,
+        "tick_count": sim._tick_count if sim else 0,
+    }
+
+
+@router.get("/{world_id}/events")
+async def get_world_events(
+    world_id: UUID,
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    active_only: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get world events introduced by the Puppeteer agent.
+    """
+    query = (
+        select(WorldEvent)
+        .where(WorldEvent.world_id == world_id)
+        .order_by(WorldEvent.timestamp.desc())
+    )
+
+    if active_only:
+        query = query.where(WorldEvent.is_active == True)
+
+    query = query.limit(limit).offset(offset)
+
+    result = await db.execute(query)
+    events = result.scalars().all()
+
+    # Get total count
+    count_query = select(func.count()).select_from(WorldEvent).where(WorldEvent.world_id == world_id)
+    if active_only:
+        count_query = count_query.where(WorldEvent.is_active == True)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    return {
+        "events": [
+            {
+                "id": str(e.id),
+                "event_type": e.event_type.value,
+                "title": e.title,
+                "description": e.description,
+                "impact": e.impact,
+                "timestamp": e.timestamp.isoformat(),
+                "is_active": e.is_active,
+                "is_public": e.is_public,
+            }
+            for e in events
+        ],
+        "total": total,
+        "has_more": offset + limit < total,
     }

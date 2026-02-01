@@ -4,8 +4,10 @@ Creates worlds with:
 - World name
 - World document (markdown describing the world)
 - Dweller cast (name + system prompt for each)
+- Dweller avatars (generated via xAI Grok)
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -23,15 +25,20 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_world_creator_prompt, ANTI_CLICHE_RULES
+from video.grok_imagine import generate_avatar
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DwellerSpec:
-    """A dweller: name and system prompt."""
+    """A dweller: name, system prompt, and optional avatar."""
     name: str
     system_prompt: str
+    role: str = ""
+    background: str = ""
+    avatar_url: str | None = None
+    avatar_prompt: str | None = None
 
 
 @dataclass
@@ -123,6 +130,8 @@ WORLD:
 For each character, write:
 ---
 NAME: [Full name]
+ROLE: [Their occupation or role in society, e.g. "transit engineer", "street vendor", "researcher"]
+BACKGROUND: [One paragraph about their history, personality, and what drives them]
 SYSTEM PROMPT:
 [Complete system prompt for this character as an AI agent. Include their background, beliefs, personality, and how they should behave in conversations. Write in second person ("You are...")]
 ---
@@ -144,6 +153,15 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
         if not dwellers:
             raise ValueError("Failed to generate dwellers")
 
+        # Step 3: Generate avatars for each dweller
+        logger.info(f"Generating avatars for {len(dwellers)} dwellers...")
+        await self._generate_dweller_avatars(
+            dwellers=dwellers,
+            world_name=world_name,
+            world_premise=world_doc[:500],
+            year_setting=year_setting,
+        )
+
         # Log activity
         await self._log_activity(
             action="created_world",
@@ -164,6 +182,33 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             dwellers=dwellers,
         )
 
+    async def _generate_dweller_avatars(
+        self,
+        dwellers: list[DwellerSpec],
+        world_name: str,
+        world_premise: str,
+        year_setting: int,
+    ) -> None:
+        """Generate avatars for all dwellers in parallel."""
+        async def generate_for_dweller(dweller: DwellerSpec) -> None:
+            result = await generate_avatar(
+                name=dweller.name,
+                role=dweller.role,
+                background=dweller.background,
+                world_name=world_name,
+                world_premise=world_premise,
+                year_setting=year_setting,
+            )
+            if result.get("status") == "completed":
+                dweller.avatar_url = result.get("url")
+                dweller.avatar_prompt = result.get("prompt")
+                logger.info(f"Generated avatar for {dweller.name}")
+            else:
+                logger.warning(f"Avatar generation failed for {dweller.name}: {result.get('error')}")
+
+        # Generate all avatars in parallel
+        await asyncio.gather(*[generate_for_dweller(d) for d in dwellers])
+
     def _parse_dwellers(self, text: str) -> list[DwellerSpec]:
         """Parse dwellers from text format."""
         dwellers = []
@@ -176,26 +221,52 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             if not section or 'NAME:' not in section:
                 continue
 
-            # Extract name
+            # Extract fields
             name = ""
+            role = ""
+            background = ""
             system_prompt = ""
 
             lines = section.split('\n')
             in_prompt = False
+            in_background = False
             prompt_lines = []
+            background_lines = []
 
             for line in lines:
                 if line.startswith('NAME:'):
                     name = line[5:].strip()
+                    in_prompt = False
+                    in_background = False
+                elif line.startswith('ROLE:'):
+                    role = line[5:].strip()
+                    in_prompt = False
+                    in_background = False
+                elif line.startswith('BACKGROUND:'):
+                    in_background = True
+                    in_prompt = False
+                    # Check if there's content on the same line
+                    rest = line[11:].strip()
+                    if rest:
+                        background_lines.append(rest)
                 elif line.startswith('SYSTEM PROMPT:'):
                     in_prompt = True
+                    in_background = False
                 elif in_prompt:
                     prompt_lines.append(line)
+                elif in_background:
+                    background_lines.append(line)
 
             system_prompt = '\n'.join(prompt_lines).strip()
+            background = '\n'.join(background_lines).strip()
 
             if name and system_prompt:
-                dwellers.append(DwellerSpec(name=name, system_prompt=system_prompt))
+                dwellers.append(DwellerSpec(
+                    name=name,
+                    system_prompt=system_prompt,
+                    role=role,
+                    background=background,
+                ))
 
         return dwellers
 
