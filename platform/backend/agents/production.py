@@ -113,25 +113,12 @@ class ProductionAgent:
         # Get studio block IDs for shared memory
         studio_block_ids = get_studio_block_ids()
 
-        # Find web_search tool ID
-        tool_ids = []
-        try:
-            tools_list = client.tools.list()
-            for tool in tools_list:
-                if tool.name == "web_search":
-                    tool_ids.append(tool.id)
-                    logger.info(f"Found web_search tool: {tool.id}")
-                    break
-        except Exception as e:
-            logger.warning(f"Failed to find web_search tool: {e}")
-
-        # Create agent with web search, multi-agent tools, and persistent memory
+        # Create agent first (tools parameter doesn't work, need to attach after)
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
-            tool_ids=tool_ids,  # Attach tools by ID
             include_multi_agent_tools=True,  # Enable multi-agent communication
             tags=["studio", "curator"],  # Tags for agent discovery
             block_ids=studio_block_ids,  # Shared studio blocks
@@ -141,6 +128,24 @@ class ProductionAgent:
                 {"label": "past_briefs", "value": "No briefs generated yet."},
             ],
         )
+
+        # Attach web_search tool via POST (tools param in create doesn't work)
+        # See: POST /v1/agents/{agent_id}/tools/{tool_id}
+        try:
+            tools_list = client.tools.list()
+            for tool in tools_list:
+                if tool.name == "web_search":
+                    # Use the REST API directly since SDK attach returns 404
+                    import httpx
+                    base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+                    resp = httpx.post(f"{base_url}/v1/agents/{agent.id}/tools/{tool.id}")
+                    if resp.status_code == 200:
+                        logger.info(f"Attached web_search tool to agent {agent.id}")
+                    else:
+                        logger.warning(f"Failed to attach web_search: {resp.status_code}")
+                    break
+        except Exception as e:
+            logger.warning(f"Failed to attach web_search tool: {e}")
         self._agent_id = agent.id
         logger.info(f"Created production agent: {self._agent_id}")
         return self._agent_id
