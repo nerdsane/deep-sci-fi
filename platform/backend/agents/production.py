@@ -1017,12 +1017,21 @@ Then generate updated recommendations as JSON."""
             # They should introspect their own memory blocks to know their state
             wake_number = context.get("wake_count", 1)
 
+            # Current time in UTC - agent needs exact time context for research
+            now_utc = datetime.utcnow()
+            current_time = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+            current_date_human = now_utc.strftime("%A, %B %d, %Y")  # e.g., "Saturday, February 01, 2026"
+
             if wake_number == 1:
-                wake_prompt = """You're waking up for the first time. The platform is new.
+                wake_prompt = f"""Current time: {current_time} ({current_date_human})
+
+You're waking up for the first time. The platform is new.
 
 Check your memory to orient yourself, then do what feels right."""
             else:
-                wake_prompt = """You're waking up.
+                wake_prompt = f"""Current time: {current_time} ({current_date_human})
+
+You're waking up.
 
 Check your memory to see where you left off. What do you want to work on?"""
 
