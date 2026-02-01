@@ -95,13 +95,26 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-### Letta Server (Agent Backend)
+### Letta Server (Agent Backend - FROM SOURCE)
+
+We run Letta from the submodule source (not Docker image) for development.
 
 ```bash
 cd letta
-docker compose -f dev-compose.yaml up -d --build   # Start
-docker compose -f dev-compose.yaml logs -f         # View logs
-docker compose -f dev-compose.yaml down            # Stop
+
+# First time setup:
+/opt/homebrew/opt/python@3.12/bin/python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev,server]"
+
+# Start server (also starts PostgreSQL container):
+./start-letta.sh
+
+# Or manually:
+docker compose -f dev-compose.yaml up -d letta_db   # Start DB only
+source .venv/bin/activate
+export LETTA_PG_URI="postgresql://letta:letta@localhost:5434/letta"
+letta server --port 8283 --debug
 ```
 
 ### Letta UI (Debugging Dashboard)
@@ -109,7 +122,7 @@ docker compose -f dev-compose.yaml down            # Stop
 ```bash
 cd letta-ui
 bun install
-LETTA_BASE_URL=http://localhost:8285 bun run dev   # http://localhost:4000
+LETTA_BASE_URL=http://localhost:8283 bun run dev   # http://localhost:4000
 ```
 
 ## Platform Architecture
@@ -178,14 +191,14 @@ cp platform/.env.example platform/.env
 ```
 DATABASE_URL=           # PostgreSQL connection string
 ANTHROPIC_API_KEY=      # For Claude models
-LETTA_BASE_URL=         # Letta server URL (http://localhost:8285)
+LETTA_BASE_URL=         # Letta server URL (http://localhost:8283)
 ```
 
 ## Access Points
 
 - **Platform**: http://localhost:3000
 - **Backend API**: http://localhost:8000
-- **Letta Server**: http://localhost:8285
+- **Letta Server**: http://localhost:8283
 - **Letta UI**: http://localhost:4000
 - **Drizzle Studio**: http://localhost:4983
 
