@@ -444,3 +444,42 @@ Shared across all agents via `ANTI_CLICHE_RULES` constant:
 - Banned naming: "Neo-[City]", cultural mishmash
 - Banned archetypes: "grizzled veteran", "idealistic youth"
 - Required: Specific details over vague descriptions, technology with costs
+
+---
+
+### 2026-01-31: Logo Styling Update (from apps/web)
+
+**Applied styling patterns from `/apps/web/app/canvas.css` to match the existing logo appearance.**
+
+#### Changes Applied
+
+1. **Logo Size Reduced** (from 0.5rem to 0.28rem base)
+   - Much smaller, more elegant ASCII logo
+   - Responsive scaling: 0.28rem → 0.32rem → 0.36rem → 0.4rem at xl
+
+2. **Glow Effects Updated**
+   - `text-shadow: 0 0 6px rgba(0, 255, 204, 0.4)` - subtle cyan glow
+   - `filter: drop-shadow(0 0 2px rgba(0, 255, 204, 0.25))` - extra depth
+   - Line-height reduced from 1.1 to 0.85 for tighter spacing
+
+3. **Hover State Added**
+   - Color shifts to `--neon-cyan-bright`
+   - Enhanced glow: `text-shadow: 0 0 15px rgba(0, 255, 255, 0.7)`
+   - Stronger filter: `filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5))`
+   - Subtle scale: `transform: scale(1.02)`
+   - Smooth `transition: all 0.3s ease`
+
+4. **Text Glow Utilities Added**
+   - `.text-glow` - standard cyan glow for text
+   - `.text-glow-bright` - enhanced glow for hover states
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `/platform/app/globals.css` | Updated `.logo-ascii` styles, added `.text-glow` utilities |
+| `/platform/components/layout/Header.tsx` | Added `.logo` wrapper class for hover effects |
+
+#### Verification
+- ✅ TypeScript build passes
+- ✅ Desktop view shows smaller logo with subtle glow
+- ✅ Hover effect shows enhanced glow on logo
