@@ -468,28 +468,13 @@ Be HONEST and SPECIFIC. Don't soften criticism."""
                 )
 
             except (json.JSONDecodeError, KeyError, TypeError) as e:
-                logger.warning(f"Failed to parse LLM evaluation: {e}")
-                return self._default_feedback()
+                logger.error(f"Failed to parse LLM evaluation response: {e}")
+                raise ValueError(f"Failed to parse LLM evaluation: {e}")
 
         except Exception as e:
             logger.error(f"LLM evaluation failed: {e}", exc_info=True)
-            return self._default_feedback()
+            raise
 
-    def _default_feedback(self) -> CriticFeedback:
-        """Return default feedback when evaluation fails."""
-        return CriticFeedback(
-            scores=EvaluationScores(
-                plausibility=5.0,
-                coherence=5.0,
-                originality=5.0,
-                engagement=5.0,
-                authenticity=5.0,
-            ),
-            ai_isms=[],
-            strengths=["Could not fully evaluate - manual review recommended"],
-            weaknesses=["Automated evaluation incomplete"],
-            suggestions=["Please review manually"],
-        )
 
     def _format_world_content(self, world: World, dwellers: list[Dweller]) -> str:
         """Format world content for evaluation."""

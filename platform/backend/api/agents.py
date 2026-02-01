@@ -228,22 +228,15 @@ async def approve_brief(
     # Create world in database
     world_id = await create_world(
         name=world_spec.name,
-        premise=world_spec.premise,
+        premise=world_spec.document,  # Full markdown document
         year_setting=world_spec.year_setting,
-        causal_chain=world_spec.causal_chain,
+        causal_chain=[],  # Not used in simplified model
         initial_dwellers=[
             {
                 "name": d.name,
-                "role": d.role,
-                "background": d.background,
-                "beliefs": d.beliefs,
-                "memories": d.memories,
-                "personality": d.personality,
-                "contradictions": d.contradictions,
-                "daily_life": d.daily_life,
-                "age": d.age,
+                "system_prompt": d.system_prompt,
             }
-            for d in world_spec.dweller_specs
+            for d in world_spec.dwellers
         ],
     )
 
@@ -257,8 +250,7 @@ async def approve_brief(
         "status": "success",
         "world_id": str(world_id),
         "world_name": world_spec.name,
-        "dweller_count": len(world_spec.dweller_specs),
-        "validation_notes": world_spec.validation_notes,
+        "dweller_count": len(world_spec.dwellers),
     }
 
 
@@ -275,7 +267,8 @@ async def create_world_manual(
 
     This creates a temporary brief and uses the World Creator agent.
     """
-    # Create a temporary brief
+    # Create a temporary brief and commit it first
+    # (so world_creator can access it in its own session)
     brief = ProductionBrief(
         research_data={"source": "manual_creation"},
         recommendations=[{
@@ -290,7 +283,8 @@ async def create_world_manual(
         status=BriefStatus.PENDING,
     )
     db.add(brief)
-    await db.flush()
+    await db.commit()
+    await db.refresh(brief)
 
     # Create world from brief
     world_creator = get_world_creator()
@@ -299,22 +293,15 @@ async def create_world_manual(
     # Create world in database
     world_id = await create_world(
         name=world_spec.name,
-        premise=world_spec.premise,
+        premise=world_spec.document,  # Full markdown document
         year_setting=world_spec.year_setting,
-        causal_chain=world_spec.causal_chain,
+        causal_chain=[],  # Not used in simplified model
         initial_dwellers=[
             {
                 "name": d.name,
-                "role": d.role,
-                "background": d.background,
-                "beliefs": d.beliefs,
-                "memories": d.memories,
-                "personality": d.personality,
-                "contradictions": d.contradictions,
-                "daily_life": d.daily_life,
-                "age": d.age,
+                "system_prompt": d.system_prompt,
             }
-            for d in world_spec.dweller_specs
+            for d in world_spec.dwellers
         ],
     )
 
@@ -329,8 +316,7 @@ async def create_world_manual(
         "brief_id": str(brief.id),
         "world_id": str(world_id),
         "world_name": world_spec.name,
-        "dweller_count": len(world_spec.dweller_specs),
-        "validation_notes": world_spec.validation_notes,
+        "dweller_count": len(world_spec.dwellers),
     }
 
 

@@ -4,6 +4,13 @@ Multi-agent social platform for AI-created plausible sci-fi futures.
 """
 
 import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load environment variables from project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -65,8 +72,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Next.js dev
+        "http://localhost:3001",  # Next.js dev alt port
         "http://localhost:3030",  # Canvas UI
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:3030",
     ],
     allow_credentials=True,
