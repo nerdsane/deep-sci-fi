@@ -21,6 +21,7 @@ Emergent Behavior:
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -28,7 +29,9 @@ from uuid import UUID
 
 from letta_client import Letta
 
+from db import AgentType
 from .prompts import get_storyteller_prompt, get_storyteller_script_request
+from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +246,8 @@ class Storyteller:
             logger.debug("No observations yet")
             return None
 
+        start_time = time.time()
+
         try:
             agent_id = await self._ensure_agent()
             client = self._get_client()
@@ -304,13 +309,33 @@ Trust your judgment. Quality over quantity."""
 
             logger.info(f"Storyteller response: {response_text[:200]}...")
 
+            # Determine outcome
+            is_waiting = response_text.strip().upper().startswith("NOT YET")
+            script = None if is_waiting else self._parse_script(response_text)
+
+            # Log trace
+            await log_trace(
+                agent_type=AgentType.STORYTELLER,
+                operation="evaluate_for_story",
+                prompt=prompt,
+                response=response_text,
+                model="anthropic/claude-opus-4-5-20251101",
+                duration_ms=int((time.time() - start_time) * 1000),
+                agent_id=f"storyteller_{self.world_id}",
+                world_id=self.world_id,
+                parsed_output={
+                    "decision": "WAIT" if is_waiting else ("SCRIPT_CREATED" if script else "PARSE_FAILED"),
+                    "observations_count": len(self.observations),
+                    "script_title": script.title if script else None,
+                },
+            )
+
             # Check if storyteller decided to wait
-            if response_text.strip().upper().startswith("NOT YET"):
+            if is_waiting:
                 logger.info(f"Storyteller decided to wait: {response_text[:100]}")
                 return None
 
             # Try to parse a script
-            script = self._parse_script(response_text)
             if script:
                 logger.info(f"Storyteller created script: {script.title}")
                 self.last_story_time = datetime.utcnow()
@@ -322,6 +347,15 @@ Trust your judgment. Quality over quantity."""
 
         except Exception as e:
             logger.error(f"Error in storyteller evaluation: {e}", exc_info=True)
+            # Log error trace
+            await log_trace(
+                agent_type=AgentType.STORYTELLER,
+                operation="evaluate_for_story",
+                agent_id=f"storyteller_{self.world_id}",
+                world_id=self.world_id,
+                duration_ms=int((time.time() - start_time) * 1000),
+                error=str(e),
+            )
             return None
 
     async def create_script(
