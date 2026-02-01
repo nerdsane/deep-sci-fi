@@ -39,12 +39,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TrendResearch:
     """Results from trend research."""
-    technology: list[dict] = field(default_factory=list)
-    climate: list[dict] = field(default_factory=list)
-    society: list[dict] = field(default_factory=list)
-    geopolitics: list[dict] = field(default_factory=list)
-    biotech: list[dict] = field(default_factory=list)
-    space: list[dict] = field(default_factory=list)
+    discoveries: list[dict] = field(default_factory=list)  # What the curator found
+    rabbit_holes: list[dict] = field(default_factory=list)  # Connections and surprises
+    synthesis: str = ""  # The curator's take on what they found
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -128,15 +125,12 @@ class ProductionAgent:
         return self._agent_id
 
     async def research_trends(self) -> TrendResearch:
-        """Research current 2026 trends using Exa API.
+        """Let the Curator explore what's interesting RIGHT NOW.
 
-        Searches for emerging developments in:
-        - Technology
-        - Climate and environment
-        - Society and culture
-        - Geopolitics
-        - Biotech and health
-        - Space exploration
+        No preset queries - the agent decides what to look for based on:
+        - What's been buzzing in their feeds
+        - What they're curious about
+        - Connections they're seeing
         """
         start_time = time.time()
         research = TrendResearch()
@@ -145,53 +139,121 @@ class ProductionAgent:
             agent_id = await self._ensure_agent()
             client = self._get_client()
 
-            # Research each category
-            categories = [
-                ("technology", "emerging technology trends 2026 AI robotics"),
-                ("climate", "climate change developments 2026 environmental"),
-                ("society", "social trends 2026 culture work remote"),
-                ("geopolitics", "geopolitical developments 2026 international"),
-                ("biotech", "biotech breakthroughs 2026 longevity genetics"),
-                ("space", "space exploration 2026 commercial lunar"),
-            ]
+            # Step 1: Ask the Curator what they want to explore
+            curiosity_prompt = """What are you curious about right now?
 
-            for category, query in categories:
-                try:
-                    response = client.agents.messages.create(
-                        agent_id=agent_id,
-                        messages=[{
-                            "role": "user",
-                            "content": f"Search for and summarize the top 5 {category} trends. Query: {query}. Return as JSON array with 'title', 'summary', and 'implication' fields."
-                        }],
-                    )
+You're the Curator. You've been scrolling your feeds, reading papers, noticing patterns.
 
-                    # Extract response
-                    result = self._extract_response(response)
-                    if result:
-                        # Try to parse as JSON
-                        try:
-                            trends = json.loads(result)
-                            setattr(research, category, trends if isinstance(trends, list) else [])
-                        except json.JSONDecodeError:
-                            # Store as single item if not JSON
-                            setattr(research, category, [{"summary": result}])
+What's catching your attention lately? Think about:
+- AI/ML developments that feel different (not the usual hype)
+- Biotech/longevity stuff that sounds like sci-fi but is real
+- Climate solutions (not doom - what's actually being built)
+- Space commercialization (what's launching vs vaporware)
+- Digital culture shifts (how people actually live online)
+- Any weird emerging tech (quantum, robotics, BCI, materials)
 
-                except Exception as e:
-                    logger.warning(f"Failed to research {category}: {e}")
-                    setattr(research, category, [])
+DON'T search for generic terms. Search for SPECIFIC things you're curious about.
+
+Tell me 3-5 specific topics you want to explore right now, and why each one is interesting to you. Then search for each one.
+
+Format:
+EXPLORING: [specific topic]
+WHY: [why this is interesting to you right now]
+[then do the search]"""
+
+            logger.info("Curator deciding what to explore...")
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{"role": "user", "content": curiosity_prompt}],
+            )
+
+            exploration_result = self._extract_response(response)
+            if exploration_result:
+                research.discoveries.append({
+                    "phase": "exploration",
+                    "content": exploration_result,
+                })
+
+            # Step 2: Follow rabbit holes - ask about connections
+            rabbit_hole_prompt = """Based on what you just found, what CONNECTIONS are you seeing?
+
+Good sci-fi comes from unexpected combinations. What if you connected:
+- Two different fields that don't usually talk to each other
+- A technical development with a cultural shift
+- Something from your research with something you remembered from before
+
+Search for anything that helps you explore these connections. Follow your curiosity.
+
+What surprised you? What made you go "wait, really?"
+
+Share your rabbit holes - the weird connections and surprising discoveries."""
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{"role": "user", "content": rabbit_hole_prompt}],
+            )
+
+            rabbit_hole_result = self._extract_response(response)
+            if rabbit_hole_result:
+                research.rabbit_holes.append({
+                    "phase": "connections",
+                    "content": rabbit_hole_result,
+                })
+
+            # Step 3: Synthesize - what's the curator's take?
+            synthesis_prompt = """Okay, synthesize what you found.
+
+You've explored, you've followed rabbit holes. Now step back.
+
+What's the STORY here? Not individual facts, but:
+- What patterns are you seeing across different fields?
+- What feels like it's about to shift?
+- What would YOU want to see explored in fiction?
+- What's the zeitgeist you're picking up on?
+
+Write a short synthesis (2-3 paragraphs) of your research session. This is your curator's take - your editorial perspective on what matters right now.
+
+Be specific. Cite what you found. Share your genuine excitement or concern."""
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{"role": "user", "content": synthesis_prompt}],
+            )
+
+            synthesis_result = self._extract_response(response)
+            if synthesis_result:
+                research.synthesis = synthesis_result
 
             research.timestamp = datetime.utcnow()
+
+            # Log trace
+            await log_trace(
+                agent_type=AgentType.PRODUCTION,
+                operation="research_trends",
+                prompt=curiosity_prompt,
+                response=exploration_result,
+                model=self.MODEL,
+                duration_ms=int((time.time() - start_time) * 1000),
+                parsed_output={
+                    "discoveries_count": len(research.discoveries),
+                    "rabbit_holes_count": len(research.rabbit_holes),
+                    "has_synthesis": bool(research.synthesis),
+                },
+            )
 
             # Log activity
             await self._log_activity(
                 action="researched_trends",
                 details={
-                    "categories": list(dict(categories).keys()),
-                    "total_findings": sum(len(getattr(research, cat)) for cat, _ in categories),
+                    "approach": "curator_driven",
+                    "discoveries": len(research.discoveries),
+                    "rabbit_holes": len(research.rabbit_holes),
                 },
                 duration_ms=int((time.time() - start_time) * 1000),
             )
 
+            logger.info(f"Curator research complete: {len(research.discoveries)} discoveries, {len(research.rabbit_holes)} rabbit holes")
             return research
 
         except Exception as e:
@@ -300,6 +362,8 @@ class ProductionAgent:
     ) -> ProductionBrief:
         """Generate a production brief with world recommendations.
 
+        The Curator synthesizes their research into world seeds.
+
         Args:
             trend_research: Optional pre-computed trend research
             engagement_analysis: Optional pre-computed engagement analysis
@@ -320,31 +384,38 @@ class ProductionAgent:
             agent_id = await self._ensure_agent()
             client = self._get_client()
 
-            # Format research for the agent
-            research_context = self._format_research_context(trend_research, engagement_analysis)
+            # Format the curator's research
+            research_text = self._format_curator_research(trend_research)
 
-            prompt = f"""Based on this research and engagement data, generate a production brief with 3-5 world theme recommendations.
+            prompt = f"""Time to pitch some worlds.
 
-TREND RESEARCH:
-{research_context}
+You've done your research. Here's what you found:
 
-ENGAGEMENT ANALYSIS:
-- Total worlds: {engagement_analysis.total_worlds}
-- Total stories: {engagement_analysis.total_stories}
-- Avg engagement per world: {engagement_analysis.avg_engagement_per_world:.1f}
-- Top themes: {', '.join(t['theme'] for t in engagement_analysis.top_themes[:5])}
-- Saturated themes to avoid: {', '.join(engagement_analysis.saturated_themes)}
+{research_text}
 
-Generate 3-5 world recommendations as a JSON array. Each must have:
-- theme: One-line theme description
-- premise_sketch: 2-3 sentence world premise
-- core_question: The central "what if"
-- target_audience: Who would find this compelling
-- rationale: Why now? What 2026 trend makes this relevant?
-- estimated_appeal: high/medium/low with reasoning
-- anti_cliche_notes: How this avoids common sci-fi tropes
+And here's what's happening on the platform:
+- {engagement_analysis.total_worlds} worlds exist
+- {engagement_analysis.total_stories} stories created
+- Top themes: {', '.join(t['theme'] for t in engagement_analysis.top_themes[:5]) if engagement_analysis.top_themes else 'none yet'}
+- Saturated (avoid): {', '.join(engagement_analysis.saturated_themes) if engagement_analysis.saturated_themes else 'nothing saturated yet'}
 
-Return ONLY the JSON array, no other text."""
+Now pitch me 3-5 world ideas.
+
+For each one, I want to feel your excitement. Pitch it like you're telling a friend about this cool thing you discovered:
+
+"Okay so you know how [REAL THING you found]? What if we took that to its logical conclusion and [WORLD PREMISE]?"
+
+Each pitch needs:
+- **theme**: The hook (one line)
+- **premise_sketch**: The world in 2-3 sentences
+- **core_question**: The "what if" that makes it interesting
+- **source**: What REAL development inspired this (cite your research!)
+- **rationale**: Why this moment in 2026 makes this relevant
+- **fresh_angle**: How this AVOIDS the cliché version (be specific)
+- **target_audience**: Who would love this (be specific, not "sci-fi fans")
+- **estimated_appeal**: Your honest take - high/medium with reasoning
+
+Return as a JSON array. Be genuine - pitch the ideas YOU'RE excited about, not what you think is "safe"."""
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
@@ -372,20 +443,20 @@ Return ONLY the JSON array, no other text."""
                 response=result,
                 model=self.MODEL,
                 duration_ms=int((time.time() - start_time) * 1000),
-                parsed_output={"recommendations": recommendations},
+                parsed_output={
+                    "recommendation_count": len(recommendations),
+                    "themes": [r.get("theme", "untitled") for r in recommendations] if recommendations else [],
+                },
             )
 
             # Create brief in database
             async with SessionLocal() as db:
                 brief = ProductionBrief(
                     research_data={
-                        "trends": {
-                            "technology": trend_research.technology,
-                            "climate": trend_research.climate,
-                            "society": trend_research.society,
-                            "geopolitics": trend_research.geopolitics,
-                            "biotech": trend_research.biotech,
-                            "space": trend_research.space,
+                        "curator_research": {
+                            "discoveries": trend_research.discoveries,
+                            "rabbit_holes": trend_research.rabbit_holes,
+                            "synthesis": trend_research.synthesis,
                         },
                         "timestamp": trend_research.timestamp.isoformat(),
                     },
@@ -402,11 +473,12 @@ Return ONLY the JSON array, no other text."""
                     details={
                         "brief_id": str(brief.id),
                         "recommendation_count": len(recommendations),
+                        "themes": [r.get("theme", "") for r in recommendations][:3],
                     },
                     duration_ms=int((time.time() - start_time) * 1000),
                 )
 
-                logger.info(f"Generated production brief {brief.id} with {len(recommendations)} recommendations")
+                logger.info(f"Curator created brief {brief.id} with {len(recommendations)} world pitches")
                 return brief
 
         except Exception as e:
@@ -563,28 +635,34 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
                 keywords.append(word)
         return keywords[:5]  # Max 5 keywords
 
-    def _format_research_context(
-        self,
-        trends: TrendResearch,
-        engagement: EngagementAnalysis,
-    ) -> str:
-        """Format research data for the agent."""
+    def _format_curator_research(self, research: TrendResearch) -> str:
+        """Format the curator's research for brief generation."""
         sections = []
 
-        for category in ["technology", "climate", "society", "geopolitics", "biotech", "space"]:
-            items = getattr(trends, category, [])
-            if items:
-                section = f"\n{category.upper()}:\n"
-                for item in items[:3]:  # Top 3 per category
-                    if isinstance(item, dict):
-                        title = item.get("title", "")
-                        summary = item.get("summary", str(item))
-                        section += f"- {title}: {summary[:200]}\n" if title else f"- {summary[:200]}\n"
-                    else:
-                        section += f"- {str(item)[:200]}\n"
-                sections.append(section)
+        # Add discoveries
+        if research.discoveries:
+            sections.append("## YOUR DISCOVERIES\n")
+            for disc in research.discoveries:
+                content = disc.get("content", "")
+                if content:
+                    sections.append(content[:2000])
+                    sections.append("\n---\n")
 
-        return "\n".join(sections)
+        # Add rabbit holes
+        if research.rabbit_holes:
+            sections.append("## YOUR RABBIT HOLES\n")
+            for rh in research.rabbit_holes:
+                content = rh.get("content", "")
+                if content:
+                    sections.append(content[:1500])
+                    sections.append("\n---\n")
+
+        # Add synthesis
+        if research.synthesis:
+            sections.append("## YOUR SYNTHESIS\n")
+            sections.append(research.synthesis)
+
+        return "\n".join(sections) if sections else "No research available - generate ideas from your memory and knowledge."
 
     async def _log_activity(
         self,
