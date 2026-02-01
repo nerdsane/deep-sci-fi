@@ -1,266 +1,154 @@
 #!/bin/bash
 
-# Deep Sci-Fi - One-Command Startup Script
+# Deep Sci-Fi Platform - Startup Script
 # Usage: ./start.sh
 
-set -e  # Exit on any error
+set -e
 
-echo "🌌 Deep Sci-Fi - Starting Everything..."
+echo "🌌 Deep Sci-Fi Platform - Starting..."
 echo ""
 
 # Color codes
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Function to print colored output
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
+print_success() { echo -e "${GREEN}✓${NC} $1"; }
+print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
+print_error() { echo -e "${RED}✗${NC} $1"; }
 
-print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-print_error() {
-    echo -e "${RED}✗${NC} $1"
-}
-
-# Check if .env exists in apps/web
-if [ ! -f "apps/web/.env" ]; then
-    print_warning ".env not found, creating from .env.example..."
-    cp apps/web/.env.example apps/web/.env
-
-    # Generate NEXTAUTH_SECRET
-    SECRET=$(openssl rand -base64 32)
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        sed -i '' "s|NEXTAUTH_SECRET=\".*\"|NEXTAUTH_SECRET=\"$SECRET\"|" apps/web/.env
+# Check platform/.env
+if [ ! -f "platform/.env" ]; then
+    if [ -f "platform/.env.example" ]; then
+        print_warning ".env not found, creating from .env.example..."
+        cp platform/.env.example platform/.env
+        print_success ".env created - please configure your API keys"
     else
-        # Linux
-        sed -i "s|NEXTAUTH_SECRET=\".*\"|NEXTAUTH_SECRET=\"$SECRET\"|" apps/web/.env
+        print_error "No .env.example found in platform/"
+        exit 1
     fi
-
-    print_success ".env created with random NEXTAUTH_SECRET"
-    print_warning "Using existing ANTHROPIC_API_KEY from .env.example"
 else
-    print_success ".env already exists"
+    print_success "platform/.env exists"
 fi
 
-# 1. Start PostgreSQL
-echo ""
-echo "📦 Starting PostgreSQL..."
-if docker ps | grep -q deep-sci-fi-postgres; then
-    print_success "PostgreSQL already running"
-else
-    if docker ps -a | grep -q deep-sci-fi-postgres; then
-        print_warning "Starting existing PostgreSQL container..."
-        docker start deep-sci-fi-postgres
-    else
-        print_warning "Creating new PostgreSQL container..."
-        docker run -d \
-            --name deep-sci-fi-postgres \
-            -e POSTGRES_USER=deepscifi \
-            -e POSTGRES_PASSWORD=dev_password_change_in_production \
-            -e POSTGRES_DB=deep_sci_fi_dev \
-            -p 5433:5432 \
-            pgvector/pgvector:pg16
-
-        # Wait for PostgreSQL to be ready
-        echo "Waiting for PostgreSQL to be ready..."
-        sleep 5
-    fi
-    print_success "PostgreSQL running on localhost:5433"
-fi
-
-# 2. Start Letta Server
+# 1. Start Letta Server (if docker available)
 echo ""
 echo "🤖 Starting Letta Server..."
-cd letta
-if docker-compose ps | grep -q "letta.*Up"; then
-    print_success "Letta server already running"
-else
-    print_warning "Starting Letta server..."
-    docker-compose up -d
+cd "$SCRIPT_DIR/letta"
+if command -v docker &> /dev/null; then
+    if docker compose -f dev-compose.yaml ps 2>/dev/null | grep -q "Up"; then
+        print_success "Letta server already running"
+    else
+        print_warning "Starting Letta server..."
+        docker compose -f dev-compose.yaml up -d
 
-    # Wait for Letta to be ready
-    echo "Waiting for Letta server to be ready..."
-    for i in {1..30}; do
-        if curl -s http://localhost:8285/health > /dev/null 2>&1; then
-            print_success "Letta server ready on localhost:8285"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            print_error "Letta server failed to start"
-            exit 1
-        fi
-        sleep 1
-    done
-fi
-cd ..
-
-# 3. Link local packages and install dependencies
-echo ""
-echo "📚 Checking dependencies..."
-if [ ! -d "apps/web/node_modules" ]; then
-    print_warning "Setting up local packages..."
-
-    # Create symlinks for local packages (workaround for npm workspace issues)
-    mkdir -p apps/web/node_modules/@deep-sci-fi
-    cd apps/web/node_modules/@deep-sci-fi
-
-    # Remove existing symlinks if any
-    rm -f letta types db
-
-    # Create symlinks
-    ln -s ../../../../packages/letta letta
-    ln -s ../../../../packages/types types
-    ln -s ../../../../packages/db db
-
-    cd ../../../..
-
-    print_warning "Installing dependencies (this may take a few minutes)..."
-    cd apps/web
-    npm install --legacy-peer-deps
-    cd ../..
-    print_success "Dependencies installed"
-else
-    print_success "Dependencies already installed"
-fi
-
-# 4. Setup database
-echo ""
-echo "🗄️  Setting up database..."
-
-# Run Prisma commands from packages/db where Prisma is installed
-cd packages/db
-
-# Ensure Prisma dependencies are installed
-if [ ! -d "node_modules/.bin" ]; then
-    print_warning "Installing Prisma dependencies..."
-    npm install --legacy-peer-deps
-fi
-
-# Export DATABASE_URL from apps/web/.env for Prisma
-export DATABASE_URL=$(grep "^DATABASE_URL=" ../../apps/web/.env | cut -d '=' -f2- | tr -d '"')
-
-# Check if database is already set up
-if npx prisma db execute --stdin <<< "SELECT 1 FROM \"User\" LIMIT 1;" 2>/dev/null; then
-    print_success "Database already set up"
-else
-    print_warning "Pushing database schema..."
-    npx prisma db push --skip-generate
-    print_success "Database schema created"
-fi
-
-# Always generate Prisma client
-print_warning "Generating Prisma client..."
-npx prisma generate
-
-# Copy Prisma binary to web app (needed for Next.js with symlinked packages)
-print_warning "Copying Prisma binary to web app..."
-mkdir -p ../../apps/web/node_modules/.prisma/client
-cp -r node_modules/.prisma/client/* ../../apps/web/node_modules/.prisma/client/
-cd ../..
-print_success "Prisma client generated and binary copied"
-
-# 5. Start WebSocket Server
-echo ""
-echo "🔌 Starting WebSocket server..."
-cd apps/web
-
-# Kill any existing WebSocket server
-if [ -f ".ws.pid" ]; then
-    OLD_PID=$(cat .ws.pid)
-    if kill -0 $OLD_PID 2>/dev/null; then
-        print_warning "Stopping existing WebSocket server (PID: $OLD_PID)..."
-        kill $OLD_PID 2>/dev/null || true
-        sleep 1
+        echo "Waiting for Letta server..."
+        for i in {1..30}; do
+            if curl -s http://localhost:8285/health > /dev/null 2>&1; then
+                print_success "Letta server ready on localhost:8285"
+                break
+            fi
+            if [ $i -eq 30 ]; then
+                print_warning "Letta server may still be starting..."
+            fi
+            sleep 1
+        done
     fi
-    rm -f .ws.pid
+else
+    print_warning "Docker not found - skipping Letta server"
 fi
+cd "$SCRIPT_DIR"
 
-# Start WebSocket server in background
-bun run server/ws-server.ts > .ws.log 2>&1 &
-WS_PID=$!
-echo $WS_PID > .ws.pid
-print_success "WebSocket server starting (PID: $WS_PID)..."
-
-# Wait for WebSocket server to be ready
-for i in {1..10}; do
-    if curl -s http://localhost:8284/health > /dev/null 2>&1; then
-        print_success "WebSocket server ready on localhost:8284"
-        break
-    fi
-    if [ $i -eq 10 ]; then
-        print_warning "WebSocket server may still be starting..."
-    fi
-    sleep 0.5
-done
-
-cd ../..
-
-# 6. Start Letta UI (observability dashboard)
+# 2. Start Letta UI (debugging dashboard)
 echo ""
 echo "📊 Starting Letta UI..."
-cd letta-ui
+cd "$SCRIPT_DIR/letta-ui"
 
-# Install dependencies if needed
 if [ ! -d "node_modules" ]; then
     print_warning "Installing Letta UI dependencies..."
     bun install
 fi
 
-# Kill any existing Letta UI server
+# Kill existing Letta UI
 if [ -f ".ui.pid" ]; then
     OLD_PID=$(cat .ui.pid)
     if kill -0 $OLD_PID 2>/dev/null; then
-        print_warning "Stopping existing Letta UI (PID: $OLD_PID)..."
+        print_warning "Stopping existing Letta UI..."
         kill $OLD_PID 2>/dev/null || true
         sleep 1
     fi
     rm -f .ui.pid
 fi
 
-# Start Letta UI in background on port 4000 (far from Next.js 3000+ range)
 LETTA_BASE_URL=http://localhost:8285 PORT=4000 bun run dev > .ui.log 2>&1 &
 UI_PID=$!
 echo $UI_PID > .ui.pid
-print_success "Letta UI starting (PID: $UI_PID)..."
+print_success "Letta UI starting on localhost:4000 (PID: $UI_PID)"
+cd "$SCRIPT_DIR"
 
-# Wait for Letta UI to be ready
-for i in {1..10}; do
-    if curl -s http://localhost:4000 > /dev/null 2>&1; then
-        print_success "Letta UI ready on localhost:4000"
-        break
+# 3. Start Backend (FastAPI)
+echo ""
+echo "🐍 Starting Backend API..."
+cd "$SCRIPT_DIR/platform/backend"
+
+# Kill existing backend
+if [ -f ".backend.pid" ]; then
+    OLD_PID=$(cat .backend.pid)
+    if kill -0 $OLD_PID 2>/dev/null; then
+        print_warning "Stopping existing backend..."
+        kill $OLD_PID 2>/dev/null || true
+        sleep 1
     fi
-    if [ $i -eq 10 ]; then
-        print_warning "Letta UI may still be starting..."
-    fi
-    sleep 0.5
-done
+    rm -f .backend.pid
+fi
 
-cd ..
+# Create venv if needed
+if [ ! -d ".venv" ]; then
+    print_warning "Creating Python virtual environment..."
+    python3 -m venv .venv
+fi
 
-# 7. Start the web app
+# Activate and install deps
+source .venv/bin/activate
+if [ -f "requirements.txt" ]; then
+    pip install -q -r requirements.txt
+fi
+
+# Start backend
+uvicorn main:app --reload --port 8000 > .backend.log 2>&1 &
+BACKEND_PID=$!
+echo $BACKEND_PID > .backend.pid
+print_success "Backend API starting on localhost:8000 (PID: $BACKEND_PID)"
+deactivate 2>/dev/null || true
+cd "$SCRIPT_DIR"
+
+# 4. Start Platform (Next.js)
 echo ""
-echo "🚀 Starting web app..."
+echo "🚀 Starting Platform..."
+cd "$SCRIPT_DIR/platform"
+
+if [ ! -d "node_modules" ]; then
+    print_warning "Installing platform dependencies..."
+    bun install
+fi
+
 echo ""
-print_success "All services ready!"
+print_success "All services starting!"
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🌌 Deep Sci-Fi is starting..."
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "  🌌 Deep Sci-Fi Platform"
 echo ""
-echo "  Web App:        http://localhost:3030"
-echo "  Letta UI:       http://localhost:4000"
-echo "  WebSocket:      ws://localhost:8284"
-echo "  Letta Server:   http://localhost:8285"
-echo "  PostgreSQL:     localhost:5433"
+echo -e "  Platform:       ${GREEN}http://localhost:3000${NC}"
+echo -e "  Backend API:    ${GREEN}http://localhost:8000${NC}"
+echo -e "  Letta UI:       ${GREEN}http://localhost:4000${NC}"
+echo -e "  Letta Server:   ${GREEN}http://localhost:8285${NC}"
 echo ""
-echo "  Press Ctrl+C to stop"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "  Press Ctrl+C to stop"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-cd apps/web
-npm run dev
+bun run dev
