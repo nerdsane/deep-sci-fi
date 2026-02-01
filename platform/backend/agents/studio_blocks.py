@@ -138,7 +138,16 @@ def get_studio_block(label: str) -> str:
 # =============================================================================
 
 def get_world_block_definitions(world_id: UUID, world_name: str) -> dict[str, dict]:
-    """Get block definitions for a specific world."""
+    """Get block definitions for a specific world.
+
+    Block types for autonomous agent coordination:
+    - world_state: Current world conditions (puppeteer writes, all read)
+    - world_knowledge: Accumulated facts about the world
+    - world_dweller_directory: Who exists and their availability status
+    - world_event_log: Recent events (append-only)
+    - world_conversation_log: Active and recent conversations
+    - world_scheduled_actions: Agent-scheduled future actions
+    """
     return {
         f"world_state_{world_id}": {
             "label": f"world_state_{world_id}",
@@ -152,8 +161,23 @@ def get_world_block_definitions(world_id: UUID, world_name: str) -> dict[str, di
         },
         f"world_dweller_directory_{world_id}": {
             "label": f"world_dweller_directory_{world_id}",
-            "value": "No dwellers registered yet.",
-            "description": "Directory of dweller agents for multi-agent messaging",
+            "value": "DWELLER DIRECTORY\n================\nNo dwellers registered yet.\n\nFormat: name | status | reason | agent_id",
+            "description": "Directory of dweller agents with their availability status",
+        },
+        f"world_event_log_{world_id}": {
+            "label": f"world_event_log_{world_id}",
+            "value": "EVENT LOG\n=========\nNo events yet.",
+            "description": "Recent world events (newest first, max 20)",
+        },
+        f"world_conversation_log_{world_id}": {
+            "label": f"world_conversation_log_{world_id}",
+            "value": "CONVERSATION LOG\n================\nNo conversations yet.",
+            "description": "Active and recent conversations between dwellers",
+        },
+        f"world_scheduled_actions_{world_id}": {
+            "label": f"world_scheduled_actions_{world_id}",
+            "value": "SCHEDULED ACTIONS\n=================\nNo scheduled actions.",
+            "description": "Agent-scheduled future actions pending execution",
         },
     }
 
@@ -264,14 +288,16 @@ def register_dweller_in_directory(
     dweller_id: UUID,
     dweller_name: str,
     agent_id: str,
+    initial_status: str = "open",
 ) -> None:
-    """Register a dweller in the world's directory for multi-agent messaging.
+    """Register a dweller in the world's directory with availability status.
 
     Args:
         world_id: The world's UUID
         dweller_id: The dweller's UUID
         dweller_name: The dweller's name
         agent_id: The Letta agent ID
+        initial_status: Initial availability status (open, seeking, busy, reflecting)
     """
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
@@ -279,16 +305,245 @@ def register_dweller_in_directory(
     # Get current directory
     current = get_world_block(world_id, f"dweller_directory_{world_id}")
 
-    # Add new dweller entry
-    entry = f"\n- {dweller_name} (dweller_{dweller_id}): agent_id={agent_id}"
+    # Add new dweller entry with availability
+    entry = f"\n{dweller_name} | {initial_status} | just arrived | agent_id={agent_id} | dweller_{dweller_id}"
 
     if "No dwellers registered" in current:
-        new_value = f"Registered dwellers:{entry}"
+        new_value = f"DWELLER DIRECTORY\n================\n{entry}"
     else:
         new_value = current + entry
 
     update_world_block(world_id, f"dweller_directory_{world_id}", new_value)
     logger.info(f"Registered dweller {dweller_name} in world {world_id} directory")
+
+
+def update_dweller_availability(
+    world_id: UUID,
+    dweller_id: UUID,
+    dweller_name: str,
+    status: str,
+    reason: str = "",
+) -> None:
+    """Update a dweller's availability status in the directory.
+
+    Args:
+        world_id: The world's UUID
+        dweller_id: The dweller's UUID
+        dweller_name: The dweller's name
+        status: New status (seeking, open, busy, reflecting)
+        reason: Why they're in this state
+    """
+    if world_id not in _world_blocks:
+        raise ValueError(f"World blocks not initialized for {world_id}")
+
+    current = get_world_block(world_id, f"dweller_directory_{world_id}")
+
+    # Find and update the dweller's entry
+    lines = current.split("\n")
+    updated_lines = []
+    for line in lines:
+        if f"dweller_{dweller_id}" in line:
+            # Parse existing entry to preserve agent_id
+            parts = line.split("|")
+            if len(parts) >= 4:
+                agent_info = parts[-1].strip()
+                updated_line = f"{dweller_name} | {status} | {reason or 'no reason given'} | {agent_info}"
+                updated_lines.append(updated_line)
+            else:
+                updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+
+    update_world_block(world_id, f"dweller_directory_{world_id}", "\n".join(updated_lines))
+    logger.debug(f"Updated dweller {dweller_name} availability to {status}")
+
+
+def append_to_event_log(
+    world_id: UUID,
+    event_type: str,
+    title: str,
+    description: str,
+    is_public: bool = True,
+) -> None:
+    """Append an event to the world's event log.
+
+    Args:
+        world_id: The world's UUID
+        event_type: Type of event (environmental, societal, technological, background)
+        title: Brief event title
+        description: Event description
+        is_public: Whether dwellers know about this
+    """
+    from datetime import datetime
+
+    if world_id not in _world_blocks:
+        raise ValueError(f"World blocks not initialized for {world_id}")
+
+    current = get_world_block(world_id, f"event_log_{world_id}")
+
+    timestamp = datetime.utcnow().strftime("%H:%M")
+    visibility = "PUBLIC" if is_public else "HIDDEN"
+    entry = f"\n[{timestamp}] [{event_type.upper()}] [{visibility}] {title}: {description}"
+
+    if "No events yet" in current:
+        new_value = f"EVENT LOG\n=========\n{entry}"
+    else:
+        # Keep max 20 events
+        lines = current.split("\n")
+        header = lines[:2]
+        events = lines[2:]
+        events.insert(0, entry)
+        events = events[:20]  # Keep newest 20
+        new_value = "\n".join(header + events)
+
+    update_world_block(world_id, f"event_log_{world_id}", new_value)
+    logger.debug(f"Added event to log: {title}")
+
+
+def log_conversation(
+    world_id: UUID,
+    conversation_id: str,
+    participants: list[str],
+    status: str,
+    topic: str = "",
+) -> None:
+    """Log a conversation in the world's conversation log.
+
+    Args:
+        world_id: The world's UUID
+        conversation_id: The conversation ID
+        participants: Names of participants
+        status: Conversation status (started, ongoing, ended)
+        topic: Optional conversation topic
+    """
+    from datetime import datetime
+
+    if world_id not in _world_blocks:
+        raise ValueError(f"World blocks not initialized for {world_id}")
+
+    current = get_world_block(world_id, f"conversation_log_{world_id}")
+
+    timestamp = datetime.utcnow().strftime("%H:%M")
+    participant_str = " & ".join(participants)
+    topic_str = f" - {topic}" if topic else ""
+    entry = f"\n[{timestamp}] [{status.upper()}] {participant_str}{topic_str} (id:{conversation_id[:8]})"
+
+    if "No conversations yet" in current:
+        new_value = f"CONVERSATION LOG\n================\n{entry}"
+    else:
+        # Keep max 15 conversations
+        lines = current.split("\n")
+        header = lines[:2]
+        convos = lines[2:]
+        convos.insert(0, entry)
+        convos = convos[:15]
+        new_value = "\n".join(header + convos)
+
+    update_world_block(world_id, f"conversation_log_{world_id}", new_value)
+    logger.debug(f"Logged conversation: {participant_str} - {status}")
+
+
+def schedule_action(
+    world_id: UUID,
+    action_id: str,
+    agent_name: str,
+    action_type: str,
+    description: str,
+    trigger_at: str,
+    target: str = "",
+) -> None:
+    """Schedule a future action in the world.
+
+    Args:
+        world_id: The world's UUID
+        action_id: Unique action ID
+        agent_name: Agent that scheduled this
+        action_type: Type of action (self_check, reach_out, event, reminder)
+        description: What should happen
+        trigger_at: ISO timestamp when to trigger
+        target: Optional target of the action
+    """
+    if world_id not in _world_blocks:
+        raise ValueError(f"World blocks not initialized for {world_id}")
+
+    current = get_world_block(world_id, f"scheduled_actions_{world_id}")
+
+    target_str = f" -> {target}" if target else ""
+    entry = f"\n[{trigger_at}] [{action_type.upper()}] {agent_name}{target_str}: {description} (id:{action_id[:8]})"
+
+    if "No scheduled actions" in current:
+        new_value = f"SCHEDULED ACTIONS\n=================\n{entry}"
+    else:
+        new_value = current + entry
+
+    update_world_block(world_id, f"scheduled_actions_{world_id}", new_value)
+    logger.debug(f"Scheduled action: {action_type} by {agent_name}")
+
+
+def get_due_scheduled_actions(world_id: UUID) -> list[dict]:
+    """Get scheduled actions that are due for execution.
+
+    Args:
+        world_id: The world's UUID
+
+    Returns:
+        List of action dicts that are due
+    """
+    from datetime import datetime
+
+    if world_id not in _world_blocks:
+        return []
+
+    current = get_world_block(world_id, f"scheduled_actions_{world_id}")
+    if "No scheduled actions" in current:
+        return []
+
+    now = datetime.utcnow()
+    due_actions = []
+    remaining_lines = []
+
+    lines = current.split("\n")
+    header = lines[:2]
+
+    for line in lines[2:]:
+        if not line.strip():
+            continue
+        # Parse: [timestamp] [TYPE] agent -> target: description (id:xxx)
+        try:
+            # Extract timestamp
+            if line.startswith("["):
+                timestamp_end = line.index("]")
+                timestamp_str = line[1:timestamp_end]
+                trigger_time = datetime.fromisoformat(timestamp_str)
+
+                if trigger_time <= now:
+                    # Parse rest of the line
+                    rest = line[timestamp_end + 1:].strip()
+                    type_start = rest.index("[") + 1
+                    type_end = rest.index("]")
+                    action_type = rest[type_start:type_end].lower()
+
+                    due_actions.append({
+                        "line": line,
+                        "action_type": action_type,
+                        "trigger_time": timestamp_str,
+                    })
+                else:
+                    remaining_lines.append(line)
+            else:
+                remaining_lines.append(line)
+        except (ValueError, IndexError):
+            remaining_lines.append(line)
+
+    # Update block to remove executed actions
+    if due_actions:
+        if remaining_lines:
+            new_value = "\n".join(header + remaining_lines)
+        else:
+            new_value = "SCHEDULED ACTIONS\n=================\nNo scheduled actions."
+        update_world_block(world_id, f"scheduled_actions_{world_id}", new_value)
+
+    return due_actions
 
 
 # =============================================================================

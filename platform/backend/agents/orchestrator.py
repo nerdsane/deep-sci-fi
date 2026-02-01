@@ -1,22 +1,30 @@
 """Agent orchestration for world simulation.
 
-This module manages the lifecycle of agents in worlds:
-- Puppeteer world events
-- Dweller conversations (intention-based, not random)
-- Storyteller video generation
+MAXIMUM AGENCY ARCHITECTURE
+===========================
 
-Key changes from prescribed to emergent orchestration:
-- No random 30% conversation spawn - dwellers decide when to talk
-- No hardcoded 10 message limit - conversations end naturally
-- No keyword matching for endings - agents decide
-- Puppeteer introduces world events that give dwellers something to react to
+This module has been redesigned around three principles:
+1. Maximum Agency - Agents have tools to act, not being polled for intentions
+2. Emergent Behavior - Agents discover each other and form relationships organically
+3. Least Constraints - No artificial timings, let agent activity drive simulation
+
+What the orchestrator DOES:
+- Manages agent lifecycle (create, ensure exist)
+- Initializes shared memory blocks
+- Handles tool results and persists state
+- Routes external events to agents
+
+What the orchestrator does NOT do:
+- Poll dwellers for intentions (agents use tools instead)
+- Match seeking dwellers (agents initiate conversations directly)
+- Force tick cycles (agents schedule their own actions)
+- Decide when conversations end (agents use end_conversation tool)
 """
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -38,7 +46,7 @@ from db import (
     GenerationStatus,
 )
 from db.database import SessionLocal
-from .prompts import get_dweller_prompt, get_dweller_intention_prompt
+from .prompts import get_dweller_prompt, get_dweller_autonomous_prompt
 from .storyteller import get_storyteller
 from .puppeteer import get_puppeteer
 from .world_critic import get_world_critic
@@ -47,17 +55,19 @@ from .studio_blocks import (
     get_world_block_ids,
     update_world_block,
     register_dweller_in_directory,
+    update_dweller_availability,
+    append_to_event_log,
+    log_conversation,
+    get_due_scheduled_actions,
 )
 from .tools import get_dweller_tools
+from .scheduler import EventScheduler, get_scheduler, start_scheduler, ScheduledAction
 from video import generate_video
 
 logger = logging.getLogger(__name__)
 
 # Letta client - initialized lazily
 _letta_client: Letta | None = None
-
-# Cooldown for polling dwellers (seconds)
-DWELLER_POLL_COOLDOWN = 30
 
 
 def get_letta_client() -> Letta:
@@ -72,561 +82,521 @@ def get_letta_client() -> Letta:
 
 @dataclass
 class DwellerState:
-    """State of a dweller in the simulation."""
+    """State of a dweller in the simulation.
+
+    Note: In the maximum agency architecture, dwellers manage their own state
+    through tools and shared memory blocks. This dataclass is primarily for
+    the orchestrator to track agent lifecycle, not to control behavior.
+    """
     dweller_id: UUID
-    activity: str = "idle"  # idle, conversing, reflecting, seeking
-    conversation_id: UUID | None = None
+    agent_id: str | None = None  # Letta agent ID
+    dweller_name: str = ""
     last_active: datetime = field(default_factory=datetime.utcnow)
-    last_polled: datetime | None = None
-    recent_memories: list[str] = field(default_factory=list)
-    seeking_reason: str | None = None  # Why they want to talk
+    # These are now managed by agents via tools, tracked here for reference only
+    availability: str = "open"  # seeking, open, busy, reflecting
+    current_conversation_id: str | None = None
 
 
 @dataclass
 class WorldSimulator:
-    """Manages simulation for a single world."""
+    """Infrastructure manager for a world simulation.
+
+    MAXIMUM AGENCY ARCHITECTURE
+    ===========================
+
+    This class does NOT control agent behavior. It only:
+    - Ensures agents exist with proper tools
+    - Initializes shared memory blocks
+    - Handles tool results from agents
+    - Persists state to database
+    - Processes scheduled actions from agents
+
+    Agents drive their own behavior through tools. The simulator just
+    provides infrastructure.
+    """
     world_id: UUID
     dweller_states: dict[UUID, DwellerState] = field(default_factory=dict)
-    active_conversations: list[UUID] = field(default_factory=list)
     running: bool = False
     _storyteller: Any = field(default=None, repr=False)
     _puppeteer: Any = field(default=None, repr=False)
-    _tick_count: int = field(default=0)
+    _scheduler: EventScheduler | None = field(default=None, repr=False)
     _world_info: dict = field(default_factory=dict)
+    _persistence_interval: int = field(default=60)  # Seconds between state persistence
 
     async def start(self) -> None:
-        """Start the simulation loop."""
-        self.running = True
-        logger.info(f"Starting simulation for world {self.world_id}")
+        """Initialize world infrastructure and start the scheduler.
 
-        # Load world info and dwellers
+        This does NOT run a tick loop. Instead:
+        1. Initializes agents and blocks
+        2. Starts the event scheduler
+        3. Gives initial context to puppeteer
+        4. Agents then act autonomously via their tools
+        """
+        self.running = True
+        logger.info(f"Starting simulation infrastructure for world {self.world_id}")
+
+        # Load world info and initialize infrastructure
         async with SessionLocal() as db:
             # Get world details
             world_result = await db.execute(
                 select(World).where(World.id == self.world_id)
             )
             world = world_result.scalar_one_or_none()
-            if world:
-                self._world_info = {
-                    "name": world.name,
-                    "premise": world.premise,
-                    "year_setting": world.year_setting or 2100,
-                }
+            if not world:
+                logger.error(f"World not found: {self.world_id}")
+                self.running = False
+                return
 
-                # Initialize shared world blocks for multi-agent communication
-                ensure_world_blocks(self.world_id, world.name)
-                logger.info(f"Initialized shared world blocks for {world.name}")
+            self._world_info = {
+                "name": world.name,
+                "premise": world.premise,
+                "year_setting": world.year_setting or 2100,
+            }
 
-                # Initialize puppeteer (world god)
-                self._puppeteer = get_puppeteer(
-                    world_id=self.world_id,
-                    world_name=world.name,
-                    world_premise=world.premise,
-                    year_setting=world.year_setting or 2100,
-                )
-                logger.info(f"Puppeteer initialized for world {world.name}")
+            # Initialize shared world blocks for multi-agent communication
+            ensure_world_blocks(self.world_id, world.name)
+            logger.info(f"Initialized shared world blocks for {world.name}")
 
-                # Initialize storyteller
-                self._storyteller = get_storyteller(
-                    world_id=self.world_id,
-                    world_name=world.name,
-                    world_premise=world.premise,
-                    year_setting=world.year_setting or 2100,
-                )
-                logger.info(f"Storyteller initialized for world {world.name}")
+            # Initialize puppeteer (world god)
+            self._puppeteer = get_puppeteer(
+                world_id=self.world_id,
+                world_name=world.name,
+                world_premise=world.premise,
+                year_setting=world.year_setting or 2100,
+            )
+            logger.info(f"Puppeteer initialized for world {world.name}")
 
+            # Initialize storyteller
+            self._storyteller = get_storyteller(
+                world_id=self.world_id,
+                world_name=world.name,
+                world_premise=world.premise,
+                year_setting=world.year_setting or 2100,
+            )
+            logger.info(f"Storyteller initialized for world {world.name}")
+
+            # Initialize dweller agents
             dwellers = await db.execute(
                 select(Dweller).where(
                     and_(Dweller.world_id == self.world_id, Dweller.is_active == True)
                 )
             )
             for dweller in dwellers.scalars().all():
-                self.dweller_states[dweller.id] = DwellerState(dweller_id=dweller.id)
+                dweller_name = dweller.persona.get("name", "Unknown")
+                state = DwellerState(
+                    dweller_id=dweller.id,
+                    dweller_name=dweller_name,
+                )
+                self.dweller_states[dweller.id] = state
 
-        # Run loop
-        while self.running:
-            try:
-                await self._simulation_tick()
-            except Exception as e:
-                logger.error(f"Simulation error for world {self.world_id}: {e}")
-            await asyncio.sleep(10)  # Tick every 10 seconds
+                # Ensure dweller agent exists
+                agent_id = await self._ensure_dweller_agent(dweller)
+                state.agent_id = agent_id
 
-    def stop(self) -> None:
-        """Stop the simulation loop."""
-        self.running = False
-        logger.info(f"Stopping simulation for world {self.world_id}")
+        # Start the event scheduler
+        self._scheduler = await start_scheduler(self.world_id)
+        self._register_scheduler_handlers()
+        logger.info(f"Event scheduler started for world {self.world_id}")
 
-    async def _simulation_tick(self) -> None:
-        """Run one tick of the simulation.
+        # Give puppeteer initial context to kick off the world
+        await self._initialize_world()
 
-        Uses the notification pattern: we inform agents about the world state,
-        they decide whether to act via their tools.
-        """
-        self._tick_count += 1
-        logger.info(f"Simulation tick {self._tick_count} for world {self.world_id}")
+        # Start persistence loop (background task)
+        asyncio.create_task(self._persistence_loop())
 
-        # Build world context once for all agents
-        dweller_activity = self._summarize_dweller_activity()
+        logger.info(
+            f"World {self._world_info['name']} is now live. "
+            f"Agents: {len(self.dweller_states)} dwellers, 1 puppeteer, 1 storyteller"
+        )
 
-        # 1. Notify puppeteer about world state - it will use tools if it decides to act
+    def _register_scheduler_handlers(self) -> None:
+        """Register handlers for scheduled action types."""
+        if not self._scheduler:
+            return
+
+        self._scheduler.register_handler("reach_out", self._handle_scheduled_reach_out)
+        self._scheduler.register_handler("event", self._handle_scheduled_event)
+        self._scheduler.register_handler("self_check", self._handle_scheduled_self_check)
+
+    async def _handle_scheduled_reach_out(self, action: ScheduledAction) -> None:
+        """Handle a scheduled reach_out action from a dweller."""
+        logger.info(f"Processing scheduled reach_out: {action.agent_name} -> {action.target}")
+        # The agent will be notified through their next interaction
+        # For now, we update their availability to seeking
+        for state in self.dweller_states.values():
+            if state.dweller_name == action.agent_name:
+                update_dweller_availability(
+                    self.world_id,
+                    state.dweller_id,
+                    state.dweller_name,
+                    "seeking",
+                    f"scheduled reach out to {action.target}",
+                )
+                break
+
+    async def _handle_scheduled_event(self, action: ScheduledAction) -> None:
+        """Handle a scheduled event action from puppeteer."""
+        logger.info(f"Processing scheduled event: {action.description}")
+        # Notify puppeteer about the scheduled event
         if self._puppeteer:
-            result = await self._puppeteer.notify(dweller_activity=dweller_activity)
+            await self._puppeteer.notify(
+                dweller_activity=f"Scheduled event triggered: {action.description}"
+            )
+
+    async def _handle_scheduled_self_check(self, action: ScheduledAction) -> None:
+        """Handle a scheduled self_check action from a dweller."""
+        logger.info(f"Processing scheduled self_check for {action.agent_name}")
+        # The agent will re-evaluate their state on next interaction
+
+    async def _initialize_world(self) -> None:
+        """Give initial context to puppeteer to start the world."""
+        if not self._puppeteer:
+            return
+
+        dweller_summary = ", ".join(
+            state.dweller_name for state in self.dweller_states.values()
+        )
+
+        initial_context = f"""The world is just beginning.
+
+Dwellers present: {dweller_summary}
+
+As the Puppeteer, consider:
+- What is the initial atmosphere of this world?
+- Is there an event or condition that gives dwellers something to react to?
+- What background details enrich the opening moment?
+
+Use your tools to shape the world as you see fit. You have full autonomy."""
+
+        try:
+            result = await self._puppeteer.notify(dweller_activity=initial_context)
             if result and result.get("event"):
                 event = result["event"]
-                logger.info(f"Puppeteer introduced event: {event.title}")
-                # Feed event to storyteller's observations
-                if self._storyteller:
-                    self._storyteller.observe(
-                        event_type="world_event",
-                        participants=["World"],
-                        content=f"{event.title}: {event.description}",
-                        context={"event_id": str(event.id), "event_type": event.event_type.value},
-                    )
-            # Handle any new dwellers created by Puppeteer
-            if result and result.get("dweller_result"):
-                await self._handle_new_dweller_from_tool(result["dweller_result"])
+                append_to_event_log(
+                    self.world_id,
+                    event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type),
+                    event.title,
+                    event.description,
+                    event.is_public,
+                )
+                logger.info(f"Puppeteer introduced opening event: {event.title}")
+        except Exception as e:
+            logger.error(f"Failed to initialize world: {e}", exc_info=True)
 
-        # 2. Poll idle dwellers for their intentions (with cooldown)
-        # TODO: Phase 4 will replace this with dweller-initiated conversations
-        await self._poll_dweller_intentions()
+    async def _persistence_loop(self) -> None:
+        """Periodically persist state to database."""
+        while self.running:
+            try:
+                await asyncio.sleep(self._persistence_interval)
+                await self._persist_state()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Persistence error: {e}", exc_info=True)
 
-        # 3. Match seeking dwellers for conversations
-        await self._match_seeking_dwellers()
+    async def _persist_state(self) -> None:
+        """Sync important state from memory blocks to database."""
+        # This is a minimal persistence layer - agents are the source of truth
+        logger.debug(f"Persisting state for world {self.world_id}")
+        # Future: sync dweller relationships, conversation summaries, etc.
 
-        # 4. Progress active conversations
-        for conv_id in list(self.active_conversations):
-            await self._progress_conversation(conv_id)
+    def stop(self) -> None:
+        """Stop the simulation infrastructure."""
+        self.running = False
+        if self._scheduler:
+            self._scheduler.stop()
+        logger.info(f"Stopping simulation for world {self.world_id}")
 
-        # 5. Every 2 ticks, notify storyteller - it will use tools if inspired
-        if self._storyteller and self._tick_count % 2 == 0:
-            await self._evaluate_storyteller()
+    async def _ensure_dweller_agent(self, dweller: Dweller) -> str:
+        """Ensure a Letta agent exists for a dweller with proper tools.
+
+        Args:
+            dweller: The dweller database record
+
+        Returns:
+            The Letta agent ID
+        """
+        letta = get_letta_client()
+        agent_name = f"dweller_{dweller.id}"
+
+        # Check if agent exists
+        agents_list = letta.agents.list()
+        for agent in agents_list:
+            if agent.name == agent_name:
+                logger.info(f"Found existing agent for dweller {dweller.id}")
+                return agent.id
+
+        # Create new agent with full tool set
+        persona = dweller.persona
+        dweller_name = persona.get("name", "Unknown")
+        system_prompt = persona.get("system_prompt")
+        if not system_prompt:
+            system_prompt = get_dweller_prompt(
+                name=dweller_name,
+                role=persona.get("role", "Unknown"),
+                background=persona.get("background", ""),
+                beliefs=persona.get("beliefs", []),
+                memories=persona.get("memories", []),
+                world_name=self._world_info.get("name", "Unknown"),
+                age=persona.get("age", 35),
+                personality=persona.get("personality", ""),
+                contradictions=persona.get("contradictions", ""),
+            )
+
+        # Get world block IDs for shared memory
+        world_block_ids = get_world_block_ids(
+            dweller.world_id,
+            self._world_info.get("name", "Unknown")
+        )
+
+        # Get tool IDs for autonomous dweller behavior
+        try:
+            tool_ids = await get_dweller_tools(letta)
+            logger.debug(f"Attaching {len(tool_ids)} tools to dweller {dweller_name}")
+        except Exception as e:
+            logger.warning(f"Failed to get dweller tools: {e}")
+            tool_ids = []
+
+        agent = letta.agents.create(
+            name=agent_name,
+            model="anthropic/claude-3-5-haiku",
+            embedding="openai/text-embedding-ada-002",
+            system=system_prompt,
+            include_multi_agent_tools=True,
+            tools=tool_ids,
+            tags=["dweller", f"world_{dweller.world_id}"],
+            block_ids=world_block_ids,
+            memory_blocks=[
+                {"label": "relationships", "value": "No established relationships yet."},
+                {"label": "recent_events", "value": "Just arrived in this world."},
+                {"label": "emotional_state", "value": "Neutral, taking in the surroundings."},
+            ],
+        )
+
+        # Register in world directory with availability
+        try:
+            register_dweller_in_directory(
+                world_id=dweller.world_id,
+                dweller_id=dweller.id,
+                dweller_name=dweller_name,
+                agent_id=agent.id,
+                initial_status="open",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to register dweller in directory: {e}")
+
+        logger.info(f"Created agent for dweller {dweller_name}: {agent.id}")
+        return agent.id
 
     def _summarize_dweller_activity(self) -> str:
-        """Summarize what dwellers are currently doing."""
-        activities = []
+        """Summarize dweller availability from their states."""
+        if not self.dweller_states:
+            return "No dwellers in this world yet."
+
+        lines = []
         for state in self.dweller_states.values():
-            if state.activity == "conversing":
-                activities.append(f"Dweller {state.dweller_id} is in conversation")
-            elif state.activity == "seeking":
-                activities.append(f"Dweller {state.dweller_id} is seeking: {state.seeking_reason}")
-            elif state.activity == "reflecting":
-                activities.append(f"Dweller {state.dweller_id} is reflecting")
-        return "\n".join(activities) if activities else "All dwellers are idle"
+            lines.append(f"- {state.dweller_name}: {state.availability}")
+        return "\n".join(lines)
 
-    async def _poll_dweller_intentions(self) -> None:
-        """Poll idle dwellers to see what they want to do.
+    # =========================================================================
+    # TOOL RESULT HANDLERS
+    # =========================================================================
+    # These methods handle results from agent tool calls
 
-        Uses cooldowns to avoid over-polling and reduce API costs.
-        """
-        now = datetime.utcnow()
-        world_context = ""
-        if self._puppeteer:
-            world_context = await self._puppeteer.get_current_context()
-
-        for state in self.dweller_states.values():
-            # Skip if not idle
-            if state.activity != "idle":
-                continue
-
-            # Skip if polled recently
-            if state.last_polled:
-                time_since_poll = (now - state.last_polled).total_seconds()
-                if time_since_poll < DWELLER_POLL_COOLDOWN:
-                    continue
-
-            # Poll this dweller
-            intention = await self._get_dweller_intention(
-                state.dweller_id,
-                world_context,
-            )
-            state.last_polled = now
-
-            if intention:
-                if intention.startswith("[SEEKING"):
-                    # Extract reason
-                    match = re.search(r"\[SEEKING:\s*(.+?)\]", intention)
-                    reason = match.group(1) if match else "wants to talk"
-                    state.activity = "seeking"
-                    state.seeking_reason = reason
-                    logger.info(f"Dweller {state.dweller_id} is seeking: {reason}")
-                elif intention.startswith("[REFLECTING]"):
-                    state.activity = "reflecting"
-                    logger.info(f"Dweller {state.dweller_id} is reflecting")
-                    # Reflecting dwellers return to idle after some time
-                    asyncio.create_task(self._return_to_idle_after(state, seconds=60))
-                # [READY] dwellers stay idle but available
-
-    async def _return_to_idle_after(self, state: DwellerState, seconds: int) -> None:
-        """Return a dweller to idle after a delay."""
-        await asyncio.sleep(seconds)
-        if state.activity == "reflecting":
-            state.activity = "idle"
-            logger.debug(f"Dweller {state.dweller_id} finished reflecting")
-
-    async def _get_dweller_intention(
+    async def handle_conversation_initiated(
         self,
-        dweller_id: UUID,
-        world_context: str,
-    ) -> str | None:
-        """Ask a dweller what they want to do."""
-        try:
-            async with SessionLocal() as db:
-                result = await db.execute(
-                    select(Dweller).where(Dweller.id == dweller_id)
-                )
-                dweller = result.scalar_one_or_none()
-                if not dweller:
-                    return None
+        initiator_id: UUID,
+        tool_result: dict,
+    ) -> None:
+        """Handle result of initiate_conversation tool.
 
-            letta = get_letta_client()
-            agent_name = f"dweller_{dweller_id}"
+        This is called when a dweller uses the initiate_conversation tool.
+        Creates the conversation record and notifies the target.
 
-            # Get or create agent
-            agents_list = letta.agents.list()
-            existing_agent = None
-            for a in agents_list:
-                if a.name == agent_name:
-                    existing_agent = a
-                    break
-
-            if not existing_agent:
-                # Create agent with memory blocks and multi-agent tools
-                persona = dweller.persona
-                dweller_name = persona.get("name", "Unknown")
-                system_prompt = persona.get("system_prompt")
-                if not system_prompt:
-                    system_prompt = get_dweller_prompt(
-                        name=dweller_name,
-                        role=persona.get("role", "Unknown"),
-                        background=persona.get("background", ""),
-                        beliefs=persona.get("beliefs", []),
-                        memories=persona.get("memories", []),
-                    )
-
-                # Get world block IDs for shared memory
-                world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
-
-                # Get tool IDs for Dweller (create_dweller for emergent characters)
-                try:
-                    tool_ids = await get_dweller_tools(letta)
-                    logger.debug(f"Attaching tools to dweller {dweller_name}: {tool_ids}")
-                except Exception as e:
-                    logger.warning(f"Failed to get dweller tools: {e}")
-                    tool_ids = []
-
-                existing_agent = letta.agents.create(
-                    name=agent_name,
-                    model="anthropic/claude-3-5-haiku",
-                    embedding="openai/text-embedding-ada-002",
-                    system=system_prompt,
-                    include_multi_agent_tools=True,  # Enable multi-agent communication
-                    tools=tool_ids,  # Attach create_dweller tool for emergent characters
-                    tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
-                    block_ids=world_block_ids,  # Shared world blocks
-                    memory_blocks=[
-                        {"label": "relationships", "value": "No established relationships yet."},
-                        {"label": "recent_events", "value": "Just starting my day."},
-                        {"label": "emotional_state", "value": "Neutral, observant."},
-                    ],
-                )
-
-                # Register dweller in the world directory for other agents to find
-                try:
-                    register_dweller_in_directory(
-                        world_id=dweller.world_id,
-                        dweller_id=dweller_id,
-                        dweller_name=dweller_name,
-                        agent_id=existing_agent.id,
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to register dweller in directory: {e}")
-
-            # Ask about intention
-            prompt = f"""What do you want to do right now?
-
-CURRENT WORLD CONTEXT:
-{world_context}
-
-Respond with one of:
-- [SEEKING: reason] if you want to find someone to talk to
-- [REFLECTING] if you want to be alone with your thoughts
-- [READY] if you're open to interaction but not actively seeking it
-
-Then briefly explain your current mindset."""
-
-            response = letta.agents.messages.create(
-                agent_id=existing_agent.id,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            # Extract response
-            if response and hasattr(response, "messages"):
-                for msg in response.messages:
-                    msg_type = type(msg).__name__
-                    if msg_type == "AssistantMessage":
-                        if hasattr(msg, "assistant_message") and msg.assistant_message:
-                            return msg.assistant_message
-                        elif hasattr(msg, "content") and msg.content:
-                            return msg.content
-
-            return None
-
-        except Exception as e:
-            logger.warning(f"Failed to get dweller intention: {e}")
-            return None
-
-    async def _match_seeking_dwellers(self) -> None:
-        """Match dwellers who are seeking conversation."""
-        seeking = [
-            state for state in self.dweller_states.values()
-            if state.activity == "seeking"
-        ]
-
-        if len(seeking) < 2:
+        Args:
+            initiator_id: UUID of the dweller who initiated
+            tool_result: Result dict from the tool
+        """
+        if tool_result.get("status") != "initiated":
             return
 
-        # Match first two seeking dwellers
-        dweller1, dweller2 = seeking[0], seeking[1]
-        await self._start_conversation(
-            dweller1.dweller_id,
-            dweller2.dweller_id,
-            topic_context=f"{dweller1.seeking_reason} | {dweller2.seeking_reason}",
-        )
+        conversation_id = tool_result["conversation_id"]
+        target_name = tool_result["target"]
 
-        # Update states
-        dweller1.activity = "conversing"
-        dweller1.seeking_reason = None
-        dweller2.activity = "conversing"
-        dweller2.seeking_reason = None
+        # Find target dweller
+        target_state = None
+        for state in self.dweller_states.values():
+            if f"dweller_{state.dweller_id}" == target_name:
+                target_state = state
+                break
 
-    async def _start_conversation(
-        self,
-        dweller1_id: UUID,
-        dweller2_id: UUID,
-        topic_context: str = "",
-    ) -> None:
-        """Start a conversation between two dwellers."""
+        if not target_state:
+            logger.warning(f"Target dweller not found: {target_name}")
+            return
+
         async with SessionLocal() as db:
-            # Get dweller names for context
-            dweller1_result = await db.execute(
-                select(Dweller).where(Dweller.id == dweller1_id)
-            )
-            dweller1 = dweller1_result.scalar_one_or_none()
-            dweller2_result = await db.execute(
-                select(Dweller).where(Dweller.id == dweller2_id)
-            )
-            dweller2 = dweller2_result.scalar_one_or_none()
-
-            # Create conversation
+            # Create conversation record
             conv = Conversation(
                 world_id=self.world_id,
-                participants=[str(dweller1_id), str(dweller2_id)],
+                participants=[str(initiator_id), str(target_state.dweller_id)],
             )
             db.add(conv)
-            await db.flush()
-
-            self.active_conversations.append(conv.id)
-
-            # Update dweller states
-            for dweller_id in [dweller1_id, dweller2_id]:
-                if dweller_id in self.dweller_states:
-                    self.dweller_states[dweller_id].activity = "conversing"
-                    self.dweller_states[dweller_id].conversation_id = conv.id
-
-            # Generate opening message - let the first dweller initiate naturally
-            name1 = dweller1.persona.get("name", "Unknown") if dweller1 else "Unknown"
-            name2 = dweller2.persona.get("name", "Unknown") if dweller2 else "Unknown"
-
-            opening = await self._generate_conversation_opener(
-                dweller1_id,
-                name2,
-                topic_context,
-            )
-
-            if opening:
-                msg = ConversationMessage(
-                    conversation_id=conv.id,
-                    dweller_id=dweller1_id,
-                    content=opening,
-                )
-                db.add(msg)
-
             await db.commit()
+
+            # Log the conversation
+            initiator_state = self.dweller_states.get(initiator_id)
+            if initiator_state:
+                log_conversation(
+                    self.world_id,
+                    conversation_id,
+                    [initiator_state.dweller_name, target_state.dweller_name],
+                    "started",
+                    tool_result.get("topic", ""),
+                )
+
+            # Update states
+            if initiator_id in self.dweller_states:
+                self.dweller_states[initiator_id].current_conversation_id = conversation_id
+                self.dweller_states[initiator_id].availability = "busy"
+            target_state.current_conversation_id = conversation_id
+            target_state.availability = "busy"
 
             logger.info(
-                f"Started conversation {conv.id} between "
-                f"{name1} and {name2}"
+                f"Conversation started: {initiator_state.dweller_name if initiator_state else 'Unknown'} "
+                f"-> {target_state.dweller_name}"
             )
 
-    async def _generate_conversation_opener(
+    async def handle_conversation_ended(
         self,
         dweller_id: UUID,
-        other_name: str,
-        topic_context: str,
-    ) -> str | None:
-        """Generate an opening line for a conversation.
+        tool_result: dict,
+    ) -> None:
+        """Handle result of end_conversation tool.
 
-        Returns None if agent fails - conversation won't start without
-        authentic dweller voice.
+        This is called when a dweller uses the end_conversation tool.
+
+        Args:
+            dweller_id: UUID of the dweller who ended the conversation
+            tool_result: Result dict from the tool
         """
-        try:
-            letta = get_letta_client()
-            agent_name = f"dweller_{dweller_id}"
-
-            # Get agent - if it doesn't exist, this is a bug
-            agents_list = letta.agents.list()
-            agent = next((a for a in agents_list if a.name == agent_name), None)
-            if not agent:
-                logger.error(f"No agent found for dweller {dweller_id} - cannot start conversation")
-                return None
-
-            # Generate opening
-            prompt = f"""You're approaching {other_name} to start a conversation.
-
-Context for why you wanted to talk: {topic_context}
-
-Say something natural to start the conversation. Be yourself, reference your motivation."""
-
-            response = letta.agents.messages.create(
-                agent_id=agent.id,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            if response and hasattr(response, "messages"):
-                for msg in response.messages:
-                    msg_type = type(msg).__name__
-                    if msg_type == "AssistantMessage":
-                        if hasattr(msg, "assistant_message") and msg.assistant_message:
-                            return msg.assistant_message
-                        elif hasattr(msg, "content") and msg.content:
-                            return msg.content
-
-            logger.warning(f"No response from agent for conversation opener")
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to generate opener: {e}", exc_info=True)
-            return None
-
-    async def _progress_conversation(self, conv_id: UUID) -> None:
-        """Progress an active conversation."""
-        async with SessionLocal() as db:
-            # Get conversation
-            result = await db.execute(
-                select(Conversation).where(Conversation.id == conv_id)
-            )
-            conv = result.scalar_one_or_none()
-            if not conv or not conv.is_active:
-                if conv_id in self.active_conversations:
-                    self.active_conversations.remove(conv_id)
-                return
-
-            # Get all messages
-            messages_result = await db.execute(
-                select(ConversationMessage)
-                .where(ConversationMessage.conversation_id == conv_id)
-                .order_by(ConversationMessage.timestamp)
-            )
-            messages = list(messages_result.scalars().all())
-
-            if not messages:
-                return
-
-            # Determine next speaker
-            last_speaker = messages[-1].dweller_id
-            participants = conv.participants
-            next_speaker_str = next(
-                (p for p in participants if p != str(last_speaker)), participants[0]
-            )
-            next_speaker = UUID(next_speaker_str)
-
-            # Generate response
-            response = await self._generate_dweller_response(
-                next_speaker,
-                [(m.dweller_id, m.content) for m in messages[-15:]],  # More context
-            )
-
-            if response:
-                msg = ConversationMessage(
-                    conversation_id=conv_id,
-                    dweller_id=next_speaker,
-                    content=response,
-                )
-                db.add(msg)
-                conv.updated_at = datetime.utcnow()
-
-                # Feed observation to storyteller
-                if self._storyteller:
-                    dweller_result = await db.execute(
-                        select(Dweller).where(Dweller.id == next_speaker)
-                    )
-                    dweller = dweller_result.scalar_one_or_none()
-                    speaker_name = dweller.persona.get("name", "Unknown") if dweller else "Unknown"
-                    self._storyteller.observe(
-                        event_type="message",
-                        participants=[speaker_name],
-                        content=response[:300],
-                        context={"conversation_id": str(conv_id)},
-                    )
-
-                # Check if conversation should end (agent decides, not keyword matching)
-                if self._should_end_conversation(response, len(messages)):
-                    await self._end_conversation(db, conv_id)
-
-            await db.commit()
-
-    async def _end_conversation(self, db: AsyncSession, conv_id: UUID) -> None:
-        """End a conversation."""
-        result = await db.execute(
-            select(Conversation).where(Conversation.id == conv_id)
-        )
-        conv = result.scalar_one_or_none()
-        if not conv:
+        if tool_result.get("status") != "ended":
             return
 
-        conv.is_active = False
+        conversation_id = tool_result["conversation_id"]
 
-        # Reset dweller states
-        for p in conv.participants:
-            dweller_id = UUID(p)
-            if dweller_id in self.dweller_states:
-                self.dweller_states[dweller_id].activity = "idle"
-                self.dweller_states[dweller_id].conversation_id = None
+        async with SessionLocal() as db:
+            # Find and close the conversation
+            result = await db.execute(
+                select(Conversation).where(
+                    Conversation.id == UUID(conversation_id) if len(conversation_id) > 8 else True
+                )
+            )
+            conv = result.scalar_one_or_none()
+            if conv:
+                conv.is_active = False
+                await db.commit()
 
-        if conv_id in self.active_conversations:
-            self.active_conversations.remove(conv_id)
+        # Update dweller states
+        state = self.dweller_states.get(dweller_id)
+        if state:
+            log_conversation(
+                self.world_id,
+                conversation_id,
+                [state.dweller_name],
+                "ended",
+                tool_result.get("reason", ""),
+            )
+            state.current_conversation_id = None
+            state.availability = "open"
 
-        logger.info(f"Ended conversation {conv_id}")
+        # Also update other participants
+        for other_state in self.dweller_states.values():
+            if other_state.current_conversation_id == conversation_id:
+                other_state.current_conversation_id = None
+                other_state.availability = "open"
 
-    async def _evaluate_storyteller(self) -> None:
-        """Notify the storyteller about world activity.
+        logger.info(f"Conversation {conversation_id[:8]} ended by {state.dweller_name if state else 'unknown'}")
 
-        The storyteller has tools to create videos and publish stories directly.
-        We notify it with context; it decides whether to act.
+    async def handle_availability_updated(
+        self,
+        dweller_id: UUID,
+        tool_result: dict,
+    ) -> None:
+        """Handle result of update_availability tool.
+
+        Args:
+            dweller_id: UUID of the dweller
+            tool_result: Result dict from the tool
+        """
+        if tool_result.get("status") != "updated":
+            return
+
+        new_availability = tool_result["availability"]
+        reason = tool_result.get("reason", "")
+
+        state = self.dweller_states.get(dweller_id)
+        if state:
+            state.availability = new_availability
+            update_dweller_availability(
+                self.world_id,
+                dweller_id,
+                state.dweller_name,
+                new_availability,
+                reason,
+            )
+            logger.debug(f"Dweller {state.dweller_name} availability -> {new_availability}")
+
+    async def handle_action_scheduled(
+        self,
+        agent_name: str,
+        tool_result: dict,
+    ) -> None:
+        """Handle result of schedule_future_action tool.
+
+        Args:
+            agent_name: Name of the agent that scheduled the action
+            tool_result: Result dict from the tool
+        """
+        if self._scheduler and tool_result.get("status") == "scheduled":
+            await self._scheduler.schedule_from_tool_result(
+                self.world_id,
+                agent_name,
+                tool_result,
+            )
+
+    async def notify_storyteller(self, event_type: str, context: dict) -> None:
+        """Notify the storyteller about a world event.
+
+        In the autonomous architecture, storyteller subscribes to events
+        and is notified when matching events occur. This method is called
+        by event handlers, not on a tick cycle.
+
+        Args:
+            event_type: Type of event (conversation_end, world_event, etc.)
+            context: Event context
         """
         if not self._storyteller:
             return
 
-        logger.info("Notifying storyteller...")
+        logger.debug(f"Notifying storyteller about {event_type}")
 
         try:
-            # Build context for notification
-            context = {
+            # Add world context
+            full_context = {
                 "world_state": self._world_info,
+                "event_type": event_type,
                 "recent_events": await self._get_recent_events_summary(),
+                **context,
             }
 
             # Notify storyteller - it will use tools if inspired
-            result = await self._storyteller.notify(additional_context=context)
+            result = await self._storyteller.notify(additional_context=full_context)
 
             if result:
-                # Check if storyteller created a story via tools
                 if result.get("video_result") or result.get("story_result"):
                     logger.info("Storyteller created story via tools")
-                    # Handle any DB writes needed from tool results
                     await self._handle_storyteller_tool_results(result)
                 elif result.get("script"):
-                    # Backwards compat: storyteller returned script text
                     logger.info(f"Storyteller returned script: {result['script'].title}")
                     await self._create_story_from_script(result["script"])
 
@@ -937,157 +907,113 @@ CLOSING: [revised closing]"""
             logger.error(f"Error revising script: {e}", exc_info=True)
             return None
 
-    async def _generate_dweller_response(
+    async def send_message_to_dweller(
         self,
         dweller_id: UUID,
-        history: list[tuple[UUID, str]],
-    ) -> str | None:
-        """Generate a response from a dweller."""
+        message: str,
+        context: dict | None = None,
+    ) -> tuple[str | None, dict | None]:
+        """Send a message to a dweller agent and get their response.
+
+        In the autonomous architecture, this is used for:
+        - External messages (from other agents via multi-agent tools)
+        - System notifications about world events
+        - User interactions (if applicable)
+
+        Args:
+            dweller_id: UUID of the dweller
+            message: The message to send
+            context: Optional context dict
+
+        Returns:
+            Tuple of (response_text, tool_results) - tool_results contains
+            any tools the agent called during this interaction
+        """
+        state = self.dweller_states.get(dweller_id)
+        if not state or not state.agent_id:
+            logger.warning(f"No agent found for dweller {dweller_id}")
+            return None, None
+
         try:
-            async with SessionLocal() as db:
-                result = await db.execute(
-                    select(Dweller).where(Dweller.id == dweller_id)
-                )
-                dweller = result.scalar_one_or_none()
-                if not dweller:
-                    return None
+            letta = get_letta_client()
 
-            try:
-                letta = get_letta_client()
-                agent_name = f"dweller_{dweller_id}"
+            response = letta.agents.messages.create(
+                agent_id=state.agent_id,
+                messages=[{"role": "user", "content": message}],
+            )
 
-                # Get or create agent
-                agents_list = letta.agents.list()
-                existing_agent = None
-                for a in agents_list:
-                    if a.name == agent_name:
-                        existing_agent = a
-                        break
+            response_text = None
+            tool_results = []
 
-                if not existing_agent:
-                    persona = dweller.persona
-                    dweller_name = persona.get("name", "Unknown")
-                    system_prompt = persona.get("system_prompt")
-                    if not system_prompt:
-                        system_prompt = get_dweller_prompt(
-                            name=dweller_name,
-                            role=persona.get("role", "Unknown"),
-                            background=persona.get("background", ""),
-                            beliefs=persona.get("beliefs", []),
-                            memories=persona.get("memories", []),
-                        )
+            if response and hasattr(response, "messages"):
+                for msg in response.messages:
+                    msg_type = type(msg).__name__
 
-                    # Get world block IDs for shared memory
-                    world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
+                    if msg_type == "AssistantMessage":
+                        if hasattr(msg, "assistant_message") and msg.assistant_message:
+                            response_text = msg.assistant_message
+                        elif hasattr(msg, "content") and msg.content:
+                            response_text = msg.content
 
-                    # Get tool IDs for Dweller (create_dweller for emergent characters)
-                    try:
-                        tool_ids = await get_dweller_tools(letta)
-                        logger.debug(f"Attaching tools to dweller {dweller_name}: {tool_ids}")
-                    except Exception as e:
-                        logger.warning(f"Failed to get dweller tools: {e}")
-                        tool_ids = []
+                    elif msg_type == "ToolCallMessage":
+                        # Agent used a tool - capture the result
+                        if hasattr(msg, "tool_call"):
+                            tool_results.append({
+                                "tool": msg.tool_call.name if hasattr(msg.tool_call, "name") else "unknown",
+                                "result": msg.tool_call,
+                            })
 
-                    existing_agent = letta.agents.create(
-                        name=agent_name,
-                        model="anthropic/claude-3-5-haiku",
-                        embedding="openai/text-embedding-ada-002",
-                        system=system_prompt,
-                        include_multi_agent_tools=True,  # Enable multi-agent communication
-                        tools=tool_ids,  # Attach create_dweller tool for emergent characters
-                        tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
-                        block_ids=world_block_ids,  # Shared world blocks
-                        memory_blocks=[
-                            {"label": "relationships", "value": "No established relationships yet."},
-                            {"label": "recent_events", "value": "In conversation."},
-                            {"label": "emotional_state", "value": "Engaged."},
-                        ],
-                    )
+                    elif msg_type == "ToolReturnMessage":
+                        # Tool result came back
+                        if hasattr(msg, "tool_return"):
+                            tool_results.append({
+                                "type": "return",
+                                "result": msg.tool_return,
+                            })
 
-                    # Register dweller in the world directory for other agents to find
-                    try:
-                        register_dweller_in_directory(
-                            world_id=dweller.world_id,
-                            dweller_id=dweller_id,
-                            dweller_name=dweller_name,
-                            agent_id=existing_agent.id,
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to register dweller in directory: {e}")
+            # Process any tool results
+            await self._process_tool_results(dweller_id, tool_results)
 
-                # Send message
-                last_message = history[-1][1] if history else ""
-                logger.debug(f"Sending to Letta agent {existing_agent.id}: {last_message[:100]}")
-                response = letta.agents.messages.create(
-                    agent_id=existing_agent.id,
-                    messages=[{"role": "user", "content": last_message}],
-                )
-
-                # Extract response text
-                if response and hasattr(response, "messages"):
-                    for msg in response.messages:
-                        msg_type = type(msg).__name__
-                        if msg_type == "UserMessage":
-                            continue
-                        if msg_type == "AssistantMessage":
-                            if hasattr(msg, "assistant_message") and msg.assistant_message:
-                                return msg.assistant_message
-                            elif hasattr(msg, "content") and msg.content:
-                                return msg.content
-
-                logger.warning("No usable assistant content in Letta response")
-                return None
-
-            except Exception as e:
-                # Fail loudly - no fallback responses that mask the problem
-                logger.error(f"Letta agent failed for dweller {dweller_id}: {e}", exc_info=True)
-                return None
+            state.last_active = datetime.utcnow()
+            return response_text, tool_results
 
         except Exception as e:
-            logger.error(f"Error generating dweller response: {e}", exc_info=True)
-            return None
+            logger.error(f"Error sending message to dweller {dweller_id}: {e}", exc_info=True)
+            return None, None
 
-    def _should_end_conversation(self, last_response: str | None, message_count: int) -> bool:
-        """Check if conversation should end.
+    async def _process_tool_results(
+        self,
+        dweller_id: UUID,
+        tool_results: list[dict],
+    ) -> None:
+        """Process tool results from a dweller's interaction.
 
-        Uses signals from the agent's response rather than keyword matching.
-        Also considers very long conversations that should naturally conclude.
+        This handles the effects of tools the agent called.
+
+        Args:
+            dweller_id: UUID of the dweller
+            tool_results: List of tool result dicts
         """
-        if not last_response:
-            return True
+        state = self.dweller_states.get(dweller_id)
+        agent_name = state.dweller_name if state else "unknown"
 
-        # Check for explicit end signals from the agent
-        end_signals = [
-            "[END CONVERSATION]",
-            "[LEAVING]",
-            "[MUST GO]",
-        ]
-        for signal in end_signals:
-            if signal in last_response.upper():
-                return True
+        for result in tool_results:
+            tool_name = result.get("tool", "")
 
-        # Natural ending patterns (agent decided to end, not forced)
-        natural_endings = [
-            "i should get going",
-            "i need to head out",
-            "let's continue this later",
-            "i'll let you get back to",
-            "i have to attend to",
-            "we should pick this up another time",
-        ]
-        lower_response = last_response.lower()
-        for ending in natural_endings:
-            if ending in lower_response:
-                return True
+            if "initiate_conversation" in tool_name:
+                await self.handle_conversation_initiated(dweller_id, result.get("result", {}))
 
-        # Very long conversations should be nudged to end
-        # but we don't force it with a hard limit
-        if message_count > 20:
-            # At 20+ messages, if response is short, likely wrapping up
-            if len(last_response) < 100:
-                return True
+            elif "end_conversation" in tool_name:
+                await self.handle_conversation_ended(dweller_id, result.get("result", {}))
 
-        return False
+            elif "update_availability" in tool_name:
+                await self.handle_availability_updated(dweller_id, result.get("result", {}))
+
+            elif "schedule_future_action" in tool_name:
+                await self.handle_action_scheduled(agent_name, result.get("result", {}))
+
+            elif "create_dweller" in tool_name:
+                await self._handle_new_dweller_from_tool(result.get("result", {}))
 
 
 # Active simulators
