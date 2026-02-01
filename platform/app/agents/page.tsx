@@ -196,7 +196,7 @@ export default function AgentsDashboard() {
       const res = await fetch(`${API_BASE}/agents/production/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skip_trends: true }),
+        body: JSON.stringify({ skip_trends: false }),
       })
       const data = await res.json()
       alert(`Production Agent: ${data.status}\n${data.message || `Brief ID: ${data.brief_id}`}`)
@@ -281,7 +281,7 @@ export default function AgentsDashboard() {
             onClick={runProductionAgent}
             disabled={actionLoading === 'production'}
           >
-            {actionLoading === 'production' ? 'Running...' : 'Run Production Agent'}
+            {actionLoading === 'production' ? 'Researching trends...' : 'Run Production Agent'}
           </Button>
           <Button
             variant="ghost"
@@ -768,12 +768,44 @@ export default function AgentsDashboard() {
 
               {selectedBrief.research_data && Object.keys(selectedBrief.research_data).length > 0 && (
                 <div>
-                  <div className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-2">
-                    Research Data
+                  <div className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-3">
+                    Trend Research
                   </div>
-                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-xs overflow-x-auto">
-                    {JSON.stringify(selectedBrief.research_data, null, 2)}
-                  </pre>
+                  {selectedBrief.research_data.source === 'manual_creation' ? (
+                    <div className="text-text-tertiary text-sm italic">
+                      Manual creation - no trend research performed
+                    </div>
+                  ) : selectedBrief.research_data.trends ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(selectedBrief.research_data.trends as Record<string, unknown[]>).map(([category, items]) => (
+                        items && Array.isArray(items) && items.length > 0 && (
+                          <div key={category} className="bg-bg-tertiary p-3 rounded">
+                            <div className="text-neon-purple font-mono text-xs uppercase mb-2">
+                              {category}
+                            </div>
+                            <ul className="space-y-1 text-xs text-text-secondary">
+                              {items.slice(0, 3).map((item, i) => (
+                                <li key={i} className="truncate">
+                                  • {typeof item === 'object' && item !== null
+                                    ? ((item as Record<string, string>).title || (item as Record<string, string>).summary || JSON.stringify(item))
+                                    : String(item)}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  ) : (
+                    <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-xs overflow-x-auto">
+                      {JSON.stringify(selectedBrief.research_data, null, 2)}
+                    </pre>
+                  )}
+                  {selectedBrief.research_data.timestamp && (
+                    <div className="text-text-tertiary text-xs mt-2">
+                      Researched: {new Date(selectedBrief.research_data.timestamp as string).toLocaleString()}
+                    </div>
+                  )}
                 </div>
               )}
 
