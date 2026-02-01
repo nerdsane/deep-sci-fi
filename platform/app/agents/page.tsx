@@ -274,23 +274,22 @@ export default function StudioPage() {
     }
   }
 
+  // Clear data and fetch when agent changes
   useEffect(() => {
-    // Clear previous agent's data when switching
-    setTraces([])
+    // Clear previous agent's data immediately
     setLastWakeResult(null)
-    setAgentDetails(null)
 
+    // Fetch new agent's data
     fetchAgentDetails(selectedAgent)
     fetchTraces(selectedAgent)
     fetchStats()
-  }, [selectedAgent, fetchAgentDetails, fetchTraces, fetchStats])
 
-  useEffect(() => {
+    // Poll for updates
     const interval = setInterval(() => {
       fetchTraces(selectedAgent)
     }, 5000)
     return () => clearInterval(interval)
-  }, [selectedAgent, fetchTraces])
+  }, [selectedAgent]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatTime = (ts: string) => {
     const d = new Date(ts)
