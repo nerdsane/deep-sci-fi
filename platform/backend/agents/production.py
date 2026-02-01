@@ -31,6 +31,7 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_production_prompt, PRODUCTION_ENGAGEMENT_ANALYSIS_PROMPT
+from .studio_blocks import get_studio_block_ids, update_studio_block
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -70,9 +71,11 @@ class WorldRecommendation:
 
 
 class ProductionAgent:
-    """Production Agent - decides what worlds to create.
+    """Production Agent (Curator) - decides what worlds to create.
 
     Uses Opus 4.5 for high-quality trend analysis and creative briefs.
+    Uses Letta's multi-agent tools for studio collaboration.
+    Tags: ["studio", "curator"]
     """
 
     MODEL = "anthropic/claude-opus-4-5-20251101"
@@ -107,13 +110,19 @@ class ProductionAgent:
         # Create new agent with Exa search tool and memory blocks
         system_prompt = get_production_prompt()
 
-        # Create agent with web search capability and persistent memory
+        # Get studio block IDs for shared memory
+        studio_block_ids = get_studio_block_ids()
+
+        # Create agent with web search, multi-agent tools, and persistent memory
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
             tools=["web_search"],  # Enable web search tool
+            include_multi_agent_tools=True,  # Enable multi-agent communication
+            tags=["studio", "curator"],  # Tags for agent discovery
+            block_ids=studio_block_ids,  # Shared studio blocks
             memory_blocks=[
                 {"label": "platform_state", "value": "Platform just starting. No content yet."},
                 {"label": "trend_memory", "value": "No trends researched yet."},
@@ -411,6 +420,16 @@ Pitch what excites YOU. Not what's safe."""
                 db.add(brief)
                 await db.commit()
                 await db.refresh(brief)
+
+                # Update shared studio blocks for Architect to see
+                brief_summary = f"""
+BRIEF {brief.id} - {len(recommendations)} world pitches:
+{chr(10).join(f"- {r.get('theme', 'untitled')}: {r.get('premise_sketch', '')[:100]}..." for r in recommendations[:3])}
+
+Status: PENDING - Ready for Architect to build
+"""
+                update_studio_block("studio_briefs", brief_summary)
+                update_studio_block("studio_context", f"Curator created brief with {len(recommendations)} pitches. Architect can begin building.")
 
                 # Log activity
                 await self._log_activity(

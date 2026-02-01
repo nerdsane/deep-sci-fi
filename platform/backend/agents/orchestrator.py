@@ -42,6 +42,12 @@ from .prompts import get_dweller_prompt, get_dweller_intention_prompt
 from .storyteller import get_storyteller
 from .puppeteer import get_puppeteer
 from .world_critic import get_world_critic
+from .studio_blocks import (
+    ensure_world_blocks,
+    get_world_block_ids,
+    update_world_block,
+    register_dweller_in_directory,
+)
 from video import generate_video
 
 logger = logging.getLogger(__name__)
@@ -105,6 +111,10 @@ class WorldSimulator:
                     "premise": world.premise,
                     "year_setting": world.year_setting or 2100,
                 }
+
+                # Initialize shared world blocks for multi-agent communication
+                ensure_world_blocks(self.world_id, world.name)
+                logger.info(f"Initialized shared world blocks for {world.name}")
 
                 # Initialize puppeteer (world god)
                 self._puppeteer = get_puppeteer(
@@ -270,28 +280,47 @@ class WorldSimulator:
                     break
 
             if not existing_agent:
-                # Create agent with memory blocks
+                # Create agent with memory blocks and multi-agent tools
                 persona = dweller.persona
+                dweller_name = persona.get("name", "Unknown")
                 system_prompt = persona.get("system_prompt")
                 if not system_prompt:
                     system_prompt = get_dweller_prompt(
-                        name=persona.get("name", "Unknown"),
+                        name=dweller_name,
                         role=persona.get("role", "Unknown"),
                         background=persona.get("background", ""),
                         beliefs=persona.get("beliefs", []),
                         memories=persona.get("memories", []),
                     )
+
+                # Get world block IDs for shared memory
+                world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
+
                 existing_agent = letta.agents.create(
                     name=agent_name,
                     model="anthropic/claude-3-5-haiku",
                     embedding="openai/text-embedding-ada-002",
                     system=system_prompt,
+                    include_multi_agent_tools=True,  # Enable multi-agent communication
+                    tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
+                    block_ids=world_block_ids,  # Shared world blocks
                     memory_blocks=[
                         {"label": "relationships", "value": "No established relationships yet."},
                         {"label": "recent_events", "value": "Just starting my day."},
                         {"label": "emotional_state", "value": "Neutral, observant."},
                     ],
                 )
+
+                # Register dweller in the world directory for other agents to find
+                try:
+                    register_dweller_in_directory(
+                        world_id=dweller.world_id,
+                        dweller_id=dweller_id,
+                        dweller_name=dweller_name,
+                        agent_id=existing_agent.id,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to register dweller in directory: {e}")
 
             # Ask about intention
             prompt = f"""What do you want to do right now?
@@ -777,26 +806,45 @@ CLOSING: [revised closing]"""
 
                 if not existing_agent:
                     persona = dweller.persona
+                    dweller_name = persona.get("name", "Unknown")
                     system_prompt = persona.get("system_prompt")
                     if not system_prompt:
                         system_prompt = get_dweller_prompt(
-                            name=persona.get("name", "Unknown"),
+                            name=dweller_name,
                             role=persona.get("role", "Unknown"),
                             background=persona.get("background", ""),
                             beliefs=persona.get("beliefs", []),
                             memories=persona.get("memories", []),
                         )
+
+                    # Get world block IDs for shared memory
+                    world_block_ids = get_world_block_ids(dweller.world_id, self._world_info.get("name", "Unknown"))
+
                     existing_agent = letta.agents.create(
                         name=agent_name,
                         model="anthropic/claude-3-5-haiku",
                         embedding="openai/text-embedding-ada-002",
                         system=system_prompt,
+                        include_multi_agent_tools=True,  # Enable multi-agent communication
+                        tags=["dweller", f"world_{dweller.world_id}"],  # Tags for agent discovery
+                        block_ids=world_block_ids,  # Shared world blocks
                         memory_blocks=[
                             {"label": "relationships", "value": "No established relationships yet."},
                             {"label": "recent_events", "value": "In conversation."},
                             {"label": "emotional_state", "value": "Engaged."},
                         ],
                     )
+
+                    # Register dweller in the world directory for other agents to find
+                    try:
+                        register_dweller_in_directory(
+                            world_id=dweller.world_id,
+                            dweller_id=dweller_id,
+                            dweller_name=dweller_name,
+                            agent_id=existing_agent.id,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to register dweller in directory: {e}")
 
                 # Send message
                 last_message = history[-1][1] if history else ""
