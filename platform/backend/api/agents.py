@@ -79,6 +79,38 @@ class EvaluateRequest(BaseModel):
 # Production Agent Endpoints
 # =============================================================================
 
+class CuratorWakeRequest(BaseModel):
+    """Request to wake the Curator agent."""
+    context: dict | None = None
+
+
+@router.post("/curator/wake")
+async def wake_curator(
+    request: CuratorWakeRequest | None = None,
+) -> dict[str, Any]:
+    """Wake the Curator and let them act autonomously.
+
+    No explicit instructions like "research trends" or "give world ideas".
+    The agent acts based on who they are and what they remember.
+
+    This is the emergent behavior pattern - the Curator decides what to do
+    from their identity, memory, and current platform state.
+
+    Returns:
+        Full response including:
+        - What the Curator decided to do
+        - Any tools they chose to use
+        - World ideas if they generated any
+        - Full trace for observability
+    """
+    agent = get_production_agent()
+
+    context = request.context if request else None
+    result = await agent.wake(context)
+
+    return result
+
+
 @router.post("/production/run")
 async def run_production_agent(
     request: BriefGenerateRequest | None = None,
