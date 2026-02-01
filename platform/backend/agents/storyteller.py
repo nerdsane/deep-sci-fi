@@ -1,21 +1,20 @@
 """Storyteller agent for generating video content from world activity.
 
-The Storyteller is an observer assigned to a world. It watches all events
-and conversations, building up context about what's happening. When material
-is compelling, it uses its JUDGMENT to decide what would make an interesting
-story and creates a video script.
+MAXIMUM AGENCY ARCHITECTURE
+===========================
 
-Architecture:
-- One storyteller per world (persistent observer)
-- Receives ALL events: conversation messages, dweller actions, world changes
-- Maintains memory of activity (no artificial caps)
-- Uses judgment to evaluate if there's a story worth telling
-- Returns VideoScript when it finds compelling material
+The Storyteller is an autonomous observer that decides when to create stories.
+It subscribes to world events and acts when inspired.
 
-Emergent Behavior:
-- No minimum observation threshold - storyteller decides if material is compelling
-- No maximum observation cap - memory managed naturally
-- Judgment-based evaluation, not rule-based triggers
+Key changes from the old architecture:
+- No tick-based polling - storyteller subscribes to events it cares about
+- Autonomous action - uses tools to create and publish stories directly
+- Event-driven - notified when subscribed events occur, not on a schedule
+
+Principles:
+- Maximum Agency: Storyteller decides when to act
+- Emergent Behavior: Stories emerge from genuine observation
+- Least Constraints: No artificial cooldowns or thresholds
 """
 
 import logging
@@ -74,15 +73,18 @@ class WorldEvent:
 
 
 class Storyteller:
-    """Storyteller agent - persistent observer that watches world activity.
+    """Storyteller agent - autonomous observer that creates stories.
 
-    The storyteller accumulates observations about what's happening in the world,
-    then uses its JUDGMENT to decide when and what to create stories about.
+    MAXIMUM AGENCY ARCHITECTURE
+    ===========================
 
-    Emergent behavior principles:
-    - No minimum observation count - if something is compelling, tell the story
-    - No artificial maximum - prune old observations naturally
-    - Trust the agent's judgment on what makes a good story
+    The storyteller:
+    1. Subscribes to event types it cares about (via subscribe_to_events tool)
+    2. Gets notified when those events occur
+    3. Decides autonomously whether to create a story
+    4. Uses tools directly (generate_video, publish_story)
+
+    No tick-based polling. No artificial thresholds. The agent decides.
 
     Uses Letta's multi-agent tools for world coordination.
     Tags: ["world", f"world_{world_id}", "storyteller"]
@@ -105,10 +107,19 @@ class Storyteller:
         self._client: Letta | None = None
 
         # Observation buffer - events the storyteller has witnessed
-        # No artificial cap - prune based on time/relevance
         self.observations: list[WorldEvent] = []
         self.last_story_time: datetime | None = None
         self.stories_created: int = 0
+
+        # Event subscriptions - what the storyteller cares about
+        self.subscriptions: list[str] = [
+            "conversation_end",  # When dwellers finish talking
+            "world_event",  # When puppeteer introduces events
+            "emotional_moment",  # Strong emotional expressions
+            "conflict",  # Tension between dwellers
+            "connection",  # Bonds forming
+        ]
+        self.notification_threshold: str = "notable"  # all, notable, major
 
     def _get_client(self) -> Letta:
         """Get or create Letta client."""
@@ -202,20 +213,43 @@ class Storyteller:
             raw=raw_text,
         )
 
+    def should_observe(self, event_type: str) -> bool:
+        """Check if this event type matches our subscriptions.
+
+        Args:
+            event_type: The type of event
+
+        Returns:
+            True if storyteller subscribed to this event type
+        """
+        return event_type in self.subscriptions
+
     def observe(
         self,
         event_type: str,
         participants: list[str],
         content: str,
         context: dict | None = None,
-    ) -> None:
+    ) -> bool:
         """Record an observation about world activity.
 
-        The storyteller accumulates these observations and uses them
-        to decide when and what stories to create.
+        In the autonomous architecture, observations are event-driven.
+        The storyteller only observes events it subscribed to.
 
-        No artificial cap - prune old observations based on time instead.
+        Args:
+            event_type: Type of event (conversation_end, world_event, etc.)
+            participants: Who was involved
+            content: What happened
+            context: Additional context
+
+        Returns:
+            True if observation was significant enough to potentially trigger a story
         """
+        # Check subscription
+        if not self.should_observe(event_type):
+            logger.debug(f"Storyteller not subscribed to {event_type}")
+            return False
+
         event = WorldEvent(
             timestamp=datetime.utcnow(),
             event_type=event_type,
@@ -225,8 +259,7 @@ class Storyteller:
         )
         self.observations.append(event)
 
-        # Prune very old observations (older than 1 hour)
-        # This is natural memory management, not an artificial cap
+        # Prune old observations (natural memory management)
         one_hour_ago = datetime.utcnow() - timedelta(hours=1)
         self.observations = [
             obs for obs in self.observations
@@ -234,6 +267,29 @@ class Storyteller:
         ]
 
         logger.info(f"Storyteller observed {event_type}: {len(self.observations)} total observations")
+
+        # Determine if this observation is significant based on threshold
+        is_significant = self._is_significant(event)
+        return is_significant
+
+    def _is_significant(self, event: WorldEvent) -> bool:
+        """Determine if an event is significant enough to potentially trigger a story.
+
+        Args:
+            event: The observed event
+
+        Returns:
+            True if significant based on notification_threshold
+        """
+        if self.notification_threshold == "all":
+            return True
+
+        if self.notification_threshold == "major":
+            # Only major events: conflicts, connections, significant world events
+            return event.event_type in ["conflict", "connection", "world_event"]
+
+        # "notable" threshold - most events except mundane ones
+        return event.event_type not in ["message"]  # Individual messages aren't notable
 
     def _format_observations(self) -> str:
         """Format all observations for the storyteller agent."""
@@ -454,6 +510,68 @@ Trust your judgment. Quality over quantity. Act when inspired."""
             return None
 
 
+async def initialize_storyteller(
+    world_id: UUID,
+    world_name: str,
+    world_premise: str,
+    year_setting: int,
+    style: str = "dramatic",
+) -> Storyteller:
+    """Initialize a storyteller for a world with subscriptions.
+
+    This creates the storyteller and has it set up its event subscriptions
+    using the subscribe_to_events tool.
+
+    Args:
+        world_id: The world's UUID
+        world_name: The world's name
+        world_premise: The world's premise
+        year_setting: The year the world is set in
+        style: Storytelling style
+
+    Returns:
+        The initialized Storyteller
+    """
+    storyteller = get_storyteller(
+        world_id=world_id,
+        world_name=world_name,
+        world_premise=world_premise,
+        year_setting=year_setting,
+        style=style,
+    )
+
+    # Ensure agent exists
+    await storyteller._ensure_agent()
+
+    # Have the storyteller set up its subscriptions
+    client = storyteller._get_client()
+
+    setup_prompt = f"""You are the Storyteller for {world_name}.
+
+You have just been assigned to observe this world. Set up your event subscriptions
+using the subscribe_to_events tool to watch for:
+- conversation_end: When dwellers finish talking (often has emotional resolution)
+- world_event: When the Puppeteer introduces events (shapes the world)
+- emotional_moment: Strong emotional expressions (story material)
+- conflict: Tension between dwellers (drama)
+- connection: Bonds forming (heartwarming moments)
+
+Use "notable" threshold to avoid being overwhelmed with mundane events.
+
+After subscribing, acknowledge your role and what you're watching for."""
+
+    try:
+        response = client.agents.messages.create(
+            agent_id=storyteller.agent_id,
+            messages=[{"role": "user", "content": setup_prompt}],
+        )
+        logger.info(f"Storyteller {storyteller.agent_id} initialized with subscriptions")
+    except Exception as e:
+        logger.warning(f"Failed to initialize storyteller subscriptions: {e}")
+
+    return storyteller
+
+
 def get_storyteller(
     world_id: UUID,
     world_name: str,
@@ -461,7 +579,10 @@ def get_storyteller(
     year_setting: int,
     style: str = "dramatic",
 ) -> Storyteller:
-    """Get or create a storyteller for a world."""
+    """Get or create a storyteller for a world.
+
+    Note: For full initialization with subscriptions, use initialize_storyteller().
+    """
     if world_id not in _storytellers:
         _storytellers[world_id] = Storyteller(
             world_id=world_id,
