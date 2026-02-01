@@ -791,19 +791,7 @@ async def reset_database(
 ) -> dict[str, Any]:
     """Reset the database for fresh testing.
 
-    Clears:
-    - WorldEvent
-    - ConversationMessage
-    - Conversation
-    - Story
-    - Dweller
-    - World
-    - CriticEvaluation
-    - AgentActivity
-
-    Keeps:
-    - User (needed for world creation)
-    - ProductionBrief (for history)
+    Clears everything except Users.
     """
     from agents.orchestrator import stop_all_simulations
 
@@ -829,18 +817,21 @@ async def reset_database(
     # 6. AgentActivity (references worlds)
     await db.execute(AgentActivity.__table__.delete())
 
-    # 6.5. AgentTrace (references worlds)
+    # 7. AgentTrace (references worlds)
     await db.execute(AgentTrace.__table__.delete())
 
-    # 7. Dweller (depends on World, User)
+    # 8. Dweller (depends on World, User)
     await db.execute(Dweller.__table__.delete())
 
-    # 8. World (depends on User)
+    # 9. World (depends on User) - clear before briefs since briefs reference worlds
     await db.execute(World.__table__.delete())
+
+    # 10. ProductionBrief (clear all briefs for fresh start)
+    await db.execute(ProductionBrief.__table__.delete())
 
     await db.commit()
 
     return {
         "status": "success",
-        "message": "Database reset complete. Worlds, dwellers, stories, and events cleared.",
+        "message": "Database reset complete. All worlds, briefs, and content cleared.",
     }
