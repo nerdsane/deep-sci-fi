@@ -171,7 +171,25 @@ export default function StudioPage() {
 
   const formatTime = (ts: string) => {
     const d = new Date(ts)
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+
+    // Show relative time for recent events
+    if (diffSec < 60) return `${diffSec}s ago`
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+
+    // Fall back to absolute time for older events
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+    return `${(ms / 60000).toFixed(1)}m`
   }
 
   const formatDate = (ts: string) => {
@@ -282,7 +300,7 @@ export default function StudioPage() {
                 <span className="studio-message__name">{agent.name}</span>
                 <span className="studio-message__time">just now</span>
                 {lastWakeResult.duration_ms && (
-                  <span className="studio-message__duration">{lastWakeResult.duration_ms}ms</span>
+                  <span className="studio-message__duration">{formatDuration(lastWakeResult.duration_ms)}</span>
                 )}
               </div>
 
@@ -369,7 +387,7 @@ export default function StudioPage() {
                       <span className="studio-message__time">{formatTime(trace.timestamp)}</span>
                       <span className="studio-message__op">{trace.operation}</span>
                       {trace.duration_ms && (
-                        <span className="studio-message__duration">{trace.duration_ms}ms</span>
+                        <span className="studio-message__duration">{formatDuration(trace.duration_ms)}</span>
                       )}
                     </div>
 
@@ -986,7 +1004,13 @@ export default function StudioPage() {
           display: flex;
           align-items: center;
           gap: 12px;
-          margin: 16px 0;
+          margin: 16px 0 12px 0;
+        }
+
+        /* Remove top margin from first divider */
+        .studio-main__content > div:first-child .studio-divider,
+        .studio-main__content > article:first-child + div .studio-divider {
+          margin-top: 0;
         }
 
         .studio-divider::before,
