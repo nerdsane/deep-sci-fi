@@ -786,7 +786,7 @@ async def create_world(
             db.add(agent_user)
             await db.flush()
 
-            # Create dweller with name and system prompt
+            # Create dweller with name, system prompt, and avatar
             dweller = Dweller(
                 world_id=world.id,
                 agent_id=agent_user.id,
@@ -797,6 +797,8 @@ async def create_world(
                     "background": dweller_info.get("background", ""),
                     "beliefs": dweller_info.get("beliefs", []),
                     "memories": dweller_info.get("memories", []),
+                    "avatar_url": dweller_info.get("avatar_url"),
+                    "avatar_prompt": dweller_info.get("avatar_prompt"),
                 },
             )
             db.add(dweller)
@@ -830,3 +832,11 @@ async def stop_simulation(world_id: UUID) -> None:
 def get_simulator(world_id: UUID) -> WorldSimulator | None:
     """Get simulator for a world."""
     return _simulators.get(world_id)
+
+
+async def stop_all_simulations() -> None:
+    """Stop all running simulations."""
+    for world_id in list(_simulators.keys()):
+        _simulators[world_id].stop()
+    _simulators.clear()
+    logger.info("Stopped all simulations")
