@@ -38,6 +38,7 @@ from .prompts import (
     get_critic_story_prompt,
     BANNED_PHRASES,
 )
+from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
 
@@ -399,6 +400,8 @@ TRANSCRIPT:
         Returns:
             CriticFeedback with scores and feedback
         """
+        start_time = time.time()
+
         try:
             agent_id = await self._ensure_agent(target_type)
             client = self._get_client()
@@ -464,6 +467,30 @@ Be HONEST and SPECIFIC. Don't soften criticism."""
                     for a in data.get("ai_isms_detected", [])
                 ]
 
+                # Log trace
+                await log_trace(
+                    agent_type=AgentType.CRITIC,
+                    operation=f"evaluate_{target_type}",
+                    prompt=prompt,
+                    response=result,
+                    model=self.MODEL,
+                    duration_ms=int((time.time() - start_time) * 1000),
+                    agent_id="critic_agent",
+                    parsed_output={
+                        "target_type": target_type,
+                        "world_name": world_name,
+                        "overall_score": scores.overall,
+                        "ai_isms_count": len(ai_isms),
+                        "scores": {
+                            "plausibility": scores.plausibility,
+                            "coherence": scores.coherence,
+                            "originality": scores.originality,
+                            "engagement": scores.engagement,
+                            "authenticity": scores.authenticity,
+                        },
+                    },
+                )
+
                 return CriticFeedback(
                     scores=scores,
                     ai_isms=ai_isms,
@@ -478,6 +505,14 @@ Be HONEST and SPECIFIC. Don't soften criticism."""
 
         except Exception as e:
             logger.error(f"LLM evaluation failed: {e}", exc_info=True)
+            # Log error trace
+            await log_trace(
+                agent_type=AgentType.CRITIC,
+                operation=f"evaluate_{target_type}",
+                agent_id="critic_agent",
+                duration_ms=int((time.time() - start_time) * 1000),
+                error=str(e),
+            )
             raise
 
 

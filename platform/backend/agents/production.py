@@ -31,6 +31,7 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_production_prompt, PRODUCTION_ENGAGEMENT_ANALYSIS_PROMPT
+from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +364,17 @@ Return ONLY the JSON array, no other text."""
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse recommendations JSON: {e}")
 
+            # Log trace for observability
+            await log_trace(
+                agent_type=AgentType.PRODUCTION,
+                operation="generate_brief",
+                prompt=prompt,
+                response=result,
+                model=self.MODEL,
+                duration_ms=int((time.time() - start_time) * 1000),
+                parsed_output={"recommendations": recommendations},
+            )
+
             # Create brief in database
             async with SessionLocal() as db:
                 brief = ProductionBrief(
@@ -462,9 +474,22 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
 
         # Parse the decision
         result_upper = result.upper().strip()
-        if result_upper.startswith("ACTION_NEEDED"):
+        action_needed = result_upper.startswith("ACTION_NEEDED")
+        no_action = result_upper.startswith("NO_ACTION")
+
+        # Log trace
+        await log_trace(
+            agent_type=AgentType.PRODUCTION,
+            operation="evaluate_platform_state",
+            prompt=prompt,
+            response=result,
+            model=self.MODEL,
+            parsed_output={"decision": "ACTION_NEEDED" if action_needed else "NO_ACTION" if no_action else "UNCLEAR"},
+        )
+
+        if action_needed:
             return True
-        elif result_upper.startswith("NO_ACTION"):
+        elif no_action:
             return False
         else:
             raise ValueError(f"Unclear response from production agent: {result[:200]}")

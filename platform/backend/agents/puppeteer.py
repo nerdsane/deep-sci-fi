@@ -15,6 +15,7 @@ Responsibilities:
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import WorldEvent, WorldEventType, AgentActivity, AgentType, World
 from db.database import SessionLocal
 from .prompts import get_puppeteer_prompt, get_puppeteer_evaluation_prompt
+from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +194,8 @@ class Puppeteer:
         Returns:
             WorldEvent if one was created, None otherwise
         """
+        start_time = time.time()
+
         try:
             agent_id = await self._ensure_agent()
             client = self._get_client()
@@ -253,6 +257,25 @@ Time of day: {self.current_state.get('time_of_day', 'unknown')}
 
             # Parse the response
             parsed = self._parse_event_response(response_text)
+
+            # Log trace
+            await log_trace(
+                agent_type=AgentType.PUPPETEER,
+                operation="evaluate_for_event",
+                prompt=prompt,
+                response=response_text,
+                model="anthropic/claude-sonnet-4-20250514",
+                duration_ms=int((time.time() - start_time) * 1000),
+                agent_id=f"puppeteer_{self.world_id}",
+                world_id=self.world_id,
+                parsed_output={
+                    "decision": "EVENT_CREATED" if parsed else "NO_EVENT",
+                    "event_type": parsed.event_type.value if parsed else None,
+                    "event_title": parsed.title if parsed else None,
+                    "force_requested": force,
+                },
+            )
+
             if not parsed:
                 return None
 
@@ -261,6 +284,15 @@ Time of day: {self.current_state.get('time_of_day', 'unknown')}
 
         except Exception as e:
             logger.error(f"Puppeteer evaluation failed: {e}", exc_info=True)
+            # Log error trace
+            await log_trace(
+                agent_type=AgentType.PUPPETEER,
+                operation="evaluate_for_event",
+                agent_id=f"puppeteer_{self.world_id}",
+                world_id=self.world_id,
+                duration_ms=int((time.time() - start_time) * 1000),
+                error=str(e),
+            )
             return None
 
     async def _get_recent_events_text(self, limit: int = 5) -> str:

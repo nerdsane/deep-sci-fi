@@ -52,11 +52,37 @@ interface AgentStatus {
   }>
 }
 
+interface AgentTrace {
+  id: string
+  timestamp: string
+  agent_type: string
+  agent_id: string | null
+  world_id: string | null
+  operation: string
+  model: string | null
+  duration_ms: number | null
+  tokens_in: number | null
+  tokens_out: number | null
+  prompt: string | null
+  response: string | null
+  parsed_output: Record<string, unknown> | null
+  error: string | null
+}
+
+interface TraceResponse {
+  traces: AgentTrace[]
+  total: number
+  has_more: boolean
+}
+
 export default function AgentsDashboard() {
   const [status, setStatus] = useState<AgentStatus | null>(null)
+  const [traces, setTraces] = useState<AgentTrace[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [selectedTrace, setSelectedTrace] = useState<AgentTrace | null>(null)
+  const [traceFilter, setTraceFilter] = useState<string>('all')
 
   const fetchStatus = async () => {
     try {
@@ -72,11 +98,41 @@ export default function AgentsDashboard() {
     }
   }
 
+  const fetchTraces = async () => {
+    try {
+      const params = new URLSearchParams({ limit: '30' })
+      if (traceFilter !== 'all') {
+        params.set('agent_type', traceFilter)
+      }
+      const res = await fetch(`${API_BASE}/agents/traces?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch traces')
+      const data: TraceResponse = await res.json()
+      setTraces(data.traces)
+    } catch (err) {
+      console.error('Failed to fetch traces:', err)
+    }
+  }
+
+  const fetchFullTrace = async (traceId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/agents/traces/${traceId}`)
+      if (!res.ok) throw new Error('Failed to fetch trace')
+      const data: AgentTrace = await res.json()
+      setSelectedTrace(data)
+    } catch (err) {
+      console.error('Failed to fetch full trace:', err)
+    }
+  }
+
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 5000) // Refresh every 5s
+    fetchTraces()
+    const interval = setInterval(() => {
+      fetchStatus()
+      fetchTraces()
+    }, 5000) // Refresh every 5s
     return () => clearInterval(interval)
-  }, [])
+  }, [traceFilter])
 
   const runProductionAgent = async () => {
     setActionLoading('production')
@@ -439,6 +495,201 @@ export default function AgentsDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Thinking Traces */}
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-pink-400 font-mono text-sm uppercase tracking-wider">
+              Thinking Traces
+            </h2>
+            <select
+              value={traceFilter}
+              onChange={(e) => setTraceFilter(e.target.value)}
+              className="bg-bg-tertiary text-text-primary text-xs font-mono px-2 py-1 rounded border border-gray-600"
+            >
+              <option value="all">All Agents</option>
+              <option value="production">Production</option>
+              <option value="world_creator">World Creator</option>
+              <option value="storyteller">Storyteller</option>
+              <option value="puppeteer">Puppeteer</option>
+              <option value="critic">Critic</option>
+            </select>
+          </div>
+          <p className="text-text-secondary text-sm mb-4">
+            Full prompts, responses, and reasoning from agent LLM calls
+          </p>
+          {traces.length > 0 ? (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {traces.map((trace) => (
+                <div
+                  key={trace.id}
+                  className="p-3 bg-bg-tertiary rounded cursor-pointer hover:bg-bg-secondary transition-colors"
+                  onClick={() => fetchFullTrace(trace.id)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-mono ${
+                          trace.agent_type === 'production'
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : trace.agent_type === 'world_creator'
+                            ? 'bg-green-500/20 text-green-400'
+                            : trace.agent_type === 'storyteller'
+                            ? 'bg-cyan-500/20 text-cyan-400'
+                            : trace.agent_type === 'puppeteer'
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : trace.agent_type === 'critic'
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : 'bg-gray-500/20 text-gray-400'
+                        }`}
+                      >
+                        {trace.agent_type}
+                      </span>
+                      <span className="text-text-primary text-sm">{trace.operation}</span>
+                      {trace.model && (
+                        <span className="text-text-tertiary text-xs font-mono">
+                          {trace.model.split('/').pop()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-mono text-text-tertiary">
+                      {trace.duration_ms && <span>{trace.duration_ms}ms</span>}
+                      <span>{new Date(trace.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                  {trace.error ? (
+                    <div className="text-red-400 text-xs font-mono truncate">
+                      Error: {trace.error}
+                    </div>
+                  ) : trace.parsed_output ? (
+                    <div className="text-text-secondary text-xs font-mono truncate">
+                      {JSON.stringify(trace.parsed_output).slice(0, 100)}...
+                    </div>
+                  ) : trace.response ? (
+                    <div className="text-text-secondary text-xs truncate">
+                      {trace.response}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-text-tertiary text-sm">
+              No traces yet. Run an agent to see its thinking process.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Trace Detail Modal */}
+      {selectedTrace && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedTrace(null)}
+        >
+          <div
+            className="bg-bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-mono ${
+                    selectedTrace.agent_type === 'production'
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : selectedTrace.agent_type === 'world_creator'
+                      ? 'bg-green-500/20 text-green-400'
+                      : selectedTrace.agent_type === 'storyteller'
+                      ? 'bg-cyan-500/20 text-cyan-400'
+                      : selectedTrace.agent_type === 'puppeteer'
+                      ? 'bg-purple-500/20 text-purple-400'
+                      : selectedTrace.agent_type === 'critic'
+                      ? 'bg-yellow-500/20 text-yellow-400'
+                      : 'bg-gray-500/20 text-gray-400'
+                  }`}
+                >
+                  {selectedTrace.agent_type}
+                </span>
+                <span className="text-text-primary font-mono">{selectedTrace.operation}</span>
+                {selectedTrace.model && (
+                  <span className="text-text-tertiary text-sm">
+                    Model: {selectedTrace.model}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedTrace(null)}
+                className="text-text-tertiary hover:text-text-primary"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-60px)] space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-text-tertiary">Duration:</span>{' '}
+                  <span className="font-mono">{selectedTrace.duration_ms || 'N/A'}ms</span>
+                </div>
+                <div>
+                  <span className="text-text-tertiary">Time:</span>{' '}
+                  <span className="font-mono">
+                    {new Date(selectedTrace.timestamp).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-tertiary">Agent ID:</span>{' '}
+                  <span className="font-mono text-xs">{selectedTrace.agent_id || 'N/A'}</span>
+                </div>
+              </div>
+
+              {selectedTrace.error && (
+                <div>
+                  <div className="text-red-400 font-mono text-xs uppercase tracking-wider mb-2">
+                    Error
+                  </div>
+                  <pre className="bg-red-900/20 p-3 rounded text-red-300 text-sm overflow-x-auto">
+                    {selectedTrace.error}
+                  </pre>
+                </div>
+              )}
+
+              {selectedTrace.prompt && (
+                <div>
+                  <div className="text-neon-cyan font-mono text-xs uppercase tracking-wider mb-2">
+                    Prompt
+                  </div>
+                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
+                    {selectedTrace.prompt}
+                  </pre>
+                </div>
+              )}
+
+              {selectedTrace.response && (
+                <div>
+                  <div className="text-neon-purple font-mono text-xs uppercase tracking-wider mb-2">
+                    Response
+                  </div>
+                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
+                    {selectedTrace.response}
+                  </pre>
+                </div>
+              )}
+
+              {selectedTrace.parsed_output && (
+                <div>
+                  <div className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-2">
+                    Parsed Output
+                  </div>
+                  <pre className="bg-bg-tertiary p-3 rounded text-text-secondary text-sm overflow-x-auto">
+                    {JSON.stringify(selectedTrace.parsed_output, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

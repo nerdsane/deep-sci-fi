@@ -25,6 +25,7 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_world_creator_prompt, ANTI_CLICHE_RULES
+from .tracing import log_trace
 from video.grok_imagine import generate_avatar
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ Write a world document in markdown. Include:
 Write naturally. No JSON. Just markdown."""
 
         logger.info("Generating world document...")
+        world_start = time.time()
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4000,
@@ -105,6 +107,16 @@ Write naturally. No JSON. Just markdown."""
         )
 
         world_doc = response.content[0].text
+
+        # Log trace for world generation
+        await log_trace(
+            agent_type=AgentType.WORLD_CREATOR,
+            operation="generate_world_document",
+            prompt=world_prompt,
+            response=world_doc,
+            model="claude-sonnet-4-20250514",
+            duration_ms=int((time.time() - world_start) * 1000),
+        )
 
         # Extract name from first heading
         lines = world_doc.strip().split('\n')
@@ -141,6 +153,7 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
 {ANTI_CLICHE_RULES}"""
 
         logger.info("Generating dweller cast...")
+        dwellers_start = time.time()
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4000,
@@ -149,6 +162,17 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
 
         dwellers_text = response.content[0].text
         dwellers = self._parse_dwellers(dwellers_text)
+
+        # Log trace for dweller generation
+        await log_trace(
+            agent_type=AgentType.WORLD_CREATOR,
+            operation="generate_dwellers",
+            prompt=dwellers_prompt,
+            response=dwellers_text,
+            model="claude-sonnet-4-20250514",
+            duration_ms=int((time.time() - dwellers_start) * 1000),
+            parsed_output={"dweller_count": len(dwellers), "dweller_names": [d.name for d in dwellers]},
+        )
 
         if not dwellers:
             raise ValueError("Failed to generate dwellers")
