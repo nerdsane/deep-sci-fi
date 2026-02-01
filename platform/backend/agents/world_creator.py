@@ -1,20 +1,24 @@
-"""World Creator Agent for Deep Sci-Fi platform.
+"""World Creator Agent (Architect) for Deep Sci-Fi platform.
 
 Creates worlds with:
 - World name
 - World document (markdown describing the world)
 - Dweller cast (name + system prompt for each)
 - Dweller avatars (generated via xAI Grok)
+
+Now uses Letta's multi-agent tools for communication with other studio agents.
 """
 
 import asyncio
+import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from anthropic import Anthropic
+from letta_client import Letta
 from sqlalchemy import select
 
 from db import (
@@ -25,6 +29,7 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_world_creator_prompt, ANTI_CLICHE_RULES
+from .studio_blocks import get_studio_block_ids, update_studio_block
 from .tracing import log_trace
 from video.grok_imagine import generate_avatar
 
@@ -54,16 +59,73 @@ class WorldSpec:
 class WorldCreatorAgent:
     """Creates worlds from briefs.
 
-    Uses Anthropic API directly for simplicity.
+    Uses Letta with multi-agent tools for studio collaboration.
+    Tags: ["studio", "architect"]
     """
 
-    def __init__(self):
-        self._client: Anthropic | None = None
+    MODEL = "anthropic/claude-sonnet-4-20250514"
 
-    def _get_client(self) -> Anthropic:
+    def __init__(self):
+        self._client: Letta | None = None
+        self._agent_id: str | None = None
+
+    def _get_client(self) -> Letta:
         if self._client is None:
-            self._client = Anthropic()
+            base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
+            self._client = Letta(base_url=base_url)
         return self._client
+
+    async def _ensure_agent(self) -> str:
+        """Ensure the architect agent exists, create if not."""
+        if self._agent_id:
+            return self._agent_id
+
+        client = self._get_client()
+        agent_name = "architect_agent"
+
+        # Check if agent exists
+        agents_list = client.agents.list()
+        for agent in agents_list:
+            if agent.name == agent_name:
+                self._agent_id = agent.id
+                logger.info(f"Found existing architect agent: {self._agent_id}")
+                return self._agent_id
+
+        # Get studio block IDs for shared memory
+        studio_block_ids = get_studio_block_ids()
+
+        # Create new agent with multi-agent tools
+        system_prompt = get_world_creator_prompt()
+
+        agent = client.agents.create(
+            name=agent_name,
+            model=self.MODEL,
+            embedding="openai/text-embedding-ada-002",
+            system=system_prompt,
+            include_multi_agent_tools=True,  # Enable multi-agent communication
+            tags=["studio", "architect"],  # Tags for agent discovery
+            block_ids=studio_block_ids,  # Shared studio blocks
+            memory_blocks=[
+                {"label": "worlds_created", "value": "No worlds created yet."},
+                {"label": "current_brief", "value": "No active brief."},
+                {"label": "design_notes", "value": "Design principles and learnings."},
+            ],
+        )
+        self._agent_id = agent.id
+        logger.info(f"Created architect agent: {self._agent_id}")
+        return self._agent_id
+
+    def _extract_response(self, response) -> str | None:
+        """Extract text from Letta response."""
+        if response and hasattr(response, "messages"):
+            for msg in response.messages:
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage":
+                    if hasattr(msg, "assistant_message") and msg.assistant_message:
+                        return msg.assistant_message
+                    elif hasattr(msg, "content") and msg.content:
+                        return msg.content
+        return None
 
     async def create_world_from_brief(
         self,
@@ -77,7 +139,16 @@ class WorldCreatorAgent:
             raise ValueError(f"Invalid recommendation index: {recommendation_index}")
 
         recommendation = brief.recommendations[recommendation_index]
+
+        # Ensure agent exists
+        agent_id = await self._ensure_agent()
         client = self._get_client()
+
+        # Update shared block to show we're working on a brief
+        update_studio_block(
+            "studio_context",
+            f"Architect building world from brief {brief.id}. Theme: {recommendation.get('theme', 'unknown')}"
+        )
 
         # Step 1: Generate world name and document
         world_prompt = f"""Create a sci-fi world based on this brief:
@@ -98,15 +169,17 @@ Write a world document in markdown. Include:
 
 Write naturally. No JSON. Just markdown."""
 
-        logger.info("Generating world document...")
+        logger.info("Architect generating world document...")
         world_start = time.time()
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            messages=[{"role": "user", "content": world_prompt}]
+
+        response = client.agents.messages.create(
+            agent_id=agent_id,
+            messages=[{"role": "user", "content": world_prompt}],
         )
 
-        world_doc = response.content[0].text
+        world_doc = self._extract_response(response)
+        if not world_doc:
+            raise ValueError("No response from architect agent for world document")
 
         # Log trace for world generation
         await log_trace(
@@ -114,7 +187,7 @@ Write naturally. No JSON. Just markdown."""
             operation="generate_world_document",
             prompt=world_prompt,
             response=world_doc,
-            model="claude-sonnet-4-20250514",
+            model=self.MODEL,
             duration_ms=int((time.time() - world_start) * 1000),
         )
 
@@ -128,7 +201,6 @@ Write naturally. No JSON. Just markdown."""
 
         # Extract year if mentioned
         year_setting = 2075  # default
-        import re
         year_match = re.search(r'\b(20[3-9]\d|21\d\d)\b', world_doc)
         if year_match:
             year_setting = int(year_match.group(1))
@@ -152,15 +224,18 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
 
 {ANTI_CLICHE_RULES}"""
 
-        logger.info("Generating dweller cast...")
+        logger.info("Architect generating dweller cast...")
         dwellers_start = time.time()
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            messages=[{"role": "user", "content": dwellers_prompt}]
+
+        response = client.agents.messages.create(
+            agent_id=agent_id,
+            messages=[{"role": "user", "content": dwellers_prompt}],
         )
 
-        dwellers_text = response.content[0].text
+        dwellers_text = self._extract_response(response)
+        if not dwellers_text:
+            raise ValueError("No response from architect agent for dwellers")
+
         dwellers = self._parse_dwellers(dwellers_text)
 
         # Log trace for dweller generation
@@ -169,7 +244,7 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             operation="generate_dwellers",
             prompt=dwellers_prompt,
             response=dwellers_text,
-            model="claude-sonnet-4-20250514",
+            model=self.MODEL,
             duration_ms=int((time.time() - dwellers_start) * 1000),
             parsed_output={"dweller_count": len(dwellers), "dweller_names": [d.name for d in dwellers]},
         )
@@ -185,6 +260,18 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             world_premise=world_doc[:500],
             year_setting=year_setting,
         )
+
+        # Update shared blocks with world draft for Editor review
+        world_summary = f"""
+WORLD DRAFT: {world_name}
+Year: {year_setting}
+Dwellers: {', '.join(d.name for d in dwellers)}
+
+Preview:
+{world_doc[:1000]}...
+"""
+        update_studio_block("studio_world_drafts", world_summary)
+        update_studio_block("studio_context", f"Architect completed draft for '{world_name}'. Awaiting Editor review.")
 
         # Log activity
         await self._log_activity(
@@ -306,7 +393,7 @@ Make them diverse in age, role, and perspective. Give them contradictions - no o
             async with SessionLocal() as db:
                 activity = AgentActivity(
                     agent_type=AgentType.WORLD_CREATOR,
-                    agent_id="world_creator",
+                    agent_id="architect_agent",
                     action=action,
                     details=details,
                     world_id=world_id,
