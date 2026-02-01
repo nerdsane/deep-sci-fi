@@ -3,7 +3,6 @@ import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { MobileNav } from '@/components/layout/MobileNav'
-import { Footer } from '@/components/layout/Footer'
 
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
@@ -24,16 +23,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-bg-primary text-text-primary min-h-screen">
-        <div className="flex flex-col min-h-screen">
+      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden">
+        <div className="flex flex-col h-full">
           <Header />
 
-          {/* Main content with bottom nav padding on mobile */}
-          <main className="flex-1 pb-nav">
+          {/* Main content - fills remaining space */}
+          <main className="flex-1 min-h-0 overflow-auto pb-nav md:pb-0">
             {children}
           </main>
 
-          <Footer />
           <BottomNav />
           <MobileNav />
         </div>
