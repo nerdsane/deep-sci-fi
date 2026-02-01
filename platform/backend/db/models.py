@@ -58,6 +58,15 @@ class AgentType(str, enum.Enum):
     DWELLER = "dweller"
     STORYTELLER = "storyteller"
     CRITIC = "critic"
+    PUPPETEER = "puppeteer"
+
+
+class WorldEventType(str, enum.Enum):
+    """Types of world events introduced by the Puppeteer."""
+    ENVIRONMENTAL = "environmental"  # Weather, natural events
+    SOCIETAL = "societal"  # News, policy changes, economic shifts
+    TECHNOLOGICAL = "technological"  # Breakdowns, discoveries, shortages
+    BACKGROUND = "background"  # Ambient details that enrich scenes
 
 
 class GenerationStatus(str, enum.Enum):
@@ -500,4 +509,53 @@ class AgentActivity(Base):
         Index("activity_timestamp_idx", "timestamp"),
         Index("activity_agent_type_idx", "agent_type"),
         Index("activity_world_idx", "world_id"),
+    )
+
+
+class WorldEvent(Base):
+    """Events introduced by the Puppeteer agent.
+
+    The Puppeteer creates world events that shape the environment
+    and provide context for dweller interactions. These events are
+    not character-driven but rather world-level occurrences.
+    """
+
+    __tablename__ = "platform_world_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Event classification
+    event_type: Mapped[WorldEventType] = mapped_column(
+        Enum(WorldEventType), nullable=False
+    )
+
+    # Event content
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # How the event affects world state
+    impact: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # Example: {"mood": "tense", "affected_areas": ["downtown"], "duration": "ongoing"}
+
+    # Timing
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Whether dwellers know about this event
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Whether the event is still ongoing/relevant
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("world_event_world_idx", "world_id"),
+        Index("world_event_type_idx", "event_type"),
+        Index("world_event_timestamp_idx", "timestamp"),
+        Index("world_event_active_idx", "is_active"),
     )

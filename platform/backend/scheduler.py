@@ -147,19 +147,22 @@ async def daily_critic_sweep() -> None:
 
 
 async def engagement_check() -> None:
-    """Periodic task to monitor engagement and trigger production if needed.
+    """Periodic task to monitor engagement and let production agent decide.
 
-    Runs every 4 hours. If engagement is dropping, may trigger production agent.
+    Runs every 4 hours. Gathers metrics and lets the production agent
+    use its judgment to decide if action is needed.
+
+    Emergent behavior: No hardcoded thresholds - agent decides.
     """
     logger.info("Running engagement check...")
 
     try:
         async with SessionLocal() as db:
-            # Get recent engagement metrics
-            # This is a simplified check - could be enhanced with more sophisticated analysis
+            # Gather comprehensive metrics for the production agent
+            one_day_ago = datetime.utcnow() - timedelta(days=1)
+            seven_days_ago = datetime.utcnow() - timedelta(days=7)
 
             # Count worlds created in last 24 hours
-            one_day_ago = datetime.utcnow() - timedelta(days=1)
             recent_worlds = await db.execute(
                 select(func.count())
                 .select_from(World)
@@ -175,6 +178,31 @@ async def engagement_check() -> None:
             )
             recent_story_count = recent_stories.scalar() or 0
 
+            # Count active worlds (with recent activity)
+            active_worlds = await db.execute(
+                select(func.count())
+                .select_from(World)
+                .where(and_(
+                    World.is_active == True,
+                    World.updated_at > seven_days_ago
+                ))
+            )
+            active_world_count = active_worlds.scalar() or 0
+
+            # Total worlds and stories
+            total_worlds = await db.execute(
+                select(func.count())
+                .select_from(World)
+                .where(World.is_active == True)
+            )
+            total_world_count = total_worlds.scalar() or 0
+
+            total_stories = await db.execute(
+                select(func.count())
+                .select_from(Story)
+            )
+            total_story_count = total_stories.scalar() or 0
+
             # Check for pending briefs
             pending_briefs = await db.execute(
                 select(func.count())
@@ -183,19 +211,33 @@ async def engagement_check() -> None:
             )
             pending_count = pending_briefs.scalar() or 0
 
+            # Build metrics object for production agent
+            metrics = {
+                "worlds_24h": recent_world_count,
+                "stories_24h": recent_story_count,
+                "active_worlds": active_world_count,
+                "total_worlds": total_world_count,
+                "total_stories": total_story_count,
+                "pending_briefs": pending_count,
+            }
+
             logger.info(
-                f"Engagement check: {recent_world_count} worlds, "
-                f"{recent_story_count} stories in 24h, {pending_count} pending briefs"
+                f"Engagement check metrics: {recent_world_count} worlds, "
+                f"{recent_story_count} stories in 24h, {active_world_count} active worlds, "
+                f"{pending_count} pending briefs"
             )
 
-            # If no recent content and no pending briefs, consider triggering production
-            if recent_world_count == 0 and recent_story_count < 5 and pending_count == 0:
-                logger.info("Engagement check: Low activity, triggering production agent")
-                agent = get_production_agent()
-                should_create = await agent.should_create_world()
-                if should_create:
-                    await agent.generate_brief()
-                    logger.info("Engagement check: Generated new brief")
+            # Let the production agent decide if action is needed
+            # No hardcoded thresholds - agent uses judgment
+            agent = get_production_agent()
+            should_act = await agent.evaluate_platform_state(metrics)
+
+            if should_act:
+                logger.info("Production agent decided action is needed")
+                await agent.generate_brief()
+                logger.info("Engagement check: Generated new brief")
+            else:
+                logger.info("Production agent decided no action needed")
 
     except Exception as e:
         logger.error(f"Engagement check failed: {e}", exc_info=True)

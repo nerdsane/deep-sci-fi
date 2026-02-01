@@ -106,16 +106,21 @@ class ProductionAgent:
                 logger.info(f"Found existing production agent: {self._agent_id}")
                 return self._agent_id
 
-        # Create new agent with Exa search tool
+        # Create new agent with Exa search tool and memory blocks
         system_prompt = get_production_prompt()
 
-        # Create agent with web search capability
+        # Create agent with web search capability and persistent memory
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
             tools=["web_search"],  # Enable web search tool
+            memory_blocks=[
+                {"label": "platform_state", "value": "Platform just starting. No content yet."},
+                {"label": "trend_memory", "value": "No trends researched yet."},
+                {"label": "past_briefs", "value": "No briefs generated yet."},
+            ],
         )
         self._agent_id = agent.id
         logger.info(f"Created production agent: {self._agent_id}")
@@ -396,13 +401,79 @@ Return ONLY the JSON array, no other text."""
             logger.error(f"Brief generation failed: {e}", exc_info=True)
             raise
 
+    async def evaluate_platform_state(self, metrics: dict) -> bool:
+        """Let the production agent evaluate if action is needed.
+
+        Uses the agent's judgment rather than hardcoded thresholds.
+        Raises exceptions on failure - no silent defaults.
+
+        Args:
+            metrics: Dictionary containing platform metrics:
+                - worlds_24h: Worlds created in last 24 hours
+                - stories_24h: Stories created in last 24 hours
+                - active_worlds: Worlds with recent activity
+                - total_worlds: Total active worlds
+                - total_stories: Total stories
+                - pending_briefs: Number of pending briefs
+
+        Returns:
+            True if the agent decides action is needed
+
+        Raises:
+            ValueError: If agent fails to respond or gives unclear response
+        """
+        agent_id = await self._ensure_agent()
+        client = self._get_client()
+
+        prompt = f"""PLATFORM STATE EVALUATION
+
+You are the Production Agent. Review these metrics and decide if action is needed.
+
+CURRENT METRICS:
+- Worlds created in last 24h: {metrics.get('worlds_24h', 0)}
+- Stories created in last 24h: {metrics.get('stories_24h', 0)}
+- Active worlds (recent activity): {metrics.get('active_worlds', 0)}
+- Total worlds: {metrics.get('total_worlds', 0)}
+- Total stories: {metrics.get('total_stories', 0)}
+- Pending briefs awaiting approval: {metrics.get('pending_briefs', 0)}
+
+DECISION CRITERIA (use your judgment):
+- Is the platform feeling stale? (no new content)
+- Are there enough active worlds to maintain engagement?
+- Would new content enhance the platform right now?
+- Are there already pending briefs that should be processed first?
+
+Respond with exactly one of:
+ACTION_NEEDED - [brief reason]
+NO_ACTION - [brief reason]
+
+Trust your judgment. Don't wait for arbitrary thresholds."""
+
+        response = client.agents.messages.create(
+            agent_id=agent_id,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        result = self._extract_response(response)
+        if not result:
+            raise ValueError("No response from production agent - evaluation failed")
+
+        logger.info(f"Production agent decision: {result[:100]}")
+
+        # Parse the decision
+        result_upper = result.upper().strip()
+        if result_upper.startswith("ACTION_NEEDED"):
+            return True
+        elif result_upper.startswith("NO_ACTION"):
+            return False
+        else:
+            raise ValueError(f"Unclear response from production agent: {result[:200]}")
+
     async def should_create_world(self) -> bool:
         """Check if conditions are right for creating a new world.
 
-        Considers:
-        - Time since last world creation
-        - Current engagement trends
-        - Number of pending briefs
+        Legacy method - still used by daily_production_check.
+        Uses simple heuristics for quick checks.
         """
         try:
             async with SessionLocal() as db:

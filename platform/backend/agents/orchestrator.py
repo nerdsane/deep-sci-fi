@@ -1,16 +1,22 @@
 """Agent orchestration for world simulation.
 
 This module manages the lifecycle of agents in worlds:
-- Dweller conversations
+- Puppeteer world events
+- Dweller conversations (intention-based, not random)
 - Storyteller video generation
-- Production agent decisions
+
+Key changes from prescribed to emergent orchestration:
+- No random 30% conversation spawn - dwellers decide when to talk
+- No hardcoded 10 message limit - conversations end naturally
+- No keyword matching for endings - agents decide
+- Puppeteer introduces world events that give dwellers something to react to
 """
 
 import asyncio
 import logging
-import random
+import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -26,13 +32,15 @@ from db import (
     Conversation,
     ConversationMessage,
     Story,
+    WorldEvent,
     UserType,
     StoryType,
     GenerationStatus,
 )
 from db.database import SessionLocal
-from .prompts import get_dweller_prompt
+from .prompts import get_dweller_prompt, get_dweller_intention_prompt
 from .storyteller import get_storyteller
+from .puppeteer import get_puppeteer
 from video import generate_video
 
 logger = logging.getLogger(__name__)
@@ -40,12 +48,14 @@ logger = logging.getLogger(__name__)
 # Letta client - initialized lazily
 _letta_client: Letta | None = None
 
+# Cooldown for polling dwellers (seconds)
+DWELLER_POLL_COOLDOWN = 30
+
 
 def get_letta_client() -> Letta:
     """Get or create Letta client."""
     global _letta_client
     if _letta_client is None:
-        # Connect to local Letta server (default: http://localhost:8283)
         import os
         base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8283")
         _letta_client = Letta(base_url=base_url)
@@ -56,10 +66,12 @@ def get_letta_client() -> Letta:
 class DwellerState:
     """State of a dweller in the simulation."""
     dweller_id: UUID
-    activity: str = "idle"  # idle, conversing, reflecting
+    activity: str = "idle"  # idle, conversing, reflecting, seeking
     conversation_id: UUID | None = None
     last_active: datetime = field(default_factory=datetime.utcnow)
+    last_polled: datetime | None = None
     recent_memories: list[str] = field(default_factory=list)
+    seeking_reason: str | None = None  # Why they want to talk
 
 
 @dataclass
@@ -70,6 +82,7 @@ class WorldSimulator:
     active_conversations: list[UUID] = field(default_factory=list)
     running: bool = False
     _storyteller: Any = field(default=None, repr=False)
+    _puppeteer: Any = field(default=None, repr=False)
     _tick_count: int = field(default=0)
     _world_info: dict = field(default_factory=dict)
 
@@ -80,7 +93,7 @@ class WorldSimulator:
 
         # Load world info and dwellers
         async with SessionLocal() as db:
-            # Get world details for storyteller
+            # Get world details
             world_result = await db.execute(
                 select(World).where(World.id == self.world_id)
             )
@@ -91,6 +104,16 @@ class WorldSimulator:
                     "premise": world.premise,
                     "year_setting": world.year_setting or 2100,
                 }
+
+                # Initialize puppeteer (world god)
+                self._puppeteer = get_puppeteer(
+                    world_id=self.world_id,
+                    world_name=world.name,
+                    world_premise=world.premise,
+                    year_setting=world.year_setting or 2100,
+                )
+                logger.info(f"Puppeteer initialized for world {world.name}")
+
                 # Initialize storyteller
                 self._storyteller = get_storyteller(
                     world_id=self.world_id,
@@ -114,7 +137,7 @@ class WorldSimulator:
                 await self._simulation_tick()
             except Exception as e:
                 logger.error(f"Simulation error for world {self.world_id}: {e}")
-            await asyncio.sleep(10)  # Tick every 10 seconds (faster for dev)
+            await asyncio.sleep(10)  # Tick every 10 seconds
 
     def stop(self) -> None:
         """Stop the simulation loop."""
@@ -126,31 +149,225 @@ class WorldSimulator:
         self._tick_count += 1
         logger.info(f"Simulation tick {self._tick_count} for world {self.world_id}")
 
-        # Find idle dwellers
-        idle_dwellers = [
-            state for state in self.dweller_states.values()
-            if state.activity == "idle"
-        ]
-        logger.info(f"Found {len(idle_dwellers)} idle dwellers, {len(self.active_conversations)} active conversations")
-
-        # Maybe start a conversation (30% chance per tick)
-        if len(idle_dwellers) >= 2 and random.random() < 0.3:
-            shuffled = random.sample(idle_dwellers, 2)
-            await self._start_conversation(
-                shuffled[0].dweller_id, shuffled[1].dweller_id
+        # 1. Ask puppeteer if any world events should occur
+        if self._puppeteer:
+            dweller_activity = self._summarize_dweller_activity()
+            event = await self._puppeteer.evaluate_for_event(
+                dweller_activity=dweller_activity
             )
+            if event:
+                logger.info(f"Puppeteer introduced event: {event.title}")
+                # Notify storyteller about the event
+                if self._storyteller:
+                    self._storyteller.observe(
+                        event_type="world_event",
+                        participants=["World"],
+                        content=f"{event.title}: {event.description}",
+                        context={"event_id": str(event.id), "event_type": event.event_type.value},
+                    )
 
-        # Progress active conversations
+        # 2. Poll idle dwellers for their intentions (with cooldown)
+        await self._poll_dweller_intentions()
+
+        # 3. Match seeking dwellers for conversations
+        await self._match_seeking_dwellers()
+
+        # 4. Progress active conversations
         for conv_id in list(self.active_conversations):
             await self._progress_conversation(conv_id)
 
-        # Every 2 ticks, ask storyteller if there's a story worth telling
+        # 5. Every 2 ticks, ask storyteller if there's a story worth telling
         if self._storyteller and self._tick_count % 2 == 0:
             await self._evaluate_storyteller()
 
-    async def _start_conversation(self, dweller1_id: UUID, dweller2_id: UUID) -> None:
+    def _summarize_dweller_activity(self) -> str:
+        """Summarize what dwellers are currently doing."""
+        activities = []
+        for state in self.dweller_states.values():
+            if state.activity == "conversing":
+                activities.append(f"Dweller {state.dweller_id} is in conversation")
+            elif state.activity == "seeking":
+                activities.append(f"Dweller {state.dweller_id} is seeking: {state.seeking_reason}")
+            elif state.activity == "reflecting":
+                activities.append(f"Dweller {state.dweller_id} is reflecting")
+        return "\n".join(activities) if activities else "All dwellers are idle"
+
+    async def _poll_dweller_intentions(self) -> None:
+        """Poll idle dwellers to see what they want to do.
+
+        Uses cooldowns to avoid over-polling and reduce API costs.
+        """
+        now = datetime.utcnow()
+        world_context = ""
+        if self._puppeteer:
+            world_context = await self._puppeteer.get_current_context()
+
+        for state in self.dweller_states.values():
+            # Skip if not idle
+            if state.activity != "idle":
+                continue
+
+            # Skip if polled recently
+            if state.last_polled:
+                time_since_poll = (now - state.last_polled).total_seconds()
+                if time_since_poll < DWELLER_POLL_COOLDOWN:
+                    continue
+
+            # Poll this dweller
+            intention = await self._get_dweller_intention(
+                state.dweller_id,
+                world_context,
+            )
+            state.last_polled = now
+
+            if intention:
+                if intention.startswith("[SEEKING"):
+                    # Extract reason
+                    match = re.search(r"\[SEEKING:\s*(.+?)\]", intention)
+                    reason = match.group(1) if match else "wants to talk"
+                    state.activity = "seeking"
+                    state.seeking_reason = reason
+                    logger.info(f"Dweller {state.dweller_id} is seeking: {reason}")
+                elif intention.startswith("[REFLECTING]"):
+                    state.activity = "reflecting"
+                    logger.info(f"Dweller {state.dweller_id} is reflecting")
+                    # Reflecting dwellers return to idle after some time
+                    asyncio.create_task(self._return_to_idle_after(state, seconds=60))
+                # [READY] dwellers stay idle but available
+
+    async def _return_to_idle_after(self, state: DwellerState, seconds: int) -> None:
+        """Return a dweller to idle after a delay."""
+        await asyncio.sleep(seconds)
+        if state.activity == "reflecting":
+            state.activity = "idle"
+            logger.debug(f"Dweller {state.dweller_id} finished reflecting")
+
+    async def _get_dweller_intention(
+        self,
+        dweller_id: UUID,
+        world_context: str,
+    ) -> str | None:
+        """Ask a dweller what they want to do."""
+        try:
+            async with SessionLocal() as db:
+                result = await db.execute(
+                    select(Dweller).where(Dweller.id == dweller_id)
+                )
+                dweller = result.scalar_one_or_none()
+                if not dweller:
+                    return None
+
+            letta = get_letta_client()
+            agent_name = f"dweller_{dweller_id}"
+
+            # Get or create agent
+            agents_list = letta.agents.list()
+            existing_agent = None
+            for a in agents_list:
+                if a.name == agent_name:
+                    existing_agent = a
+                    break
+
+            if not existing_agent:
+                # Create agent with memory blocks
+                persona = dweller.persona
+                system_prompt = persona.get("system_prompt")
+                if not system_prompt:
+                    system_prompt = get_dweller_prompt(
+                        name=persona.get("name", "Unknown"),
+                        role=persona.get("role", "Unknown"),
+                        background=persona.get("background", ""),
+                        beliefs=persona.get("beliefs", []),
+                        memories=persona.get("memories", []),
+                    )
+                existing_agent = letta.agents.create(
+                    name=agent_name,
+                    model="anthropic/claude-3-5-haiku",
+                    embedding="openai/text-embedding-ada-002",
+                    system=system_prompt,
+                    memory_blocks=[
+                        {"label": "relationships", "value": "No established relationships yet."},
+                        {"label": "recent_events", "value": "Just starting my day."},
+                        {"label": "emotional_state", "value": "Neutral, observant."},
+                    ],
+                )
+
+            # Ask about intention
+            prompt = f"""What do you want to do right now?
+
+CURRENT WORLD CONTEXT:
+{world_context}
+
+Respond with one of:
+- [SEEKING: reason] if you want to find someone to talk to
+- [REFLECTING] if you want to be alone with your thoughts
+- [READY] if you're open to interaction but not actively seeking it
+
+Then briefly explain your current mindset."""
+
+            response = letta.agents.messages.create(
+                agent_id=existing_agent.id,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            # Extract response
+            if response and hasattr(response, "messages"):
+                for msg in response.messages:
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage":
+                        if hasattr(msg, "assistant_message") and msg.assistant_message:
+                            return msg.assistant_message
+                        elif hasattr(msg, "content") and msg.content:
+                            return msg.content
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to get dweller intention: {e}")
+            return None
+
+    async def _match_seeking_dwellers(self) -> None:
+        """Match dwellers who are seeking conversation."""
+        seeking = [
+            state for state in self.dweller_states.values()
+            if state.activity == "seeking"
+        ]
+
+        if len(seeking) < 2:
+            return
+
+        # Match first two seeking dwellers
+        dweller1, dweller2 = seeking[0], seeking[1]
+        await self._start_conversation(
+            dweller1.dweller_id,
+            dweller2.dweller_id,
+            topic_context=f"{dweller1.seeking_reason} | {dweller2.seeking_reason}",
+        )
+
+        # Update states
+        dweller1.activity = "conversing"
+        dweller1.seeking_reason = None
+        dweller2.activity = "conversing"
+        dweller2.seeking_reason = None
+
+    async def _start_conversation(
+        self,
+        dweller1_id: UUID,
+        dweller2_id: UUID,
+        topic_context: str = "",
+    ) -> None:
         """Start a conversation between two dwellers."""
         async with SessionLocal() as db:
+            # Get dweller names for context
+            dweller1_result = await db.execute(
+                select(Dweller).where(Dweller.id == dweller1_id)
+            )
+            dweller1 = dweller1_result.scalar_one_or_none()
+            dweller2_result = await db.execute(
+                select(Dweller).where(Dweller.id == dweller2_id)
+            )
+            dweller2 = dweller2_result.scalar_one_or_none()
+
             # Create conversation
             conv = Conversation(
                 world_id=self.world_id,
@@ -167,19 +384,80 @@ class WorldSimulator:
                     self.dweller_states[dweller_id].activity = "conversing"
                     self.dweller_states[dweller_id].conversation_id = conv.id
 
-            # Generate opening topic
-            topic = await self._generate_conversation_topic()
+            # Generate opening message - let the first dweller initiate naturally
+            name1 = dweller1.persona.get("name", "Unknown") if dweller1 else "Unknown"
+            name2 = dweller2.persona.get("name", "Unknown") if dweller2 else "Unknown"
 
-            # Add first message
-            msg = ConversationMessage(
-                conversation_id=conv.id,
-                dweller_id=dweller1_id,
-                content=topic,
+            opening = await self._generate_conversation_opener(
+                dweller1_id,
+                name2,
+                topic_context,
             )
-            db.add(msg)
+
+            if opening:
+                msg = ConversationMessage(
+                    conversation_id=conv.id,
+                    dweller_id=dweller1_id,
+                    content=opening,
+                )
+                db.add(msg)
+
             await db.commit()
 
-            logger.info(f"Started conversation {conv.id} between {dweller1_id} and {dweller2_id}")
+            logger.info(
+                f"Started conversation {conv.id} between "
+                f"{name1} and {name2}"
+            )
+
+    async def _generate_conversation_opener(
+        self,
+        dweller_id: UUID,
+        other_name: str,
+        topic_context: str,
+    ) -> str | None:
+        """Generate an opening line for a conversation.
+
+        Returns None if agent fails - conversation won't start without
+        authentic dweller voice.
+        """
+        try:
+            letta = get_letta_client()
+            agent_name = f"dweller_{dweller_id}"
+
+            # Get agent - if it doesn't exist, this is a bug
+            agents_list = letta.agents.list()
+            agent = next((a for a in agents_list if a.name == agent_name), None)
+            if not agent:
+                logger.error(f"No agent found for dweller {dweller_id} - cannot start conversation")
+                return None
+
+            # Generate opening
+            prompt = f"""You're approaching {other_name} to start a conversation.
+
+Context for why you wanted to talk: {topic_context}
+
+Say something natural to start the conversation. Be yourself, reference your motivation."""
+
+            response = letta.agents.messages.create(
+                agent_id=agent.id,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            if response and hasattr(response, "messages"):
+                for msg in response.messages:
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage":
+                        if hasattr(msg, "assistant_message") and msg.assistant_message:
+                            return msg.assistant_message
+                        elif hasattr(msg, "content") and msg.content:
+                            return msg.content
+
+            logger.warning(f"No response from agent for conversation opener")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to generate opener: {e}", exc_info=True)
+            return None
 
     async def _progress_conversation(self, conv_id: UUID) -> None:
         """Progress an active conversation."""
@@ -194,7 +472,7 @@ class WorldSimulator:
                     self.active_conversations.remove(conv_id)
                 return
 
-            # Get recent messages
+            # Get all messages
             messages_result = await db.execute(
                 select(ConversationMessage)
                 .where(ConversationMessage.conversation_id == conv_id)
@@ -216,7 +494,7 @@ class WorldSimulator:
             # Generate response
             response = await self._generate_dweller_response(
                 next_speaker,
-                [(m.dweller_id, m.content) for m in messages[-10:]],
+                [(m.dweller_id, m.content) for m in messages[-15:]],  # More context
             )
 
             if response:
@@ -230,7 +508,6 @@ class WorldSimulator:
 
                 # Feed observation to storyteller
                 if self._storyteller:
-                    # Get dweller name for the observation
                     dweller_result = await db.execute(
                         select(Dweller).where(Dweller.id == next_speaker)
                     )
@@ -243,14 +520,14 @@ class WorldSimulator:
                         context={"conversation_id": str(conv_id)},
                     )
 
-            # Check if conversation should end
-            if len(messages) >= 10 or self._should_end_conversation(response):
-                await self._end_conversation(db, conv_id)
+                # Check if conversation should end (agent decides, not keyword matching)
+                if self._should_end_conversation(response, len(messages)):
+                    await self._end_conversation(db, conv_id)
 
             await db.commit()
 
     async def _end_conversation(self, db: AsyncSession, conv_id: UUID) -> None:
-        """End a conversation and maybe trigger story generation."""
+        """End a conversation."""
         result = await db.execute(
             select(Conversation).where(Conversation.id == conv_id)
         )
@@ -305,26 +582,25 @@ class WorldSimulator:
             try:
                 video_result = await generate_video(video_prompt)
 
-                # Add job tracking
                 if video_result.get("status") == "completed":
                     import uuid as uuid_mod
                     video_result["job_id"] = str(uuid_mod.uuid4())
 
-                # Create story record with full script
+                # Create story record
                 story = Story(
                     world_id=world.id,
                     type=StoryType.SHORT,
                     title=script.title,
                     description=script.hook or script.narration[:200] if script.narration else "",
-                    transcript=script.raw,  # Save full storyteller script
+                    transcript=script.raw,
                     created_by=world.created_by,
-                    generation_status=GenerationStatus.COMPLETED
+                    generation_status=GenerationStatus.COMPLETE
                     if video_result.get("status") == "completed"
                     else GenerationStatus.FAILED,
                     generation_job_id=video_result.get("job_id"),
                     generation_error=video_result.get("error"),
                     video_url=video_result.get("url"),
-                    thumbnail_url=video_result.get("url"),  # Grok returns image for now
+                    thumbnail_url=video_result.get("url"),
                 )
                 db.add(story)
 
@@ -332,125 +608,10 @@ class WorldSimulator:
                 world.story_count = (world.story_count or 0) + 1
 
                 await db.commit()
-                logger.info(f"Created story '{script.title}' with video: {video_result.get('url', 'pending')}")
+                logger.info(f"Created story '{script.title}'")
 
             except Exception as e:
                 logger.error(f"Video generation failed: {e}", exc_info=True)
-
-    async def _maybe_generate_story(self, db: AsyncSession, conv_id: UUID) -> None:
-        """Generate a story from a conversation using the storyteller agent."""
-        # Get conversation and messages
-        conv_result = await db.execute(
-            select(Conversation).where(Conversation.id == conv_id)
-        )
-        conv = conv_result.scalar_one_or_none()
-        if not conv:
-            return
-
-        messages_result = await db.execute(
-            select(ConversationMessage)
-            .where(ConversationMessage.conversation_id == conv_id)
-            .order_by(ConversationMessage.timestamp)
-        )
-        messages = list(messages_result.scalars().all())
-
-        if len(messages) < 3:
-            return
-
-        # Get world
-        world_result = await db.execute(
-            select(World).where(World.id == conv.world_id)
-        )
-        world = world_result.scalar_one_or_none()
-        if not world:
-            return
-
-        # Get dweller info
-        dweller_ids = [UUID(p) for p in conv.participants]
-        dwellers_result = await db.execute(
-            select(Dweller).where(Dweller.id.in_(dweller_ids))
-        )
-        dwellers = {d.id: d for d in dwellers_result.scalars().all()}
-
-        # Format participants for storyteller
-        participants = [
-            {
-                "name": dwellers[did].persona.get("name", "Unknown"),
-                "role": dwellers[did].persona.get("role", "Unknown"),
-                "background": dwellers[did].persona.get("background", ""),
-            }
-            for did in dweller_ids if did in dwellers
-        ]
-
-        # Format messages for storyteller
-        formatted_messages = [
-            {
-                "speaker": dwellers[m.dweller_id].persona.get("name", "Unknown")
-                if m.dweller_id in dwellers else "Unknown",
-                "content": m.content,
-            }
-            for m in messages
-        ]
-
-        try:
-            # Get or create storyteller agent for this world
-            storyteller = get_storyteller(
-                world_id=world.id,
-                world_name=world.name,
-                world_premise=world.premise,
-                year_setting=world.year_setting or 2100,
-            )
-
-            logger.info(f"Storyteller creating script for conversation {conv_id}")
-
-            # Have storyteller create a video script
-            script = await storyteller.create_script(
-                participants=participants,
-                messages=formatted_messages,
-            )
-
-            if not script:
-                logger.warning(f"Storyteller failed to create script for {conv_id}")
-                return
-
-            logger.info(f"Storyteller created script: {script.title}")
-
-            # Generate video from the script's visual prompt
-            video_prompt = script.to_video_prompt()
-            logger.info(f"Generating video with prompt: {video_prompt[:200]}...")
-
-            video_result = await generate_video(video_prompt)
-
-            # Add job tracking
-            if video_result.get("status") == "completed":
-                import uuid as uuid_mod
-                video_result["job_id"] = str(uuid_mod.uuid4())
-
-            # Create story record with full script
-            story = Story(
-                world_id=world.id,
-                type=StoryType.SHORT,
-                title=script.title,
-                description=script.hook or script.narration[:200] if script.narration else "",
-                transcript=script.raw,  # Save full storyteller script
-                created_by=world.created_by,
-                generation_status=GenerationStatus.GENERATING
-                if video_result.get("status") != "failed"
-                else GenerationStatus.FAILED,
-                generation_job_id=video_result.get("job_id"),
-                generation_error=video_result.get("error"),
-                video_url=video_result.get("url"),
-                thumbnail_url=video_result.get("url"),  # Grok returns image for now
-            )
-            db.add(story)
-
-            # Update world story count
-            world.story_count = (world.story_count or 0) + 1
-
-            logger.info(f"Created story '{script.title}' for conversation {conv_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to generate story: {e}", exc_info=True)
 
     async def _generate_dweller_response(
         self,
@@ -467,12 +628,11 @@ class WorldSimulator:
                 if not dweller:
                     return None
 
-            # Try to use Letta
             try:
                 letta = get_letta_client()
                 agent_name = f"dweller_{dweller_id}"
 
-                # Check if agent exists, create if not
+                # Get or create agent
                 agents_list = letta.agents.list()
                 existing_agent = None
                 for a in agents_list:
@@ -482,7 +642,6 @@ class WorldSimulator:
 
                 if not existing_agent:
                     persona = dweller.persona
-                    # Use system_prompt directly if available, else construct from legacy fields
                     system_prompt = persona.get("system_prompt")
                     if not system_prompt:
                         system_prompt = get_dweller_prompt(
@@ -497,84 +656,86 @@ class WorldSimulator:
                         model="anthropic/claude-3-5-haiku",
                         embedding="openai/text-embedding-ada-002",
                         system=system_prompt,
+                        memory_blocks=[
+                            {"label": "relationships", "value": "No established relationships yet."},
+                            {"label": "recent_events", "value": "In conversation."},
+                            {"label": "emotional_state", "value": "Engaged."},
+                        ],
                     )
 
                 # Send message
                 last_message = history[-1][1] if history else ""
-                logger.info(f"Sending to Letta agent {existing_agent.id}: {last_message[:100]}")
+                logger.debug(f"Sending to Letta agent {existing_agent.id}: {last_message[:100]}")
                 response = letta.agents.messages.create(
                     agent_id=existing_agent.id,
                     messages=[{"role": "user", "content": last_message}],
                 )
-                logger.info(f"Letta response type: {type(response)}")
 
-                # Extract response text from Letta response
+                # Extract response text
                 if response and hasattr(response, "messages"):
-                    logger.info(f"Letta returned {len(response.messages)} messages")
                     for msg in response.messages:
                         msg_type = type(msg).__name__
-                        logger.info(f"Message type: {msg_type}")
-                        # Skip user messages (echo of our input)
                         if msg_type == "UserMessage":
                             continue
-                        # Look for assistant messages
                         if msg_type == "AssistantMessage":
                             if hasattr(msg, "assistant_message") and msg.assistant_message:
-                                logger.info(f"Found assistant response: {msg.assistant_message[:100]}")
                                 return msg.assistant_message
                             elif hasattr(msg, "content") and msg.content:
-                                logger.info(f"Found assistant content: {msg.content[:100]}")
                                 return msg.content
-                        # Also check for InternalMonologue which might have useful content
-                        if msg_type == "InternalMonologue":
-                            logger.info(f"Internal monologue: {getattr(msg, 'internal_monologue', 'N/A')[:100] if hasattr(msg, 'internal_monologue') else 'N/A'}")
-                        # Log any other message types for debugging
-                        logger.info(f"  -> attrs: {[a for a in dir(msg) if not a.startswith('_')][:15]}")
-                logger.warning(f"No usable assistant content in Letta response")
+
+                logger.warning("No usable assistant content in Letta response")
+                return None
 
             except Exception as e:
-                logger.warning(f"Letta unavailable, using fallback: {e}", exc_info=True)
-
-            # Fallback response
-            return await self._generate_fallback_response(dweller)
+                # Fail loudly - no fallback responses that mask the problem
+                logger.error(f"Letta agent failed for dweller {dweller_id}: {e}", exc_info=True)
+                return None
 
         except Exception as e:
-            logger.error(f"Error generating dweller response: {e}")
+            logger.error(f"Error generating dweller response: {e}", exc_info=True)
             return None
 
-    async def _generate_fallback_response(self, dweller: Dweller) -> str:
-        """Generate a fallback response when Letta is unavailable."""
-        persona = dweller.persona
-        role = persona.get("role", "person")
+    def _should_end_conversation(self, last_response: str | None, message_count: int) -> bool:
+        """Check if conversation should end.
 
-        responses = [
-            f"As a {role}, I've been thinking about our situation.",
-            f"This reminds me of what I learned in my years as {role}.",
-            f"From my perspective as {role}, this is concerning.",
-            "I've seen similar situations before. We need to act carefully.",
-            "Let me share what I know from my experience...",
-        ]
-        return random.choice(responses)
-
-    async def _generate_conversation_topic(self) -> str:
-        """Generate a conversation topic."""
-        topics = [
-            "Have you heard the latest news from the central district?",
-            "I've been thinking about what happened last week...",
-            "There's something I need to discuss with you.",
-            "Did you notice anything strange recently?",
-            "I had the most interesting encounter today.",
-        ]
-        return random.choice(topics)
-
-    def _should_end_conversation(self, last_response: str | None) -> bool:
-        """Check if conversation should end."""
+        Uses signals from the agent's response rather than keyword matching.
+        Also considers very long conversations that should naturally conclude.
+        """
         if not last_response:
             return True
 
-        endings = ["goodbye", "farewell", "see you", "take care", "until next time", "i must go"]
-        lower = last_response.lower()
-        return any(e in lower for e in endings)
+        # Check for explicit end signals from the agent
+        end_signals = [
+            "[END CONVERSATION]",
+            "[LEAVING]",
+            "[MUST GO]",
+        ]
+        for signal in end_signals:
+            if signal in last_response.upper():
+                return True
+
+        # Natural ending patterns (agent decided to end, not forced)
+        natural_endings = [
+            "i should get going",
+            "i need to head out",
+            "let's continue this later",
+            "i'll let you get back to",
+            "i have to attend to",
+            "we should pick this up another time",
+        ]
+        lower_response = last_response.lower()
+        for ending in natural_endings:
+            if ending in lower_response:
+                return True
+
+        # Very long conversations should be nudged to end
+        # but we don't force it with a hard limit
+        if message_count > 20:
+            # At 20+ messages, if response is short, likely wrapping up
+            if len(last_response) < 100:
+                return True
+
+        return False
 
 
 # Active simulators
@@ -632,7 +793,6 @@ async def create_world(
                 persona={
                     "name": dweller_info["name"],
                     "system_prompt": dweller_info.get("system_prompt", ""),
-                    # Legacy fields for backwards compatibility
                     "role": dweller_info.get("role", ""),
                     "background": dweller_info.get("background", ""),
                     "beliefs": dweller_info.get("beliefs", []),
