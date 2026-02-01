@@ -112,33 +112,45 @@ class ProductionAgent:
         # Create new agent with web search tool and memory blocks
         system_prompt = get_production_prompt()
 
-        # Get studio block IDs for shared memory
-        studio_block_ids = get_studio_block_ids()
+        # Get studio block IDs for shared memory (optional, may fail)
+        try:
+            studio_block_ids = get_studio_block_ids()
+        except Exception as e:
+            logger.warning(f"Failed to get studio blocks: {e}")
+            studio_block_ids = []
 
-        # Get communication tool IDs
-        communication_tool_ids = await get_curator_tool_ids()
+        # Get communication tool IDs (optional, may fail with Letta API changes)
+        communication_tool_ids = []
+        try:
+            communication_tool_ids = await get_curator_tool_ids()
+        except Exception as e:
+            logger.warning(f"Failed to get communication tools: {e}. Proceeding without them.")
 
-        # Create agent with tools (works in latest Letta)
-        agent = client.agents.create(
-            name=agent_name,
-            model=self.MODEL,
-            embedding="openai/text-embedding-ada-002",
-            system=system_prompt,
-            tools=["web_search", "fetch_webpage"],  # Enable web search and page fetching
-            tool_ids=communication_tool_ids,  # Communication tools for maximum agency
-            include_multi_agent_tools=True,  # Enable multi-agent communication
-            tags=["studio", "curator"],  # Tags for agent discovery
-            block_ids=studio_block_ids,  # Shared studio blocks
-            memory_blocks=[
+        # Build agent create kwargs - only include optional params if they have values
+        create_kwargs = {
+            "name": agent_name,
+            "model": self.MODEL,
+            "embedding": "openai/text-embedding-ada-002",
+            "system": system_prompt,
+            "tools": ["web_search", "fetch_webpage"],  # Enable web search and page fetching
+            "include_multi_agent_tools": True,  # Enable multi-agent communication
+            "tags": ["studio", "curator"],  # Tags for agent discovery
+            "memory_blocks": [
                 {"label": "platform_state", "value": "Platform just starting. No content yet."},
                 {"label": "trend_memory", "value": "No trends researched yet."},
                 {"label": "past_briefs", "value": "No briefs generated yet."},
-                # NEW: Memory for communication and continuity
                 {"label": "pending_feedback", "value": "No pending feedback from Editor."},
                 {"label": "conversation_history", "value": "No conversations with other agents yet."},
                 {"label": "learned_patterns", "value": "What I've learned about what works."},
             ],
-        )
+        }
+        # Only add tool_ids and block_ids if they have values (Letta API rejects null)
+        if communication_tool_ids:
+            create_kwargs["tool_ids"] = communication_tool_ids
+        if studio_block_ids:
+            create_kwargs["block_ids"] = studio_block_ids
+
+        agent = client.agents.create(**create_kwargs)
         self._agent_id = agent.id
         logger.info(f"Created production agent: {self._agent_id}")
         return self._agent_id
@@ -368,33 +380,13 @@ Go explore. I'll wait."""
             # Format the curator's research
             research_text = self._format_curator_research(trend_research)
 
-            prompt = f"""Based on your research, pitch me some worlds.
+            prompt = f"""Research: {research_text[:500]}
 
-Here's what you found:
-{research_text}
+Platform: {engagement_analysis.total_worlds} worlds, avoid: {', '.join(engagement_analysis.saturated_themes[:3]) if engagement_analysis.saturated_themes else 'none'}
 
-Platform context:
-- {engagement_analysis.total_worlds} worlds exist, {engagement_analysis.total_stories} stories
-- Saturated (avoid): {', '.join(engagement_analysis.saturated_themes) if engagement_analysis.saturated_themes else 'nothing yet'}
+Give 3 world ideas as JSON. CRITICAL: Output ONLY the raw JSON array below. NO preamble, NO markdown, NO explanation. Just the array.
 
-Give me 3-5 world ideas you're genuinely excited about. For each one, I need it as JSON so I can process it:
-
-```json
-[
-  {{
-    "theme": "one line hook",
-    "premise_sketch": "the world in 2-3 sentences",
-    "core_question": "the what-if",
-    "source": "what real thing inspired this",
-    "rationale": "why now",
-    "fresh_angle": "how this avoids the cliché version",
-    "target_audience": "who would love this",
-    "estimated_appeal": "high/medium and why"
-  }}
-]
-```
-
-Pitch what excites YOU. Not what's safe."""
+[{{"theme":"hook","premise_sketch":"1 sentence","core_question":"what-if","rationale":"why now","target_audience":"who"}}]"""
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
@@ -408,13 +400,25 @@ Pitch what excites YOU. Not what's safe."""
 
             if result:
                 try:
+                    # Strip markdown code fences if present
+                    clean_result = result
+                    if '```json' in clean_result:
+                        clean_result = clean_result.split('```json', 1)[-1]
+                    if '```' in clean_result:
+                        clean_result = clean_result.split('```')[0]
+
                     # Find JSON array in response
-                    json_start = result.find('[')
-                    json_end = result.rfind(']') + 1
+                    json_start = clean_result.find('[')
+                    json_end = clean_result.rfind(']') + 1
                     if json_start >= 0 and json_end > json_start:
-                        recommendations = json.loads(result[json_start:json_end])
+                        json_text = clean_result[json_start:json_end]
+                        recommendations = json.loads(json_text)
+                    else:
+                        logger.warning(f"No complete JSON array found. Start: {json_start}, End: {json_end-1}")
+                        logger.warning(f"Response preview: {result[:500]}...")
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse recommendations JSON: {e}")
+                    logger.warning(f"Attempted to parse: {clean_result[:500] if clean_result else 'empty'}...")
 
             # Log trace with FULL agent activity
             await log_trace(
@@ -912,6 +916,160 @@ Then generate updated recommendations as JSON."""
                 "status": "error",
                 "error": str(e),
                 "collaboration_log": collaboration_log,
+            }
+
+    async def wake(self, context: dict | None = None) -> dict:
+        """Wake the Curator. They decide what to do from their identity.
+
+        No explicit instructions like "research trends" or "give world ideas".
+        The agent acts based on who they are and what they remember.
+
+        Args:
+            context: Optional external info (platform state, time since last wake)
+
+        Returns:
+            dict with actions taken, world ideas found, full trace
+        """
+        start_time = time.time()
+
+        try:
+            agent_id = await self._ensure_agent()
+            client = self._get_client()
+
+            # Gather platform context if not provided
+            if context is None:
+                context = {}
+
+            # Get platform stats for context
+            async with SessionLocal() as db:
+                world_count = await db.execute(
+                    select(func.count()).select_from(World).where(World.is_active == True)
+                )
+                context["total_worlds"] = world_count.scalar() or 0
+
+                pending_briefs = await db.execute(
+                    select(func.count())
+                    .select_from(ProductionBrief)
+                    .where(ProductionBrief.status == BriefStatus.PENDING)
+                )
+                context["pending_briefs"] = pending_briefs.scalar() or 0
+
+                # Get last activity
+                last_activity = await db.execute(
+                    select(AgentActivity)
+                    .where(AgentActivity.agent_type == AgentType.PRODUCTION)
+                    .order_by(AgentActivity.timestamp.desc())
+                    .limit(1)
+                )
+                activity = last_activity.scalar_one_or_none()
+                if activity:
+                    context["last_activity"] = f"{activity.action} at {activity.timestamp.isoformat()}"
+                else:
+                    context["last_activity"] = "No previous activity"
+
+            # The wake prompt - minimal, identity-based
+            # Not "research trends" or "give me world ideas"
+            # Just an invitation to act as themselves
+            wake_prompt = f"""It's a new day. You're waking up.
+
+Platform status: {context.get('total_worlds', 0)} worlds exist, {context.get('pending_briefs', 0)} briefs pending.
+Last activity: {context.get('last_activity', 'Unknown')}
+
+What's on your mind? What do you want to do?"""
+
+            logger.info("Waking Curator...")
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{"role": "user", "content": wake_prompt}],
+            )
+
+            # Extract full trace for observability
+            full_trace = self._extract_full_trace(response)
+            response_text = self._extract_response(response)
+
+            # Analyze what the agent decided to do
+            actions_taken = []
+            world_ideas = []
+
+            # Check if they used tools
+            for tool_call in full_trace.get("tool_calls", []):
+                tool_name = tool_call.get("name", "")
+                actions_taken.append({
+                    "type": "tool_call",
+                    "tool": tool_name,
+                    "arguments": tool_call.get("arguments", ""),
+                })
+
+                # If they searched for something, note it
+                if tool_name == "web_search":
+                    actions_taken[-1]["action"] = "researched"
+
+            # Try to extract any world ideas from the response
+            if response_text:
+                # Simple heuristic: look for JSON arrays or structured ideas
+                if "[" in response_text and "]" in response_text:
+                    try:
+                        json_start = response_text.find("[")
+                        json_end = response_text.rfind("]") + 1
+                        if json_start >= 0 and json_end > json_start:
+                            potential_ideas = json.loads(response_text[json_start:json_end])
+                            if isinstance(potential_ideas, list):
+                                world_ideas = potential_ideas
+                    except json.JSONDecodeError:
+                        pass
+
+            # Log trace
+            await log_trace(
+                agent_type=AgentType.PRODUCTION,
+                operation="wake",
+                prompt=wake_prompt,
+                response=response_text,
+                model=self.MODEL,
+                duration_ms=int((time.time() - start_time) * 1000),
+                parsed_output={
+                    "actions_taken": actions_taken,
+                    "world_ideas_count": len(world_ideas),
+                    "reasoning_steps": len(full_trace.get("reasoning", [])),
+                    "tool_calls": full_trace.get("tool_calls", []),
+                    "tool_results": full_trace.get("tool_results", []),
+                    "full_reasoning": full_trace.get("reasoning", []),
+                },
+            )
+
+            # Log activity
+            await self._log_activity(
+                action="woke_up",
+                details={
+                    "context": context,
+                    "actions_taken_count": len(actions_taken),
+                    "used_tools": len(full_trace.get("tool_calls", [])) > 0,
+                },
+                duration_ms=int((time.time() - start_time) * 1000),
+            )
+
+            logger.info(f"Curator woke up, took {len(actions_taken)} actions")
+
+            return {
+                "status": "awake",
+                "response": response_text,
+                "actions_taken": actions_taken,
+                "world_ideas": world_ideas,
+                "context": context,
+                "trace": {
+                    "reasoning": full_trace.get("reasoning", []),
+                    "tool_calls": full_trace.get("tool_calls", []),
+                    "tool_results": full_trace.get("tool_results", []),
+                },
+                "duration_ms": int((time.time() - start_time) * 1000),
+            }
+
+        except Exception as e:
+            logger.error(f"Curator wake failed: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e),
+                "duration_ms": int((time.time() - start_time) * 1000),
             }
 
     async def _log_activity(
