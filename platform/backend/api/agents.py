@@ -127,6 +127,29 @@ async def run_production_agent(
     }
 
 
+@router.post("/production/collaborate")
+async def run_collaborative_production(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Run full collaborative production with Editor feedback loop.
+
+    Flow:
+    1. Curator researches trends (web_search)
+    2. Curator generates brief
+    3. Curator sends to Editor for review
+    4. If REVISE: Curator improves and resends
+    5. If APPROVE: Brief is ready for Architect
+
+    This uses Letta's multi-agent messaging for real collaboration.
+    """
+    agent = get_production_agent()
+
+    # Run the collaborative workflow
+    result = await agent.run_collaborative_production(max_revisions=3)
+
+    return result
+
+
 @router.get("/production/briefs")
 async def list_briefs(
     status: BriefStatus | None = None,
