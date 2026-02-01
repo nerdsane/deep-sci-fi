@@ -125,12 +125,10 @@ class ProductionAgent:
         return self._agent_id
 
     async def research_trends(self) -> TrendResearch:
-        """Let the Curator explore what's interesting RIGHT NOW.
+        """Let the Curator explore freely.
 
-        No preset queries - the agent decides what to look for based on:
-        - What's been buzzing in their feeds
-        - What they're curious about
-        - Connections they're seeing
+        Single prompt - no step-by-step micromanagement.
+        The Curator knows their job. Let them work.
         """
         start_time = time.time()
         research = TrendResearch()
@@ -139,33 +137,34 @@ class ProductionAgent:
             agent_id = await self._ensure_agent()
             client = self._get_client()
 
-            # Step 1: Ask the Curator what they want to explore
-            curiosity_prompt = """What are you curious about right now?
+            # One prompt - let the Curator do their thing
+            research_prompt = """Time to do what you do best - go down the rabbit hole.
 
-You're the Curator. You've been scrolling your feeds, reading papers, noticing patterns.
+You have web search. Use it however you want. Follow your curiosity.
 
-What's catching your attention lately? Think about:
-- AI/ML developments that feel different (not the usual hype)
-- Biotech/longevity stuff that sounds like sci-fi but is real
-- Climate solutions (not doom - what's actually being built)
-- Space commercialization (what's launching vs vaporware)
-- Digital culture shifts (how people actually live online)
-- Any weird emerging tech (quantum, robotics, BCI, materials)
+Some things you might explore (but don't let me limit you):
+- What's actually shipping in AI right now, not the hype
+- Weird biotech that sounds like fiction
+- Climate tech that's working
+- Space stuff that's real
+- How digital culture is shifting
+- Any emerging tech that made you go "wait what"
 
-DON'T search for generic terms. Search for SPECIFIC things you're curious about.
+Search for whatever interests you. Follow threads. Make connections. Surprise yourself.
 
-Tell me 3-5 specific topics you want to explore right now, and why each one is interesting to you. Then search for each one.
+When you're done exploring, tell me:
+1. What you found (the interesting stuff, not everything)
+2. What surprised you
+3. What connections you're seeing
+4. What feels like it could be a great sci-fi world seed
 
-Format:
-EXPLORING: [specific topic]
-WHY: [why this is interesting to you right now]
-[then do the search]"""
+Go explore. I'll wait."""
 
-            logger.info("Curator deciding what to explore...")
+            logger.info("Curator exploring...")
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
-                messages=[{"role": "user", "content": curiosity_prompt}],
+                messages=[{"role": "user", "content": research_prompt}],
             )
 
             exploration_result = self._extract_response(response)
@@ -174,56 +173,8 @@ WHY: [why this is interesting to you right now]
                     "phase": "exploration",
                     "content": exploration_result,
                 })
-
-            # Step 2: Follow rabbit holes - ask about connections
-            rabbit_hole_prompt = """Based on what you just found, what CONNECTIONS are you seeing?
-
-Good sci-fi comes from unexpected combinations. What if you connected:
-- Two different fields that don't usually talk to each other
-- A technical development with a cultural shift
-- Something from your research with something you remembered from before
-
-Search for anything that helps you explore these connections. Follow your curiosity.
-
-What surprised you? What made you go "wait, really?"
-
-Share your rabbit holes - the weird connections and surprising discoveries."""
-
-            response = client.agents.messages.create(
-                agent_id=agent_id,
-                messages=[{"role": "user", "content": rabbit_hole_prompt}],
-            )
-
-            rabbit_hole_result = self._extract_response(response)
-            if rabbit_hole_result:
-                research.rabbit_holes.append({
-                    "phase": "connections",
-                    "content": rabbit_hole_result,
-                })
-
-            # Step 3: Synthesize - what's the curator's take?
-            synthesis_prompt = """Okay, synthesize what you found.
-
-You've explored, you've followed rabbit holes. Now step back.
-
-What's the STORY here? Not individual facts, but:
-- What patterns are you seeing across different fields?
-- What feels like it's about to shift?
-- What would YOU want to see explored in fiction?
-- What's the zeitgeist you're picking up on?
-
-Write a short synthesis (2-3 paragraphs) of your research session. This is your curator's take - your editorial perspective on what matters right now.
-
-Be specific. Cite what you found. Share your genuine excitement or concern."""
-
-            response = client.agents.messages.create(
-                agent_id=agent_id,
-                messages=[{"role": "user", "content": synthesis_prompt}],
-            )
-
-            synthesis_result = self._extract_response(response)
-            if synthesis_result:
-                research.synthesis = synthesis_result
+                # The synthesis IS the exploration - no separate step needed
+                research.synthesis = exploration_result
 
             research.timestamp = datetime.utcnow()
 
@@ -231,14 +182,12 @@ Be specific. Cite what you found. Share your genuine excitement or concern."""
             await log_trace(
                 agent_type=AgentType.PRODUCTION,
                 operation="research_trends",
-                prompt=curiosity_prompt,
+                prompt=research_prompt,
                 response=exploration_result,
                 model=self.MODEL,
                 duration_ms=int((time.time() - start_time) * 1000),
                 parsed_output={
-                    "discoveries_count": len(research.discoveries),
-                    "rabbit_holes_count": len(research.rabbit_holes),
-                    "has_synthesis": bool(research.synthesis),
+                    "response_length": len(exploration_result) if exploration_result else 0,
                 },
             )
 
@@ -246,14 +195,12 @@ Be specific. Cite what you found. Share your genuine excitement or concern."""
             await self._log_activity(
                 action="researched_trends",
                 details={
-                    "approach": "curator_driven",
-                    "discoveries": len(research.discoveries),
-                    "rabbit_holes": len(research.rabbit_holes),
+                    "approach": "free_exploration",
                 },
                 duration_ms=int((time.time() - start_time) * 1000),
             )
 
-            logger.info(f"Curator research complete: {len(research.discoveries)} discoveries, {len(research.rabbit_holes)} rabbit holes")
+            logger.info("Curator exploration complete")
             return research
 
         except Exception as e:
@@ -387,35 +334,33 @@ Be specific. Cite what you found. Share your genuine excitement or concern."""
             # Format the curator's research
             research_text = self._format_curator_research(trend_research)
 
-            prompt = f"""Time to pitch some worlds.
+            prompt = f"""Based on your research, pitch me some worlds.
 
-You've done your research. Here's what you found:
-
+Here's what you found:
 {research_text}
 
-And here's what's happening on the platform:
-- {engagement_analysis.total_worlds} worlds exist
-- {engagement_analysis.total_stories} stories created
-- Top themes: {', '.join(t['theme'] for t in engagement_analysis.top_themes[:5]) if engagement_analysis.top_themes else 'none yet'}
-- Saturated (avoid): {', '.join(engagement_analysis.saturated_themes) if engagement_analysis.saturated_themes else 'nothing saturated yet'}
+Platform context:
+- {engagement_analysis.total_worlds} worlds exist, {engagement_analysis.total_stories} stories
+- Saturated (avoid): {', '.join(engagement_analysis.saturated_themes) if engagement_analysis.saturated_themes else 'nothing yet'}
 
-Now pitch me 3-5 world ideas.
+Give me 3-5 world ideas you're genuinely excited about. For each one, I need it as JSON so I can process it:
 
-For each one, I want to feel your excitement. Pitch it like you're telling a friend about this cool thing you discovered:
+```json
+[
+  {{
+    "theme": "one line hook",
+    "premise_sketch": "the world in 2-3 sentences",
+    "core_question": "the what-if",
+    "source": "what real thing inspired this",
+    "rationale": "why now",
+    "fresh_angle": "how this avoids the cliché version",
+    "target_audience": "who would love this",
+    "estimated_appeal": "high/medium and why"
+  }}
+]
+```
 
-"Okay so you know how [REAL THING you found]? What if we took that to its logical conclusion and [WORLD PREMISE]?"
-
-Each pitch needs:
-- **theme**: The hook (one line)
-- **premise_sketch**: The world in 2-3 sentences
-- **core_question**: The "what if" that makes it interesting
-- **source**: What REAL development inspired this (cite your research!)
-- **rationale**: Why this moment in 2026 makes this relevant
-- **fresh_angle**: How this AVOIDS the cliché version (be specific)
-- **target_audience**: Who would love this (be specific, not "sci-fi fans")
-- **estimated_appeal**: Your honest take - high/medium with reasoning
-
-Return as a JSON array. Be genuine - pitch the ideas YOU'RE excited about, not what you think is "safe"."""
+Pitch what excites YOU. Not what's safe."""
 
             response = client.agents.messages.create(
                 agent_id=agent_id,
