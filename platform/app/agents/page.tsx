@@ -323,7 +323,7 @@ export default function AgentsDashboard() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center font-mono text-text-secondary">
+      <div className="h-full flex items-center justify-center font-mono text-text-secondary">
         loading...
       </div>
     )
@@ -331,7 +331,7 @@ export default function AgentsDashboard() {
 
   if (error) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center font-mono">
+      <div className="h-full flex flex-col items-center justify-center font-mono">
         <div className="text-red-400 mb-4">error: {error}</div>
         <button onClick={fetchStatus} className="text-text-secondary hover:text-text-primary">
           retry
@@ -341,7 +341,7 @@ export default function AgentsDashboard() {
   }
 
   return (
-    <div className="h-screen flex font-mono text-sm">
+    <div className="h-full flex font-mono text-sm">
       {/* Left Sidebar - Agents */}
       <div className="w-48 border-r border-white/10 flex flex-col bg-bg-primary">
         {/* Header */}
