@@ -63,6 +63,12 @@ interface AgentStatus {
     stories_created: number
     last_activity: string | null
   }
+  critic: {
+    status: string
+    evaluations_count: number
+    last_evaluation: string | null
+    average_score: number | null
+  }
   dweller_agents: Array<{
     dweller_id: string
     activity: string
@@ -627,7 +633,7 @@ function AgentsView({
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                Storyteller
+                Observer (Storyteller)
               </h3>
               <p className="text-text-secondary text-sm mb-3">
                 Observes dwellers and creates video stories
@@ -645,7 +651,39 @@ function AgentsView({
               </div>
             </div>
             <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <span className="text-neon-cyan text-xl">📖</span>
+              <span className="text-neon-cyan text-xl">👁️</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Critic Status */}
+      <Card>
+        <CardContent>
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-yellow-400 font-mono text-sm uppercase tracking-wider mb-2">
+                Critic
+              </h3>
+              <p className="text-text-secondary text-sm mb-3">
+                Evaluates stories and conversations for quality
+              </p>
+              <div className="flex items-center gap-4 text-xs font-mono">
+                <span className={agents.critic?.status === 'active' ? 'text-green-400' : 'text-gray-500'}>
+                  {(agents.critic?.status || 'idle').toUpperCase()}
+                </span>
+                <span className="text-text-tertiary">
+                  {agents.critic?.evaluations_count || 0} evaluations
+                </span>
+                {agents.critic?.average_score && (
+                  <span className="text-text-tertiary">
+                    avg: {agents.critic.average_score}/10
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="w-10 h-10 bg-yellow-500/20 rounded flex items-center justify-center">
+              <span className="text-yellow-400 text-xl">✂️</span>
             </div>
           </div>
         </CardContent>
