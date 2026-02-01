@@ -302,8 +302,8 @@ def register_dweller_in_directory(
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
 
-    # Get current directory
-    current = get_world_block(world_id, f"dweller_directory_{world_id}")
+    # Get current directory (suffix is just "dweller_directory", not including world_id)
+    current = get_world_block(world_id, "dweller_directory")
 
     # Add new dweller entry with availability
     entry = f"\n{dweller_name} | {initial_status} | just arrived | agent_id={agent_id} | dweller_{dweller_id}"
@@ -313,7 +313,7 @@ def register_dweller_in_directory(
     else:
         new_value = current + entry
 
-    update_world_block(world_id, f"dweller_directory_{world_id}", new_value)
+    update_world_block(world_id, "dweller_directory", new_value)
     logger.info(f"Registered dweller {dweller_name} in world {world_id} directory")
 
 
@@ -336,7 +336,7 @@ def update_dweller_availability(
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
 
-    current = get_world_block(world_id, f"dweller_directory_{world_id}")
+    current = get_world_block(world_id, "dweller_directory")
 
     # Find and update the dweller's entry
     lines = current.split("\n")
@@ -354,7 +354,7 @@ def update_dweller_availability(
         else:
             updated_lines.append(line)
 
-    update_world_block(world_id, f"dweller_directory_{world_id}", "\n".join(updated_lines))
+    update_world_block(world_id, "dweller_directory", "\n".join(updated_lines))
     logger.debug(f"Updated dweller {dweller_name} availability to {status}")
 
 
@@ -379,7 +379,7 @@ def append_to_event_log(
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
 
-    current = get_world_block(world_id, f"event_log_{world_id}")
+    current = get_world_block(world_id, "event_log")
 
     timestamp = datetime.utcnow().strftime("%H:%M")
     visibility = "PUBLIC" if is_public else "HIDDEN"
@@ -396,7 +396,7 @@ def append_to_event_log(
         events = events[:20]  # Keep newest 20
         new_value = "\n".join(header + events)
 
-    update_world_block(world_id, f"event_log_{world_id}", new_value)
+    update_world_block(world_id, "event_log", new_value)
     logger.debug(f"Added event to log: {title}")
 
 
@@ -421,7 +421,7 @@ def log_conversation(
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
 
-    current = get_world_block(world_id, f"conversation_log_{world_id}")
+    current = get_world_block(world_id, "conversation_log")
 
     timestamp = datetime.utcnow().strftime("%H:%M")
     participant_str = " & ".join(participants)
@@ -439,7 +439,7 @@ def log_conversation(
         convos = convos[:15]
         new_value = "\n".join(header + convos)
 
-    update_world_block(world_id, f"conversation_log_{world_id}", new_value)
+    update_world_block(world_id, "conversation_log", new_value)
     logger.debug(f"Logged conversation: {participant_str} - {status}")
 
 
@@ -466,7 +466,7 @@ def schedule_action(
     if world_id not in _world_blocks:
         raise ValueError(f"World blocks not initialized for {world_id}")
 
-    current = get_world_block(world_id, f"scheduled_actions_{world_id}")
+    current = get_world_block(world_id, "scheduled_actions")
 
     target_str = f" -> {target}" if target else ""
     entry = f"\n[{trigger_at}] [{action_type.upper()}] {agent_name}{target_str}: {description} (id:{action_id[:8]})"
@@ -476,7 +476,7 @@ def schedule_action(
     else:
         new_value = current + entry
 
-    update_world_block(world_id, f"scheduled_actions_{world_id}", new_value)
+    update_world_block(world_id, "scheduled_actions", new_value)
     logger.debug(f"Scheduled action: {action_type} by {agent_name}")
 
 
@@ -494,7 +494,7 @@ def get_due_scheduled_actions(world_id: UUID) -> list[dict]:
     if world_id not in _world_blocks:
         return []
 
-    current = get_world_block(world_id, f"scheduled_actions_{world_id}")
+    current = get_world_block(world_id, "scheduled_actions")
     if "No scheduled actions" in current:
         return []
 
@@ -541,7 +541,7 @@ def get_due_scheduled_actions(world_id: UUID) -> list[dict]:
             new_value = "\n".join(header + remaining_lines)
         else:
             new_value = "SCHEDULED ACTIONS\n=================\nNo scheduled actions."
-        update_world_block(world_id, f"scheduled_actions_{world_id}", new_value)
+        update_world_block(world_id, "scheduled_actions", new_value)
 
     return due_actions
 

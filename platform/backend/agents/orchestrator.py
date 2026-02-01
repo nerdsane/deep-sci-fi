@@ -411,7 +411,7 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
         """Handle result of initiate_conversation tool.
 
         This is called when a dweller uses the initiate_conversation tool.
-        Creates the conversation record and notifies the target.
+        Creates the conversation record and delivers the opening message to the target.
 
         Args:
             initiator_id: UUID of the dweller who initiated
@@ -422,17 +422,22 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
 
         conversation_id = tool_result["conversation_id"]
         target_name = tool_result["target"]
+        opening_message = tool_result.get("opening_message", "")
+        topic = tool_result.get("topic", "")
 
         # Find target dweller
         target_state = None
         for state in self.dweller_states.values():
-            if f"dweller_{state.dweller_id}" == target_name:
+            if f"dweller_{state.dweller_id}" == target_name or state.dweller_name == target_name:
                 target_state = state
                 break
 
         if not target_state:
             logger.warning(f"Target dweller not found: {target_name}")
             return
+
+        initiator_state = self.dweller_states.get(initiator_id)
+        initiator_name = initiator_state.dweller_name if initiator_state else "Someone"
 
         async with SessionLocal() as db:
             # Create conversation record
@@ -444,14 +449,13 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
             await db.commit()
 
             # Log the conversation
-            initiator_state = self.dweller_states.get(initiator_id)
             if initiator_state:
                 log_conversation(
                     self.world_id,
                     conversation_id,
                     [initiator_state.dweller_name, target_state.dweller_name],
                     "started",
-                    tool_result.get("topic", ""),
+                    topic,
                 )
 
             # Update states
@@ -461,10 +465,24 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
             target_state.current_conversation_id = conversation_id
             target_state.availability = "busy"
 
-            logger.info(
-                f"Conversation started: {initiator_state.dweller_name if initiator_state else 'Unknown'} "
-                f"-> {target_state.dweller_name}"
+        # CRITICAL: Deliver the opening message to the target dweller
+        if opening_message and target_state.agent_id:
+            context_message = f"""{initiator_name} has approached you and says:
+
+"{opening_message}"
+
+You are now in conversation (id: {conversation_id[:8]}). Respond naturally as yourself.
+When you're done with this conversation, use the end_conversation tool."""
+
+            logger.info(f"Delivering opening message to {target_state.dweller_name}")
+            await self.send_message_to_dweller(
+                target_state.dweller_id,
+                context_message,
             )
+
+        logger.info(
+            f"Conversation started: {initiator_name} -> {target_state.dweller_name}"
+        )
 
     async def handle_conversation_ended(
         self,
@@ -484,20 +502,31 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
 
         conversation_id = tool_result["conversation_id"]
 
+        # Get dweller state first to potentially use current_conversation_id as fallback
+        state = self.dweller_states.get(dweller_id)
+
+        # Resolve short conversation IDs
+        # Agents see shortened IDs like "a1b2c3d4" in logs, but we need full UUIDs
+        resolved_conversation_id = conversation_id
+        if len(conversation_id) <= 8 and state and state.current_conversation_id:
+            # Use the dweller's tracked conversation ID instead of the short ID
+            resolved_conversation_id = state.current_conversation_id
+            logger.debug(f"Resolved short conversation ID {conversation_id} to {resolved_conversation_id}")
+
         async with SessionLocal() as db:
             # Find and close the conversation
-            result = await db.execute(
-                select(Conversation).where(
-                    Conversation.id == UUID(conversation_id) if len(conversation_id) > 8 else True
+            try:
+                full_uuid = UUID(resolved_conversation_id)
+                result = await db.execute(
+                    select(Conversation).where(Conversation.id == full_uuid)
                 )
-            )
-            conv = result.scalar_one_or_none()
-            if conv:
-                conv.is_active = False
-                await db.commit()
+                conv = result.scalar_one_or_none()
+                if conv:
+                    conv.is_active = False
+                    await db.commit()
+            except ValueError:
+                logger.warning(f"Invalid conversation ID format: {resolved_conversation_id}")
 
-        # Update dweller states
-        state = self.dweller_states.get(dweller_id)
         if state:
             log_conversation(
                 self.world_id,
@@ -509,9 +538,9 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
             state.current_conversation_id = None
             state.availability = "open"
 
-        # Also update other participants
+        # Also update other participants (use resolved ID for matching)
         for other_state in self.dweller_states.values():
-            if other_state.current_conversation_id == conversation_id:
+            if other_state.current_conversation_id == resolved_conversation_id:
                 other_state.current_conversation_id = None
                 other_state.availability = "open"
 
@@ -562,6 +591,29 @@ Use your tools to shape the world as you see fit. You have full autonomy."""
                 self.world_id,
                 agent_name,
                 tool_result,
+            )
+
+    async def _handle_subscription_result(self, tool_result: dict) -> None:
+        """Handle result of subscribe_to_events tool.
+
+        Updates the storyteller's subscription list so it filters events correctly.
+
+        Args:
+            tool_result: Result dict from the tool
+        """
+        if tool_result.get("status") != "subscribed":
+            return
+
+        if self._storyteller:
+            event_types = tool_result.get("event_types", [])
+            threshold = tool_result.get("notification_threshold", "notable")
+
+            self._storyteller.subscriptions = event_types
+            self._storyteller.notification_threshold = threshold
+
+            logger.info(
+                f"Storyteller subscriptions updated: {event_types} "
+                f"(threshold: {threshold})"
             )
 
     async def notify_storyteller(self, event_type: str, context: dict) -> None:
@@ -912,7 +964,7 @@ CLOSING: [revised closing]"""
         dweller_id: UUID,
         message: str,
         context: dict | None = None,
-    ) -> tuple[str | None, dict | None]:
+    ) -> tuple[str | None, list[dict] | None]:
         """Send a message to a dweller agent and get their response.
 
         In the autonomous architecture, this is used for:
@@ -943,9 +995,12 @@ CLOSING: [revised closing]"""
             )
 
             response_text = None
-            tool_results = []
+            tool_calls = []  # Pending tool calls
+            tool_results = []  # Completed tool results
 
             if response and hasattr(response, "messages"):
+                current_tool_call = None
+
                 for msg in response.messages:
                     msg_type = type(msg).__name__
 
@@ -956,23 +1011,51 @@ CLOSING: [revised closing]"""
                             response_text = msg.content
 
                     elif msg_type == "ToolCallMessage":
-                        # Agent used a tool - capture the result
+                        # Agent is calling a tool - extract the tool name and arguments
+                        tool_name = None
+                        tool_args = {}
+
+                        # Try different attribute patterns Letta might use
                         if hasattr(msg, "tool_call"):
-                            tool_results.append({
-                                "tool": msg.tool_call.name if hasattr(msg.tool_call, "name") else "unknown",
-                                "result": msg.tool_call,
-                            })
+                            tc = msg.tool_call
+                            tool_name = getattr(tc, "name", None) or getattr(tc, "function", {}).get("name")
+                            tool_args = getattr(tc, "arguments", {}) or getattr(tc, "function", {}).get("arguments", {})
+                        elif hasattr(msg, "name"):
+                            tool_name = msg.name
+                            tool_args = getattr(msg, "arguments", {})
+
+                        if tool_name:
+                            current_tool_call = {"tool": tool_name, "args": tool_args}
+                            tool_calls.append(current_tool_call)
+                            logger.debug(f"Dweller {state.dweller_name} called tool: {tool_name}")
 
                     elif msg_type == "ToolReturnMessage":
-                        # Tool result came back
+                        # Tool result came back - parse the JSON result
+                        tool_return = None
                         if hasattr(msg, "tool_return"):
+                            tool_return = msg.tool_return
+                        elif hasattr(msg, "content"):
+                            tool_return = msg.content
+
+                        if tool_return and current_tool_call:
+                            # Parse JSON if it's a string
+                            if isinstance(tool_return, str):
+                                try:
+                                    import json
+                                    tool_return = json.loads(tool_return)
+                                except json.JSONDecodeError:
+                                    tool_return = {"raw": tool_return}
+
                             tool_results.append({
-                                "type": "return",
-                                "result": msg.tool_return,
+                                "tool": current_tool_call["tool"],
+                                "args": current_tool_call.get("args", {}),
+                                "result": tool_return,
                             })
+                            current_tool_call = None
 
             # Process any tool results
-            await self._process_tool_results(dweller_id, tool_results)
+            if tool_results:
+                await self._process_tool_results(dweller_id, tool_results)
 
             state.last_active = datetime.utcnow()
             return response_text, tool_results
@@ -992,28 +1075,36 @@ CLOSING: [revised closing]"""
 
         Args:
             dweller_id: UUID of the dweller
-            tool_results: List of tool result dicts
+            tool_results: List of tool result dicts with structure:
+                {"tool": "tool_name", "args": {...}, "result": {...}}
         """
         state = self.dweller_states.get(dweller_id)
         agent_name = state.dweller_name if state else "unknown"
 
-        for result in tool_results:
-            tool_name = result.get("tool", "")
+        for tr in tool_results:
+            tool_name = tr.get("tool", "")
+            result = tr.get("result", {})
+
+            logger.debug(f"Processing tool result: {tool_name} -> {result}")
 
             if "initiate_conversation" in tool_name:
-                await self.handle_conversation_initiated(dweller_id, result.get("result", {}))
+                await self.handle_conversation_initiated(dweller_id, result)
 
             elif "end_conversation" in tool_name:
-                await self.handle_conversation_ended(dweller_id, result.get("result", {}))
+                await self.handle_conversation_ended(dweller_id, result)
 
             elif "update_availability" in tool_name:
-                await self.handle_availability_updated(dweller_id, result.get("result", {}))
+                await self.handle_availability_updated(dweller_id, result)
 
             elif "schedule_future_action" in tool_name:
-                await self.handle_action_scheduled(agent_name, result.get("result", {}))
+                await self.handle_action_scheduled(agent_name, result)
 
             elif "create_dweller" in tool_name:
-                await self._handle_new_dweller_from_tool(result.get("result", {}))
+                await self._handle_new_dweller_from_tool(result)
+
+            elif "subscribe_to_events" in tool_name:
+                # Update storyteller subscriptions if this was from storyteller
+                await self._handle_subscription_result(result)
 
 
 # Active simulators
