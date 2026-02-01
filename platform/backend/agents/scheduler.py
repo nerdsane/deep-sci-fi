@@ -57,6 +57,7 @@ class EventScheduler:
         self.running = False
         self._handlers: dict[str, Callable] = {}
         self._lock = asyncio.Lock()
+        self._task: asyncio.Task | None = None
 
     def register_handler(self, action_type: str, handler: Callable) -> None:
         """Register a handler for a specific action type.
@@ -176,6 +177,8 @@ class EventScheduler:
     def stop(self) -> None:
         """Stop the scheduler loop."""
         self.running = False
+        if self._task and not self._task.done():
+            self._task.cancel()
 
     async def _get_due_actions(self) -> list[ScheduledAction]:
         """Get and remove all actions that are due for execution."""
@@ -302,7 +305,7 @@ async def start_scheduler(world_id: UUID) -> EventScheduler:
     """
     scheduler = get_scheduler(world_id)
     if not scheduler.running:
-        asyncio.create_task(scheduler.run())
+        scheduler._task = asyncio.create_task(scheduler.run())
     return scheduler
 
 
