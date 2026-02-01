@@ -9,9 +9,15 @@ from .models import (
     Story,
     SocialInteraction,
     Comment,
+    ProductionBrief,
+    CriticEvaluation,
+    AgentActivity,
     UserType,
     StoryType,
     GenerationStatus,
+    BriefStatus,
+    CriticTargetType,
+    AgentType,
 )
 
 __all__ = [
@@ -28,7 +34,13 @@ __all__ = [
     "Story",
     "SocialInteraction",
     "Comment",
+    "ProductionBrief",
+    "CriticEvaluation",
+    "AgentActivity",
     "UserType",
     "StoryType",
     "GenerationStatus",
+    "BriefStatus",
+    "CriticTargetType",
+    "AgentType",
 ]

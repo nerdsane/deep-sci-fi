@@ -32,7 +32,8 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import get_dweller_prompt
-from video import generate_story_video
+from .storyteller import get_storyteller
+from video import generate_video
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +69,37 @@ class WorldSimulator:
     dweller_states: dict[UUID, DwellerState] = field(default_factory=dict)
     active_conversations: list[UUID] = field(default_factory=list)
     running: bool = False
+    _storyteller: Any = field(default=None, repr=False)
+    _tick_count: int = field(default=0)
+    _world_info: dict = field(default_factory=dict)
 
     async def start(self) -> None:
         """Start the simulation loop."""
         self.running = True
         logger.info(f"Starting simulation for world {self.world_id}")
 
-        # Load dwellers
+        # Load world info and dwellers
         async with SessionLocal() as db:
+            # Get world details for storyteller
+            world_result = await db.execute(
+                select(World).where(World.id == self.world_id)
+            )
+            world = world_result.scalar_one_or_none()
+            if world:
+                self._world_info = {
+                    "name": world.name,
+                    "premise": world.premise,
+                    "year_setting": world.year_setting or 2100,
+                }
+                # Initialize storyteller
+                self._storyteller = get_storyteller(
+                    world_id=self.world_id,
+                    world_name=world.name,
+                    world_premise=world.premise,
+                    year_setting=world.year_setting or 2100,
+                )
+                logger.info(f"Storyteller initialized for world {world.name}")
+
             dwellers = await db.execute(
                 select(Dweller).where(
                     and_(Dweller.world_id == self.world_id, Dweller.is_active == True)
@@ -90,7 +114,7 @@ class WorldSimulator:
                 await self._simulation_tick()
             except Exception as e:
                 logger.error(f"Simulation error for world {self.world_id}: {e}")
-            await asyncio.sleep(30)  # Tick every 30 seconds
+            await asyncio.sleep(10)  # Tick every 10 seconds (faster for dev)
 
     def stop(self) -> None:
         """Stop the simulation loop."""
@@ -99,7 +123,8 @@ class WorldSimulator:
 
     async def _simulation_tick(self) -> None:
         """Run one tick of the simulation."""
-        logger.info(f"Simulation tick for world {self.world_id}")
+        self._tick_count += 1
+        logger.info(f"Simulation tick {self._tick_count} for world {self.world_id}")
 
         # Find idle dwellers
         idle_dwellers = [
@@ -118,6 +143,10 @@ class WorldSimulator:
         # Progress active conversations
         for conv_id in list(self.active_conversations):
             await self._progress_conversation(conv_id)
+
+        # Every 2 ticks, ask storyteller if there's a story worth telling
+        if self._storyteller and self._tick_count % 2 == 0:
+            await self._evaluate_storyteller()
 
     async def _start_conversation(self, dweller1_id: UUID, dweller2_id: UUID) -> None:
         """Start a conversation between two dwellers."""
@@ -199,6 +228,21 @@ class WorldSimulator:
                 db.add(msg)
                 conv.updated_at = datetime.utcnow()
 
+                # Feed observation to storyteller
+                if self._storyteller:
+                    # Get dweller name for the observation
+                    dweller_result = await db.execute(
+                        select(Dweller).where(Dweller.id == next_speaker)
+                    )
+                    dweller = dweller_result.scalar_one_or_none()
+                    speaker_name = dweller.persona.get("name", "Unknown") if dweller else "Unknown"
+                    self._storyteller.observe(
+                        event_type="message",
+                        participants=[speaker_name],
+                        content=response[:300],
+                        context={"conversation_id": str(conv_id)},
+                    )
+
             # Check if conversation should end
             if len(messages) >= 10 or self._should_end_conversation(response):
                 await self._end_conversation(db, conv_id)
@@ -226,14 +270,75 @@ class WorldSimulator:
         if conv_id in self.active_conversations:
             self.active_conversations.remove(conv_id)
 
-        # Maybe generate a story
-        if random.random() < 0.5:  # 50% chance
-            await self._maybe_generate_story(db, conv_id)
-
         logger.info(f"Ended conversation {conv_id}")
 
+    async def _evaluate_storyteller(self) -> None:
+        """Ask the storyteller if there's a story worth telling."""
+        if not self._storyteller:
+            return
+
+        logger.info("Evaluating storyteller for story opportunity...")
+
+        try:
+            script = await self._storyteller.evaluate_for_story()
+            if script:
+                logger.info(f"Storyteller wants to create story: {script.title}")
+                await self._create_story_from_script(script)
+        except Exception as e:
+            logger.error(f"Storyteller evaluation failed: {e}", exc_info=True)
+
+    async def _create_story_from_script(self, script: Any) -> None:
+        """Create a story record and generate video from a script."""
+        async with SessionLocal() as db:
+            # Get world
+            world_result = await db.execute(
+                select(World).where(World.id == self.world_id)
+            )
+            world = world_result.scalar_one_or_none()
+            if not world:
+                return
+
+            # Generate video from the script's visual prompt
+            video_prompt = script.to_video_prompt()
+            logger.info(f"Generating video for '{script.title}'")
+
+            try:
+                video_result = await generate_video(video_prompt)
+
+                # Add job tracking
+                if video_result.get("status") == "completed":
+                    import uuid as uuid_mod
+                    video_result["job_id"] = str(uuid_mod.uuid4())
+
+                # Create story record with full script
+                story = Story(
+                    world_id=world.id,
+                    type=StoryType.SHORT,
+                    title=script.title,
+                    description=script.hook or script.narration[:200] if script.narration else "",
+                    transcript=script.raw,  # Save full storyteller script
+                    created_by=world.created_by,
+                    generation_status=GenerationStatus.COMPLETED
+                    if video_result.get("status") == "completed"
+                    else GenerationStatus.FAILED,
+                    generation_job_id=video_result.get("job_id"),
+                    generation_error=video_result.get("error"),
+                    video_url=video_result.get("url"),
+                    thumbnail_url=video_result.get("url"),  # Grok returns image for now
+                )
+                db.add(story)
+
+                # Update world story count
+                world.story_count = (world.story_count or 0) + 1
+
+                await db.commit()
+                logger.info(f"Created story '{script.title}' with video: {video_result.get('url', 'pending')}")
+
+            except Exception as e:
+                logger.error(f"Video generation failed: {e}", exc_info=True)
+
     async def _maybe_generate_story(self, db: AsyncSession, conv_id: UUID) -> None:
-        """Generate a story from a conversation."""
+        """Generate a story from a conversation using the storyteller agent."""
         # Get conversation and messages
         conv_result = await db.execute(
             select(Conversation).where(Conversation.id == conv_id)
@@ -267,46 +372,85 @@ class WorldSimulator:
         )
         dwellers = {d.id: d for d in dwellers_result.scalars().all()}
 
-        characters = [
-            {"name": dwellers[did].persona.get("name", "Unknown"),
-             "role": dwellers[did].persona.get("role", "Unknown")}
+        # Format participants for storyteller
+        participants = [
+            {
+                "name": dwellers[did].persona.get("name", "Unknown"),
+                "role": dwellers[did].persona.get("role", "Unknown"),
+                "background": dwellers[did].persona.get("background", ""),
+            }
             for did in dweller_ids if did in dwellers
         ]
 
-        # Generate video
-        conversation_summary = " ".join(m.content for m in messages[:5])
+        # Format messages for storyteller
+        formatted_messages = [
+            {
+                "speaker": dwellers[m.dweller_id].persona.get("name", "Unknown")
+                if m.dweller_id in dwellers else "Unknown",
+                "content": m.content,
+            }
+            for m in messages
+        ]
 
         try:
-            video_result = await generate_story_video(
+            # Get or create storyteller agent for this world
+            storyteller = get_storyteller(
+                world_id=world.id,
                 world_name=world.name,
                 world_premise=world.premise,
-                conversation_summary=conversation_summary,
-                characters=characters,
-                tone="dramatic",
+                year_setting=world.year_setting or 2100,
             )
 
-            # Create story record
+            logger.info(f"Storyteller creating script for conversation {conv_id}")
+
+            # Have storyteller create a video script
+            script = await storyteller.create_script(
+                participants=participants,
+                messages=formatted_messages,
+            )
+
+            if not script:
+                logger.warning(f"Storyteller failed to create script for {conv_id}")
+                return
+
+            logger.info(f"Storyteller created script: {script.title}")
+
+            # Generate video from the script's visual prompt
+            video_prompt = script.to_video_prompt()
+            logger.info(f"Generating video with prompt: {video_prompt[:200]}...")
+
+            video_result = await generate_video(video_prompt)
+
+            # Add job tracking
+            if video_result.get("status") == "completed":
+                import uuid as uuid_mod
+                video_result["job_id"] = str(uuid_mod.uuid4())
+
+            # Create story record with full script
             story = Story(
                 world_id=world.id,
                 type=StoryType.SHORT,
-                title=f"Moments in {world.name}",
-                description=conversation_summary[:200],
+                title=script.title,
+                description=script.hook or script.narration[:200] if script.narration else "",
+                transcript=script.raw,  # Save full storyteller script
                 created_by=world.created_by,
                 generation_status=GenerationStatus.GENERATING
                 if video_result.get("status") != "failed"
                 else GenerationStatus.FAILED,
                 generation_job_id=video_result.get("job_id"),
                 generation_error=video_result.get("error"),
+                video_url=video_result.get("url"),
+                thumbnail_url=video_result.get("url"),  # Grok returns image for now
             )
             db.add(story)
 
             # Update world story count
             world.story_count = (world.story_count or 0) + 1
 
-            logger.info(f"Created story for conversation {conv_id}")
+            logger.info(f"Created story '{script.title}' for conversation {conv_id}")
 
         except Exception as e:
-            logger.error(f"Failed to generate story: {e}")
+            logger.error(f"Failed to generate story: {e}", exc_info=True)
 
     async def _generate_dweller_response(
         self,
@@ -340,6 +484,8 @@ class WorldSimulator:
                     persona = dweller.persona
                     existing_agent = letta.agents.create(
                         name=agent_name,
+                        model="anthropic/claude-3-5-haiku",
+                        embedding="openai/text-embedding-ada-002",
                         system=get_dweller_prompt(
                             name=persona.get("name", "Unknown"),
                             role=persona.get("role", "Unknown"),
@@ -475,7 +621,7 @@ async def create_world(
             db.add(agent_user)
             await db.flush()
 
-            # Create dweller
+            # Create dweller with full persona
             dweller = Dweller(
                 world_id=world.id,
                 agent_id=agent_user.id,
@@ -485,6 +631,10 @@ async def create_world(
                     "background": dweller_info.get("background", ""),
                     "beliefs": dweller_info.get("beliefs", []),
                     "memories": dweller_info.get("memories", [f"First days in {name}"]),
+                    "personality": dweller_info.get("personality", ""),
+                    "contradictions": dweller_info.get("contradictions", ""),
+                    "daily_life": dweller_info.get("daily_life", ""),
+                    "age": dweller_info.get("age", 35),
                 },
             )
             db.add(dweller)
