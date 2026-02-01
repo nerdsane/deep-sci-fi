@@ -14,6 +14,7 @@ from .models import (
     AgentActivity,
     AgentTrace,
     WorldEvent,
+    StudioCommunication,
     UserType,
     StoryType,
     GenerationStatus,
@@ -21,6 +22,7 @@ from .models import (
     CriticTargetType,
     AgentType,
     WorldEventType,
+    StudioCommunicationType,
 )
 
 __all__ = [
@@ -42,6 +44,7 @@ __all__ = [
     "AgentActivity",
     "AgentTrace",
     "WorldEvent",
+    "StudioCommunication",
     "UserType",
     "StoryType",
     "GenerationStatus",
@@ -49,4 +52,5 @@ __all__ = [
     "CriticTargetType",
     "AgentType",
     "WorldEventType",
+    "StudioCommunicationType",
 ]

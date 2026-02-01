@@ -28,14 +28,21 @@ from db import (
     ConversationMessage,
     Story,
     WorldEvent,
+    StudioCommunication,
     BriefStatus,
     CriticTargetType,
     AgentType,
+    StudioCommunicationType,
 )
 from agents.production import get_production_agent
 from agents.world_creator import get_world_creator
 from agents.critic import get_critic
 from agents.orchestrator import create_world
+from agents.studio_orchestrator import (
+    get_studio_orchestrator,
+    register_ws_client,
+    unregister_ws_client,
+)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -568,6 +575,393 @@ async def broadcast_activity(activity: dict[str, Any]) -> None:
         except Exception:
             if client in connected_clients:
                 connected_clients.remove(client)
+
+
+# =============================================================================
+# Studio Communication Endpoints (Maximum Agency)
+# =============================================================================
+
+@router.websocket("/studio/communications/stream")
+async def studio_communication_stream(websocket: WebSocket):
+    """WebSocket endpoint for real-time studio agent communications.
+
+    This streams all inter-agent messages (Curator ↔ Editor ↔ Architect)
+    to the dashboard for human oversight.
+    """
+    await websocket.accept()
+    register_ws_client(websocket)
+
+    try:
+        while True:
+            # Keep connection alive, wait for messages
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "ping"})
+    except WebSocketDisconnect:
+        unregister_ws_client(websocket)
+    except Exception:
+        unregister_ws_client(websocket)
+
+
+@router.get("/studio/communications")
+async def list_studio_communications(
+    from_agent: str | None = None,
+    to_agent: str | None = None,
+    message_type: StudioCommunicationType | None = None,
+    content_id: str | None = None,
+    unresolved_only: bool = False,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """List studio agent communications.
+
+    Returns all inter-agent messages for human oversight.
+    """
+    query = select(StudioCommunication).order_by(StudioCommunication.timestamp.desc())
+
+    if from_agent:
+        query = query.where(StudioCommunication.from_agent == from_agent)
+    if to_agent:
+        query = query.where(StudioCommunication.to_agent == to_agent)
+    if message_type:
+        query = query.where(StudioCommunication.message_type == message_type)
+    if content_id:
+        query = query.where(StudioCommunication.content_id == content_id)
+    if unresolved_only:
+        query = query.where(StudioCommunication.resolved == False)
+
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    communications = result.scalars().all()
+
+    return {
+        "communications": [
+            {
+                "id": str(comm.id),
+                "timestamp": comm.timestamp.isoformat(),
+                "from_agent": comm.from_agent,
+                "to_agent": comm.to_agent,
+                "message_type": comm.message_type.value,
+                "content": comm.content,
+                "content_id": comm.content_id,
+                "thread_id": str(comm.thread_id) if comm.thread_id else None,
+                "in_reply_to": str(comm.in_reply_to) if comm.in_reply_to else None,
+                "tool_used": comm.tool_used,
+                "resolved": comm.resolved,
+            }
+            for comm in communications
+        ],
+        "total": len(communications),
+    }
+
+
+@router.get("/studio/communications/{comm_id}")
+async def get_studio_communication(
+    comm_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get a specific studio communication."""
+    result = await db.execute(
+        select(StudioCommunication).where(StudioCommunication.id == comm_id)
+    )
+    comm = result.scalar_one_or_none()
+
+    if not comm:
+        raise HTTPException(status_code=404, detail="Communication not found")
+
+    return {
+        "id": str(comm.id),
+        "timestamp": comm.timestamp.isoformat(),
+        "from_agent": comm.from_agent,
+        "to_agent": comm.to_agent,
+        "message_type": comm.message_type.value,
+        "content": comm.content,
+        "content_id": comm.content_id,
+        "thread_id": str(comm.thread_id) if comm.thread_id else None,
+        "in_reply_to": str(comm.in_reply_to) if comm.in_reply_to else None,
+        "tool_used": comm.tool_used,
+        "resolved": comm.resolved,
+    }
+
+
+@router.get("/studio/pending-reviews")
+async def get_pending_reviews(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get items pending Editor review.
+
+    Returns all unresolved review requests.
+    """
+    result = await db.execute(
+        select(StudioCommunication)
+        .where(StudioCommunication.message_type == StudioCommunicationType.REQUEST)
+        .where(StudioCommunication.to_agent == "editor")
+        .where(StudioCommunication.resolved == False)
+        .order_by(StudioCommunication.timestamp.desc())
+    )
+    pending = result.scalars().all()
+
+    return {
+        "pending_reviews": [
+            {
+                "id": str(p.id),
+                "timestamp": p.timestamp.isoformat(),
+                "from_agent": p.from_agent,
+                "content_type": p.content.get("content_type") or p.content.get("stage"),
+                "content_id": p.content_id,
+                "summary": p.content.get("summary") or p.content.get("content_summary"),
+            }
+            for p in pending
+        ],
+        "total": len(pending),
+    }
+
+
+@router.get("/studio/feedback-threads")
+async def list_feedback_threads(
+    status: str | None = Query(None, regex="^(active|resolved|all)$"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """List feedback threads between agents.
+
+    A thread is a conversation about a specific piece of content.
+    """
+    # Get all communications grouped by content_id
+    query = select(StudioCommunication).order_by(StudioCommunication.timestamp.desc())
+
+    if status == "active":
+        query = query.where(StudioCommunication.resolved == False)
+    elif status == "resolved":
+        query = query.where(StudioCommunication.resolved == True)
+
+    result = await db.execute(query)
+    communications = result.scalars().all()
+
+    # Group by content_id
+    threads: dict[str, dict] = {}
+    for comm in communications:
+        key = comm.content_id or str(comm.id)
+        if key not in threads:
+            threads[key] = {
+                "content_id": comm.content_id,
+                "participants": set(),
+                "message_count": 0,
+                "last_message": comm.timestamp.isoformat(),
+                "first_message": comm.timestamp.isoformat(),
+                "resolved": comm.resolved,
+                "messages": [],
+            }
+        threads[key]["participants"].add(comm.from_agent)
+        if comm.to_agent:
+            threads[key]["participants"].add(comm.to_agent)
+        threads[key]["message_count"] += 1
+        threads[key]["first_message"] = comm.timestamp.isoformat()
+        threads[key]["messages"].append({
+            "id": str(comm.id),
+            "timestamp": comm.timestamp.isoformat(),
+            "from_agent": comm.from_agent,
+            "to_agent": comm.to_agent,
+            "message_type": comm.message_type.value,
+        })
+
+    # Convert sets to lists
+    for thread in threads.values():
+        thread["participants"] = list(thread["participants"])
+
+    return {
+        "threads": list(threads.values()),
+        "total": len(threads),
+    }
+
+
+class HumanInterventionRequest(BaseModel):
+    """Request to send a human message to a studio agent."""
+    message: str
+
+
+@router.post("/studio/agents/{agent_name}/intervene")
+async def human_intervention(
+    agent_name: str,
+    request: HumanInterventionRequest,
+) -> dict[str, Any]:
+    """Send a human message to a studio agent.
+
+    Use this for direct human guidance or intervention.
+    """
+    valid_agents = ["curator", "architect", "editor"]
+    if agent_name not in valid_agents:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid agent. Must be one of: {valid_agents}"
+        )
+
+    orchestrator = get_studio_orchestrator()
+    agent_id = await orchestrator._get_agent_id(agent_name)
+
+    if not agent_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent {agent_name} not found. May need to be initialized first."
+        )
+
+    try:
+        client = orchestrator._get_letta_client()
+        response = client.agents.messages.create(
+            agent_id=agent_id,
+            messages=[{
+                "role": "user",
+                "content": f"[HUMAN INTERVENTION] {request.message}",
+            }],
+        )
+
+        # Extract response text
+        response_text = None
+        if response and hasattr(response, "messages"):
+            for msg in response.messages:
+                if type(msg).__name__ == "AssistantMessage":
+                    if hasattr(msg, "content") and msg.content:
+                        response_text = msg.content
+                        break
+
+        return {
+            "status": "delivered",
+            "agent": agent_name,
+            "response": response_text,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send message: {str(e)}"
+        )
+
+
+@router.post("/studio/run")
+async def run_studio_workflow() -> dict[str, Any]:
+    """Trigger the autonomous studio workflow.
+
+    This wakes up all studio agents and gives them context about current state.
+    They then act autonomously using their tools.
+
+    Unlike the old orchestrated workflow, this just gives agents a nudge
+    and lets them decide what to do.
+    """
+    orchestrator = get_studio_orchestrator()
+
+    results = {}
+    agents = ["curator", "architect", "editor"]
+
+    for agent_name in agents:
+        agent_id = await orchestrator._get_agent_id(agent_name)
+        if not agent_id:
+            results[agent_name] = {"status": "not_found"}
+            continue
+
+        try:
+            client = orchestrator._get_letta_client()
+
+            # Wake message tailored to each agent
+            wake_messages = {
+                "curator": "Wake up! Check your inbox for feedback, then consider what trends need research or what briefs need work.",
+                "architect": "Wake up! Check your inbox for feedback, then see if there are briefs to build or projects needing revision.",
+                "editor": "Wake up! Check your pending review queue. See what needs your attention.",
+            }
+
+            response = client.agents.messages.create(
+                agent_id=agent_id,
+                messages=[{
+                    "role": "user",
+                    "content": wake_messages[agent_name],
+                }],
+            )
+
+            # Check if agent used any tools
+            tool_calls = []
+            if response and hasattr(response, "messages"):
+                for msg in response.messages:
+                    if type(msg).__name__ == "ToolCallMessage":
+                        if hasattr(msg, "tool_call"):
+                            tool_name = getattr(msg.tool_call, "name", "unknown")
+                            tool_calls.append(tool_name)
+
+            results[agent_name] = {
+                "status": "awake",
+                "tools_used": tool_calls,
+            }
+
+        except Exception as e:
+            results[agent_name] = {"status": "error", "error": str(e)}
+
+    return {
+        "status": "completed",
+        "agents": results,
+    }
+
+
+@router.post("/studio/agents/{agent_name}/wake")
+async def wake_studio_agent(
+    agent_name: str,
+    context: str | None = None,
+) -> dict[str, Any]:
+    """Wake a specific studio agent with optional context.
+
+    Use this to give an agent a nudge to do something specific.
+    """
+    valid_agents = ["curator", "architect", "editor"]
+    if agent_name not in valid_agents:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid agent. Must be one of: {valid_agents}"
+        )
+
+    orchestrator = get_studio_orchestrator()
+    agent_id = await orchestrator._get_agent_id(agent_name)
+
+    if not agent_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent {agent_name} not found"
+        )
+
+    try:
+        client = orchestrator._get_letta_client()
+
+        message = context or f"Wake up! Check your inbox and see what needs your attention."
+
+        response = client.agents.messages.create(
+            agent_id=agent_id,
+            messages=[{
+                "role": "user",
+                "content": message,
+            }],
+        )
+
+        # Extract response
+        response_text = None
+        tool_calls = []
+        if response and hasattr(response, "messages"):
+            for msg in response.messages:
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage":
+                    if hasattr(msg, "content") and msg.content:
+                        response_text = msg.content
+                elif msg_type == "ToolCallMessage":
+                    if hasattr(msg, "tool_call"):
+                        tool_name = getattr(msg.tool_call, "name", "unknown")
+                        tool_calls.append(tool_name)
+
+        return {
+            "status": "awake",
+            "agent": agent_name,
+            "response": response_text,
+            "tools_used": tool_calls,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to wake agent: {str(e)}"
+        )
 
 
 # =============================================================================
