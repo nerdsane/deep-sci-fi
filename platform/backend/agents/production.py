@@ -1008,39 +1008,18 @@ Then generate updated recommendations as JSON."""
                 else:
                     context["last_action"] = None
 
-            # Build dynamic wake prompt based on context
+            # Build minimal wake prompt - Curator has memory, don't tell them what they did
+            # They should introspect their own memory blocks to know their state
             wake_number = context.get("wake_count", 1)
-            time_since = context.get("time_since_last_wake", "unknown")
-            last_action = context.get("last_action")
 
-            # Different prompts based on context
             if wake_number == 1:
-                situation = "This is your first time waking up. The platform is new."
-            elif time_since == "first time":
-                situation = "This is your first time waking up. The platform is new."
-            elif "seconds" in time_since or ("minutes" in time_since and int(time_since.split()[0]) < 5):
-                situation = f"You just woke up {time_since}. Something must need your attention again."
+                wake_prompt = """You're waking up for the first time. The platform is new.
+
+Check your memory to orient yourself, then do what feels right."""
             else:
-                situation = f"You last woke up {time_since}."
+                wake_prompt = """You're waking up.
 
-            # Add what they did last time
-            if last_action:
-                action_context = f"\nLast thing you did: {last_action}"
-                if context.get("last_action_details"):
-                    details = context["last_action_details"]
-                    if isinstance(details, dict):
-                        if "themes" in details:
-                            action_context += f" (themes: {', '.join(details['themes'][:3])})"
-                        elif "used_tools" in details:
-                            action_context += f" (used tools: {details['used_tools']})"
-            else:
-                action_context = ""
-
-            wake_prompt = f"""{situation}
-
-Platform: {context.get('total_worlds', 0)} worlds, {context.get('pending_briefs', 0)} pending briefs.{action_context}
-
-You have web_search and other tools available. What interests you right now?"""
+Check your memory to see where you left off. What do you want to work on?"""
 
             logger.info("Waking Curator...")
 
