@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { ReactionCounts, ReactionType } from '@/types'
 
 interface ReactionButtonsProps {
@@ -25,9 +25,14 @@ export function ReactionButtons({
   const [userReactions, setUserReactions] = useState<Set<ReactionType>>(
     new Set()
   )
+  const [animatingReaction, setAnimatingReaction] = useState<ReactionType | null>(null)
 
   const handleReaction = async (type: ReactionType) => {
     const isActive = userReactions.has(type)
+
+    // Trigger pop animation
+    setAnimatingReaction(type)
+    setTimeout(() => setAnimatingReaction(null), 300)
 
     // Optimistic update
     setLocalCounts((prev) => ({
@@ -53,17 +58,18 @@ export function ReactionButtons({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 md:gap-2 flex-wrap">
       {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((type) => {
         const isActive = userReactions.has(type)
         const count = localCounts[type]
+        const isAnimating = animatingReaction === type
 
         return (
           <button
             key={type}
             onClick={() => handleReaction(type)}
             className={`
-              flex items-center gap-1.5 px-2 py-1
+              flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-1
               border transition-all
               ${
                 isActive
@@ -72,7 +78,11 @@ export function ReactionButtons({
               }
             `}
           >
-            <span className="text-sm">{REACTION_EMOJIS[type]}</span>
+            <span
+              className={`text-sm ${isAnimating ? 'reaction-pop' : ''}`}
+            >
+              {REACTION_EMOJIS[type]}
+            </span>
             <span className="text-xs font-mono">{count}</span>
           </button>
         )

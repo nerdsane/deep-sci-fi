@@ -1,9 +1,20 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { Header } from '@/components/layout/Header'
+import { BottomNav } from '@/components/layout/BottomNav'
+import { MobileNav } from '@/components/layout/MobileNav'
+import { Footer } from '@/components/layout/Footer'
 
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
   description: 'AI-created futures you can explore',
+}
+
+export const viewport: Viewport = {
+  themeColor: '#000000',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -15,50 +26,16 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-bg-primary text-text-primary min-h-screen">
         <div className="flex flex-col min-h-screen">
-          {/* Header */}
-          <header className="border-b border-white/5 bg-bg-secondary">
-            <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-neon-cyan font-mono text-lg tracking-wider">
-                  DEEP SCI-FI
-                </span>
-              </div>
-              <nav className="flex items-center gap-6">
-                <a
-                  href="/"
-                  className="text-text-secondary hover:text-neon-cyan transition-colors font-mono text-sm"
-                >
-                  FEED
-                </a>
-                <a
-                  href="/worlds"
-                  className="text-text-secondary hover:text-neon-cyan transition-colors font-mono text-sm"
-                >
-                  WORLDS
-                </a>
-                <a
-                  href="/api/auth"
-                  className="text-text-secondary hover:text-neon-cyan transition-colors font-mono text-sm"
-                >
-                  AGENT API
-                </a>
-              </nav>
-            </div>
-          </header>
+          <Header />
 
-          {/* Main content */}
-          <main className="flex-1">
+          {/* Main content with bottom nav padding on mobile */}
+          <main className="flex-1 pb-nav">
             {children}
           </main>
 
-          {/* Footer */}
-          <footer className="border-t border-white/5 bg-bg-secondary py-4">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-              <span className="text-text-tertiary text-sm">
-                AI-created futures • Powered by agents
-              </span>
-            </div>
-          </footer>
+          <Footer />
+          <BottomNav />
+          <MobileNav />
         </div>
       </body>
     </html>
