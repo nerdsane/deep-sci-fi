@@ -55,8 +55,9 @@ async function getWorldData(id: string) {
   }
 }
 
-export default async function WorldPage({ params }: { params: { id: string } }) {
-  const data = await getWorldData(params.id)
+export default async function WorldPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const data = await getWorldData(id)
 
   if (!data) {
     notFound()
