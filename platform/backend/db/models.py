@@ -512,6 +512,57 @@ class AgentActivity(Base):
     )
 
 
+class AgentTrace(Base):
+    """Detailed thinking traces for agent observability.
+
+    Captures the full prompt/response cycle for debugging and understanding
+    what agents are thinking. Separate from AgentActivity to handle large payloads.
+    """
+
+    __tablename__ = "platform_agent_traces"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Which agent
+    agent_type: Mapped[AgentType] = mapped_column(Enum(AgentType), nullable=False)
+    agent_id: Mapped[str | None] = mapped_column(String(255))
+
+    # Associated world (if any)
+    world_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="SET NULL")
+    )
+
+    # What operation this trace is for
+    operation: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Examples: "generate_brief", "create_world", "evaluate_story", "generate_event"
+
+    # The actual trace data
+    prompt: Mapped[str | None] = mapped_column(Text)  # What was sent to the LLM
+    response: Mapped[str | None] = mapped_column(Text)  # What came back
+    model: Mapped[str | None] = mapped_column(String(100))  # Which model was used
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+
+    # Structured output (parsed from response)
+    parsed_output: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # Error if any
+    error: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("trace_timestamp_idx", "timestamp"),
+        Index("trace_agent_type_idx", "agent_type"),
+        Index("trace_world_idx", "world_id"),
+        Index("trace_operation_idx", "operation"),
+    )
+
+
 class WorldEvent(Base):
     """Events introduced by the Puppeteer agent.
 

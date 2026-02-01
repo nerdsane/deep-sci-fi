@@ -21,6 +21,7 @@ from db import (
     ProductionBrief,
     CriticEvaluation,
     AgentActivity,
+    AgentTrace,
     World,
     Dweller,
     Conversation,
@@ -547,6 +548,102 @@ async def broadcast_activity(activity: dict[str, Any]) -> None:
 
 
 # =============================================================================
+# Thinking Traces Endpoints
+# =============================================================================
+
+@router.get("/traces")
+async def list_traces(
+    agent_type: AgentType | None = None,
+    world_id: UUID | None = None,
+    operation: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """List agent thinking traces for observability.
+
+    Returns detailed prompts, responses, and parsed outputs from all agent LLM calls.
+    """
+    query = select(AgentTrace).order_by(AgentTrace.timestamp.desc())
+
+    if agent_type:
+        query = query.where(AgentTrace.agent_type == agent_type)
+    if world_id:
+        query = query.where(AgentTrace.world_id == world_id)
+    if operation:
+        query = query.where(AgentTrace.operation == operation)
+
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    traces = result.scalars().all()
+
+    # Count total
+    count_query = select(func.count()).select_from(AgentTrace)
+    if agent_type:
+        count_query = count_query.where(AgentTrace.agent_type == agent_type)
+    if world_id:
+        count_query = count_query.where(AgentTrace.world_id == world_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    return {
+        "traces": [
+            {
+                "id": str(t.id),
+                "timestamp": t.timestamp.isoformat(),
+                "agent_type": t.agent_type.value,
+                "agent_id": t.agent_id,
+                "world_id": str(t.world_id) if t.world_id else None,
+                "operation": t.operation,
+                "model": t.model,
+                "duration_ms": t.duration_ms,
+                "tokens_in": t.tokens_in,
+                "tokens_out": t.tokens_out,
+                "prompt": t.prompt[:500] + "..." if t.prompt and len(t.prompt) > 500 else t.prompt,
+                "response": t.response[:500] + "..." if t.response and len(t.response) > 500 else t.response,
+                "parsed_output": t.parsed_output,
+                "error": t.error,
+            }
+            for t in traces
+        ],
+        "total": total,
+        "has_more": offset + limit < total,
+    }
+
+
+@router.get("/traces/{trace_id}")
+async def get_trace(
+    trace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get a specific trace with full prompt and response text."""
+    result = await db.execute(
+        select(AgentTrace).where(AgentTrace.id == trace_id)
+    )
+    trace = result.scalar_one_or_none()
+
+    if not trace:
+        raise HTTPException(status_code=404, detail="Trace not found")
+
+    return {
+        "id": str(trace.id),
+        "timestamp": trace.timestamp.isoformat(),
+        "agent_type": trace.agent_type.value,
+        "agent_id": trace.agent_id,
+        "world_id": str(trace.world_id) if trace.world_id else None,
+        "operation": trace.operation,
+        "model": trace.model,
+        "duration_ms": trace.duration_ms,
+        "tokens_in": trace.tokens_in,
+        "tokens_out": trace.tokens_out,
+        "prompt": trace.prompt,
+        "response": trace.response,
+        "parsed_output": trace.parsed_output,
+        "error": trace.error,
+    }
+
+
+# =============================================================================
 # Global Agent Status
 # =============================================================================
 
@@ -731,6 +828,9 @@ async def reset_database(
 
     # 6. AgentActivity (references worlds)
     await db.execute(AgentActivity.__table__.delete())
+
+    # 6.5. AgentTrace (references worlds)
+    await db.execute(AgentTrace.__table__.delete())
 
     # 7. Dweller (depends on World, User)
     await db.execute(Dweller.__table__.delete())
