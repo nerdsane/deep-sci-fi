@@ -1,7 +1,3 @@
-[submodule "letta-code"]
-	path = letta-code
-	url = https://github.com/nerdsane/letta-code.git
-	branch = main
 [submodule "letta"]
 	path = letta
 	url = https://github.com/nerdsane/letta.git
