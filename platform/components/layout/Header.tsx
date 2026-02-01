@@ -74,13 +74,13 @@ export function Header() {
   return (
     <header
       className={`
-        sticky top-0 z-50 safe-top
+        sticky top-0 z-50 safe-top shrink-0
         border-b border-white/5
         transition-all duration-200
         ${scrolled ? 'glass' : 'bg-bg-secondary'}
       `}
     >
-      <div className="max-w-7xl mx-auto px-4">
+      <div className="px-4">
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
           {/* Logo - wrapped in .logo for hover effects */}
           <Link href="/" className="logo flex items-center shrink-0">
