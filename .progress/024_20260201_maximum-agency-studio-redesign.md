@@ -156,6 +156,19 @@ To test the new architecture:
    - Notified only when subscribed events occur
    - Acts autonomously when inspired
 
+## Post-Implementation Bug Fixes
+
+After code review, the following critical issues were identified and fixed:
+
+| Issue | Fix |
+|-------|-----|
+| Opening message not delivered to target dweller | Added `send_message_to_dweller` call in `handle_conversation_initiated` |
+| Tool results not parsed correctly from Letta | Rewrote `send_message_to_dweller` to properly parse `ToolCallMessage` and `ToolReturnMessage` |
+| Subscriptions not persisted | Added `_handle_subscription_result` handler that updates `storyteller.subscriptions` |
+| Block key double world_id | Fixed helper functions to use simple suffixes like `"dweller_directory"` instead of `f"dweller_directory_{world_id}"` |
+| Scheduler task not tracked | Store task reference in `scheduler._task` for proper cancellation |
+| Conversation ID lookup with short IDs | Resolve short IDs (8 chars) to full UUIDs using dweller's `current_conversation_id` |
+
 ## Alignment with Vision
 
 From `.vision/PHILOSOPHY.md`:

@@ -54,6 +54,27 @@ STUDIO_BLOCK_DEFINITIONS = {
         "value": "Studio pipeline idle. Agents: Curator (research/briefs), Architect (world building), Editor (quality review).",
         "description": "Current state of the studio pipeline",
     },
+    # NEW: Communication blocks for maximum agency
+    "studio_communication_log": {
+        "label": "studio_communication_log",
+        "value": "COMMUNICATION LOG\n================\nNo messages yet.\n\nThis log shows all inter-agent messages for human oversight.",
+        "description": "Inter-agent communication visible to human overseer",
+    },
+    "studio_pending_reviews": {
+        "label": "studio_pending_reviews",
+        "value": "PENDING REVIEWS\n===============\nNo items pending.\n\nFormat: [timestamp] [type] from_agent: summary (id:xxx)",
+        "description": "Items awaiting Editor review",
+    },
+    "studio_active_projects": {
+        "label": "studio_active_projects",
+        "value": "ACTIVE PROJECTS\n===============\nNo active projects.\n\nFormat: [timestamp] [stage] world_name: status (id:xxx)",
+        "description": "World projects in progress by Architect",
+    },
+    "studio_feedback_threads": {
+        "label": "studio_feedback_threads",
+        "value": "FEEDBACK THREADS\n================\nNo active threads.\n\nFormat: [thread_id] participants: status (messages: N)",
+        "description": "Ongoing feedback conversations between agents",
+    },
 }
 
 
@@ -131,6 +152,198 @@ def get_studio_block(label: str) -> str:
     client = get_letta_client()
     block = client.blocks.retrieve(block_id=blocks[label])
     return block.value
+
+
+# =============================================================================
+# STUDIO COMMUNICATION HELPERS
+# =============================================================================
+
+def log_studio_communication(
+    from_agent: str,
+    to_agent: str,
+    message_type: str,
+    content: str,
+    content_id: str = "",
+    thread_id: str = "",
+) -> None:
+    """Log a communication between studio agents.
+
+    Args:
+        from_agent: Who sent (curator, architect, editor)
+        to_agent: Who received (curator, architect, editor, or "all")
+        message_type: Type (feedback, request, clarification, response, approval)
+        content: Message content (1-2 sentences)
+        content_id: Related content ID (brief_id, world_id)
+        thread_id: Thread ID for threading conversations
+    """
+    from datetime import datetime
+
+    current = get_studio_block("studio_communication_log")
+
+    timestamp = datetime.utcnow().strftime("%H:%M")
+    arrow = "→" if to_agent != "all" else "⇒"
+    thread_str = f" [thread:{thread_id[:8]}]" if thread_id else ""
+    content_str = f" re:{content_id[:8]}" if content_id else ""
+
+    entry = f"\n[{timestamp}] {from_agent}{arrow}{to_agent} [{message_type}]{content_str}{thread_str}: {content}"
+
+    if "No messages yet" in current:
+        new_value = f"COMMUNICATION LOG\n================\n{entry}"
+    else:
+        # Keep max 50 messages
+        lines = current.split("\n")
+        header_end = 2
+        for i, line in enumerate(lines):
+            if line.startswith("["):
+                header_end = i
+                break
+        header = lines[:header_end]
+        messages = lines[header_end:]
+        messages.insert(0, entry)
+        messages = messages[:50]
+        new_value = "\n".join(header + messages)
+
+    update_studio_block("studio_communication_log", new_value)
+    logger.debug(f"Logged studio communication: {from_agent} → {to_agent}")
+
+
+def add_pending_review(
+    from_agent: str,
+    content_type: str,
+    content_id: str,
+    summary: str,
+    request_id: str,
+) -> None:
+    """Add an item to the Editor's pending review queue.
+
+    Args:
+        from_agent: Who submitted (curator, architect)
+        content_type: What type (research, brief, world_concept, world_draft)
+        content_id: Content identifier
+        summary: Brief summary
+        request_id: The review request ID
+    """
+    from datetime import datetime
+
+    current = get_studio_block("studio_pending_reviews")
+
+    timestamp = datetime.utcnow().strftime("%H:%M")
+    entry = f"\n[{timestamp}] [{content_type}] {from_agent}: {summary} (id:{request_id[:8]})"
+
+    if "No items pending" in current:
+        new_value = f"PENDING REVIEWS\n===============\n{entry}"
+    else:
+        new_value = current + entry
+
+    update_studio_block("studio_pending_reviews", new_value)
+    logger.debug(f"Added pending review from {from_agent}: {content_type}")
+
+
+def remove_pending_review(request_id: str) -> None:
+    """Remove an item from pending reviews after it's been reviewed.
+
+    Args:
+        request_id: The review request ID to remove
+    """
+    current = get_studio_block("studio_pending_reviews")
+
+    if "No items pending" in current:
+        return
+
+    lines = current.split("\n")
+    new_lines = []
+    for line in lines:
+        if request_id[:8] not in line:
+            new_lines.append(line)
+
+    if len(new_lines) <= 2:  # Just header
+        new_value = "PENDING REVIEWS\n===============\nNo items pending.\n\nFormat: [timestamp] [type] from_agent: summary (id:xxx)"
+    else:
+        new_value = "\n".join(new_lines)
+
+    update_studio_block("studio_pending_reviews", new_value)
+    logger.debug(f"Removed pending review: {request_id[:8]}")
+
+
+def update_active_project(
+    world_id: str,
+    world_name: str,
+    stage: str,
+    status: str,
+) -> None:
+    """Update the active projects list with a world's status.
+
+    Args:
+        world_id: World identifier
+        world_name: World name
+        stage: Development stage (concept, draft, final, published)
+        status: Current status description
+    """
+    from datetime import datetime
+
+    current = get_studio_block("studio_active_projects")
+
+    # Remove existing entry for this world if present
+    lines = current.split("\n")
+    new_lines = []
+    for line in lines:
+        if world_id[:8] not in line:
+            new_lines.append(line)
+
+    timestamp = datetime.utcnow().strftime("%H:%M")
+    entry = f"[{timestamp}] [{stage}] {world_name}: {status} (id:{world_id[:8]})"
+
+    if "No active projects" in current or len(new_lines) <= 2:
+        new_value = f"ACTIVE PROJECTS\n===============\n{entry}"
+    else:
+        # Insert new entry after header
+        header = new_lines[:2]
+        projects = new_lines[2:]
+        projects.insert(0, entry)
+        new_value = "\n".join(header + projects)
+
+    update_studio_block("studio_active_projects", new_value)
+    logger.debug(f"Updated active project: {world_name} - {stage}")
+
+
+def get_agent_inbox(agent_name: str) -> dict:
+    """Get pending items for a specific agent.
+
+    Args:
+        agent_name: curator, architect, or editor
+
+    Returns:
+        Dict with pending_feedback, pending_requests, unread_count
+    """
+    result = {
+        "pending_feedback": [],
+        "pending_requests": [],
+        "unread_count": 0,
+    }
+
+    if agent_name == "editor":
+        # Editor sees pending reviews
+        reviews = get_studio_block("studio_pending_reviews")
+        if "No items pending" not in reviews:
+            lines = reviews.split("\n")[2:]  # Skip header
+            for line in lines:
+                if line.strip() and line.startswith("["):
+                    result["pending_requests"].append(line.strip())
+                    result["unread_count"] += 1
+    else:
+        # Curator/Architect see feedback from Editor
+        comm_log = get_studio_block("studio_communication_log")
+        if "No messages yet" not in comm_log:
+            lines = comm_log.split("\n")[2:]  # Skip header
+            for line in lines:
+                if f"→{agent_name}" in line and "[feedback]" in line.lower():
+                    result["pending_feedback"].append(line.strip())
+                    result["unread_count"] += 1
+                elif f"→{agent_name}" in line and "[clarification]" in line.lower():
+                    result["pending_requests"].append(line.strip())
+                    result["unread_count"] += 1
+
+    return result
 
 
 # =============================================================================

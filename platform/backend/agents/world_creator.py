@@ -30,6 +30,7 @@ from db import (
 from db.database import SessionLocal
 from .prompts import get_world_creator_prompt, ANTI_CLICHE_RULES
 from .studio_blocks import get_studio_block_ids, update_studio_block
+from .studio_tools import get_architect_tool_ids
 from .tracing import log_trace
 from video.grok_imagine import generate_avatar
 
@@ -139,6 +140,9 @@ class WorldCreatorAgent:
         # Get studio block IDs for shared memory
         studio_block_ids = get_studio_block_ids()
 
+        # Get communication tool IDs
+        communication_tool_ids = await get_architect_tool_ids()
+
         # Create new agent with multi-agent tools
         system_prompt = get_world_creator_prompt()
 
@@ -147,6 +151,7 @@ class WorldCreatorAgent:
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            tool_ids=communication_tool_ids,  # Communication tools for maximum agency
             include_multi_agent_tools=True,  # Enable multi-agent communication
             tags=["studio", "architect"],  # Tags for agent discovery
             block_ids=studio_block_ids,  # Shared studio blocks
@@ -154,6 +159,10 @@ class WorldCreatorAgent:
                 {"label": "worlds_created", "value": "No worlds created yet."},
                 {"label": "current_brief", "value": "No active brief."},
                 {"label": "design_notes", "value": "Design principles and learnings."},
+                # NEW: Memory for communication and continuity
+                {"label": "pending_reviews", "value": "No reviews pending from Editor."},
+                {"label": "revision_history", "value": "No revisions yet."},
+                {"label": "editor_preferences", "value": "What Editor tends to flag."},
             ],
         )
         self._agent_id = agent.id

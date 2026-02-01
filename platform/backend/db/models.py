@@ -610,3 +610,74 @@ class WorldEvent(Base):
         Index("world_event_timestamp_idx", "timestamp"),
         Index("world_event_active_idx", "is_active"),
     )
+
+
+class StudioCommunicationType(str, enum.Enum):
+    """Types of inter-agent communication."""
+    FEEDBACK = "feedback"
+    REQUEST = "request"
+    CLARIFICATION = "clarification"
+    RESPONSE = "response"
+    APPROVAL = "approval"
+
+
+class StudioCommunication(Base):
+    """Inter-agent communication record for Curator, Architect, Editor.
+
+    This enables:
+    - Maximum agency: Agents communicate directly
+    - Human oversight: All messages visible in dashboard
+    - Persistence: Agents remember conversations across sessions
+    - Threaded discussions: Messages can reference each other
+    """
+
+    __tablename__ = "studio_communications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Who is talking
+    from_agent: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # curator, architect, editor
+    to_agent: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # null = broadcast to all
+
+    # What they're saying
+    message_type: Mapped[StudioCommunicationType] = mapped_column(
+        Enum(StudioCommunicationType), nullable=False
+    )
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Example content for feedback:
+    # {"verdict": "revise", "points": [...], "praise": [...], "priority_fixes": [...]}
+
+    # Context
+    thread_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )  # For threading conversations
+    in_reply_to: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("studio_communications.id"), nullable=True
+    )
+    content_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # Brief/world being discussed
+
+    # Metadata
+    tool_used: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # Which tool generated this
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    __table_args__ = (
+        Index("studio_comm_timestamp_idx", "timestamp"),
+        Index("studio_comm_from_agent_idx", "from_agent"),
+        Index("studio_comm_to_agent_idx", "to_agent"),
+        Index("studio_comm_thread_idx", "thread_id"),
+        Index("studio_comm_content_id_idx", "content_id"),
+        Index("studio_comm_resolved_idx", "resolved"),
+    )
