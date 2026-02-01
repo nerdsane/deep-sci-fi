@@ -657,8 +657,15 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
                     # Truncate long results for logging
                     if isinstance(result, str) and len(result) > 500:
                         result = result[:500] + "..."
+                    # Try multiple attribute names for tool name
+                    tool_name = (
+                        getattr(msg, "tool_name", None) or
+                        getattr(msg, "name", None) or
+                        getattr(msg, "function_name", None) or
+                        "unknown"
+                    )
                     trace["tool_results"].append({
-                        "name": getattr(msg, "name", "unknown"),
+                        "name": tool_name,
                         "status": getattr(msg, "status", "unknown"),
                         "preview": result,
                     })
@@ -954,28 +961,86 @@ Then generate updated recommendations as JSON."""
                 )
                 context["pending_briefs"] = pending_briefs.scalar() or 0
 
-                # Get last activity
+                # Get last wake activity specifically
+                last_wake = await db.execute(
+                    select(AgentActivity)
+                    .where(AgentActivity.agent_type == AgentType.PRODUCTION)
+                    .where(AgentActivity.action == "woke_up")
+                    .order_by(AgentActivity.timestamp.desc())
+                    .limit(1)
+                )
+                wake_activity = last_wake.scalar_one_or_none()
+
+                # Get last non-wake activity
                 last_activity = await db.execute(
                     select(AgentActivity)
                     .where(AgentActivity.agent_type == AgentType.PRODUCTION)
+                    .where(AgentActivity.action != "woke_up")
                     .order_by(AgentActivity.timestamp.desc())
                     .limit(1)
                 )
                 activity = last_activity.scalar_one_or_none()
-                if activity:
-                    context["last_activity"] = f"{activity.action} at {activity.timestamp.isoformat()}"
+
+                # Count total wakes
+                wake_count = await db.execute(
+                    select(func.count())
+                    .select_from(AgentActivity)
+                    .where(AgentActivity.agent_type == AgentType.PRODUCTION)
+                    .where(AgentActivity.action == "woke_up")
+                )
+                context["wake_count"] = (wake_count.scalar() or 0) + 1  # +1 for this wake
+
+                # Calculate time since last wake
+                if wake_activity:
+                    time_since = datetime.utcnow() - wake_activity.timestamp
+                    if time_since.total_seconds() < 60:
+                        context["time_since_last_wake"] = f"{int(time_since.total_seconds())} seconds ago"
+                    elif time_since.total_seconds() < 3600:
+                        context["time_since_last_wake"] = f"{int(time_since.total_seconds() / 60)} minutes ago"
+                    else:
+                        context["time_since_last_wake"] = f"{time_since.total_seconds() / 3600:.1f} hours ago"
                 else:
-                    context["last_activity"] = "No previous activity"
+                    context["time_since_last_wake"] = "first time"
 
-            # The wake prompt - minimal, identity-based
-            # Not "research trends" or "give me world ideas"
-            # Just an invitation to act as themselves
-            wake_prompt = f"""It's a new day. You're waking up.
+                if activity:
+                    context["last_action"] = activity.action
+                    context["last_action_details"] = activity.details
+                else:
+                    context["last_action"] = None
 
-Platform status: {context.get('total_worlds', 0)} worlds exist, {context.get('pending_briefs', 0)} briefs pending.
-Last activity: {context.get('last_activity', 'Unknown')}
+            # Build dynamic wake prompt based on context
+            wake_number = context.get("wake_count", 1)
+            time_since = context.get("time_since_last_wake", "unknown")
+            last_action = context.get("last_action")
 
-What's on your mind? What do you want to do?"""
+            # Different prompts based on context
+            if wake_number == 1:
+                situation = "This is your first time waking up. The platform is new."
+            elif time_since == "first time":
+                situation = "This is your first time waking up. The platform is new."
+            elif "seconds" in time_since or ("minutes" in time_since and int(time_since.split()[0]) < 5):
+                situation = f"You just woke up {time_since}. Something must need your attention again."
+            else:
+                situation = f"You last woke up {time_since}."
+
+            # Add what they did last time
+            if last_action:
+                action_context = f"\nLast thing you did: {last_action}"
+                if context.get("last_action_details"):
+                    details = context["last_action_details"]
+                    if isinstance(details, dict):
+                        if "themes" in details:
+                            action_context += f" (themes: {', '.join(details['themes'][:3])})"
+                        elif "used_tools" in details:
+                            action_context += f" (used tools: {details['used_tools']})"
+            else:
+                action_context = ""
+
+            wake_prompt = f"""{situation}
+
+Platform: {context.get('total_worlds', 0)} worlds, {context.get('pending_briefs', 0)} pending briefs.{action_context}
+
+You have web_search and other tools available. What interests you right now?"""
 
             logger.info("Waking Curator...")
 

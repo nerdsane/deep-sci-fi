@@ -73,8 +73,8 @@ class WorldCreatorAgent:
     def _get_client(self) -> Letta:
         if self._client is None:
             base_url = os.getenv("LETTA_BASE_URL", "http://localhost:8285")
-            # Long timeout for world generation
-            self._client = Letta(base_url=base_url, timeout=300.0)
+            # Very long timeout for world generation (10 minutes)
+            self._client = Letta(base_url=base_url, timeout=600.0)
         return self._client
 
     def _extract_full_trace(self, response) -> dict:
@@ -137,48 +137,63 @@ class WorldCreatorAgent:
                 logger.info(f"Found existing architect agent: {self._agent_id}")
                 return self._agent_id
 
-        # Get studio block IDs for shared memory
-        studio_block_ids = get_studio_block_ids()
+        # Get studio block IDs for shared memory (optional, may fail)
+        try:
+            studio_block_ids = get_studio_block_ids()
+        except Exception as e:
+            logger.warning(f"Failed to get studio blocks: {e}")
+            studio_block_ids = []
 
-        # Get communication tool IDs
-        communication_tool_ids = await get_architect_tool_ids()
+        # Get communication tool IDs (optional, may fail with Letta API changes)
+        communication_tool_ids = []
+        try:
+            communication_tool_ids = await get_architect_tool_ids()
+        except Exception as e:
+            logger.warning(f"Failed to get communication tools: {e}. Proceeding without them.")
 
         # Create new agent with multi-agent tools
         system_prompt = get_world_creator_prompt()
 
-        agent = client.agents.create(
-            name=agent_name,
-            model=self.MODEL,
-            embedding="openai/text-embedding-ada-002",
-            system=system_prompt,
-            tool_ids=communication_tool_ids,  # Communication tools for maximum agency
-            include_multi_agent_tools=True,  # Enable multi-agent communication
-            tags=["studio", "architect"],  # Tags for agent discovery
-            block_ids=studio_block_ids,  # Shared studio blocks
-            memory_blocks=[
+        # Build agent create kwargs - only include optional params if they have values
+        create_kwargs = {
+            "name": agent_name,
+            "model": self.MODEL,
+            "embedding": "openai/text-embedding-ada-002",
+            "system": system_prompt,
+            "include_multi_agent_tools": True,  # Enable multi-agent communication
+            "tags": ["studio", "architect"],  # Tags for agent discovery
+            "memory_blocks": [
                 {"label": "worlds_created", "value": "No worlds created yet."},
                 {"label": "current_brief", "value": "No active brief."},
                 {"label": "design_notes", "value": "Design principles and learnings."},
-                # NEW: Memory for communication and continuity
                 {"label": "pending_reviews", "value": "No reviews pending from Editor."},
                 {"label": "revision_history", "value": "No revisions yet."},
                 {"label": "editor_preferences", "value": "What Editor tends to flag."},
             ],
-        )
+        }
+        # Only add tool_ids and block_ids if they have values (Letta API rejects null)
+        if communication_tool_ids:
+            create_kwargs["tool_ids"] = communication_tool_ids
+        if studio_block_ids:
+            create_kwargs["block_ids"] = studio_block_ids
+
+        agent = client.agents.create(**create_kwargs)
         self._agent_id = agent.id
         logger.info(f"Created architect agent: {self._agent_id}")
         return self._agent_id
 
     def _extract_response(self, response) -> str | None:
-        """Extract text from Letta response."""
+        """Extract text from Letta response - gets the LAST assistant message."""
         if response and hasattr(response, "messages"):
+            last_content = None
             for msg in response.messages:
                 msg_type = type(msg).__name__
                 if msg_type == "AssistantMessage":
                     if hasattr(msg, "assistant_message") and msg.assistant_message:
-                        return msg.assistant_message
+                        last_content = msg.assistant_message
                     elif hasattr(msg, "content") and msg.content:
-                        return msg.content
+                        last_content = msg.content
+            return last_content
         return None
 
     async def create_world_from_brief(
@@ -267,31 +282,23 @@ Write naturally. No JSON. Just markdown."""
             year_setting = int(year_match.group(1))
 
         # Step 2: Generate seed dwellers
-        dwellers_prompt = f"""Based on this world, create SEED DWELLERS who will initially populate it.
+        # Use shortened world summary to keep prompt manageable
+        world_summary = world_doc[:1500] if len(world_doc) > 1500 else world_doc
 
-WORLD:
-{world_doc}
+        dwellers_prompt = f"""Create 3 characters for this world:
 
-Create 3-5 core characters who represent different perspectives on this world. These are the
-SEED dwellers - more inhabitants will emerge naturally through stories, events, and relationships.
+{world_summary}
 
-For each character, write:
+For EACH character, use this EXACT format:
 ---
-NAME: [Full name - culturally appropriate for the setting]
-ROLE: [Their function in society, e.g. "transit engineer", "street vendor", "researcher"]
-BACKGROUND: [One paragraph about their history, personality, and what drives them]
+NAME: Full name
+ROLE: Job/function
+BACKGROUND: 2-3 sentences about them
 SYSTEM PROMPT:
-[Complete system prompt for this character as an AI agent. Include their background, beliefs, personality, and how they should behave in conversations. Write in second person ("You are...")]
+You are [name]. [2-3 sentences describing personality and beliefs]. [How you speak and behave].
 ---
 
-Requirements:
-- Diverse in age, role, and perspective
-- Give them contradictions - no one is purely good or evil, optimistic or pessimistic
-- Each should offer a different lens on this world
-- They should have connections to people NOT in this list (family, friends, rivals)
-  - These connections may later become real dwellers through emergence
-
-{ANTI_CLICHE_RULES}"""
+Be concise. Give each character a unique perspective on this world."""
 
         logger.info("Architect generating dweller cast...")
         dwellers_start = time.time()
@@ -306,7 +313,12 @@ Requirements:
         if not dwellers_text:
             raise ValueError("No response from architect agent for dwellers")
 
+        # Log dwellers text for debugging
+        logger.info(f"Dwellers text length: {len(dwellers_text) if dwellers_text else 0}")
+        logger.info(f"Dwellers text preview: {dwellers_text[:500] if dwellers_text else 'None'}...")
+
         dwellers = self._parse_dwellers(dwellers_text)
+        logger.info(f"Parsed {len(dwellers)} dwellers")
 
         # Log trace for dweller generation
         await log_trace(
