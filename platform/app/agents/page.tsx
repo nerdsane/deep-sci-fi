@@ -1,32 +1,150 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, ReactNode } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
+// Pixel-style icons (8x8 grid based)
+const Icons = {
+  // Curator - crystal/eye orb
+  curator: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="5" y="2" width="6" height="2" fill="currentColor" opacity="0.5"/>
+      <rect x="3" y="4" width="10" height="2" fill="currentColor" opacity="0.7"/>
+      <rect x="2" y="6" width="12" height="4" fill="currentColor"/>
+      <rect x="6" y="7" width="4" height="2" fill="var(--bg-primary)"/>
+      <rect x="3" y="10" width="10" height="2" fill="currentColor" opacity="0.7"/>
+      <rect x="5" y="12" width="6" height="2" fill="currentColor" opacity="0.5"/>
+    </svg>
+  ),
+  // Architect - building blocks
+  architect: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="10" width="4" height="4" fill="currentColor"/>
+      <rect x="6" y="6" width="4" height="8" fill="currentColor" opacity="0.8"/>
+      <rect x="10" y="8" width="4" height="6" fill="currentColor" opacity="0.6"/>
+      <rect x="4" y="2" width="4" height="4" fill="currentColor" opacity="0.7"/>
+    </svg>
+  ),
+  // Editor - pencil
+  editor: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="12" y="1" width="2" height="2" fill="currentColor"/>
+      <rect x="10" y="3" width="2" height="2" fill="currentColor"/>
+      <rect x="8" y="5" width="2" height="2" fill="currentColor"/>
+      <rect x="6" y="7" width="2" height="2" fill="currentColor"/>
+      <rect x="4" y="9" width="2" height="2" fill="currentColor"/>
+      <rect x="2" y="11" width="2" height="2" fill="currentColor"/>
+      <rect x="1" y="13" width="2" height="2" fill="currentColor" opacity="0.5"/>
+    </svg>
+  ),
+  // Home - constellation/stars
+  home: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="7" y="2" width="2" height="2" fill="currentColor"/>
+      <rect x="3" y="5" width="2" height="2" fill="currentColor" opacity="0.7"/>
+      <rect x="11" y="4" width="2" height="2" fill="currentColor" opacity="0.8"/>
+      <rect x="5" y="9" width="2" height="2" fill="currentColor" opacity="0.6"/>
+      <rect x="9" y="8" width="2" height="2" fill="currentColor"/>
+      <rect x="12" y="11" width="2" height="2" fill="currentColor" opacity="0.5"/>
+      <rect x="2" y="12" width="2" height="2" fill="currentColor" opacity="0.4"/>
+    </svg>
+  ),
+  // Lightning bolt
+  bolt: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="8" y="1" width="2" height="2" fill="currentColor"/>
+      <rect x="6" y="3" width="4" height="2" fill="currentColor"/>
+      <rect x="4" y="5" width="6" height="2" fill="currentColor"/>
+      <rect x="6" y="7" width="4" height="2" fill="currentColor"/>
+      <rect x="8" y="9" width="2" height="2" fill="currentColor"/>
+      <rect x="6" y="11" width="2" height="2" fill="currentColor"/>
+      <rect x="4" y="13" width="2" height="2" fill="currentColor"/>
+    </svg>
+  ),
+  // Sparkle/new
+  sparkle: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="7" y="1" width="2" height="4" fill="currentColor"/>
+      <rect x="7" y="11" width="2" height="4" fill="currentColor"/>
+      <rect x="1" y="7" width="4" height="2" fill="currentColor"/>
+      <rect x="11" y="7" width="4" height="2" fill="currentColor"/>
+      <rect x="3" y="3" width="2" height="2" fill="currentColor" opacity="0.5"/>
+      <rect x="11" y="3" width="2" height="2" fill="currentColor" opacity="0.5"/>
+      <rect x="3" y="11" width="2" height="2" fill="currentColor" opacity="0.5"/>
+      <rect x="11" y="11" width="2" height="2" fill="currentColor" opacity="0.5"/>
+    </svg>
+  ),
+  // Warning triangle
+  warning: (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none">
+      <rect x="7" y="2" width="2" height="2" fill="currentColor"/>
+      <rect x="6" y="4" width="4" height="2" fill="currentColor"/>
+      <rect x="5" y="6" width="6" height="2" fill="currentColor"/>
+      <rect x="4" y="8" width="8" height="2" fill="currentColor"/>
+      <rect x="3" y="10" width="10" height="2" fill="currentColor"/>
+      <rect x="2" y="12" width="12" height="2" fill="currentColor"/>
+      <rect x="7" y="6" width="2" height="4" fill="var(--bg-primary)"/>
+      <rect x="7" y="11" width="2" height="1" fill="var(--bg-primary)"/>
+    </svg>
+  ),
+  // Diamond/tool
+  diamond: (
+    <svg width="1em" height="1em" viewBox="0 0 8 8" fill="none">
+      <rect x="3" y="1" width="2" height="2" fill="currentColor"/>
+      <rect x="1" y="3" width="6" height="2" fill="currentColor"/>
+      <rect x="3" y="5" width="2" height="2" fill="currentColor"/>
+    </svg>
+  ),
+  // Checkmark
+  check: (
+    <svg width="1em" height="1em" viewBox="0 0 12 12" fill="none">
+      <rect x="1" y="5" width="2" height="2" fill="currentColor"/>
+      <rect x="3" y="7" width="2" height="2" fill="currentColor"/>
+      <rect x="5" y="5" width="2" height="2" fill="currentColor"/>
+      <rect x="7" y="3" width="2" height="2" fill="currentColor"/>
+      <rect x="9" y="1" width="2" height="2" fill="currentColor"/>
+    </svg>
+  ),
+  // X/cross
+  cross: (
+    <svg width="1em" height="1em" viewBox="0 0 12 12" fill="none">
+      <rect x="1" y="1" width="2" height="2" fill="currentColor"/>
+      <rect x="9" y="1" width="2" height="2" fill="currentColor"/>
+      <rect x="3" y="3" width="2" height="2" fill="currentColor"/>
+      <rect x="7" y="3" width="2" height="2" fill="currentColor"/>
+      <rect x="5" y="5" width="2" height="2" fill="currentColor"/>
+      <rect x="3" y="7" width="2" height="2" fill="currentColor"/>
+      <rect x="7" y="7" width="2" height="2" fill="currentColor"/>
+      <rect x="1" y="9" width="2" height="2" fill="currentColor"/>
+      <rect x="9" y="9" width="2" height="2" fill="currentColor"/>
+    </svg>
+  ),
+}
+
 // Agent profiles
-const AGENTS = {
+const AGENTS: Record<string, { name: string; avatar: ReactNode; role: string; status: string }> = {
   curator: {
     name: 'Curator',
-    avatar: '🔮',
+    avatar: Icons.curator,
     role: 'Trend Research & World Ideas',
     status: 'online',
   },
   architect: {
     name: 'Architect',
-    avatar: '🏗️',
+    avatar: Icons.architect,
     role: 'World Building',
     status: 'offline',
   },
   editor: {
     name: 'Editor',
-    avatar: '✍️',
+    avatar: Icons.editor,
     role: 'Quality Review',
     status: 'offline',
   },
-} as const
+}
 
-type AgentKey = keyof typeof AGENTS
+type AgentKey = 'curator' | 'architect' | 'editor'
 
 interface AgentDetails {
   exists: boolean
@@ -218,7 +336,7 @@ export default function StudioPage() {
     <div className="studio-layout">
       {/* Left Sidebar - Agent list */}
       <nav className="studio-nav">
-        <div className="studio-nav__home">🌌</div>
+        <div className="studio-nav__home">{Icons.home}</div>
         <div className="studio-nav__divider" />
         {(Object.keys(AGENTS) as AgentKey[]).map((key) => {
           const a = AGENTS[key]
@@ -267,7 +385,7 @@ export default function StudioPage() {
               disabled={waking}
               className="studio-sidebar__action"
             >
-              <span>⚡</span>
+              <span>{Icons.bolt}</span>
               <span>{waking ? 'Waking...' : 'Wake Curator'}</span>
             </button>
           )}
@@ -295,8 +413,25 @@ export default function StudioPage() {
         </header>
 
         <div ref={historyRef} className="studio-main__content">
+          {/* Loading state while waking */}
+          {waking && (
+            <article className="studio-message studio-message--loading">
+              <div className="studio-message__header">
+                <span className="studio-message__avatar">{agent.avatar}</span>
+                <span className="studio-message__name">{agent.name}</span>
+                <span className="studio-message__time">waking up...</span>
+              </div>
+              <div className="studio-message__loading">
+                <span className="studio-loading__dot" />
+                <span className="studio-loading__dot" />
+                <span className="studio-loading__dot" />
+                <span className="studio-loading__text">Thinking...</span>
+              </div>
+            </article>
+          )}
+
           {/* Latest wake result */}
-          {lastWakeResult && (
+          {!waking && lastWakeResult && (
             <article className="studio-message studio-message--highlight">
               <div className="studio-message__header">
                 <span className="studio-message__avatar">{agent.avatar}</span>
@@ -310,7 +445,7 @@ export default function StudioPage() {
               {/* Show if agent was newly created */}
               {lastWakeResult.agent_created && (
                 <div className="studio-message__notice studio-message__notice--created">
-                  ✨ Agent created - this is their first wake
+                  {Icons.sparkle} Agent created - this is their first wake
                 </div>
               )}
 
@@ -320,22 +455,11 @@ export default function StudioPage() {
 
               {lastWakeResult.trace && (
                 <div className="studio-message__trace">
-                  {lastWakeResult.trace.tool_calls.length > 0 && (
-                    <div className="studio-trace__tools">
-                      {lastWakeResult.trace.tool_calls.map((tc, i) => (
-                        <div key={i} className="studio-trace__tool">
-                          <span className="studio-trace__icon">◆</span>
-                          <span className="studio-trace__name">{tc.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   {lastWakeResult.trace.tool_results.length > 0 && (
                     <div className="studio-trace__results">
                       {lastWakeResult.trace.tool_results.map((tr, i) => (
                         <div key={i} className={`studio-trace__result ${tr.status === 'success' ? 'studio-trace__result--success' : 'studio-trace__result--error'}`}>
-                          <span>{tr.status === 'success' ? '✓' : '✗'}</span>
+                          <span>{tr.status === 'success' ? Icons.check : Icons.cross}</span>
                           <span className="studio-trace__result-name">{tr.name || 'unknown'}</span>
                           <span className="studio-trace__result-preview">{tr.preview?.slice(0, 80)}</span>
                         </div>
@@ -358,7 +482,7 @@ export default function StudioPage() {
 
               {lastWakeResult.error && (
                 <div className="studio-message__error">
-                  <span className="studio-message__error-icon">⚠</span>
+                  <span className="studio-message__error-icon">{Icons.warning}</span>
                   <span>{lastWakeResult.error}</span>
                 </div>
               )}
@@ -400,30 +524,17 @@ export default function StudioPage() {
                       </div>
                     )}
 
-                    {trace.parsed_output && (
+                    {trace.parsed_output?.tool_results && trace.parsed_output.tool_results.length > 0 && (
                       <div className="studio-message__trace">
-                        {trace.parsed_output.tool_calls && trace.parsed_output.tool_calls.length > 0 && (
-                          <div className="studio-trace__tools">
-                            {trace.parsed_output.tool_calls.map((tc, i) => (
-                              <div key={i} className="studio-trace__tool">
-                                <span className="studio-trace__icon">◆</span>
-                                <span className="studio-trace__name">{tc.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {trace.parsed_output.tool_results && trace.parsed_output.tool_results.length > 0 && (
-                          <div className="studio-trace__results">
-                            {trace.parsed_output.tool_results.map((tr, i) => (
-                              <div key={i} className={`studio-trace__result ${tr.status === 'success' ? 'studio-trace__result--success' : 'studio-trace__result--error'}`}>
-                                <span>{tr.status === 'success' ? '✓' : '✗'}</span>
-                                <span className="studio-trace__result-name">{tr.name || 'unknown'}</span>
-                                <span className="studio-trace__result-preview">{tr.preview?.slice(0, 60)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <div className="studio-trace__results">
+                          {trace.parsed_output.tool_results.map((tr, i) => (
+                            <div key={i} className={`studio-trace__result ${tr.status === 'success' ? 'studio-trace__result--success' : 'studio-trace__result--error'}`}>
+                              <span>{tr.status === 'success' ? Icons.check : Icons.cross}</span>
+                              <span className="studio-trace__result-name">{tr.name || 'unknown'}</span>
+                              <span className="studio-trace__result-preview">{tr.preview?.slice(0, 60)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -495,7 +606,7 @@ export default function StudioPage() {
         {selectedAgent === 'curator' && (
           <div className="studio-profile__actions">
             <button onClick={wakeCurator} disabled={waking} className="studio-profile__wake">
-              {waking ? 'Waking...' : '⚡ Wake Curator'}
+              {waking ? 'Waking...' : <>{Icons.bolt} Wake Curator</>}
             </button>
           </div>
         )}
@@ -925,28 +1036,6 @@ export default function StudioPage() {
         }
 
         /* Trace styling */
-        .studio-trace__tools {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-bottom: 8px;
-        }
-
-        .studio-trace__tool {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .studio-trace__icon {
-          color: var(--neon-cyan);
-        }
-
-        .studio-trace__name {
-          font-family: var(--font-mono);
-          color: var(--neon-cyan);
-        }
-
         .studio-trace__results {
           display: flex;
           flex-direction: column;
