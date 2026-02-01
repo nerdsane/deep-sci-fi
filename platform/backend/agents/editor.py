@@ -21,6 +21,7 @@ from db import AgentActivity, AgentType, AgentTrace
 from db.database import SessionLocal
 from .prompts import get_editor_prompt
 from .studio_blocks import get_studio_block_ids, update_studio_block
+from .studio_tools import get_editor_tool_ids
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -78,11 +79,15 @@ class EditorAgent:
         system_prompt = get_editor_prompt()
         studio_block_ids = get_studio_block_ids()
 
+        # Get communication tool IDs
+        communication_tool_ids = await get_editor_tool_ids()
+
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            tool_ids=communication_tool_ids,  # Communication tools for maximum agency
             include_multi_agent_tools=True,
             tags=["studio", "editor"],
             block_ids=studio_block_ids,
@@ -90,6 +95,10 @@ class EditorAgent:
                 {"label": "evaluation_history", "value": "No evaluations yet."},
                 {"label": "quality_patterns", "value": "Observing patterns in submissions."},
                 {"label": "feedback_given", "value": "Track feedback and whether it was addressed."},
+                # NEW: Memory for communication and continuity
+                {"label": "review_queue", "value": "No items to review."},
+                {"label": "pending_responses", "value": "No responses pending from Curator/Architect."},
+                {"label": "agent_profiles", "value": "What I know about Curator/Architect tendencies."},
             ],
         )
         self._agent_id = agent.id

@@ -32,6 +32,7 @@ from db import (
 from db.database import SessionLocal
 from .prompts import get_production_prompt, PRODUCTION_ENGAGEMENT_ANALYSIS_PROMPT
 from .studio_blocks import get_studio_block_ids, update_studio_block
+from .studio_tools import get_curator_tool_ids
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,9 @@ class ProductionAgent:
         # Get studio block IDs for shared memory
         studio_block_ids = get_studio_block_ids()
 
+        # Get communication tool IDs
+        communication_tool_ids = await get_curator_tool_ids()
+
         # Create agent with tools (works in latest Letta)
         agent = client.agents.create(
             name=agent_name,
@@ -121,6 +125,7 @@ class ProductionAgent:
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
             tools=["web_search", "fetch_webpage"],  # Enable web search and page fetching
+            tool_ids=communication_tool_ids,  # Communication tools for maximum agency
             include_multi_agent_tools=True,  # Enable multi-agent communication
             tags=["studio", "curator"],  # Tags for agent discovery
             block_ids=studio_block_ids,  # Shared studio blocks
@@ -128,6 +133,10 @@ class ProductionAgent:
                 {"label": "platform_state", "value": "Platform just starting. No content yet."},
                 {"label": "trend_memory", "value": "No trends researched yet."},
                 {"label": "past_briefs", "value": "No briefs generated yet."},
+                # NEW: Memory for communication and continuity
+                {"label": "pending_feedback", "value": "No pending feedback from Editor."},
+                {"label": "conversation_history", "value": "No conversations with other agents yet."},
+                {"label": "learned_patterns", "value": "What I've learned about what works."},
             ],
         )
         self._agent_id = agent.id

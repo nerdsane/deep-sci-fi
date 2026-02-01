@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api'
 
 // Platform-wide agents
 const AGENTS = {
@@ -13,7 +14,26 @@ const AGENTS = {
   editor: { name: 'Editor', color: '#facc15', shortDesc: 'quality review' },
 } as const
 
+// Agent name mapping for communications
+const AGENT_NAMES: Record<string, { name: string; color: string }> = {
+  curator: { name: 'Curator', color: '#60a5fa' },
+  architect: { name: 'Architect', color: '#4ade80' },
+  editor: { name: 'Editor', color: '#facc15' },
+}
+
 type AgentType = keyof typeof AGENTS
+
+// Studio communication types
+interface StudioCommunication {
+  id: string
+  timestamp: string
+  from_agent: string
+  to_agent: string | null
+  message_type: 'feedback' | 'request' | 'clarification' | 'response' | 'approval'
+  content: Record<string, unknown>
+  content_id: string | null
+  summary?: string
+}
 
 interface LettaAgentDetails {
   exists: boolean
@@ -135,6 +155,100 @@ export default function AgentsDashboard() {
   const [selectedBrief, setSelectedBrief] = useState<BriefDetail | null>(null)
   const [showAgentDetails, setShowAgentDetails] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
+
+  // Studio communications state
+  const [communications, setCommunications] = useState<StudioCommunication[]>([])
+  const [wsConnected, setWsConnected] = useState(false)
+  const [viewMode, setViewMode] = useState<'activity' | 'communications'>('communications')
+  const wsRef = useRef<WebSocket | null>(null)
+  const commLogRef = useRef<HTMLDivElement>(null)
+
+  // Fetch initial communications
+  const fetchCommunications = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/agents/studio/communications?limit=50`)
+      if (res.ok) {
+        const data = await res.json()
+        setCommunications(data.communications || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch communications:', err)
+    }
+  }, [])
+
+  // WebSocket connection for real-time communications
+  useEffect(() => {
+    const connectWebSocket = () => {
+      const ws = new WebSocket(`${WS_BASE}/agents/studio/communications/stream`)
+
+      ws.onopen = () => {
+        console.log('Studio WebSocket connected')
+        setWsConnected(true)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          if (message.type === 'studio_communication') {
+            setCommunications(prev => [message, ...prev].slice(0, 100))
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err)
+        }
+      }
+
+      ws.onclose = () => {
+        console.log('Studio WebSocket disconnected')
+        setWsConnected(false)
+        // Reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000)
+      }
+
+      ws.onerror = (error) => {
+        console.error('Studio WebSocket error:', error)
+      }
+
+      wsRef.current = ws
+    }
+
+    connectWebSocket()
+    fetchCommunications()
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+    }
+  }, [fetchCommunications])
+
+  // Run studio workflow
+  const runStudio = async () => {
+    setActionLoading('studio')
+    try {
+      const res = await fetch(`${API_BASE}/agents/studio/run`, { method: 'POST' })
+      const data = await res.json()
+      console.log('Studio run result:', data)
+      fetchCommunications()
+    } catch (err) {
+      console.error('Failed to run studio')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Wake a specific agent
+  const wakeAgent = async (agentName: string) => {
+    setActionLoading(`wake-${agentName}`)
+    try {
+      const res = await fetch(`${API_BASE}/agents/studio/agents/${agentName}/wake`, { method: 'POST' })
+      const data = await res.json()
+      console.log(`Wake ${agentName} result:`, data)
+    } catch (err) {
+      console.error(`Failed to wake ${agentName}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   const fetchStatus = async () => {
     try {
@@ -487,8 +601,47 @@ export default function AgentsDashboard() {
           })}
         </div>
 
-        {/* Actions */}
+        {/* Studio Actions (Maximum Agency) */}
         <div className="p-3 border-t border-white/10 space-y-2">
+          <div className="text-text-tertiary text-xs mb-2 font-medium">Studio</div>
+          <button
+            onClick={runStudio}
+            disabled={actionLoading === 'studio'}
+            className="w-full text-left text-xs px-2 py-1.5 bg-neon-cyan/20 text-neon-cyan hover:bg-neon-cyan/30 rounded disabled:opacity-50"
+          >
+            {actionLoading === 'studio' ? 'waking agents...' : '▶ Run Studio'}
+          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => wakeAgent('curator')}
+              disabled={actionLoading?.startsWith('wake')}
+              className="flex-1 text-center text-xs px-1 py-1 text-blue-400 hover:bg-blue-500/10 rounded disabled:opacity-50"
+              title="Wake Curator"
+            >
+              C
+            </button>
+            <button
+              onClick={() => wakeAgent('architect')}
+              disabled={actionLoading?.startsWith('wake')}
+              className="flex-1 text-center text-xs px-1 py-1 text-green-400 hover:bg-green-500/10 rounded disabled:opacity-50"
+              title="Wake Architect"
+            >
+              A
+            </button>
+            <button
+              onClick={() => wakeAgent('editor')}
+              disabled={actionLoading?.startsWith('wake')}
+              className="flex-1 text-center text-xs px-1 py-1 text-yellow-400 hover:bg-yellow-500/10 rounded disabled:opacity-50"
+              title="Wake Editor"
+            >
+              E
+            </button>
+          </div>
+        </div>
+
+        {/* Legacy Actions */}
+        <div className="p-3 border-t border-white/10 space-y-2">
+          <div className="text-text-tertiary text-xs mb-2 font-medium">Legacy</div>
           <button
             onClick={runProductionAgent}
             disabled={actionLoading === 'production'}
@@ -532,26 +685,176 @@ export default function AgentsDashboard() {
 
       {/* Main Content - Log Stream */}
       <div className="flex-1 flex flex-col bg-bg-secondary overflow-hidden">
-        {/* Log Header */}
+        {/* Log Header with View Mode Toggle */}
         <div className="p-3 border-b border-white/10 flex items-center justify-between">
-          <div className="text-text-secondary text-xs">
-            {selectedAgent ? (
-              <span style={{ color: AGENTS[selectedAgent].color }}>
-                {AGENTS[selectedAgent].name}
-              </span>
-            ) : (
-              'all agents'
-            )}{' '}
-            <span className="text-text-tertiary">
-              | {log.length} entries
-            </span>
+          <div className="flex items-center gap-4">
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-bg-primary rounded-md p-0.5">
+              <button
+                onClick={() => setViewMode('communications')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  viewMode === 'communications'
+                    ? 'bg-bg-tertiary text-text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary'
+                }`}
+              >
+                💬 Studio
+              </button>
+              <button
+                onClick={() => setViewMode('activity')}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  viewMode === 'activity'
+                    ? 'bg-bg-tertiary text-text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary'
+                }`}
+              >
+                📊 Activity
+              </button>
+            </div>
+
+            <div className="text-text-secondary text-xs">
+              {viewMode === 'communications' ? (
+                <>
+                  <span className="text-neon-cyan">communications</span>
+                  <span className="text-text-tertiary"> | {communications.length} messages</span>
+                </>
+              ) : selectedAgent ? (
+                <>
+                  <span style={{ color: AGENTS[selectedAgent].color }}>
+                    {AGENTS[selectedAgent].name}
+                  </span>
+                  <span className="text-text-tertiary"> | {log.length} entries</span>
+                </>
+              ) : (
+                <>
+                  all agents
+                  <span className="text-text-tertiary"> | {log.length} entries</span>
+                </>
+              )}
+            </div>
           </div>
-          <div className="text-text-tertiary text-xs">
-            auto-refresh 3s
+
+          <div className="flex items-center gap-3">
+            {viewMode === 'communications' && (
+              <span className={`text-xs ${wsConnected ? 'text-green-400' : 'text-red-400'}`}>
+                {wsConnected ? '● live' : '○ connecting...'}
+              </span>
+            )}
+            <div className="text-text-tertiary text-xs">
+              {viewMode === 'activity' ? 'auto-refresh 3s' : 'real-time'}
+            </div>
           </div>
         </div>
 
-        {/* Terminal Stream */}
+        {/* Communications Feed (Studio View) */}
+        {viewMode === 'communications' && (
+          <div ref={commLogRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+            {communications.length === 0 ? (
+              <div className="text-text-tertiary text-sm">
+                <div className="mb-2">$ waiting for studio communications...</div>
+                <div className="text-text-quaternary text-xs">
+                  Click "Run Studio" to wake agents, or wait for autonomous activity.
+                </div>
+              </div>
+            ) : (
+              communications.map((comm) => {
+                const fromInfo = AGENT_NAMES[comm.from_agent] || { name: comm.from_agent, color: '#888' }
+                const toInfo = comm.to_agent ? AGENT_NAMES[comm.to_agent] : null
+
+                // Message type styling
+                const typeStyles: Record<string, { icon: string; color: string }> = {
+                  feedback: { icon: '◆', color: '#facc15' },
+                  request: { icon: '▸', color: '#60a5fa' },
+                  clarification: { icon: '?', color: '#c084fc' },
+                  response: { icon: '↩', color: '#4ade80' },
+                  approval: { icon: '✓', color: '#22c55e' },
+                }
+                const typeStyle = typeStyles[comm.message_type] || { icon: '●', color: '#888' }
+
+                // Format content preview
+                const contentPreview = () => {
+                  const content = comm.content
+                  if (comm.message_type === 'feedback') {
+                    const verdict = (content.verdict as string) || 'unknown'
+                    const points = (content.feedback_points as string[]) || []
+                    return (
+                      <div className="space-y-1">
+                        <span className={`font-medium ${
+                          verdict === 'approve' ? 'text-green-400' :
+                          verdict === 'reject' ? 'text-red-400' :
+                          'text-yellow-400'
+                        }`}>
+                          {verdict.toUpperCase()}
+                        </span>
+                        {points.length > 0 && (
+                          <ul className="text-text-tertiary text-xs list-disc list-inside">
+                            {points.slice(0, 3).map((p, i) => (
+                              <li key={i}>{typeof p === 'string' ? p.slice(0, 60) : String(p)}...</li>
+                            ))}
+                            {points.length > 3 && <li>...and {points.length - 3} more</li>}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  } else if (comm.message_type === 'request') {
+                    const summary = (content.summary as string) || (content.content_summary as string) || ''
+                    return <span className="text-text-secondary">{summary.slice(0, 100)}{summary.length > 100 ? '...' : ''}</span>
+                  } else if (comm.message_type === 'clarification') {
+                    const questions = (content.questions as string[]) || []
+                    return (
+                      <ul className="text-text-secondary text-xs list-disc list-inside">
+                        {questions.slice(0, 2).map((q, i) => (
+                          <li key={i}>{typeof q === 'string' ? q : String(q)}</li>
+                        ))}
+                      </ul>
+                    )
+                  } else if (comm.message_type === 'approval') {
+                    const score = (content.quality_score as number) || 0
+                    return <span className="text-green-400">Quality score: {(score * 10).toFixed(1)}/10</span>
+                  } else if (comm.message_type === 'response') {
+                    const addressed = (content.addressed_points as string[]) || []
+                    return <span className="text-text-secondary">Addressed {addressed.length} point(s)</span>
+                  }
+                  return <span className="text-text-tertiary">{comm.summary || JSON.stringify(content).slice(0, 50)}</span>
+                }
+
+                return (
+                  <div key={comm.id} className="group">
+                    {/* Message header */}
+                    <div className="flex items-start gap-2">
+                      <span className="text-text-tertiary text-xs shrink-0 w-14">
+                        {new Date(comm.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span style={{ color: fromInfo.color }} className="text-xs font-medium">
+                        {fromInfo.name}
+                      </span>
+                      <span className="text-text-quaternary">→</span>
+                      <span style={{ color: toInfo?.color || '#888' }} className="text-xs font-medium">
+                        {toInfo?.name || 'All'}
+                      </span>
+                      <span style={{ color: typeStyle.color }} className="text-xs">
+                        {typeStyle.icon} {comm.message_type}
+                      </span>
+                      {comm.content_id && (
+                        <span className="text-text-quaternary text-xs">
+                          re:{comm.content_id.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Message content */}
+                    <div className="ml-16 mt-1 text-xs">
+                      {contentPreview()}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+
+        {/* Activity Feed (Legacy View) */}
+        {viewMode === 'activity' && (
         <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1">
           {log.length === 0 ? (
             <div className="text-text-tertiary">$ waiting for activity...</div>
@@ -694,6 +997,7 @@ export default function AgentsDashboard() {
             })
           )}
         </div>
+        )}
       </div>
 
       {/* Agent Details Panel */}
