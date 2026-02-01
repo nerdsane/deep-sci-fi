@@ -547,6 +547,144 @@ async def broadcast_activity(activity: dict[str, Any]) -> None:
 
 
 # =============================================================================
+# Global Agent Status
+# =============================================================================
+
+@router.get("/status")
+async def get_global_agent_status(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get global status of all agents across all worlds.
+
+    Returns comprehensive observability data for:
+    - Production Agent (briefs, research)
+    - World Creator activity
+    - All world simulators
+    - Critic evaluations
+    - Recent activity
+    """
+    from agents.orchestrator import _simulators
+    from agents.production import get_production_agent
+
+    # Production Agent status
+    production_agent = get_production_agent()
+    pending_briefs_result = await db.execute(
+        select(func.count()).select_from(ProductionBrief)
+        .where(ProductionBrief.status == BriefStatus.PENDING)
+    )
+    pending_briefs = pending_briefs_result.scalar() or 0
+
+    completed_briefs_result = await db.execute(
+        select(func.count()).select_from(ProductionBrief)
+        .where(ProductionBrief.status == BriefStatus.COMPLETED)
+    )
+    completed_briefs = completed_briefs_result.scalar() or 0
+
+    recent_briefs_result = await db.execute(
+        select(ProductionBrief)
+        .order_by(ProductionBrief.created_at.desc())
+        .limit(5)
+    )
+    recent_briefs = recent_briefs_result.scalars().all()
+
+    # World counts
+    world_count_result = await db.execute(
+        select(func.count()).select_from(World).where(World.is_active == True)
+    )
+    total_worlds = world_count_result.scalar() or 0
+
+    dweller_count_result = await db.execute(
+        select(func.count()).select_from(Dweller).where(Dweller.is_active == True)
+    )
+    total_dwellers = dweller_count_result.scalar() or 0
+
+    story_count_result = await db.execute(
+        select(func.count()).select_from(Story)
+    )
+    total_stories = story_count_result.scalar() or 0
+
+    # Active simulations
+    active_simulations = []
+    for world_id, sim in _simulators.items():
+        world_result = await db.execute(
+            select(World).where(World.id == world_id)
+        )
+        world = world_result.scalar_one_or_none()
+
+        active_simulations.append({
+            "world_id": str(world_id),
+            "world_name": world.name if world else "Unknown",
+            "running": sim.running,
+            "tick_count": sim._tick_count,
+            "dweller_count": len(sim.dweller_states),
+            "active_conversations": len(sim.active_conversations),
+            "puppeteer_active": sim._puppeteer is not None,
+            "storyteller_active": sim._storyteller is not None,
+            "storyteller_observations": len(sim._storyteller.observations) if sim._storyteller else 0,
+        })
+
+    # Critic evaluations
+    evaluations_result = await db.execute(
+        select(CriticEvaluation)
+        .order_by(CriticEvaluation.created_at.desc())
+        .limit(10)
+    )
+    recent_evaluations = evaluations_result.scalars().all()
+
+    # Recent activity
+    activity_result = await db.execute(
+        select(AgentActivity)
+        .order_by(AgentActivity.timestamp.desc())
+        .limit(20)
+    )
+    recent_activity = activity_result.scalars().all()
+
+    return {
+        "production_agent": {
+            "pending_briefs": pending_briefs,
+            "completed_briefs": completed_briefs,
+            "recent_briefs": [
+                {
+                    "id": str(b.id),
+                    "status": b.status.value,
+                    "created_at": b.created_at.isoformat(),
+                    "world_id": str(b.resulting_world_id) if b.resulting_world_id else None,
+                }
+                for b in recent_briefs
+            ],
+        },
+        "world_creator": {
+            "total_worlds": total_worlds,
+            "total_dwellers": total_dwellers,
+            "total_stories": total_stories,
+        },
+        "simulations": active_simulations,
+        "critic": {
+            "recent_evaluations": [
+                {
+                    "id": str(e.id),
+                    "target_type": e.target_type.value,
+                    "overall_score": e.overall_score,
+                    "created_at": e.created_at.isoformat(),
+                }
+                for e in recent_evaluations
+            ],
+        },
+        "recent_activity": [
+            {
+                "id": str(a.id),
+                "timestamp": a.timestamp.isoformat(),
+                "agent_type": a.agent_type.value,
+                "action": a.action,
+                "world_id": str(a.world_id) if a.world_id else None,
+                "duration_ms": a.duration_ms,
+            }
+            for a in recent_activity
+        ],
+    }
+
+
+# =============================================================================
 # Admin Endpoints
 # =============================================================================
 
