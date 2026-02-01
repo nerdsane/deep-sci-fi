@@ -150,7 +150,7 @@ class CriticAgent:
                 logger.info(f"Found existing critic agent: {self._agent_id}")
                 return self._agent_id
 
-        # Create new agent
+        # Create new agent with memory blocks for persistent evaluation context
         system_prompt = get_critic_prompt(target_type)
 
         agent = client.agents.create(
@@ -158,6 +158,11 @@ class CriticAgent:
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            memory_blocks=[
+                {"label": "evaluation_history", "value": "No evaluations performed yet."},
+                {"label": "pattern_library", "value": "Common AI-isms and cliches to watch for."},
+                {"label": "quality_standards", "value": "Maintaining high standards for plausibility and originality."},
+            ],
         )
         self._agent_id = agent.id
         logger.info(f"Created critic agent: {self._agent_id}")
@@ -429,7 +434,7 @@ Be HONEST and SPECIFIC. Don't soften criticism."""
 
             result = self._extract_response(response)
             if not result:
-                return self._default_feedback()
+                raise ValueError("No response from critic agent - evaluation failed")
 
             # Parse JSON response
             try:
@@ -439,7 +444,7 @@ Be HONEST and SPECIFIC. Don't soften criticism."""
                 if json_start >= 0 and json_end > json_start:
                     data = json.loads(result[json_start:json_end])
                 else:
-                    return self._default_feedback()
+                    raise ValueError(f"Could not find JSON in response: {result[:200]}")
 
                 scores = EvaluationScores(
                     plausibility=float(data.get("scores", {}).get("plausibility", 5)),
@@ -507,7 +512,6 @@ DWELLERS:
                     elif hasattr(msg, "content") and msg.content:
                         return msg.content
         return None
-
 
 # Singleton instance
 _critic: CriticAgent | None = None

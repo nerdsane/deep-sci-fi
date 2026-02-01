@@ -12,12 +12,14 @@ from .models import (
     ProductionBrief,
     CriticEvaluation,
     AgentActivity,
+    WorldEvent,
     UserType,
     StoryType,
     GenerationStatus,
     BriefStatus,
     CriticTargetType,
     AgentType,
+    WorldEventType,
 )
 
 __all__ = [
@@ -37,10 +39,12 @@ __all__ = [
     "ProductionBrief",
     "CriticEvaluation",
     "AgentActivity",
+    "WorldEvent",
     "UserType",
     "StoryType",
     "GenerationStatus",
     "BriefStatus",
     "CriticTargetType",
     "AgentType",
+    "WorldEventType",
 ]
