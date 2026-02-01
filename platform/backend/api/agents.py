@@ -38,6 +38,7 @@ from agents.production import get_production_agent
 from agents.world_creator import get_world_creator
 from agents.critic import get_critic
 from agents.orchestrator import create_world
+from db.database import SessionLocal
 from agents.studio_orchestrator import (
     get_studio_orchestrator,
     register_ws_client,
@@ -896,6 +897,105 @@ async def run_studio_workflow() -> dict[str, Any]:
         "status": "completed",
         "agents": results,
     }
+
+
+@router.post("/studio/run-simple")
+async def run_simple_studio() -> dict[str, Any]:
+    """Run simplified end-to-end world creation.
+
+    This is a test endpoint that:
+    1. Curator generates brief (no web search, uses memory/personality)
+    2. Auto-approves first recommendation
+    3. Architect builds world + dwellers
+    4. Saves to database
+
+    No Editor review, no multi-agent communication, no manual approval.
+    Just test the core pipeline.
+    """
+    import time
+    from datetime import datetime
+    from agents.production import TrendResearch
+    start_time = time.time()
+
+    try:
+        # Step 1: Generate brief with minimal research (skip web search)
+        agent = get_production_agent()
+
+        # Create a minimal trend research object to skip web_search
+        # The curator will use its personality and memory to generate ideas
+        minimal_research = TrendResearch(
+            discoveries=[{
+                "phase": "memory",
+                "content": "Use your knowledge and personality to generate original sci-fi world concepts. Draw from current technology trends, social dynamics, and your creative instincts.",
+            }],
+            synthesis="Generate world ideas from your internal knowledge and creative vision. No external research provided - rely on your expertise.",
+            timestamp=datetime.utcnow(),
+        )
+
+        brief = await agent.generate_brief(trend_research=minimal_research)
+
+        if not brief.recommendations:
+            return {
+                "status": "error",
+                "error": "Curator generated no recommendations",
+                "brief_id": str(brief.id),
+            }
+
+        # Step 2: Auto-approve first recommendation and create world
+        world_creator = get_world_creator()
+        world_spec = await world_creator.create_world_from_brief(brief, 0)
+
+        # Step 3: Save to database
+        world_id = await create_world(
+            name=world_spec.name,
+            premise=world_spec.document,
+            year_setting=world_spec.year_setting,
+            causal_chain=[],
+            initial_dwellers=[
+                {
+                    "name": d.name,
+                    "system_prompt": d.system_prompt,
+                    "role": d.role,
+                    "background": d.background,
+                    "avatar_url": d.avatar_url,
+                    "avatar_prompt": d.avatar_prompt,
+                }
+                for d in world_spec.dwellers
+            ],
+        )
+
+        # Step 4: Update brief status
+        async with SessionLocal() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ProductionBrief).where(ProductionBrief.id == brief.id)
+            )
+            brief_record = result.scalar_one_or_none()
+            if brief_record:
+                brief_record.status = BriefStatus.COMPLETED
+                brief_record.selected_recommendation = 0
+                brief_record.resulting_world_id = world_id
+                await db.commit()
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        return {
+            "status": "success",
+            "world_id": str(world_id),
+            "world_name": world_spec.name,
+            "dweller_count": len(world_spec.dwellers),
+            "dweller_names": [d.name for d in world_spec.dwellers],
+            "brief_id": str(brief.id),
+            "duration_ms": duration_ms,
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
 
 
 @router.post("/studio/agents/{agent_name}/wake")
