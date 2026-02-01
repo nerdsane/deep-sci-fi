@@ -34,6 +34,7 @@ from db import (
 )
 from db.database import SessionLocal
 from .prompts import BANNED_PHRASES
+from .studio_blocks import get_studio_block_ids, update_studio_block
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -119,12 +120,15 @@ class CriticFeedback:
 
 
 class WorldCritic:
-    """Per-world Critic Agent - evaluates stories within a specific world.
+    """Per-world Critic Agent (Editor) - evaluates stories within a specific world.
 
     Unlike the platform-wide Editor, this critic:
     - Has context about the specific world's rules and aesthetic
     - Helps Storyteller iterate on drafts before publishing
     - Is instantiated per world with a unique agent_id
+
+    Uses Letta's multi-agent tools for studio collaboration.
+    Tags: ["studio", "editor", f"world_{world_id}"]
     """
 
     MODEL = "anthropic/claude-opus-4-5-20251101"
@@ -169,11 +173,17 @@ class WorldCritic:
         # Create new agent with world-specific context
         system_prompt = self._get_system_prompt()
 
+        # Get studio block IDs for shared memory
+        studio_block_ids = get_studio_block_ids()
+
         agent = client.agents.create(
             name=agent_name,
             model=self.MODEL,
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            include_multi_agent_tools=True,  # Enable multi-agent communication
+            tags=["studio", "editor", f"world_{self.world_id}"],  # Tags for agent discovery
+            block_ids=studio_block_ids,  # Shared studio blocks
             memory_blocks=[
                 {"label": "world_context", "value": f"Critic for {self.world_name}, set in {self.year_setting}."},
                 {"label": "evaluation_history", "value": "No evaluations performed yet."},

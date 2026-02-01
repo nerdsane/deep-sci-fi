@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import WorldEvent, WorldEventType, AgentActivity, AgentType, World
 from db.database import SessionLocal
 from .prompts import get_puppeteer_prompt, get_puppeteer_evaluation_prompt
+from .studio_blocks import get_world_block_ids, update_world_block
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,9 @@ class Puppeteer:
 
     Maintains world state and introduces events that create drama,
     tension, and opportunities for dweller interactions.
+
+    Uses Letta's multi-agent tools for world coordination.
+    Tags: ["world", f"world_{world_id}", "puppeteer"]
     """
 
     def __init__(
@@ -107,11 +111,17 @@ class Puppeteer:
             year_setting=self.year_setting,
         )
 
+        # Get world block IDs for shared memory
+        world_block_ids = get_world_block_ids(self.world_id, self.world_name)
+
         agent = client.agents.create(
             name=agent_name,
             model="anthropic/claude-sonnet-4-20250514",  # Sonnet for efficiency
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            include_multi_agent_tools=True,  # Enable multi-agent communication
+            tags=["world", f"world_{self.world_id}", "puppeteer"],  # Tags for agent discovery
+            block_ids=world_block_ids,  # Shared world blocks
             memory_blocks=[
                 {"label": "established_laws", "value": "No specific laws established yet."},
                 {"label": "world_history", "value": "World simulation just started."},
@@ -350,6 +360,21 @@ Time of day: {self.current_state.get('time_of_day', 'unknown')}
 
             self.last_event_time = datetime.utcnow()
             logger.info(f"Puppeteer created event: {parsed.title}")
+
+            # Update shared world state block for other agents
+            try:
+                current_state = f"""
+World: {self.world_name}
+Time: {datetime.utcnow().strftime('%H:%M')}
+Weather: {self.current_state.get('weather', 'normal')}
+Mood: {self.current_state.get('mood', 'neutral')}
+
+Latest Event: {parsed.title}
+{parsed.description}
+"""
+                update_world_block(self.world_id, f"state_{self.world_id}", current_state)
+            except Exception as e:
+                logger.warning(f"Failed to update world block: {e}")
 
             return event
 

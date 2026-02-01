@@ -31,6 +31,7 @@ from letta_client import Letta
 
 from db import AgentType
 from .prompts import get_storyteller_prompt, get_storyteller_script_request
+from .studio_blocks import get_world_block_ids
 from .tracing import log_trace
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,9 @@ class Storyteller:
     - No minimum observation count - if something is compelling, tell the story
     - No artificial maximum - prune old observations naturally
     - Trust the agent's judgment on what makes a good story
+
+    Uses Letta's multi-agent tools for world coordination.
+    Tags: ["world", f"world_{world_id}", "storyteller"]
     """
 
     def __init__(
@@ -136,11 +140,17 @@ class Storyteller:
             style=self.style,
         )
 
+        # Get world block IDs for shared memory
+        world_block_ids = get_world_block_ids(self.world_id, self.world_name)
+
         agent = client.agents.create(
             name=agent_name,
             model="anthropic/claude-opus-4-5-20251101",
             embedding="openai/text-embedding-ada-002",
             system=system_prompt,
+            include_multi_agent_tools=True,  # Enable multi-agent communication
+            tags=["world", f"world_{self.world_id}", "storyteller"],  # Tags for agent discovery
+            block_ids=world_block_ids,  # Shared world blocks
             memory_blocks=[
                 {"label": "world_state", "value": f"Observing {self.world_name}, set in {self.year_setting}."},
                 {"label": "story_ideas", "value": "No story ideas yet."},
