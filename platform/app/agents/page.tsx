@@ -267,6 +267,24 @@ export default function AgentsDashboard() {
     }
   }
 
+  const runCollaborative = async () => {
+    setActionLoading('collaborate')
+    try {
+      const res = await fetch(`${API_BASE}/agents/production/collaborate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      console.log('Collaborative result:', data)
+      fetchStatus()
+      fetchAllData()
+    } catch (err) {
+      console.error('Failed to run collaborative production')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const resetDatabase = async () => {
     if (!confirm('Reset everything?')) return
     setActionLoading('reset')
@@ -476,7 +494,14 @@ export default function AgentsDashboard() {
             disabled={actionLoading === 'production'}
             className="w-full text-left text-xs px-2 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded disabled:opacity-50"
           >
-            {actionLoading === 'production' ? 'running...' : 'run curator'}
+            {actionLoading === 'production' ? 'running...' : 'run curator (solo)'}
+          </button>
+          <button
+            onClick={runCollaborative}
+            disabled={actionLoading === 'collaborate'}
+            className="w-full text-left text-xs px-2 py-1.5 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded disabled:opacity-50"
+          >
+            {actionLoading === 'collaborate' ? 'collaborating...' : 'run collaborative'}
           </button>
           <button
             onClick={resetDatabase}

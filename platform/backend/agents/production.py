@@ -702,6 +702,209 @@ Trust your judgment. Don't wait for arbitrary thresholds."""
 
         return "\n".join(sections) if sections else "No research available - generate ideas from your memory and knowledge."
 
+    async def run_collaborative_production(self, max_revisions: int = 3) -> dict:
+        """Run full collaborative production workflow with Editor feedback loop.
+
+        Flow:
+        1. Curator researches trends (web_search)
+        2. Curator generates brief
+        3. Send to Editor for review
+        4. If REVISE: improve and resend (up to max_revisions times)
+        5. If APPROVE: send to Architect to build
+
+        Returns:
+            dict with status, brief_id, and collaboration log
+        """
+        start_time = time.time()
+        collaboration_log = []
+
+        try:
+            # Ensure all studio agents exist before starting
+            from .editor import get_editor
+            from .world_creator import get_world_creator
+
+            agent_id = await self._ensure_agent()
+            editor = get_editor()
+            await editor._ensure_agent()
+            architect = get_world_creator()
+            await architect._ensure_agent()
+
+            collaboration_log.append({
+                "step": "agents_ready",
+                "agents": ["curator", "editor", "architect"],
+            })
+
+            client = self._get_client()
+
+            # Step 1: Research
+            logger.info("Curator starting research...")
+            collaboration_log.append({"step": "research_start", "timestamp": datetime.utcnow().isoformat()})
+
+            research = await self.research_trends()
+            collaboration_log.append({
+                "step": "research_complete",
+                "discoveries": len(research.discoveries),
+                "synthesis_length": len(research.synthesis),
+            })
+
+            # Step 2: Generate initial brief
+            logger.info("Curator generating brief...")
+            brief = await self.generate_brief(trend_research=research)
+            collaboration_log.append({
+                "step": "brief_generated",
+                "brief_id": str(brief.id),
+                "recommendation_count": len(brief.recommendations) if brief.recommendations else 0,
+            })
+
+            # Step 3: Send to Editor for review (using multi-agent messaging)
+            revision_count = 0
+            editor_approved = False
+
+            while revision_count < max_revisions and not editor_approved:
+                logger.info(f"Curator sending to Editor (attempt {revision_count + 1}/{max_revisions})...")
+
+                # Format brief for Editor review
+                brief_text = json.dumps({
+                    "research": {
+                        "synthesis": research.synthesis,
+                        "discoveries_count": len(research.discoveries),
+                    },
+                    "recommendations": brief.recommendations or [],
+                }, indent=2)
+
+                # Ask Curator to send to Editor
+                review_prompt = f"""Send your brief to The Editor for review.
+
+Use the send_message_to_agents_matching_tags tool with tags ["studio", "editor"] to ask for feedback.
+
+Here's what to send:
+
+"Hey Editor, I've got a new brief ready for review. Here's what I found and what I'm recommending:
+
+{brief_text[:3000]}
+
+What do you think? Any issues with the research quality or the world seeds? Be honest - I'd rather fix it now."
+
+Wait for their response and tell me what they said."""
+
+                response = client.agents.messages.create(
+                    agent_id=agent_id,
+                    messages=[{"role": "user", "content": review_prompt}],
+                )
+
+                # Check if Editor was contacted and what they said
+                full_trace = self._extract_full_trace(response)
+                curator_response = self._extract_response(response)
+
+                # Log the interaction
+                await log_trace(
+                    agent_type=AgentType.PRODUCTION,
+                    operation="editor_review_request",
+                    prompt=review_prompt,
+                    response=curator_response,
+                    model=self.MODEL,
+                    duration_ms=int((time.time() - start_time) * 1000),
+                    parsed_output={
+                        "revision_attempt": revision_count + 1,
+                        "tool_calls": full_trace["tool_calls"],
+                        "reasoning_steps": len(full_trace["reasoning"]),
+                    },
+                )
+
+                collaboration_log.append({
+                    "step": "editor_review",
+                    "attempt": revision_count + 1,
+                    "tool_calls": full_trace["tool_calls"],
+                    "response_preview": curator_response[:500] if curator_response else None,
+                })
+
+                # Check if Editor approved (look for approval indicators in response)
+                if curator_response:
+                    response_lower = curator_response.lower()
+                    if "approve" in response_lower or "looks good" in response_lower or "solid" in response_lower:
+                        editor_approved = True
+                        logger.info("Editor approved the brief!")
+                        collaboration_log.append({"step": "editor_approved"})
+                    elif "revise" in response_lower or "needs work" in response_lower or "problem" in response_lower:
+                        logger.info("Editor requested revisions...")
+                        revision_count += 1
+
+                        # Ask Curator to revise based on feedback
+                        if revision_count < max_revisions:
+                            revise_prompt = f"""The Editor had feedback. Revise your recommendations.
+
+Their feedback: {curator_response[:2000]}
+
+Update your brief to address their concerns. Use web_search if you need more research.
+Then generate updated recommendations as JSON."""
+
+                            revise_response = client.agents.messages.create(
+                                agent_id=agent_id,
+                                messages=[{"role": "user", "content": revise_prompt}],
+                            )
+
+                            # Update brief with revisions
+                            revise_result = self._extract_response(revise_response)
+                            if revise_result:
+                                try:
+                                    json_start = revise_result.find('[')
+                                    json_end = revise_result.rfind(']') + 1
+                                    if json_start >= 0 and json_end > json_start:
+                                        new_recommendations = json.loads(revise_result[json_start:json_end])
+                                        # Update brief in database
+                                        async with SessionLocal() as db:
+                                            brief = await db.get(ProductionBrief, brief.id)
+                                            if brief:
+                                                brief.recommendations = new_recommendations
+                                                await db.commit()
+                                        collaboration_log.append({
+                                            "step": "revision_complete",
+                                            "new_recommendation_count": len(new_recommendations),
+                                        })
+                                except json.JSONDecodeError:
+                                    pass
+                    else:
+                        # Unclear response, try one more time
+                        revision_count += 1
+
+            # Step 4: If approved (or max revisions), optionally send to Architect
+            final_status = "approved" if editor_approved else "max_revisions_reached"
+            collaboration_log.append({
+                "step": "workflow_complete",
+                "status": final_status,
+                "total_revisions": revision_count,
+            })
+
+            # Log activity
+            await self._log_activity(
+                action="collaborative_production",
+                details={
+                    "status": final_status,
+                    "brief_id": str(brief.id),
+                    "revisions": revision_count,
+                    "editor_approved": editor_approved,
+                },
+                duration_ms=int((time.time() - start_time) * 1000),
+            )
+
+            return {
+                "status": final_status,
+                "brief_id": str(brief.id),
+                "editor_approved": editor_approved,
+                "revisions": revision_count,
+                "collaboration_log": collaboration_log,
+                "duration_ms": int((time.time() - start_time) * 1000),
+            }
+
+        except Exception as e:
+            logger.error(f"Collaborative production failed: {e}", exc_info=True)
+            collaboration_log.append({"step": "error", "message": str(e)})
+            return {
+                "status": "error",
+                "error": str(e),
+                "collaboration_log": collaboration_log,
+            }
+
     async def _log_activity(
         self,
         action: str,
