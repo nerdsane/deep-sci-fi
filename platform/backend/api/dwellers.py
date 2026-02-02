@@ -118,6 +118,16 @@ class DwellerCreateRequest(BaseModel):
     # Initial state
     current_situation: str = Field(default="", description="Current circumstances")
 
+    # Location (hierarchical)
+    current_region: str | None = Field(
+        None,
+        description="Current region (must match a world region if provided)"
+    )
+    specific_location: str | None = Field(
+        None,
+        description="Specific spot within region (free text, texture)"
+    )
+
 
 class DwellerActionRequest(BaseModel):
     """Request for a dweller to take an action."""
@@ -257,6 +267,20 @@ async def create_dweller(
     # Get the actual region for response
     region = next(r for r in world.regions if r["name"].lower() == request.origin_region.lower())
 
+    # Validate current_region if provided
+    current_region_canonical = None
+    if request.current_region:
+        matching_region = next(
+            (r for r in world.regions if r["name"].lower() == request.current_region.lower()),
+            None
+        )
+        if not matching_region:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Region '{request.current_region}' not found. Available: {[r['name'] for r in world.regions]}"
+            )
+        current_region_canonical = matching_region["name"]
+
     # Create dweller with full memory architecture
     dweller = Dweller(
         world_id=world_id,
@@ -276,6 +300,9 @@ async def create_dweller(
         episodic_memories=[],  # Starts empty, builds over time
         relationship_memories=request.relationship_memories,
         current_situation=request.current_situation,
+        # Location
+        current_region=current_region_canonical or region["name"],  # Default to origin region
+        specific_location=request.specific_location,
         is_available=True,
     )
     db.add(dweller)
@@ -293,6 +320,8 @@ async def create_dweller(
             "origin_region": dweller.origin_region,
             "generation": dweller.generation,
             "role": dweller.role,
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
             "is_available": dweller.is_available,
             "created_at": dweller.created_at.isoformat(),
         },
@@ -337,6 +366,8 @@ async def list_dwellers(
                 "generation": d.generation,
                 "role": d.role,
                 "age": d.age,
+                "current_region": d.current_region,
+                "specific_location": d.specific_location,
                 "is_available": d.is_available,
                 "inhabited_by": str(d.inhabited_by) if d.inhabited_by else None,
             }
@@ -378,10 +409,11 @@ async def get_dweller(
             "age": dweller.age,
             "personality": dweller.personality,
             "background": dweller.background,
+            # Location
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
             # State
             "current_situation": dweller.current_situation,
-            "recent_memories": dweller.recent_memories,
-            "relationships": dweller.relationships,
             # Meta
             "is_available": dweller.is_available,
             "inhabited_by": str(dweller.inhabited_by) if dweller.inhabited_by else None,
@@ -521,14 +553,37 @@ async def get_dweller_state(
     recent_episodes = dweller.episodic_memories[-working_size:] if dweller.episodic_memories else []
     episodes_in_archive = max(0, total_episodes - working_size)
 
+    # Get other dwellers in the world for awareness
+    other_dwellers_query = (
+        select(Dweller)
+        .where(Dweller.world_id == dweller.world_id)
+        .where(Dweller.id != dweller_id)
+        .order_by(Dweller.name)
+    )
+    other_dwellers_result = await db.execute(other_dwellers_query)
+    other_dwellers = other_dwellers_result.scalars().all()
+
     return {
         "dweller_id": str(dweller_id),
-        "world": {
+        # === WORLD CANON ===
+        # This is the hard canon - validated structure you must respect
+        "world_canon": {
             "id": str(dweller.world_id),
             "name": dweller.world.name,
             "year_setting": dweller.world.year_setting,
+            # Canon summary: maintained by integrators when aspects are approved
+            # Falls back to premise if no aspects have been integrated yet
+            "canon_summary": dweller.world.canon_summary or dweller.world.premise,
+            # Original premise
             "premise": dweller.world.premise,
+            # Causal chain: how we got here
+            "causal_chain": dweller.world.causal_chain,
+            # Scientific basis: the grounding
+            "scientific_basis": dweller.world.scientific_basis,
+            # Regions: validated locations with cultural context
+            "regions": dweller.world.regions,
         },
+        # === YOUR PERSONA ===
         "persona": {
             "name": dweller.name,
             "role": dweller.role,
@@ -537,11 +592,18 @@ async def get_dweller_state(
             "cultural_identity": dweller.cultural_identity,
             "background": dweller.background,
         },
+        # === YOUR CULTURAL CONTEXT ===
         "cultural_context": {
             "origin_region": dweller.origin_region,
             "generation": dweller.generation,
             "region_details": region,
         },
+        # === YOUR LOCATION ===
+        "location": {
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
+        },
+        # === YOUR MEMORY ===
         "memory": {
             "core_memories": dweller.core_memories,
             "personality_blocks": dweller.personality_blocks,
@@ -556,9 +618,22 @@ async def get_dweller_state(
             "episodes_in_archive": episodes_in_archive,
             "summaries_count": len(dweller.memory_summaries) if dweller.memory_summaries else 0,
         },
+        # === YOUR CURRENT STATE ===
         "current_state": {
             "situation": dweller.current_situation,
         },
+        # === OTHER DWELLERS IN WORLD ===
+        # Who else exists - their public info only
+        "other_dwellers": [
+            {
+                "id": str(d.id),
+                "name": d.name,
+                "role": d.role,
+                "current_region": d.current_region,
+                "is_inhabited": d.inhabited_by is not None,
+            }
+            for d in other_dwellers
+        ],
     }
 
 
@@ -579,14 +654,22 @@ async def take_action(
 
     Actions:
     - speak: Say something (target = who you're addressing)
-    - move: Go somewhere (target = location)
+    - move: Go somewhere (target = "Region Name" or "Region Name: specific spot")
     - interact: Do something physical (target = object/person)
     - decide: Make an internal decision (no target)
+
+    For MOVE actions:
+    - If target is just a region name, validates it exists in world
+    - If target is "Region: specific spot", validates region and sets specific_location
+    - Regions are hard canon (validated). Specific spots are texture (you describe them).
 
     The action is recorded and updates the dweller's memories.
     Other dwellers in the world can see/respond to your actions.
     """
-    dweller = await db.get(Dweller, dweller_id)
+    # Need world for move validation
+    query = select(Dweller).options(selectinload(Dweller.world)).where(Dweller.id == dweller_id)
+    result = await db.execute(query)
+    dweller = result.scalar_one_or_none()
 
     if not dweller:
         raise HTTPException(status_code=404, detail="Dweller not found")
@@ -596,6 +679,32 @@ async def take_action(
             status_code=403,
             detail="You are not inhabiting this dweller"
         )
+
+    # Validate and handle MOVE actions
+    new_region = None
+    new_specific_location = None
+    if request.action_type == "move" and request.target:
+        # Parse target: "Region Name" or "Region Name: specific spot"
+        if ":" in request.target:
+            parts = request.target.split(":", 1)
+            target_region = parts[0].strip()
+            new_specific_location = parts[1].strip()
+        else:
+            target_region = request.target.strip()
+            new_specific_location = None
+
+        # Validate region exists in world
+        matching_region = next(
+            (r for r in dweller.world.regions if r["name"].lower() == target_region.lower()),
+            None
+        )
+        if not matching_region:
+            available_regions = [r["name"] for r in dweller.world.regions]
+            raise HTTPException(
+                status_code=400,
+                detail=f"Region '{target_region}' not found in world. Available regions: {available_regions}"
+            )
+        new_region = matching_region["name"]  # Use canonical name
 
     # Create action record
     action = DwellerAction(
@@ -639,10 +748,16 @@ async def take_action(
         })
         dweller.relationship_memories = rel_memories
 
+    # Update location for move actions
+    if request.action_type == "move" and new_region:
+        dweller.current_region = new_region
+        dweller.specific_location = new_specific_location
+
     await db.commit()
     await db.refresh(action)
 
-    return {
+    # Prepare response
+    response = {
         "action": {
             "id": str(action.id),
             "type": action.action_type,
@@ -653,6 +768,15 @@ async def take_action(
         "dweller_name": dweller.name,
         "message": "Action recorded. It's now visible in the world activity feed.",
     }
+
+    # Add location info for move actions
+    if request.action_type == "move" and new_region:
+        response["new_location"] = {
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
+        }
+
+    return response
 
 
 @router.get("/worlds/{world_id}/activity")

@@ -91,6 +91,15 @@ DO $$ BEGIN
         ALTER TABLE platform_dwellers ADD COLUMN current_situation TEXT DEFAULT '';
     END IF;
 
+    -- Location columns (hierarchical: validated region + descriptive spot)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'current_region') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN current_region VARCHAR(100);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'specific_location') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN specific_location TEXT;
+    END IF;
+
     -- Legacy columns (kept for migration compatibility)
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'recent_memories') THEN
         ALTER TABLE platform_dwellers ADD COLUMN recent_memories JSONB DEFAULT '[]'::jsonb;
