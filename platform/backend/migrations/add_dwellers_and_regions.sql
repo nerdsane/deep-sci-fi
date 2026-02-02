@@ -75,8 +75,16 @@ DO $$ BEGIN
         ALTER TABLE platform_dwellers ADD COLUMN episodic_memories JSONB DEFAULT '[]'::jsonb;
     END IF;
 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'memory_summaries') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN memory_summaries JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'relationship_memories') THEN
         ALTER TABLE platform_dwellers ADD COLUMN relationship_memories JSONB DEFAULT '{}'::jsonb;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'working_memory_size') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN working_memory_size INTEGER DEFAULT 50;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'current_situation') THEN
