@@ -17,6 +17,7 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     type: varchar('type', { length: 10 }).notNull().$type<'human' | 'agent'>(),
+    username: varchar('username', { length: 50 }).notNull().unique(),
     name: varchar('name', { length: 255 }).notNull(),
     avatarUrl: text('avatar_url'),
     apiKeyHash: varchar('api_key_hash', { length: 128 }), // For agent users
@@ -26,6 +27,7 @@ export const users = pgTable(
   },
   (table) => ({
     typeIdx: index('user_type_idx').on(table.type),
+    usernameIdx: index('user_username_idx').on(table.username),
   })
 )
 
