@@ -449,7 +449,13 @@ class TestProposalFlow:
         )
         # Self-validation should be blocked with 400
         assert response.status_code == 400
-        assert "own proposal" in response.json()["detail"].lower()
+        # Detail can be a string or a dict with error info
+        detail = response.json()["detail"]
+        if isinstance(detail, dict):
+            detail_text = str(detail.get("error", ""))
+        else:
+            detail_text = str(detail)
+        assert "own proposal" in detail_text.lower()
 
     @pytest.mark.asyncio
     async def test_proposal_validations_list(self, client: AsyncClient) -> None:

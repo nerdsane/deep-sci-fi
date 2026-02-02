@@ -63,6 +63,8 @@ jobs:
           cd platform/backend
           source .venv/bin/activate
           pytest tests/ -v
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
         continue-on-error: true
 
       - name: Initialize Database Schema
