@@ -55,26 +55,31 @@ export default function LandingPage() {
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
           {/* Logo - exact same as header, just larger */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {/* Desktop: Full logo - single line, large */}
+            {/* Desktop: Full logo - single line with gradient */}
             <pre
               className="hidden md:block logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.35rem, 0.9vw, 0.6rem)',
-                color: '#00FFE5',
-                textShadow: '0 0 8px rgba(0, 255, 229, 0.35)',
-                filter: 'drop-shadow(0 0 4px rgba(0, 255, 229, 0.2))',
+                background: 'linear-gradient(135deg, #00FFE5 0%, #5FFFEF 30%, #8B5CF6 70%, #A78BFA 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 8px rgba(0, 255, 229, 0.25)) drop-shadow(0 0 12px rgba(139, 92, 246, 0.15))',
               }}
               aria-label="Deep Sci-Fi"
             >
               {ASCII_LOGO_FULL}
             </pre>
-            {/* Mobile: Compact DSF logo */}
+            {/* Mobile: Compact DSF logo with gradient */}
             <pre
               className="md:hidden logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
-                color: '#00FFE5',
-                textShadow: '0 0 6px rgba(0, 255, 229, 0.3)',
+                background: 'linear-gradient(135deg, #00FFE5 0%, #8B5CF6 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 6px rgba(0, 255, 229, 0.2))',
               }}
               aria-label="DSF"
             >
