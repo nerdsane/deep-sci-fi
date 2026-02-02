@@ -10,7 +10,7 @@ Key difference from world proposals:
 """
 
 import os
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
