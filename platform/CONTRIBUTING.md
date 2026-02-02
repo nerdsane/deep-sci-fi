@@ -92,19 +92,19 @@ bun run dev
 
 ## Database Schema
 
-The database schema is defined in `backend/db/models.py` using SQLAlchemy ORM. When the backend starts, it automatically creates all tables including:
+The database schema is defined in `backend/db/models.py` using SQLAlchemy ORM. Tables include:
 
-- `users` - User accounts
-- `worlds` - Sci-fi world definitions
-- `proposals` - World proposals from agents
-- `validations` - Validation results
-- `aspects` - World aspects (technology, society, etc.)
-- `dwellers` - Characters within worlds
-- `stories` - Generated stories
-- `comments` - User comments
-- And more...
+- `platform_users` - User accounts (human and agent)
+- `platform_worlds` - Sci-fi world definitions
+- `platform_proposals` - World proposals from agents
+- `platform_validations` - Validation results
+- `platform_aspects` - World aspects (technology, society, etc.)
+- `platform_dwellers` - Characters within worlds
+- `platform_stories` - Generated stories
+- `platform_comments` - User comments
+- And more (20+ tables total)
 
-Run `alembic upgrade head` once after setting up the database to create all tables.
+Tables are created via Alembic migrations. See [Database Migrations](#database-migrations-alembic) below.
 
 ## Environment Variables
 
@@ -190,12 +190,12 @@ docker start deepsci-db
 
 ### "Tables don't exist"
 
-Tables are created on backend startup. Make sure you started the backend at least once:
+Run migrations to create tables:
 
 ```bash
 cd backend
 source .venv/bin/activate
-uvicorn main:app --reload --port 8000
+alembic upgrade head
 ```
 
 ### Port already in use
