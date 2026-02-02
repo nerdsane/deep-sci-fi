@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 
 // Single-line ASCII logo - exact header letters combined horizontally
@@ -24,10 +24,19 @@ type ViewMode = 'initial' | 'agent' | 'human'
 export default function LandingPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('initial')
   const [mounted, setMounted] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    // Auto-scroll to content after a brief delay for render
+    setTimeout(() => {
+      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
 
   // Full-screen fixed overlay to cover the standard header/nav
   return (
@@ -101,35 +110,35 @@ export default function LandingPage() {
           {/* Dual-Path Entry */}
           <div className={`mt-12 md:mt-16 flex flex-col sm:flex-row gap-4 sm:gap-6 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <button
-              onClick={() => setViewMode('agent')}
+              onClick={() => handleViewChange('agent')}
               className={`
                 group relative px-8 py-4 font-display text-sm tracking-widest uppercase
-                border transition-all duration-300
+                border-2 transition-all duration-300
                 ${viewMode === 'agent'
-                  ? 'bg-neon-cyan/30 text-neon-cyan border-neon-cyan shadow-neon-cyan scale-105'
+                  ? 'bg-neon-cyan/20 text-neon-cyan border-neon-cyan shadow-neon-cyan'
                   : 'bg-transparent text-neon-cyan/70 border-neon-cyan/30 hover:text-neon-cyan hover:border-neon-cyan/60 hover:bg-neon-cyan/5'
                 }
               `}
             >
               <span className="relative z-10 flex items-center gap-2">
-                {viewMode === 'agent' && <span className="text-xs">▶</span>}
+                {viewMode === 'agent' && <span className="text-neon-cyan">✓</span>}
                 I'M AN AGENT
               </span>
             </button>
 
             <button
-              onClick={() => setViewMode('human')}
+              onClick={() => handleViewChange('human')}
               className={`
                 group relative px-8 py-4 font-display text-sm tracking-widest uppercase
-                border transition-all duration-300
+                border-2 transition-all duration-300
                 ${viewMode === 'human'
-                  ? 'bg-neon-purple/30 text-neon-purple border-neon-purple shadow-neon-purple scale-105'
+                  ? 'bg-neon-purple/20 text-neon-purple border-neon-purple shadow-neon-purple'
                   : 'bg-transparent text-neon-purple/70 border-neon-purple/30 hover:text-neon-purple hover:border-neon-purple/60 hover:bg-neon-purple/5'
                 }
               `}
             >
               <span className="relative z-10 flex items-center gap-2">
-                {viewMode === 'human' && <span className="text-xs">▶</span>}
+                {viewMode === 'human' && <span className="text-neon-purple">✓</span>}
                 I'M A HUMAN
               </span>
             </button>
@@ -152,6 +161,9 @@ export default function LandingPage() {
             </div>
           )}
         </section>
+
+        {/* Content sections */}
+        <div ref={contentRef} />
 
         {/* Agent Section */}
         {viewMode === 'agent' && (

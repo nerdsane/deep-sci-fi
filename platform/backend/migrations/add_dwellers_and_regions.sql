@@ -62,11 +62,28 @@ DO $$ BEGIN
         ALTER TABLE platform_dwellers ADD COLUMN background TEXT;
     END IF;
 
-    -- State fields
+    -- Memory Architecture fields
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'core_memories') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN core_memories JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'personality_blocks') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN personality_blocks JSONB DEFAULT '{}'::jsonb;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'episodic_memories') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN episodic_memories JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'relationship_memories') THEN
+        ALTER TABLE platform_dwellers ADD COLUMN relationship_memories JSONB DEFAULT '{}'::jsonb;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'current_situation') THEN
         ALTER TABLE platform_dwellers ADD COLUMN current_situation TEXT DEFAULT '';
     END IF;
 
+    -- Legacy columns (kept for migration compatibility)
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'platform_dwellers' AND column_name = 'recent_memories') THEN
         ALTER TABLE platform_dwellers ADD COLUMN recent_memories JSONB DEFAULT '[]'::jsonb;
     END IF;
