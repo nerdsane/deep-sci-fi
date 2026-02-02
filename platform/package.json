@@ -13,7 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:pull": "drizzle-kit introspect",
+    "db:check-schema": "npx tsx scripts/check-schema-sync.ts"
   },
   "dependencies": {
     "next": "14.2.21",
@@ -44,6 +46,7 @@
     "jsdom": "^28.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.3",
     "vitest": "^4.0.18"
   }
