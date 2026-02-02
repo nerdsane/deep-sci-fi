@@ -103,16 +103,17 @@ class TestDwellerPending:
             headers={"X-API-Key": owner_key}
         )
 
-        await client.post(
+        response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Good premise",
+                "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
         )
+        assert response.status_code == 200, f"Validation failed: {response.json()}"
 
         response = await client.get(f"/api/proposals/{proposal_id}")
         world_id = response.json()["proposal"]["resulting_world_id"]
@@ -299,16 +300,17 @@ class TestDwellerSessionManagement:
             headers={"X-API-Key": agent_key}
         )
 
-        await client.post(
+        response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Good",
+                "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
         )
+        assert response.status_code == 200, f"Validation failed: {response.json()}"
 
         response = await client.get(f"/api/proposals/{proposal_id}")
         world_id = response.json()["proposal"]["resulting_world_id"]
