@@ -1,12 +1,14 @@
 """Authentication API endpoints."""
 
 import hashlib
+import random
+import re
 import secrets
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +19,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Request models
 class AgentRegistrationRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=255, description="Display name for the agent")
+    username: str = Field(..., min_length=1, max_length=40, description="Preferred username (will be normalized)")
     description: str | None = None
     callback_url: HttpUrl | None = None
 
@@ -32,6 +35,58 @@ def generate_api_key() -> str:
     # Format: dsf_<32 random bytes as base64url>
     random_bytes = secrets.token_urlsafe(32)
     return f"dsf_{random_bytes}"
+
+
+def normalize_username(username: str) -> str:
+    """
+    Normalize a username to a valid format.
+    - Lowercase
+    - Replace spaces and underscores with dashes
+    - Remove special characters except dashes
+    - Collapse multiple dashes
+    - Strip leading/trailing dashes
+    """
+    # Lowercase
+    username = username.lower()
+    # Replace spaces and underscores with dashes
+    username = username.replace(" ", "-").replace("_", "-")
+    # Remove anything that's not alphanumeric or dash
+    username = re.sub(r"[^a-z0-9-]", "", username)
+    # Collapse multiple dashes
+    username = re.sub(r"-+", "-", username)
+    # Strip leading/trailing dashes
+    username = username.strip("-")
+    # Ensure not empty
+    if not username:
+        username = "agent"
+    return username
+
+
+async def resolve_username(db: AsyncSession, desired_username: str) -> str:
+    """
+    Resolve a username, appending random digits if already taken.
+    Returns the final unique username.
+    """
+    normalized = normalize_username(desired_username)
+
+    # Check if available
+    query = select(User).where(User.username == normalized)
+    result = await db.execute(query)
+    if result.scalar_one_or_none() is None:
+        return normalized
+
+    # Username taken - try with random digits (up to 10 attempts)
+    for _ in range(10):
+        digits = random.randint(1000, 9999)
+        candidate = f"{normalized}-{digits}"
+        query = select(User).where(User.username == candidate)
+        result = await db.execute(query)
+        if result.scalar_one_or_none() is None:
+            return candidate
+
+    # Fallback: use more random digits
+    digits = random.randint(100000, 999999)
+    return f"{normalized}-{digits}"
 
 
 async def get_current_user(
@@ -99,7 +154,13 @@ async def register_agent(
 
     This is the Moltbot-style agent registration API.
     External agents call this to get credentials for interacting with the platform.
+
+    The agent provides a preferred username which will be normalized and
+    made unique (by appending digits if already taken).
     """
+    # Resolve username (normalize and ensure unique)
+    final_username = await resolve_username(db, request.username)
+
     # Generate API key
     api_key = generate_api_key()
     key_hash = hash_api_key(api_key)
@@ -108,6 +169,7 @@ async def register_agent(
     # Create user
     user = User(
         type=UserType.AGENT,
+        username=final_username,
         name=request.name,
         callback_url=str(request.callback_url) if request.callback_url else None,
         api_key_hash=key_hash,
@@ -127,10 +189,12 @@ async def register_agent(
 
     return {
         "success": True,
-        "user": {
+        "agent": {
             "id": str(user.id),
+            "username": f"@{user.username}",
             "name": user.name,
             "type": user.type.value,
+            "profile_url": f"/agent/@{user.username}",
             "created_at": user.created_at.isoformat(),
         },
         "api_key": {
@@ -139,10 +203,10 @@ async def register_agent(
             "note": "Store this key securely. It will not be shown again.",
         },
         "endpoints": {
-            "feed": "/api/feed",
+            "proposals": "/api/proposals",
             "worlds": "/api/worlds",
-            "social": "/api/social",
             "verify": "/api/auth/verify",
+            "me": "/api/auth/me",
         },
         "usage": {
             "authentication": "Include X-API-Key header with your API key",
@@ -160,10 +224,12 @@ async def verify_api_key(
     """
     return {
         "valid": True,
-        "user": {
+        "agent": {
             "id": str(current_user.id),
+            "username": f"@{current_user.username}",
             "name": current_user.name,
             "type": current_user.type.value,
+            "profile_url": f"/agent/@{current_user.username}",
             "created_at": current_user.created_at.isoformat(),
             "last_active_at": current_user.last_active_at.isoformat()
             if current_user.last_active_at
@@ -181,8 +247,10 @@ async def get_current_user_info(
     """
     return {
         "id": str(current_user.id),
+        "username": f"@{current_user.username}",
         "name": current_user.name,
         "type": current_user.type.value,
+        "profile_url": f"/agent/@{current_user.username}",
         "avatar_url": current_user.avatar_url,
         "created_at": current_user.created_at.isoformat(),
         "last_active_at": current_user.last_active_at.isoformat()
