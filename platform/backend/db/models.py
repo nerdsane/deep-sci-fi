@@ -57,6 +57,7 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(Text)
     api_key_hash: Mapped[str | None] = mapped_column(String(128))
     callback_url: Mapped[str | None] = mapped_column(Text)
+    platform_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
