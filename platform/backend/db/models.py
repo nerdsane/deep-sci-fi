@@ -113,7 +113,12 @@ class User(Base):
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
     worlds_created: Mapped[list["World"]] = relationship(back_populates="creator")
-    dwellers: Mapped[list["Dweller"]] = relationship(back_populates="agent")
+    dwellers_created: Mapped[list["Dweller"]] = relationship(
+        "Dweller", foreign_keys="Dweller.created_by", back_populates="creator"
+    )
+    dwellers_inhabited: Mapped[list["Dweller"]] = relationship(
+        "Dweller", foreign_keys="Dweller.inhabited_by", back_populates="inhabitant"
+    )
     comments: Mapped[list["Comment"]] = relationship(back_populates="user")
     interactions: Mapped[list["SocialInteraction"]] = relationship(back_populates="user")
 
@@ -155,6 +160,9 @@ class World(Base):
 
     In the crowdsourced model, Worlds are created from approved Proposals.
     The proposal_id links back to the source proposal.
+
+    Worlds contain regions with cultural context - this is critical for
+    creating culturally-grounded dwellers (not AI-slop names).
     """
 
     __tablename__ = "platform_worlds"
@@ -170,6 +178,12 @@ class World(Base):
     )
     # Scientific basis inherited from proposal
     scientific_basis: Mapped[str | None] = mapped_column(Text)
+
+    # Regions with cultural context for dweller creation
+    # Each region: {name, location, population_origins, cultural_blend, naming_conventions, language}
+    regions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
 
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
@@ -324,7 +338,14 @@ class Validation(Base):
 
 
 class Dweller(Base):
-    """Agents living in worlds."""
+    """Persona shells that agents can inhabit.
+
+    DSF provides the persona (identity, background, relationships).
+    External agents provide the brain (decisions, actions).
+
+    Key insight: Names and identities must be culturally grounded in
+    the world's future context, not AI-slop defaults.
+    """
 
     __tablename__ = "platform_dwellers"
 
@@ -334,23 +355,100 @@ class Dweller(Base):
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
     )
-    agent_id: Mapped[uuid.UUID] = mapped_column(
+
+    # Who created the persona vs who's controlling it
+    created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
     )
-    persona: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    joined_at: Mapped[datetime] = mapped_column(
+    inhabited_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=True
+    )
+
+    # === Identity (culturally grounded) ===
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    origin_region: Mapped[str] = mapped_column(String(100), nullable=False)  # Must match world region
+    generation: Mapped[str] = mapped_column(String(50), nullable=False)  # "Founding", "Second-gen", etc.
+    name_context: Mapped[str] = mapped_column(Text, nullable=False)  # Why this name? Required.
+    cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # === Character ===
+    role: Mapped[str] = mapped_column(String(255), nullable=False)  # Job/function
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    personality: Mapped[str] = mapped_column(Text, nullable=False)
+    background: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # === State (evolves over time) ===
+    current_situation: Mapped[str] = mapped_column(Text, default="")
+    recent_memories: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list
+    )  # [{timestamp, event}, ...]
+    relationships: Mapped[dict[str, str]] = mapped_column(
+        JSONB, default=dict
+    )  # {dweller_name: relationship_description}
+
+    # === Meta ===
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
-    agent: Mapped["User"] = relationship(back_populates="dwellers")
+    creator: Mapped["User"] = relationship("User", foreign_keys=[created_by])
+    inhabitant: Mapped["User | None"] = relationship("User", foreign_keys=[inhabited_by])
     messages: Mapped[list["ConversationMessage"]] = relationship(back_populates="dweller")
+    actions: Mapped[list["DwellerAction"]] = relationship(back_populates="dweller")
 
     __table_args__ = (
         Index("dweller_world_idx", "world_id"),
-        Index("dweller_agent_idx", "agent_id"),
+        Index("dweller_created_by_idx", "created_by"),
+        Index("dweller_inhabited_by_idx", "inhabited_by"),
+        Index("dweller_available_idx", "is_available"),
+    )
+
+
+class DwellerAction(Base):
+    """Actions taken by inhabited dwellers.
+
+    When an agent inhabits a dweller and takes an action (speak, move,
+    interact, decide), it's recorded here. This creates the activity
+    stream for worlds.
+    """
+
+    __tablename__ = "platform_dweller_actions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    dweller_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )  # The agent who took the action
+
+    # Action details
+    action_type: Mapped[str] = mapped_column(String(50), nullable=False)  # speak, move, interact, decide
+    target: Mapped[str | None] = mapped_column(String(255))  # Target dweller/location
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # What was said/done
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    dweller: Mapped["Dweller"] = relationship(back_populates="actions")
+    actor: Mapped["User"] = relationship("User", foreign_keys=[actor_id])
+
+    __table_args__ = (
+        Index("action_dweller_idx", "dweller_id"),
+        Index("action_actor_idx", "actor_id"),
+        Index("action_created_at_idx", "created_at"),
+        Index("action_type_idx", "action_type"),
     )
 
 
