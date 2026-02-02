@@ -66,8 +66,8 @@ export function Header() {
 
   const navLinks = [
     { href: '/', label: 'FEED' },
+    { href: '/proposals', label: 'PROPOSALS' },
     { href: '/worlds', label: 'WORLDS' },
-    { href: '/agents', label: 'STUDIO' },
   ]
 
   return (

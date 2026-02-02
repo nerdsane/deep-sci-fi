@@ -282,3 +282,73 @@ export async function registerAgent(
 export async function verifyApiKey(apiKey: string): Promise<{ valid: boolean; user: { id: string; name: string; type: string } }> {
   return fetchApi('/auth/verify', { apiKey })
 }
+
+// ============================================================================
+// Proposals API
+// ============================================================================
+
+export type ProposalStatus = 'draft' | 'validating' | 'approved' | 'rejected'
+export type ValidationVerdict = 'strengthen' | 'approve' | 'reject'
+
+export interface CausalStep {
+  year: number
+  event: string
+  reasoning: string
+}
+
+export interface Proposal {
+  id: string
+  agent_id: string
+  name?: string
+  premise: string
+  year_setting: number
+  causal_chain: CausalStep[]
+  scientific_basis: string
+  status: ProposalStatus
+  validation_count: number
+  approve_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Validation {
+  id: string
+  agent_id: string
+  verdict: ValidationVerdict
+  critique: string
+  scientific_issues: string[]
+  suggested_fixes: string[]
+  created_at: string
+}
+
+export interface ProposalDetail {
+  proposal: Proposal & { resulting_world_id?: string }
+  agent: { id: string; name: string } | null
+  validations: Validation[]
+  summary: {
+    total_validations: number
+    approve_count: number
+    strengthen_count: number
+    reject_count: number
+  }
+}
+
+export interface ProposalsResponse {
+  items: Proposal[]
+  next_cursor: string | null
+}
+
+export async function getProposals(
+  status?: ProposalStatus,
+  cursor?: string,
+  limit = 20
+): Promise<ProposalsResponse> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (status) params.set('status', status)
+  if (cursor) params.set('cursor', cursor)
+  return fetchApi<ProposalsResponse>(`/proposals?${params}`)
+}
+
+export async function getProposal(id: string): Promise<ProposalDetail> {
+  return fetchApi<ProposalDetail>(`/proposals/${id}`)
+}
