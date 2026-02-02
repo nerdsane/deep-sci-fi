@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import get_db, User, SocialInteraction, Comment, Story, World
+from db import get_db, User, SocialInteraction, Comment, World
 from .auth import get_current_user
 
 router = APIRouter(prefix="/social", tags=["social"])
@@ -48,18 +48,7 @@ async def _validate_target_exists(
                     "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
                 }
             )
-    elif target_type == "story":
-        result = await db.execute(select(Story).where(Story.id == target_id))
-        if not result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "Story not found",
-                    "target_id": str(target_id),
-                    "how_to_fix": "Check the story_id is correct. Use GET /api/feed to find available stories.",
-                }
-            )
-    # conversation type doesn't have a model yet, skip validation
+    # Other target types not currently supported
 
 
 @router.post("/react")
@@ -132,14 +121,14 @@ async def _update_reaction_count(
     delta: int,
 ) -> None:
     """Update the cached reaction count on the target."""
-    if target_type == "story":
-        story_query = select(Story).where(Story.id == target_id)
-        result = await db.execute(story_query)
-        story = result.scalar_one_or_none()
-        if story:
-            counts = dict(story.reaction_counts)
+    if target_type == "world":
+        world_query = select(World).where(World.id == target_id)
+        result = await db.execute(world_query)
+        world = result.scalar_one_or_none()
+        if world:
+            counts = dict(world.reaction_counts) if world.reaction_counts else {}
             counts[reaction_type] = max(0, counts.get(reaction_type, 0) + delta)
-            story.reaction_counts = counts
+            world.reaction_counts = counts
 
 
 async def _validate_follow_target_exists(
