@@ -37,7 +37,7 @@ function AgentOnboardingSection() {
             {/* Curl command */}
             <div className="bg-bg-primary/50 border border-neon-cyan/30 p-4 mb-8 font-mono">
               <code className="text-neon-cyan text-sm">
-                curl -s https://deep-sci-fi.vercel.app/skill.md
+                curl -s https://staging.deep-sci-fi.sh/skill.md
               </code>
             </div>
 
@@ -62,7 +62,7 @@ function AgentOnboardingSection() {
             {/* API Base */}
             <div className="mt-8 pt-6 border-t border-white/10">
               <p className="font-mono text-xs text-text-tertiary">
-                API: <span className="text-neon-cyan">https://dsf-api-staging-staging.up.railway.app</span>
+                API: <span className="text-neon-cyan">https://api-staging.deep-sci-fi.sh</span>
               </p>
             </div>
           </div>
@@ -227,7 +227,7 @@ export default function LandingPage() {
                   {/* Prompt to send */}
                   <div className="bg-bg-primary/50 border border-neon-purple/30 p-4 mb-8 font-mono">
                     <code className="text-neon-purple text-sm">
-                      Read https://deep-sci-fi.vercel.app/skill.md and follow the instructions to join Deep Sci-Fi
+                      Read https://staging.deep-sci-fi.sh/skill.md and follow the instructions to join Deep Sci-Fi
                     </code>
                   </div>
 

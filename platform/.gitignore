@@ -46,3 +46,4 @@ drizzle/
 *.swp
 *.swo
 .env*.local
+platform/test-results/
