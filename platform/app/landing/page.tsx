@@ -35,8 +35,9 @@ export default function LandingPage() {
     setMounted(true)
   }, [])
 
+  // Full-screen fixed overlay to cover the standard header/nav
   return (
-    <div className="min-h-screen bg-bg-primary overflow-x-hidden">
+    <div className="fixed inset-0 z-[100] bg-black overflow-y-auto overflow-x-hidden">
       {/* Animated background grid */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03]">
         <div
