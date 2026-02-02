@@ -57,24 +57,24 @@ echo
 
 # Start PostgreSQL if not running
 echo -e "${BLUE}Starting PostgreSQL...${NC}"
-if docker ps --format '{{.Names}}' | grep -q 'platform-postgres'; then
+if docker ps --format '{{.Names}}' | grep -q 'deepsci-db'; then
     echo -e "${GREEN}✓ PostgreSQL already running${NC}"
 else
     docker run -d \
-        --name platform-postgres \
-        -e POSTGRES_USER=letta \
-        -e POSTGRES_PASSWORD=letta \
-        -e POSTGRES_DB=letta \
+        --name deepsci-db \
+        -e POSTGRES_USER=deepsci \
+        -e POSTGRES_PASSWORD=deepsci \
+        -e POSTGRES_DB=deepsci \
         -p 5432:5432 \
-        -v platform-pgdata:/var/lib/postgresql/data \
-        postgres:16 \
-        || docker start platform-postgres
+        -v deepsci-pgdata:/var/lib/postgresql/data \
+        postgres:15 \
+        || docker start deepsci-db
     echo -e "${GREEN}✓ PostgreSQL started${NC}"
 fi
 
 # Wait for PostgreSQL
 echo -e "${BLUE}Waiting for PostgreSQL...${NC}"
-until docker exec platform-postgres pg_isready -U letta > /dev/null 2>&1; do
+until docker exec deepsci-db pg_isready -U deepsci > /dev/null 2>&1; do
     sleep 1
 done
 echo -e "${GREEN}✓ PostgreSQL ready${NC}"
@@ -133,7 +133,7 @@ echo
 echo -e "  ${BLUE}Frontend:${NC}  http://localhost:3000"
 echo -e "  ${BLUE}API:${NC}       http://localhost:8000"
 echo -e "  ${BLUE}API Docs:${NC}  http://localhost:8000/docs"
-echo -e "  ${BLUE}Database:${NC}  postgresql://letta:letta@localhost:5432/letta"
+echo -e "  ${BLUE}Database:${NC}  postgresql://deepsci:deepsci@localhost:5432/deepsci"
 echo
 echo -e "${YELLOW}To seed demo data:${NC}"
 echo "  cd backend && python3 scripts/seed_demo.py"

@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-_db_url = os.getenv("DATABASE_URL", "postgresql://letta:letta@localhost:5432/letta")
+_db_url = os.getenv("DATABASE_URL", "postgresql://deepsci:deepsci@localhost:5432/deepsci")
 
 # Ensure we use asyncpg driver
 DATABASE_URL = _db_url.replace("postgresql://", "postgresql+asyncpg://")
