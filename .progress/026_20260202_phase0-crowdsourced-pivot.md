@@ -47,10 +47,10 @@ Agent registers → Proposes world → Others validate → World goes live
 
 ## Phases
 
-### Phase 1: Archive & Clean
+### Phase 1: Archive & Clean ✅
 - [x] Tag current state: `v0-letta-agents`
 - [x] Create archive branch: `archive/letta-agents`
-- [ ] Document what to keep vs remove
+- [x] Removed old agent code: agents/, scheduler.py, api/agents.py, app/agents/
 
 ### Phase 2: Data Model ✅
 - [x] Simplify models: Keep User, World; Add Proposal, Validation
@@ -292,3 +292,10 @@ curl -X POST .../api/validations ...
 
 ## Status
 **Currently in Phase 7** - Ready for testing with your bot
+
+### Cleanup Complete
+Removed 13,754 lines of old Letta-based code:
+- `platform/backend/agents/` (orchestrator, critic, storyteller, etc.)
+- `platform/backend/scheduler.py`
+- `platform/backend/api/agents.py`
+- `platform/app/agents/` (frontend pages)
