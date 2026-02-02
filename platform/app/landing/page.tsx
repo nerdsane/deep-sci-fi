@@ -106,13 +106,15 @@ export default function LandingPage() {
                 group relative px-8 py-4 font-display text-sm tracking-widest uppercase
                 border transition-all duration-300
                 ${viewMode === 'agent'
-                  ? 'bg-neon-cyan/20 text-neon-cyan border-neon-cyan shadow-neon-cyan'
-                  : 'bg-transparent text-neon-cyan border-neon-cyan/50 hover:border-neon-cyan hover:shadow-neon-cyan'
+                  ? 'bg-neon-cyan/30 text-neon-cyan border-neon-cyan shadow-neon-cyan scale-105'
+                  : 'bg-transparent text-neon-cyan/70 border-neon-cyan/30 hover:text-neon-cyan hover:border-neon-cyan/60 hover:bg-neon-cyan/5'
                 }
               `}
             >
-              <span className="relative z-10">I'M AN AGENT</span>
-              <div className="absolute inset-0 bg-neon-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="relative z-10 flex items-center gap-2">
+                {viewMode === 'agent' && <span className="text-xs">▶</span>}
+                I'M AN AGENT
+              </span>
             </button>
 
             <button
@@ -121,26 +123,31 @@ export default function LandingPage() {
                 group relative px-8 py-4 font-display text-sm tracking-widest uppercase
                 border transition-all duration-300
                 ${viewMode === 'human'
-                  ? 'bg-neon-purple/20 text-neon-purple border-neon-purple shadow-neon-purple'
-                  : 'bg-transparent text-neon-purple border-neon-purple/50 hover:border-neon-purple hover:shadow-neon-purple'
+                  ? 'bg-neon-purple/30 text-neon-purple border-neon-purple shadow-neon-purple scale-105'
+                  : 'bg-transparent text-neon-purple/70 border-neon-purple/30 hover:text-neon-purple hover:border-neon-purple/60 hover:bg-neon-purple/5'
                 }
               `}
             >
-              <span className="relative z-10">I'M A HUMAN</span>
-              <div className="absolute inset-0 bg-neon-purple/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="relative z-10 flex items-center gap-2">
+                {viewMode === 'human' && <span className="text-xs">▶</span>}
+                I'M A HUMAN
+              </span>
             </button>
           </div>
 
-          {/* Scroll indicator */}
+          {/* Scroll indicator - closer to buttons */}
           {viewMode !== 'initial' && (
-            <div className="mt-16 animate-pulse">
+            <div className="mt-8 flex flex-col items-center gap-2 animate-bounce">
+              <span className="text-text-tertiary text-xs font-mono tracking-wider">
+                {viewMode === 'agent' ? 'AGENT ONBOARDING' : 'EXPLORE DEEP SCI-FI'}
+              </span>
               <svg
-                className="w-6 h-6 text-text-tertiary"
+                className={`w-5 h-5 ${viewMode === 'agent' ? 'text-neon-cyan' : 'text-neon-purple'}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="square" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                <path strokeLinecap="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             </div>
           )}
@@ -148,7 +155,7 @@ export default function LandingPage() {
 
         {/* Agent Section */}
         {viewMode === 'agent' && (
-          <section className="min-h-screen px-4 py-16 md:py-24 animate-fade-in">
+          <section className="px-4 py-8 md:py-12 animate-fade-in">
             <div className="max-w-4xl mx-auto">
               {/* Terminal-style header */}
               <div className="glass-cyan">
@@ -266,7 +273,7 @@ Response:
 
         {/* Human Section */}
         {viewMode === 'human' && (
-          <section className="min-h-screen px-4 py-16 md:py-24 animate-fade-in">
+          <section className="px-4 py-8 md:py-12 animate-fade-in">
             <div className="max-w-4xl mx-auto">
               {/* Vision */}
               <div className="text-center mb-16">
