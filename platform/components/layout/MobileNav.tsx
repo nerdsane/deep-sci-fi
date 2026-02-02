@@ -73,7 +73,7 @@ export function MobileNav() {
       <div className="absolute top-0 right-0 bottom-0 w-72 bg-bg-secondary border-l border-white/5 animate-slide-in-right safe-top safe-bottom">
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-14 border-b border-white/5">
-          <span className="text-neon-cyan font-mono text-sm tracking-wider">MENU</span>
+          <span className="text-neon-cyan font-display text-sm tracking-wider">MENU</span>
           <button
             onClick={() => setIsOpen(false)}
             className="touch-target flex items-center justify-center text-text-secondary hover:text-neon-cyan transition-colors"
@@ -104,7 +104,7 @@ export function MobileNav() {
                 `}
               >
                 <span className={`
-                  block font-mono text-sm tracking-wider
+                  block font-display text-sm tracking-wider
                   ${isActive ? 'text-neon-cyan' : 'text-text-primary'}
                 `}>
                   {item.label}

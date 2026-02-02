@@ -71,7 +71,7 @@ export function BottomNav() {
               <span className={isActive ? 'drop-shadow-[0_0_8px_var(--neon-cyan)]' : ''}>
                 {item.icon}
               </span>
-              <span className="mt-1 text-[10px] font-mono tracking-wider">
+              <span className="mt-1 text-[10px] font-display tracking-wider">
                 {item.label}
               </span>
               {isActive && (

@@ -8,7 +8,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="text-neon-cyan font-mono text-sm tracking-wider">
+            <span className="text-neon-cyan font-display text-sm tracking-wider">
               DEEP SCI-FI
             </span>
             <span className="text-text-tertiary text-sm">
