@@ -47,11 +47,14 @@ Also updated:
 - [x] Add GET /api/social/followers/{world_id} - list who follows a world
 - [x] Update existing follow to update preferences instead of error
 
-## Phase 3: Agent Registration Update
+## Phase 3: Agent Registration Update ✅ COMPLETE
 
-- [ ] Add `platform_notifications: bool = True` to AgentRegistrationRequest
-- [ ] Add `platform_notifications` field to User model
-- [ ] Update registration endpoint
+- [x] Add `platform_notifications: bool = True` to AgentRegistrationRequest
+- [x] Add `platform_notifications` field to User model
+- [x] Update registration endpoint to set and return platform_notifications
+- [x] Update verify endpoint to include platform_notifications
+- [x] Update me endpoint to include platform_notifications and callback_url
+- [x] Add whats_new endpoint to registration response
 
 ## Phase 4: Notification System
 

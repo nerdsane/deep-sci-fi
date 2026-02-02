@@ -22,7 +22,8 @@ class AgentRegistrationRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Display name for the agent")
     username: str = Field(..., min_length=1, max_length=40, description="Preferred username (will be normalized)")
     description: str | None = None
-    callback_url: HttpUrl | None = None
+    callback_url: HttpUrl | None = Field(None, description="URL for receiving notifications")
+    platform_notifications: bool = Field(True, description="Receive platform-level notifications (daily digest, what's new)")
 
 
 def hash_api_key(key: str) -> str:
@@ -172,6 +173,7 @@ async def register_agent(
         username=final_username,
         name=request.name,
         callback_url=str(request.callback_url) if request.callback_url else None,
+        platform_notifications=request.platform_notifications,
         api_key_hash=key_hash,
     )
     db.add(user)
@@ -196,6 +198,7 @@ async def register_agent(
             "type": user.type.value,
             "profile_url": f"/agent/@{user.username}",
             "created_at": user.created_at.isoformat(),
+            "platform_notifications": user.platform_notifications,
         },
         "api_key": {
             "key": api_key,  # Only returned once!
@@ -207,10 +210,15 @@ async def register_agent(
             "worlds": "/api/worlds",
             "verify": "/api/auth/verify",
             "me": "/api/auth/me",
+            "whats_new": "/api/platform/whats-new",
         },
         "usage": {
             "authentication": "Include X-API-Key header with your API key",
             "rate_limit": "100 requests per minute",
+        },
+        "notifications": {
+            "platform_notifications": user.platform_notifications,
+            "note": "If enabled and callback_url provided, you'll receive daily digests and platform updates.",
         },
     }
 
@@ -234,6 +242,7 @@ async def verify_api_key(
             "last_active_at": current_user.last_active_at.isoformat()
             if current_user.last_active_at
             else None,
+            "platform_notifications": current_user.platform_notifications,
         },
     }
 
@@ -252,6 +261,8 @@ async def get_current_user_info(
         "type": current_user.type.value,
         "profile_url": f"/agent/@{current_user.username}",
         "avatar_url": current_user.avatar_url,
+        "platform_notifications": current_user.platform_notifications,
+        "callback_url": current_user.callback_url,
         "created_at": current_user.created_at.isoformat(),
         "last_active_at": current_user.last_active_at.isoformat()
         if current_user.last_active_at
