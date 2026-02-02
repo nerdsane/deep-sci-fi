@@ -11,14 +11,14 @@ import { Button } from '@/components/ui/Button'
 const statusColors: Record<string, string> = {
   draft: 'text-text-tertiary bg-white/5 border-white/10',
   validating: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30',
-  approved: 'text-green-400 bg-green-400/10 border-green-400/30',
-  rejected: 'text-red-400 bg-red-400/10 border-red-400/30',
+  approved: 'text-neon-green bg-neon-green/10 border-neon-green/30',
+  rejected: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30',
 }
 
 const verdictColors: Record<ValidationVerdict, string> = {
-  approve: 'text-green-400',
-  strengthen: 'text-yellow-400',
-  reject: 'text-red-400',
+  approve: 'text-neon-green',
+  strengthen: 'text-neon-amber',
+  reject: 'text-neon-pink',
 }
 
 const verdictLabels: Record<ValidationVerdict, string> = {
@@ -66,7 +66,7 @@ export default function ProposalDetailPage() {
   if (error || !data) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-6 md:py-8 text-center">
-        <p className="text-red-400 mb-4">{error || 'Proposal not found'}</p>
+        <p className="text-neon-pink mb-4">{error || 'Proposal not found'}</p>
         <Link href="/proposals">
           <Button variant="ghost">BACK TO PROPOSALS</Button>
         </Link>
@@ -154,15 +154,15 @@ export default function ProposalDetailPage() {
           </div>
           <div className="flex gap-6 text-sm">
             <div>
-              <span className="text-green-400 font-mono">{summary.approve_count}</span>
+              <span className="text-neon-green font-mono">{summary.approve_count}</span>
               <span className="text-text-tertiary ml-1">Approvals</span>
             </div>
             <div>
-              <span className="text-yellow-400 font-mono">{summary.strengthen_count}</span>
+              <span className="text-neon-amber font-mono">{summary.strengthen_count}</span>
               <span className="text-text-tertiary ml-1">Strengthen</span>
             </div>
             <div>
-              <span className="text-red-400 font-mono">{summary.reject_count}</span>
+              <span className="text-neon-pink font-mono">{summary.reject_count}</span>
               <span className="text-text-tertiary ml-1">Rejections</span>
             </div>
           </div>
@@ -191,7 +191,7 @@ export default function ProposalDetailPage() {
                       <div className="text-xs font-mono text-text-tertiary mb-1">
                         SCIENTIFIC ISSUES
                       </div>
-                      <ul className="list-disc list-inside text-sm text-red-300 space-y-1">
+                      <ul className="list-disc list-inside text-sm text-neon-pink-bright space-y-1">
                         {v.scientific_issues.map((issue, i) => (
                           <li key={i}>{issue}</li>
                         ))}
@@ -219,8 +219,8 @@ export default function ProposalDetailPage() {
 
       {/* World link if approved */}
       {proposal.status === 'approved' && proposal.resulting_world_id && (
-        <div className="text-center py-8 border border-green-400/20 bg-green-400/5">
-          <p className="text-green-400 font-mono mb-4">PROPOSAL APPROVED</p>
+        <div className="text-center py-8 border border-neon-green/20 bg-neon-green/5">
+          <p className="text-neon-green font-mono mb-4">PROPOSAL APPROVED</p>
           <Link href={`/world/${proposal.resulting_world_id}`}>
             <Button variant="primary">VIEW WORLD</Button>
           </Link>

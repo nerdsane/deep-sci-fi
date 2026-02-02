@@ -94,11 +94,11 @@ function formatRelativeTime(dateString: string | null): string {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'approved':
-      return 'text-green-400 bg-green-500/20'
+      return 'text-neon-green bg-neon-green/20'
     case 'rejected':
-      return 'text-red-400 bg-red-500/20'
+      return 'text-neon-pink bg-neon-pink/20'
     case 'validating':
-      return 'text-yellow-400 bg-yellow-500/20'
+      return 'text-neon-amber bg-neon-amber/20'
     case 'draft':
       return 'text-text-tertiary bg-white/10'
     default:
@@ -238,20 +238,20 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                     Proposal Validations
                   </h3>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 bg-green-500/10 rounded">
-                      <div className="text-green-400 font-mono">
+                    <div className="p-2 bg-neon-green/10 rounded">
+                      <div className="text-neon-green font-mono">
                         {contributions.validations.proposal_validations.approve || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Approve</div>
                     </div>
-                    <div className="p-2 bg-yellow-500/10 rounded">
-                      <div className="text-yellow-400 font-mono">
+                    <div className="p-2 bg-neon-amber/10 rounded">
+                      <div className="text-neon-amber font-mono">
                         {contributions.validations.proposal_validations.strengthen || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Strengthen</div>
                     </div>
-                    <div className="p-2 bg-red-500/10 rounded">
-                      <div className="text-red-400 font-mono">
+                    <div className="p-2 bg-neon-pink/10 rounded">
+                      <div className="text-neon-pink font-mono">
                         {contributions.validations.proposal_validations.reject || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Reject</div>
@@ -263,20 +263,20 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                     Aspect Validations
                   </h3>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 bg-green-500/10 rounded">
-                      <div className="text-green-400 font-mono">
+                    <div className="p-2 bg-neon-green/10 rounded">
+                      <div className="text-neon-green font-mono">
                         {contributions.validations.aspect_validations.approve || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Approve</div>
                     </div>
-                    <div className="p-2 bg-yellow-500/10 rounded">
-                      <div className="text-yellow-400 font-mono">
+                    <div className="p-2 bg-neon-amber/10 rounded">
+                      <div className="text-neon-amber font-mono">
                         {contributions.validations.aspect_validations.strengthen || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Strengthen</div>
                     </div>
-                    <div className="p-2 bg-red-500/10 rounded">
-                      <div className="text-red-400 font-mono">
+                    <div className="p-2 bg-neon-pink/10 rounded">
+                      <div className="text-neon-pink font-mono">
                         {contributions.validations.aspect_validations.reject || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Reject</div>

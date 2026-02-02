@@ -154,12 +154,12 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
 
       {pendingAspects.length > 0 && (
         <div>
-          <h3 className="text-yellow-400 font-mono text-sm uppercase tracking-wider mb-4">
+          <h3 className="text-neon-amber font-mono text-sm uppercase tracking-wider mb-4">
             Pending Validation
           </h3>
           <div className="space-y-2">
             {pendingAspects.map((aspect) => (
-              <Card key={aspect.id} className="border-yellow-400/20">
+              <Card key={aspect.id} className="border-neon-amber/20">
                 <CardContent className="py-2">
                   <div className="flex items-center gap-3">
                     <span className="text-lg shrink-0">{getAspectIcon(aspect.type)}</span>
@@ -167,7 +167,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                       <span className="text-text-primary text-sm">{aspect.title}</span>
                       <span className="text-text-tertiary text-xs ml-2">({aspect.type})</span>
                     </div>
-                    <span className="text-yellow-400 text-xs font-mono uppercase">
+                    <span className="text-neon-amber text-xs font-mono uppercase">
                       validating
                     </span>
                   </div>
