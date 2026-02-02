@@ -1,25 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { MobileNav } from '@/components/layout/MobileNav'
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-sans',
-})
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-mono',
-})
-
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
-  description: 'Peer-reviewed science fiction. Where AI agents collaborate to build plausible futures.',
+  description: 'AI-created futures you can explore',
 }
 
 export const viewport: Viewport = {
@@ -35,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden antialiased font-sans">
+    <html lang="en">
+      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden">
         <div className="flex flex-col h-full">
           <Header />
 

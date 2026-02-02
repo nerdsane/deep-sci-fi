@@ -2,67 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================
-   DESIGN TOKENS
-   Single source of truth for all design values
-   ============================================ */
-
 :root {
-  /* ===== Color Palette ===== */
-
-  /* Backgrounds - 4 levels of depth */
+  /* Backgrounds */
   --bg-primary: #000000;
-  --bg-secondary: #080808;
+  --bg-secondary: #0a0a0a;
   --bg-tertiary: #0f0f0f;
-  --bg-elevated: #141414;
 
-  /* Accent: Cyan (primary) */
+  /* Neon Accents */
   --neon-cyan: #00ffcc;
   --neon-cyan-bright: #00ffff;
-  --neon-cyan-muted: rgba(0, 255, 204, 0.6);
+  --neon-purple: #aa00ff;
 
-  /* Accent: Purple (secondary) */
-  --neon-purple: #a855f7;
-  --neon-purple-muted: rgba(168, 85, 247, 0.6);
+  /* Text */
+  --text-primary: #c8c8c8;
+  --text-secondary: #8a8a8a;
+  --text-tertiary: #5a5a5a;
 
-  /* Text - 4 levels of hierarchy */
-  --text-primary: #e5e5e5;
-  --text-secondary: #a3a3a3;
-  --text-tertiary: #737373;
-  --text-muted: #525252;
-
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.15);
-
-  /* Shadows for neon effects */
-  --shadow-cyan: rgba(0, 255, 204, 0.4);
-  --shadow-cyan-soft: rgba(0, 255, 204, 0.15);
-  --shadow-purple: rgba(168, 85, 247, 0.4);
-  --shadow-purple-soft: rgba(168, 85, 247, 0.15);
-
-  /* ===== Typography ===== */
-  --font-mono: var(--font-mono), 'JetBrains Mono', 'SF Mono', monospace;
-  --font-sans: var(--font-sans), 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-
-  /* ===== Focus Ring ===== */
-  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--neon-cyan);
+  /* Fonts */
+  --font-mono: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
 }
-
-/* ============================================
-   BASE STYLES
-   ============================================ */
 
 * {
   box-sizing: border-box;
-  margin: 0;
   padding: 0;
-}
-
-/* Sharp aesthetic - no rounded corners */
-* {
-  border-radius: 0 !important;
+  margin: 0;
 }
 
 html,
@@ -72,56 +36,44 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ============================================
-   TYPOGRAPHY
-   ============================================ */
-
-/* Monospace for UI chrome: headers, labels, buttons */
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-mono);
-  font-weight: 500;
+/* Sharp aesthetic - no rounded corners */
+* {
+  border-radius: 0 !important;
 }
 
-/* Labels and badges */
+/* Mono font for headers, labels, UI chrome */
+h1, h2, h3, h4, h5, h6,
 .label,
-.badge {
+.badge,
+button {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.6875rem;
+  letter-spacing: 0.05em;
 }
 
-/* Code blocks */
-code, pre {
-  font-family: var(--font-mono);
+/* Neon glow effects */
+.glow-cyan {
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.5), 0 0 20px rgba(0, 255, 204, 0.3);
 }
 
-/* ============================================
-   FOCUS STATES (Accessibility)
-   ============================================ */
-
-:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+.glow-purple {
+  box-shadow: 0 0 10px rgba(170, 0, 255, 0.5), 0 0 20px rgba(170, 0, 255, 0.3);
 }
 
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ============================================
-   SCROLLBAR
-   ============================================ */
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+}
 
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -132,44 +84,40 @@ select:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--text-muted);
-}
-
-::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
 
-/* ============================================
-   SELECTION
-   ============================================ */
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
 
+/* Selection styling */
 ::selection {
-  background: rgba(0, 255, 204, 0.25);
+  background: rgba(0, 255, 204, 0.3);
   color: var(--text-primary);
 }
 
-/* ============================================
-   ASCII LOGO
-   ============================================ */
-
+/* ===== ASCII Logo Styling (from apps/web) ===== */
 .logo-ascii {
   font-family: var(--font-mono);
   font-size: 0.28rem;
   line-height: 0.85;
   white-space: pre;
   color: var(--neon-cyan);
-  text-shadow: 0 0 8px var(--shadow-cyan);
-  filter: drop-shadow(0 0 4px var(--shadow-cyan-soft));
+  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+  filter: drop-shadow(0 0 2px rgba(0, 255, 204, 0.25));
   transition: all 0.3s ease;
 }
 
+/* Hover state with enhanced glow */
 .logo:hover .logo-ascii {
   color: var(--neon-cyan-bright);
-  text-shadow: 0 0 20px var(--shadow-cyan);
-  filter: drop-shadow(0 0 10px var(--shadow-cyan));
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
+  transform: scale(1.02);
 }
 
-/* Compact logo for mobile */
+/* Compact "DSF" logo for mobile - slightly larger for readability */
 .logo-ascii-compact {
   font-size: 0.4rem;
 }
@@ -186,6 +134,7 @@ select:focus-visible {
   }
 }
 
+/* Responsive sizing - keeping logo small but readable */
 @media (min-width: 768px) {
   .logo-ascii {
     font-size: 0.32rem;
@@ -204,16 +153,12 @@ select:focus-visible {
   }
 }
 
-/* ============================================
-   UTILITY CLASSES
-   ============================================ */
-
-/* Skeleton loading */
+/* ===== Skeleton Loading ===== */
 .skeleton {
   background: linear-gradient(
     90deg,
     var(--bg-tertiary) 25%,
-    rgba(255, 255, 255, 0.03) 50%,
+    rgba(255, 255, 255, 0.05) 50%,
     var(--bg-tertiary) 75%
   );
   background-size: 200% 100%;
@@ -225,38 +170,20 @@ select:focus-visible {
   100% { background-position: 200% 0; }
 }
 
-/* Glass effects - Figma-style glassmorphism */
+/* ===== Glass Effect ===== */
 .glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.glass-dark {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.glass-light {
+  background: rgba(10, 10, 10, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.glass-cyan {
-  background: rgba(0, 255, 204, 0.05);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 255, 204, 0.15);
-  box-shadow: 0 0 40px rgba(0, 255, 204, 0.05);
-}
-
-.glass-purple {
-  background: rgba(168, 85, 247, 0.05);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(168, 85, 247, 0.15);
-  box-shadow: 0 0 40px rgba(168, 85, 247, 0.05);
-}
-
-/* Text gradients */
+/* ===== Text Gradients ===== */
 .text-gradient-cyan {
   background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-cyan-bright) 100%);
   -webkit-background-clip: text;
@@ -265,45 +192,13 @@ select:focus-visible {
 }
 
 .text-gradient-purple {
-  background: linear-gradient(135deg, var(--neon-purple) 0%, #c084fc 100%);
+  background: linear-gradient(135deg, var(--neon-purple) 0%, #cc44ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Neon glow effects */
-.glow-cyan {
-  box-shadow: 0 0 10px var(--shadow-cyan), 0 0 20px var(--shadow-cyan-soft);
-}
-
-.glow-purple {
-  box-shadow: 0 0 10px var(--shadow-purple), 0 0 20px var(--shadow-purple-soft);
-}
-
-/* Text shadows */
-.text-glow {
-  text-shadow: 0 0 8px var(--shadow-cyan);
-}
-
-.text-glow-bright {
-  text-shadow: 0 0 20px var(--shadow-cyan);
-}
-
-/* Neon borders */
-.border-glow-cyan {
-  border: 1px solid var(--neon-cyan);
-  box-shadow: 0 0 10px var(--shadow-cyan-soft);
-}
-
-.border-glow-purple {
-  border: 1px solid var(--neon-purple);
-  box-shadow: 0 0 10px var(--shadow-purple-soft);
-}
-
-/* ============================================
-   SAFE AREA PADDING (Mobile Notch)
-   ============================================ */
-
+/* ===== Safe Area Padding (Mobile Notch) ===== */
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -320,7 +215,7 @@ select:focus-visible {
   padding-right: env(safe-area-inset-right);
 }
 
-/* Bottom nav safe area */
+/* ===== Bottom Navigation Safe Area ===== */
 .pb-nav {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
@@ -331,19 +226,55 @@ select:focus-visible {
   }
 }
 
-/* Touch target sizing */
+/* ===== Touch Target Sizing ===== */
 .touch-target {
   min-height: 48px;
   min-width: 48px;
 }
 
-/* ============================================
-   NAVIGATION
-   ============================================ */
+/* ===== Text Shadow Glow Utilities ===== */
+.text-glow {
+  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+}
 
+.text-glow-bright {
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+}
+
+/* ===== Neon Borders ===== */
+.border-glow-cyan {
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+}
+
+.border-glow-purple {
+  border: 1px solid var(--neon-purple);
+  box-shadow: 0 0 10px rgba(170, 0, 255, 0.3);
+}
+
+/* ===== Hide Scrollbar (for carousels) ===== */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== Snap Scroll ===== */
+.snap-x-mandatory {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+/* ===== Active Navigation State ===== */
 .nav-active {
   color: var(--neon-cyan);
-  text-shadow: 0 0 10px var(--shadow-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
 }
 
 .nav-active::after {
@@ -357,41 +288,18 @@ select:focus-visible {
   box-shadow: 0 0 10px var(--neon-cyan);
 }
 
-/* ============================================
-   ANIMATIONS
-   ============================================ */
-
-/* Hide scrollbar */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* Snap scroll */
-.snap-x-mandatory {
-  scroll-snap-type: x mandatory;
-}
-
-.snap-start {
-  scroll-snap-align: start;
-}
-
-/* Reaction pop */
+/* ===== Reaction Pop Animation ===== */
 .reaction-pop {
   animation: pop 0.3s ease-out;
 }
 
 @keyframes pop {
   0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
+  50% { transform: scale(1.3); }
   100% { transform: scale(1); }
 }
 
-/* Typing indicator */
+/* ===== Typing Indicator ===== */
 .typing-dot {
   width: 6px;
   height: 6px;
@@ -414,9 +322,9 @@ select:focus-visible {
   }
 }
 
-/* Video progress */
+/* ===== Video Progress Bar ===== */
 .video-progress {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .video-progress-fill {
@@ -425,7 +333,7 @@ select:focus-visible {
   transition: width 0.1s linear;
 }
 
-/* Overlay transitions */
+/* ===== Overlay Transitions ===== */
 .overlay-enter {
   animation: fade-in 0.2s ease-out;
 }
@@ -434,41 +342,7 @@ select:focus-visible {
   animation: fade-out 0.2s ease-out;
 }
 
-@keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
 @keyframes fade-out {
   0% { opacity: 1; }
   100% { opacity: 0; }
-}
-
-/* ============================================
-   CARD HOVER
-   ============================================ */
-
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  border: 1px solid var(--border-subtle);
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-default);
-  box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
-}
-
-/* ============================================
-   REDUCED MOTION
-   ============================================ */
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
 }
