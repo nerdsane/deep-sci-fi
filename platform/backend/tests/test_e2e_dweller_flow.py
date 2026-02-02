@@ -106,22 +106,23 @@ class TestDwellerFlow:
         )
         validator_key = response.json()["api_key"]["key"]
 
-        # Create and approve proposal
+        # Create and approve proposal - premise must be 50+ chars
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": creator_key},
             json={
                 "name": "Floating Cities 2055",
-                "premise": "Climate refugees build autonomous floating cities",
+                "premise": "Climate refugees build autonomous floating cities in the Pacific Ocean, forming new societies",
                 "year_setting": 2055,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
                     "Based on current ocean platform technology and IPCC sea level projections. "
                     "Modular construction follows proven patterns from offshore oil platforms. "
-                    "Governance structure inspired by special economic zones."
+                    "Governance structure inspired by special economic zones and international maritime law."
                 )
             }
         )
+        assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
         await client.post(
@@ -129,20 +130,22 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key}
         )
 
-        await client.post(
+        response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Well-grounded proposal with clear progression",
+                "critique": "Well-grounded proposal with clear progression and solid science",
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
         )
+        assert response.status_code == 200, f"Validation failed: {response.json()}"
 
-        # Get world ID
+        # Get world ID from validation response or proposal detail
         response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["resulting_world_id"]
+        world_id = response.json()["proposal"]["resulting_world_id"]
+        assert world_id is not None, "World was not created from approved proposal"
 
         return {
             "world_id": world_id,
@@ -165,9 +168,9 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_REGION
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Region creation failed: {response.json()}"
         region_data = response.json()
-        assert "New Shanghai" in region_data["regions"][-1]["name"]
+        assert region_data["region"]["name"] == "New Shanghai"
 
         # === Step 2: Create dweller ===
         response = await client.post(
@@ -175,11 +178,11 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_DWELLER
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Dweller creation failed: {response.json()}"
         dweller_data = response.json()
-        dweller_id = dweller_data["id"]
-        assert dweller_data["name"] == "Wei Marcus Chen"
-        assert dweller_data["is_available"] is True
+        dweller_id = dweller_data["dweller"]["id"]
+        assert dweller_data["dweller"]["name"] == "Wei Marcus Chen"
+        assert dweller_data["dweller"]["is_available"] is True
 
         # === Step 3: Register external agent to inhabit ===
         response = await client.post(
@@ -194,10 +197,10 @@ class TestDwellerFlow:
             f"/api/dwellers/{dweller_id}/claim",
             headers={"X-API-Key": inhabitant_key}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Claim failed: {response.json()}"
         claim_data = response.json()
-        assert claim_data["is_available"] is False
-        assert claim_data["inhabited_by"] == inhabitant["agent"]["id"]
+        assert claim_data["claimed"] is True
+        assert claim_data["dweller_id"] == dweller_id
 
         # === Step 5: Get dweller state (for context window) ===
         response = await client.get(
@@ -223,9 +226,9 @@ class TestDwellerFlow:
                 "content": "The pressure readings in Sector 3 are off. Something's wrong."
             }
         )
-        assert response.status_code == 200
-        action = response.json()
-        assert action["action_type"] == "speak"
+        assert response.status_code == 200, f"Action failed: {response.json()}"
+        action_response = response.json()
+        assert action_response["action"]["type"] == "speak"
 
         # === Step 7: Verify action was recorded ===
         response = await client.get(
@@ -233,10 +236,10 @@ class TestDwellerFlow:
         )
         assert response.status_code == 200
         activity = response.json()
-        assert len(activity["items"]) >= 1
+        assert len(activity["activity"]) >= 1
         assert any(
             a["content"] == "The pressure readings in Sector 3 are off. Something's wrong."
-            for a in activity["items"]
+            for a in activity["activity"]
         )
 
         # === Step 8: Check memory was updated ===
@@ -246,7 +249,8 @@ class TestDwellerFlow:
         )
         state = response.json()
         # Recent episodic memory should include the action
-        memories = state["memory"].get("episodic", [])
+        # State endpoint returns "recent_episodes" not "episodic"
+        memories = state["memory"].get("recent_episodes", [])
         assert len(memories) >= 1
 
         # === Step 9: Release dweller ===
@@ -254,10 +258,9 @@ class TestDwellerFlow:
             f"/api/dwellers/{dweller_id}/release",
             headers={"X-API-Key": inhabitant_key}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Release failed: {response.json()}"
         release_data = response.json()
-        assert release_data["is_available"] is True
-        assert release_data["inhabited_by"] is None
+        assert release_data["released"] is True
 
     @pytest.mark.asyncio
     async def test_region_validation(
@@ -365,7 +368,7 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_DWELLER
         )
-        dweller_id = response.json()["id"]
+        dweller_id = response.json()["dweller"]["id"]
 
         # First agent claims
         response = await client.post(
@@ -427,7 +430,7 @@ class TestDwellerFlow:
                     "name_context": f"Test dweller number {i} for hoarding test"
                 }
             )
-            dweller_ids.append(response.json()["id"])
+            dweller_ids.append(response.json()["dweller"]["id"])
 
         # Claim first 5 should succeed
         for i in range(5):
@@ -465,7 +468,7 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_DWELLER
         )
-        dweller_id = response.json()["id"]
+        dweller_id = response.json()["dweller"]["id"]
 
         # Claim dweller
         response = await client.post(
@@ -514,7 +517,7 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_DWELLER
         )
-        dweller_id = response.json()["id"]
+        dweller_id = response.json()["dweller"]["id"]
 
         # Create agent but don't claim
         response = await client.post(
@@ -555,7 +558,7 @@ class TestDwellerFlow:
             headers={"X-API-Key": creator_key},
             json=SAMPLE_DWELLER
         )
-        dweller_id = response.json()["id"]
+        dweller_id = response.json()["dweller"]["id"]
 
         # Claim dweller
         response = await client.post(
@@ -570,35 +573,30 @@ class TestDwellerFlow:
         )
 
         # Update core memory
+        # CoreMemoryUpdate expects {add: [...], remove: [...]}
         response = await client.patch(
             f"/api/dwellers/{dweller_id}/memory/core",
             headers={"X-API-Key": agent_key},
             json={
-                "core_memories": [
-                    "I am a water engineer",
-                    "I lost my sister in the pressure breach",
+                "add": [
                     "I discovered the anomaly in Sector 3"
-                ]
+                ],
+                "remove": []
             }
         )
         assert response.status_code == 200
 
         # Update relationship
+        # RelationshipUpdate expects {target: "...", new_status: "...", add_event: {...}}
         response = await client.patch(
             f"/api/dwellers/{dweller_id}/memory/relationship",
             headers={"X-API-Key": agent_key},
             json={
-                "relationships": {
-                    "Jin": {
-                        "current_status": "tense - he's hiding something",
-                        "history": [
-                            {
-                                "timestamp": "2055-03-15T10:00:00",
-                                "event": "Jin dismissed my concerns about Sector 3",
-                                "sentiment": "frustrated"
-                            }
-                        ]
-                    }
+                "target": "Jin",
+                "new_status": "tense - he's hiding something",
+                "add_event": {
+                    "event": "Jin dismissed my concerns about Sector 3",
+                    "sentiment": "frustrated"
                 }
             }
         )

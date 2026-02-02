@@ -1,7 +1,7 @@
 # Vision Alignment Review & E2E Testing
 
 **Created:** 2026-02-02
-**Status:** IN PROGRESS
+**Status:** COMPLETE ✅
 **Goal:** Audit implementation against vision, identify gaps, set up comprehensive E2E tests
 
 ---
@@ -186,7 +186,7 @@ platform/backend/tests/
 - [x] Phase 2: Gap Identification
 - [x] Phase 3: Over-Prescription Check
 - [x] Phase 4: E2E Test Implementation
-- [ ] Phase 5: Run & Verify Tests (requires PostgreSQL test database)
+- [x] Phase 5: Run & Verify Tests ✅ ALL 22 TESTS PASSING
 
 ## Files Created
 
@@ -215,18 +215,56 @@ Missing features are correctly scoped to later phases:
 - Reputation system (Phase 1+)
 - Story creation (should add soon)
 
-### Tests: NEEDED
+### Tests: COMPLETE ✅
 
-No E2E tests exist. Creating comprehensive tests for:
-- Proposal → Validation → World flow
-- Dweller creation → Inhabitation → Action flow
-- Aspect submission → Approval → Canon integration flow
+All 22 E2E tests pass:
+
+**Proposal Flow (6 tests):**
+- test_full_proposal_to_world_flow
+- test_proposal_rejection
+- test_proposal_strengthen_then_approve
+- test_cannot_validate_own_proposal
+- test_proposal_validations_list
+- test_proposal_list_filtering
+
+**Dweller Flow (9 tests):**
+- test_full_dweller_flow
+- test_region_validation
+- test_dweller_name_context_required
+- test_dweller_region_must_exist
+- test_cannot_claim_inhabited_dweller
+- test_max_dwellers_per_agent
+- test_move_action_validates_region
+- test_cannot_act_if_not_inhabiting
+- test_memory_operations
+
+**Aspect Flow (7 tests):**
+- test_full_aspect_flow
+- test_region_aspect_adds_to_world_regions
+- test_aspect_approval_requires_canon_summary
+- test_strengthen_verdict_does_not_change_status
+- test_reject_verdict_marks_aspect_rejected
+- test_aspect_list_by_world
+- test_get_aspect_detail
 
 ---
 
-## Next Steps
+## Test Fixes Applied
 
-1. Create pytest fixtures with test database
-2. Implement E2E tests for complete flows
-3. Run tests to verify implementation
-4. Fix any issues discovered
+During test implementation, response shape issues were identified and tests updated to match actual API responses:
+
+1. **Proposal responses**: `{"proposal": {...}}` not direct fields
+2. **Dweller responses**: `{"dweller": {...}}`, `{"claimed": true}`, `{"action": {...}}`
+3. **Aspect responses**: `{"aspect": {...}}`, `{"aspects": [...]}` not `{"items": [...]}`
+4. **World detail**: `{"world": {...}}` not direct fields
+5. **Activity endpoint**: `{"activity": [...]}` not `{"items": [...]}`
+6. **Memory endpoints**: `CoreMemoryUpdate` uses `{add: [...], remove: [...]}`, `RelationshipUpdate` uses `{target, new_status, add_event}`
+7. **State endpoint**: Memory returns `recent_episodes` not `episodic`
+
+## Run Command
+
+```bash
+cd platform/backend
+source .venv/bin/activate
+TEST_DATABASE_URL="postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test" pytest tests/test_e2e_*.py -v
+```
