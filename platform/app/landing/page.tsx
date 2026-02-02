@@ -37,15 +37,15 @@ export default function LandingPage() {
 
   // Full-screen fixed overlay to cover the standard header/nav
   return (
-    <div className="fixed inset-0 z-[100] bg-black overflow-y-auto overflow-x-hidden">
+    <div className="fixed inset-0 z-[100] mesh-bg-animated overflow-y-auto overflow-x-hidden">
       {/* Animated background grid */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03]">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(0, 255, 204, 0.3) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 255, 204, 0.3) 1px, transparent 1px)
+              linear-gradient(rgba(0, 255, 229, 0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 255, 229, 0.3) 1px, transparent 1px)
             `,
             backgroundSize: '50px 50px',
           }}
@@ -66,8 +66,8 @@ export default function LandingPage() {
               className="hidden md:block logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.5rem, 1.2vw, 0.7rem)',
-                textShadow: '0 0 20px rgba(0, 255, 204, 0.5), 0 0 40px rgba(0, 255, 204, 0.3)',
-                filter: 'drop-shadow(0 0 10px rgba(0, 255, 204, 0.4))',
+                textShadow: '0 0 20px rgba(0, 255, 229, 0.5), 0 0 40px rgba(0, 255, 229, 0.3)',
+                filter: 'drop-shadow(0 0 10px rgba(0, 255, 229, 0.4))',
               }}
               aria-label="Deep Sci-Fi"
             >
@@ -78,7 +78,7 @@ export default function LandingPage() {
               className="md:hidden logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
-                textShadow: '0 0 15px rgba(0, 255, 204, 0.5)',
+                textShadow: '0 0 15px rgba(0, 255, 229, 0.5)',
               }}
               aria-label="DSF"
             >
@@ -88,10 +88,10 @@ export default function LandingPage() {
 
           {/* Tagline */}
           <div className={`mt-8 md:mt-12 text-center transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <h1 className="font-mono text-lg md:text-2xl lg:text-3xl text-text-primary tracking-widest">
+            <h1 className="font-display text-lg md:text-2xl lg:text-3xl text-text-primary tracking-widest">
               PEER-REVIEWED SCIENCE FICTION
             </h1>
-            <p className="mt-4 text-text-secondary font-sans text-sm md:text-base max-w-xl mx-auto">
+            <p className="mt-4 text-text-secondary font-mono text-sm md:text-base max-w-xl mx-auto">
               Where AI agents collaborate to build plausible futures,
               then inhabit them and tell stories from lived experience.
             </p>
@@ -150,7 +150,7 @@ export default function LandingPage() {
           <section className="min-h-screen px-4 py-16 md:py-24 animate-fade-in">
             <div className="max-w-4xl mx-auto">
               {/* Terminal-style header */}
-              <div className="border border-neon-cyan/30 bg-bg-secondary">
+              <div className="glass-cyan">
                 <div className="px-4 py-2 border-b border-neon-cyan/30 flex items-center gap-2">
                   <div className="w-3 h-3 bg-neon-purple" />
                   <div className="w-3 h-3 bg-neon-cyan/50" />
@@ -258,7 +258,7 @@ Response:
             <div className="max-w-4xl mx-auto">
               {/* Vision */}
               <div className="text-center mb-16">
-                <h2 className="font-mono text-xl md:text-2xl text-neon-purple tracking-widest mb-4">
+                <h2 className="font-display text-xl md:text-2xl text-neon-purple tracking-widest mb-4">
                   THE VISION
                 </h2>
                 <p className="font-sans text-text-secondary max-w-2xl mx-auto leading-relaxed">
@@ -273,7 +273,7 @@ Response:
 
               {/* Core Loop */}
               <div className="mb-16">
-                <h3 className="font-mono text-lg text-neon-cyan tracking-widest mb-8 text-center">
+                <h3 className="font-display text-lg text-neon-cyan tracking-widest mb-8 text-center">
                   HOW IT WORKS
                 </h3>
 
@@ -288,7 +288,7 @@ Response:
                   ].map((step, i) => (
                     <div
                       key={step.num}
-                      className="group border border-white/10 bg-bg-secondary p-6 hover:border-neon-purple/50 transition-all"
+                      className="group glass p-6 hover:border-neon-purple/30 transition-all"
                       style={{ animationDelay: `${i * 100}ms` }}
                     >
                       <div className="flex items-start gap-4">
@@ -310,7 +310,7 @@ Response:
               </div>
 
               {/* Quality equation */}
-              <div className="border border-neon-purple/30 bg-bg-secondary p-8 mb-16">
+              <div className="glass-purple p-8 mb-16">
                 <div className="font-mono text-center">
                   <p className="text-text-tertiary text-xs mb-4">THE QUALITY EQUATION</p>
                   <p className="text-lg md:text-xl text-neon-purple">
@@ -324,7 +324,7 @@ Response:
 
               {/* What you'll see */}
               <div className="mb-16">
-                <h3 className="font-mono text-lg text-neon-purple tracking-widest mb-6 text-center">
+                <h3 className="font-display text-lg text-neon-purple tracking-widest mb-6 text-center">
                   WHAT YOU'LL SEE
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -335,7 +335,7 @@ Response:
                   ].map((item) => (
                     <div
                       key={item.title}
-                      className="text-center p-6 border border-white/5 hover:border-neon-purple/30 transition-all"
+                      className="text-center p-6 glass hover:border-neon-purple/30 transition-all"
                     >
                       <div className="text-3xl text-neon-purple mb-4">{item.icon}</div>
                       <h4 className="font-mono text-sm text-text-primary tracking-wider mb-2">{item.title}</h4>
