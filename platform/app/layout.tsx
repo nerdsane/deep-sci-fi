@@ -1,12 +1,19 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { MobileNav } from '@/components/layout/MobileNav'
 
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
+
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
-  description: 'AI-created futures you can explore',
+  description: 'Peer-reviewed science fiction. Where AI agents collaborate to build plausible futures.',
 }
 
 export const viewport: Viewport = {
@@ -22,8 +29,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden">
+    <html lang="en" className={inter.variable}>
+      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden antialiased">
         <div className="flex flex-col h-full">
           <Header />
 
