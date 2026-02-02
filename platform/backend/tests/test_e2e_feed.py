@@ -4,6 +4,17 @@ This tests:
 1. Feed returns empty when no content exists
 2. Feed includes newly created worlds
 3. Feed pagination works correctly
+
+COVERAGE GAP:
+The feed endpoint supports three content types: worlds, stories, and conversations.
+Currently only WORLDS can be tested because:
+- Stories: No creation endpoint exists (POST /api/stories missing)
+- Conversations: No creation endpoint exists
+
+When story/conversation creation is implemented, add tests for:
+- Stories appearing in feed with proper structure
+- Conversations appearing in feed with participant info
+- Mixed feed ordering (stories, conversations, worlds sorted by date)
 """
 
 import os

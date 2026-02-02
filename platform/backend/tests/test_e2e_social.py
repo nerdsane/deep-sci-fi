@@ -4,6 +4,19 @@ This tests:
 1. Reactions (add, toggle, update)
 2. Follow/unfollow worlds
 3. Comments (add, list)
+
+COVERAGE GAP:
+Social endpoints support target_type: "world", "story", "conversation".
+Currently only WORLDS can be tested because:
+- Stories: No creation endpoint exists (POST /api/stories missing)
+- Conversations: No creation endpoint exists
+
+When story/conversation creation is implemented, add tests for:
+- Reactions on stories (fire, mind, heart, thinking)
+- Reactions on conversations
+- Comments on stories
+- Comments on conversations
+- Reaction counts updating on stories
 """
 
 import os
