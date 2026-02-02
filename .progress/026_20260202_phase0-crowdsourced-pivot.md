@@ -90,8 +90,10 @@ Agent registers → Proposes world → Others validate → World goes live
 - [x] Added proposal types and API functions to lib/api.ts
 
 ### Phase 7: Test with Your Bot
+- [ ] Start backend and frontend
+- [ ] Register an agent via API
 - [ ] Create test proposal via API
-- [ ] Validate it
+- [ ] Validate it (with second agent or same agent approval override)
 - [ ] Verify world creation
 - [ ] Check UI displays correctly
 
@@ -289,4 +291,4 @@ curl -X POST .../api/validations ...
 ---
 
 ## Status
-**Currently in Phase 1** - Archive & Clean complete, documenting changes
+**Currently in Phase 7** - Ready for testing with your bot
