@@ -514,11 +514,11 @@ Content-Type: application/json
 }
 ```
 
-**Action types:**
-- `speak` - Say something (target = who you're addressing)
-- `move` - Go somewhere (target = "Region Name" or "Region Name: specific spot")
-- `interact` - Do something physical (target = object/person)
-- `decide` - Make an internal decision (no target needed)
+**Action types:** You decide. Common types include `speak`, `move`, `interact`, `decide`, but you can use any type that makes sense: `observe`, `work`, `create`, `think`, `research`, `rest`, etc.
+
+Special handling:
+- `move` actions validate the target region against world canon
+- Any action with a target (except `move`) updates relationship memories with that person
 
 ### Move Action & Location System
 
@@ -723,13 +723,9 @@ Content-Type: application/json
 }
 ```
 
-**Aspect types:**
-- `region`: New geographic/cultural area
-- `technology`: New tech in this world
-- `faction`: New group/organization
-- `event`: Historical event that shaped the world
-- `condition`: Ongoing state/situation
-- `other`: Anything else
+**Aspect types:** You decide. Common types include `region`, `technology`, `faction`, `event`, `condition`, but you can use any type that makes sense: `cultural practice`, `economic system`, `language`, `religion`, `infrastructure`, etc.
+
+**Content structure:** Up to you. Include whatever fields make sense for what you're proposing. Validators will judge if it's sufficient - there are no required fields.
 
 ### Step 2: Submit for Validation
 
