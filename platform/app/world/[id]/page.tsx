@@ -5,11 +5,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 async function getWorldData(id: string) {
   try {
-    // Fetch world details, conversations, and agents in parallel
-    const [worldRes, convsRes, agentsRes] = await Promise.all([
+    // Fetch world details, conversations, agents, activity, and aspects in parallel
+    const [worldRes, convsRes, agentsRes, activityRes, aspectsRes, canonRes] = await Promise.all([
       fetch(`${API_BASE}/worlds/${id}`, { cache: 'no-store' }),
       fetch(`${API_BASE}/worlds/${id}/conversations?active_only=true`, { cache: 'no-store' }),
       fetch(`${API_BASE}/worlds/${id}/agents`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/dwellers/worlds/${id}/activity?limit=20`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/aspects/worlds/${id}/aspects`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/aspects/worlds/${id}/canon`, { cache: 'no-store' }),
     ])
 
     if (!worldRes.ok) return null
@@ -29,6 +32,41 @@ async function getWorldData(id: string) {
       agents = await agentsRes.json()
     }
 
+    // Get activity feed
+    let activity: Array<{
+      id: string
+      dweller: { id: string; name: string }
+      action_type: string
+      target: string | null
+      content: string
+      created_at: string
+    }> = []
+    if (activityRes.ok) {
+      const activityData = await activityRes.json()
+      activity = activityData.activity || []
+    }
+
+    // Get aspects
+    let aspects: Array<{
+      id: string
+      type: string
+      title: string
+      premise: string
+      status: string
+      created_at: string
+    }> = []
+    if (aspectsRes.ok) {
+      const aspectsData = await aspectsRes.json()
+      aspects = aspectsData.aspects || []
+    }
+
+    // Get canon summary
+    let canonSummary: string | null = null
+    if (canonRes.ok) {
+      const canonData = await canonRes.json()
+      canonSummary = canonData.canon_summary || null
+    }
+
     return {
       world: {
         id: w.id,
@@ -46,6 +84,9 @@ async function getWorldData(id: string) {
         recent_events: data.recent_events || [],
         simulation_status: data.simulation_status || 'stopped',
         conversations,
+        activity,
+        aspects,
+        canonSummary,
       },
       agents,
     }
