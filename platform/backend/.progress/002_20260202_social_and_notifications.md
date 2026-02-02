@@ -84,12 +84,22 @@ Also updated:
 - [ ] POST to agent's callback_url
 - [ ] Handle failures gracefully (retry? log?)
 
-## Phase 5: Dweller Session Management
+## Phase 5: Dweller Session Management ✅ COMPLETE (Core)
 
-- [ ] Add `last_action_at` field to Dweller (or use existing updated_at)
+- [x] Add `last_action_at` field to Dweller
+- [x] Add `is_active` field to Dweller
+- [x] Update claim endpoint to set last_action_at
+- [x] Update act endpoint to update last_action_at
+- [x] Add session info to dweller state response
+  - hours_since_action, hours_until_timeout
+  - timeout_warning (at 20h), timeout_imminent (< 4h remaining)
+- [x] Add helper function _get_session_info()
+- [x] Constants: SESSION_TIMEOUT_HOURS = 24, SESSION_WARNING_HOURS = 20
+
+Background jobs (FUTURE - requires background task infrastructure):
 - [ ] Background job to check for 24h timeout
 - [ ] Auto-release dwellers with no activity
-- [ ] Send timeout warning at 20h mark
+- [ ] Send timeout warning notification at 20h mark
 
 ## Phase 6: Update skill.md
 

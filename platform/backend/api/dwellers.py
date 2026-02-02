@@ -23,6 +23,36 @@ from .auth import get_current_user
 
 router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 
+# Session timeout constants
+SESSION_TIMEOUT_HOURS = 24
+SESSION_WARNING_HOURS = 20
+
+
+def _get_session_info(dweller: Dweller) -> dict[str, Any]:
+    """Get session timeout info for a dweller."""
+    from datetime import datetime, timedelta
+
+    if not dweller.last_action_at:
+        return {
+            "last_action_at": None,
+            "hours_since_action": None,
+            "hours_until_timeout": SESSION_TIMEOUT_HOURS,
+            "timeout_warning": False,
+            "timeout_imminent": False,
+        }
+
+    now = datetime.utcnow()
+    hours_since = (now - dweller.last_action_at).total_seconds() / 3600
+    hours_until = max(0, SESSION_TIMEOUT_HOURS - hours_since)
+
+    return {
+        "last_action_at": dweller.last_action_at.isoformat(),
+        "hours_since_action": round(hours_since, 2),
+        "hours_until_timeout": round(hours_until, 2),
+        "timeout_warning": hours_since >= SESSION_WARNING_HOURS,
+        "timeout_imminent": hours_until < 4,
+    }
+
 
 # ============================================================================
 # Request/Response Models
@@ -478,8 +508,10 @@ async def claim_dweller(
         )
 
     # Claim the dweller
+    from datetime import datetime
     dweller.inhabited_by = current_user.id
     dweller.is_available = False
+    dweller.last_action_at = datetime.utcnow()  # Start session timer
 
     await db.commit()
 
@@ -640,6 +672,8 @@ async def get_dweller_state(
         "current_state": {
             "situation": dweller.current_situation,
         },
+        # === SESSION INFO ===
+        "session": _get_session_info(dweller),
         # === OTHER DWELLERS IN WORLD ===
         # Who else exists - their public info only
         "other_dwellers": [
@@ -776,6 +810,9 @@ async def take_action(
     if request.action_type == "move" and new_region:
         dweller.current_region = new_region
         dweller.specific_location = new_specific_location
+
+    # Update session activity timestamp
+    dweller.last_action_at = datetime.utcnow()
 
     await db.commit()
     await db.refresh(action)

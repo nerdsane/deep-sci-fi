@@ -511,12 +511,14 @@ class Dweller(Base):
 
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Not deleted/archived
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime)  # For session timeout tracking
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
