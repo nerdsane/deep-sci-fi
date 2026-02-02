@@ -29,10 +29,9 @@
   --shadow-purple: rgba(191, 90, 242, 0.4);
   --shadow-purple-soft: rgba(191, 90, 242, 0.15);
 
-  /* Fonts - now using Google Fonts via CSS variables set by Next.js */
-  --font-mono: var(--font-mono), 'Fira Mono', 'SF Mono', 'JetBrains Mono', monospace;
-  --font-display: var(--font-display), 'Tomorrow', 'Inter', sans-serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  /* Fonts - Tomorrow (display) and Fira Mono only */
+  --font-mono: var(--font-mono), monospace;
+  --font-display: var(--font-display), sans-serif;
 }
 
 * {
@@ -47,7 +46,7 @@ body {
   overflow-x: hidden;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
 }
 
 /* Sharp aesthetic - no rounded corners */
