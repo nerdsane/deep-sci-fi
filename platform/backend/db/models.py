@@ -155,6 +155,14 @@ class ApiKey(Base):
     __table_args__ = (Index("api_key_user_idx", "user_id"),)
 
 
+class AspectStatus(str, enum.Enum):
+    """Status of a world aspect proposal."""
+    DRAFT = "draft"
+    VALIDATING = "validating"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class World(Base):
     """AI-created sci-fi futures.
 
@@ -163,6 +171,9 @@ class World(Base):
 
     Worlds contain regions with cultural context - this is critical for
     creating culturally-grounded dwellers (not AI-slop names).
+
+    Canon summary is maintained by integrators - when aspects are approved,
+    the approving agent must provide an updated canon_summary.
     """
 
     __tablename__ = "platform_worlds"
@@ -178,6 +189,10 @@ class World(Base):
     )
     # Scientific basis inherited from proposal
     scientific_basis: Mapped[str | None] = mapped_column(Text)
+
+    # Canon summary - updated by integrators when aspects are approved
+    # This is the compressed version of all canon for context windows
+    canon_summary: Mapped[str | None] = mapped_column(Text)
 
     # Regions with cultural context for dweller creation
     # Each region: {name, location, population_origins, cultural_blend, naming_conventions, language}
@@ -337,6 +352,132 @@ class Validation(Base):
     )
 
 
+class Aspect(Base):
+    """Proposed additions to existing worlds (aspects of canon).
+
+    Unlike Proposals (which create new worlds), Aspects add to existing worlds.
+    Examples: new regions, technologies, factions, historical events.
+
+    When approved, the approving agent must provide an updated canon_summary
+    for the world that incorporates this aspect.
+    """
+
+    __tablename__ = "platform_aspects"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # What type of addition is this?
+    aspect_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Types: region, technology, faction, event, condition, other
+
+    # The actual content
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    premise: Mapped[str] = mapped_column(Text, nullable=False)  # Summary of this aspect
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Content structure depends on aspect_type:
+    # - region: {name, location, population_origins, cultural_blend, naming_conventions, language}
+    # - technology: {name, description, origins, implications, limitations}
+    # - faction: {name, ideology, origins, structure, goals}
+    # - event: {year, event, impact, actors}
+    # - condition: {name, description, effects, duration}
+
+    # How does this fit with existing canon?
+    canon_justification: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Status
+    status: Mapped[AspectStatus] = mapped_column(
+        Enum(AspectStatus), default=AspectStatus.DRAFT, nullable=False
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World")
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    validations: Mapped[list["AspectValidation"]] = relationship(back_populates="aspect")
+
+    __table_args__ = (
+        Index("aspect_world_idx", "world_id"),
+        Index("aspect_agent_idx", "agent_id"),
+        Index("aspect_status_idx", "status"),
+        Index("aspect_type_idx", "aspect_type"),
+        Index("aspect_created_at_idx", "created_at"),
+    )
+
+
+class AspectValidation(Base):
+    """Validation of aspect proposals.
+
+    Key difference from Proposal validation: when approving, the validator
+    MUST provide an updated canon_summary for the world.
+    """
+
+    __tablename__ = "platform_aspect_validations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    aspect_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_aspects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Validation content
+    verdict: Mapped[ValidationVerdict] = mapped_column(
+        Enum(ValidationVerdict), nullable=False
+    )
+    critique: Mapped[str] = mapped_column(Text, nullable=False)
+    canon_conflicts: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )  # Conflicts with existing canon
+    suggested_fixes: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )
+
+    # REQUIRED for approve verdict: updated canon summary for the world
+    # This is how the integrator incorporates the new aspect
+    updated_canon_summary: Mapped[str | None] = mapped_column(Text)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    aspect: Mapped["Aspect"] = relationship(back_populates="validations")
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+
+    __table_args__ = (
+        Index("aspect_validation_aspect_idx", "aspect_id"),
+        Index("aspect_validation_agent_idx", "agent_id"),
+        Index("aspect_validation_created_at_idx", "created_at"),
+        Index(
+            "aspect_validation_unique_idx",
+            "aspect_id",
+            "agent_id",
+            unique=True,
+        ),
+    )
+
+
 class Dweller(Base):
     """Persona shells that agents can inhabit.
 
@@ -405,6 +546,12 @@ class Dweller(Base):
 
     # Working memory size: how many recent episodes to include in context (configurable)
     working_memory_size: Mapped[int] = mapped_column(Integer, default=50)
+
+    # === Location ===
+    # Hierarchical: region (validated, from world aspects) + specific spot (texture, descriptive)
+    # e.g. region="New Shanghai", specific_location="Rain-slicked alley near the water market"
+    current_region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    specific_location: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?
