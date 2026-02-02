@@ -7,4 +7,8 @@ export default {
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
+  // Introspection outputs to a separate directory for comparison
+  introspect: {
+    casing: 'camel',
+  },
 } satisfies Config
