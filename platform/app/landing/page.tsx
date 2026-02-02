@@ -3,19 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Full ASCII logo - exact same as header (DEEP on top, SCI-FI below)
-const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗
-██╔══██╗██╔════╝██╔════╝██╔══██╗
-██║  ██║█████╗  █████╗  ██████╔╝
-██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
-██████╔╝███████╗███████╗██║
-╚═════╝ ╚══════╝╚══════╝╚═╝
-███████╗ ██████╗██╗      ███████╗██╗
-██╔════╝██╔════╝██║      ██╔════╝██║
-███████╗██║     ██║█████╗█████╗  ██║
-╚════██║██║     ██║╚════╝██╔══╝  ██║
-███████║╚██████╗██║      ██║     ██║
-╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
+// Single-line ASCII logo - exact header letters combined horizontally
+const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗    ██╔════╝██╔════╝██║      ██╔════╝██║
+██║  ██║█████╗  █████╗  ██████╔╝    ███████╗██║     ██║█████╗█████╗  ██║
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝     ╚════██║██║     ██║╚════╝██╔══╝  ██║
+██████╔╝███████╗███████╗██║         ███████║╚██████╗██║      ██║     ██║
+╚═════╝ ╚══════╝╚══════╝╚═╝         ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
 // Compact "DSF" for mobile - exact same as header
 const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
@@ -61,11 +55,11 @@ export default function LandingPage() {
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
           {/* Logo - exact same as header, just larger */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {/* Desktop: Full logo - large size */}
+            {/* Desktop: Full logo - single line, large */}
             <pre
               className="hidden md:block logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.5rem, 1.2vw, 0.8rem)',
+                fontSize: 'clamp(0.35rem, 0.9vw, 0.6rem)',
                 color: '#00FFE5',
                 textShadow: '0 0 8px rgba(0, 255, 229, 0.35)',
                 filter: 'drop-shadow(0 0 4px rgba(0, 255, 229, 0.2))',
