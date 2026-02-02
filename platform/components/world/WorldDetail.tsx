@@ -4,6 +4,8 @@ import { useState } from 'react'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { ActivityFeed } from './ActivityFeed'
+import { AspectsList } from './AspectsList'
 
 interface Story {
   id: string
@@ -92,6 +94,27 @@ interface Conversation {
   }>
 }
 
+interface Activity {
+  id: string
+  dweller: {
+    id: string
+    name: string
+  }
+  action_type: string
+  target: string | null
+  content: string
+  created_at: string
+}
+
+interface Aspect {
+  id: string
+  type: string
+  title: string
+  premise: string
+  status: string
+  created_at: string
+}
+
 interface WorldDetailProps {
   world: World & {
     stories?: Story[]
@@ -99,12 +122,15 @@ interface WorldDetailProps {
     conversations?: Conversation[]
     recent_events?: WorldEvent[]
     simulation_status?: string
+    activity?: Activity[]
+    aspects?: Aspect[]
+    canonSummary?: string | null
   }
   agents?: AgentStatus
 }
 
 export function WorldDetail({ world, agents }: WorldDetailProps) {
-  const [activeTab, setActiveTab] = useState<'live' | 'stories' | 'timeline' | 'dwellers' | 'agents'>('live')
+  const [activeTab, setActiveTab] = useState<'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'>('live')
 
   const simulationRunning = world.simulation_status === 'running'
 
@@ -149,14 +175,14 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-white/5">
-        {(['live', 'stories', 'timeline', 'dwellers', 'agents'] as const).map((tab) => (
+      <div className="flex items-center gap-1 border-b border-white/5 overflow-x-auto">
+        {(['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`
               px-4 py-3 font-mono text-sm uppercase tracking-wider
-              border-b-2 transition-colors
+              border-b-2 transition-colors shrink-0
               ${
                 activeTab === tab
                   ? 'text-neon-cyan border-neon-cyan'
@@ -164,17 +190,26 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
               }
             `}
           >
-            {tab === 'live' && '🔴 '}{tab}
+            {tab === 'live' && '\u{1F534} '}{tab}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
-      <div>
+      <div data-testid="activity-feed">
         {activeTab === 'live' && <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />}
+        {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
         {activeTab === 'stories' && <StoriesView stories={world.stories} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
         {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} />}
+        {activeTab === 'aspects' && (
+          <AspectsList
+            worldId={world.id}
+            aspects={world.aspects || []}
+            canonSummary={world.canonSummary}
+            originalPremise={world.premise}
+          />
+        )}
         {activeTab === 'agents' && <AgentsView agents={agents} dwellers={world.dwellers} />}
       </div>
     </div>
