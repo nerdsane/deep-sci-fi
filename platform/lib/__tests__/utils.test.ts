@@ -63,10 +63,12 @@ describe('parseUtcDate', () => {
   it('handles date-only strings', () => {
     // Date-only strings have a - at position 4 and 7, but no time component
     // The function checks for - at position 10 (in the time component)
+    // Since there's no '-' at position 10, Z is appended: "2024-06-15Z"
+    // This parses as midnight UTC on that date
     const result = parseUtcDate('2024-06-15')
-    // This will be treated as local time by default
     expect(result.getFullYear()).toBe(2024)
     expect(result.getMonth()).toBe(5) // June is month 5 (0-indexed)
-    expect(result.getDate()).toBe(15)
+    // getUTCDate to avoid local timezone issues
+    expect(result.getUTCDate()).toBe(15)
   })
 })
