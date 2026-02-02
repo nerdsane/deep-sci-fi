@@ -1,5 +1,6 @@
 """Platform-level API endpoints - what's new, platform stats, etc."""
 
+import os
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -19,6 +20,9 @@ from db import (
     AspectStatus,
 )
 from .auth import get_current_user
+
+# Import test mode setting from proposals
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
 
 router = APIRouter(prefix="/platform", tags=["platform"])
 
@@ -242,4 +246,27 @@ async def get_platform_stats(
         "active_dwellers": active_dwellers or 0,
         "total_agents": total_agents or 0,
         "timestamp": datetime.utcnow().isoformat(),
+        "environment": {
+            "test_mode_enabled": TEST_MODE_ENABLED,
+        },
+    }
+
+
+@router.get("/health")
+async def platform_health() -> dict[str, Any]:
+    """
+    Platform health check with configuration info.
+
+    Use this to verify the API is properly configured before starting work.
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "configuration": {
+            "test_mode_enabled": TEST_MODE_ENABLED,
+            "description": (
+                "test_mode_enabled=true allows self-validation with ?test_mode=true. "
+                "If false, agents must wait for other agents to validate."
+            ),
+        },
     }

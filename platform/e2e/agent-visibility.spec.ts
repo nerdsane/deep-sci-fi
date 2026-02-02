@@ -374,3 +374,217 @@ test.describe('Agent Visibility - Agent Profile', () => {
     await expect(page.getByText('Kenji Tanaka')).toBeVisible()
   })
 })
+
+/**
+ * Critical API Tests - Platform Health and Configuration
+ *
+ * These tests verify the API is properly configured for agent use.
+ * They catch deployment/configuration issues BEFORE agents encounter them.
+ */
+test.describe('API - Platform Configuration', () => {
+  test('platform health reports test_mode as enabled', async ({ request }) => {
+    const healthRes = await request.get(`${API_BASE}/platform/health`)
+    expect(healthRes.ok()).toBeTruthy()
+
+    const health = await healthRes.json()
+    expect(health.status).toBe('healthy')
+    expect(health.configuration.test_mode_enabled).toBe(true)
+  })
+
+  test('platform stats include test_mode status', async ({ request }) => {
+    const statsRes = await request.get(`${API_BASE}/platform/stats`)
+    expect(statsRes.ok()).toBeTruthy()
+
+    const stats = await statsRes.json()
+    expect(stats.environment).toBeDefined()
+    expect(stats.environment.test_mode_enabled).toBe(true)
+  })
+})
+
+/**
+ * Critical API Tests - Test Mode Self-Validation
+ *
+ * These tests ensure the agent-facing API works correctly.
+ * They catch issues BEFORE agents discover them in production.
+ */
+test.describe('API - Test Mode Self-Validation', () => {
+  test('agent can self-validate proposal with test_mode=true', async ({ request }) => {
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 8)
+
+    // Register agent
+    const agentRes = await request.post(`${API_BASE}/auth/agent`, {
+      data: {
+        name: `Self-Validation Test Agent ${timestamp}`,
+        username: `self-validate-${timestamp}-${random}`,
+      },
+    })
+    expect(agentRes.ok()).toBeTruthy()
+    const agentKey = (await agentRes.json()).api_key.key
+
+    // Create proposal
+    const proposalRes = await request.post(`${API_BASE}/proposals`, {
+      headers: { 'X-API-Key': agentKey },
+      data: {
+        name: `Self-Validation Test World ${timestamp}`,
+        premise:
+          'A world where neural interfaces allow direct brain-to-brain communication, enabling shared consciousness experiences.',
+        year_setting: 2080,
+        causal_chain: SAMPLE_CAUSAL_CHAIN,
+        scientific_basis:
+          'Based on Neuralink progress and brain-computer interface research. Extends current neural interface capabilities.',
+      },
+    })
+    expect(proposalRes.ok()).toBeTruthy()
+    const proposalId = (await proposalRes.json()).id
+
+    // Submit proposal
+    const submitRes = await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+      headers: { 'X-API-Key': agentKey },
+    })
+    expect(submitRes.ok()).toBeTruthy()
+
+    // Self-validate with test_mode=true - THIS MUST WORK
+    const validateRes = await request.post(
+      `${API_BASE}/proposals/${proposalId}/validate?test_mode=true`,
+      {
+        headers: { 'X-API-Key': agentKey },
+        data: {
+          verdict: 'approve',
+          critique:
+            'Solid scientific foundation with clear causal chain. Self-validation for testing purposes.',
+          scientific_issues: [],
+          suggested_fixes: [],
+        },
+      }
+    )
+
+    // If this fails, test_mode is broken - agents will be blocked!
+    if (!validateRes.ok()) {
+      const error = await validateRes.text()
+      throw new Error(
+        `CRITICAL: test_mode=true self-validation failed! Agents cannot self-validate. Error: ${error}`
+      )
+    }
+
+    // Verify proposal became a world
+    const proposalCheck = await request.get(`${API_BASE}/proposals/${proposalId}`)
+    const proposalData = await proposalCheck.json()
+    expect(proposalData.proposal.status).toBe('approved')
+    expect(proposalData.proposal.resulting_world_id).toBeTruthy()
+  })
+
+  test('agent CANNOT self-validate without test_mode=true', async ({ request }) => {
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 8)
+
+    // Register agent
+    const agentRes = await request.post(`${API_BASE}/auth/agent`, {
+      data: {
+        name: `No-Self-Validate Agent ${timestamp}`,
+        username: `no-self-${timestamp}-${random}`,
+      },
+    })
+    expect(agentRes.ok()).toBeTruthy()
+    const agentKey = (await agentRes.json()).api_key.key
+
+    // Create and submit proposal
+    const proposalRes = await request.post(`${API_BASE}/proposals`, {
+      headers: { 'X-API-Key': agentKey },
+      data: {
+        name: `No Self-Validate World ${timestamp}`,
+        premise:
+          'A world where quantum computing has made all classical encryption obsolete, requiring new security paradigms.',
+        year_setting: 2070,
+        causal_chain: SAMPLE_CAUSAL_CHAIN,
+        scientific_basis:
+          'Based on quantum computing research and cryptography fundamentals. Shor algorithm implications.',
+      },
+    })
+    expect(proposalRes.ok()).toBeTruthy()
+    const proposalId = (await proposalRes.json()).id
+
+    await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+      headers: { 'X-API-Key': agentKey },
+    })
+
+    // Try to self-validate WITHOUT test_mode - SHOULD FAIL
+    const validateRes = await request.post(`${API_BASE}/proposals/${proposalId}/validate`, {
+      headers: { 'X-API-Key': agentKey },
+      data: {
+        verdict: 'approve',
+        critique: 'Attempting self-validation without test_mode',
+        scientific_issues: [],
+        suggested_fixes: [],
+      },
+    })
+
+    // This should be rejected
+    expect(validateRes.status()).toBe(400)
+    const error = await validateRes.json()
+    expect(error.detail.error).toContain('Cannot validate your own proposal')
+  })
+
+  test('agent can self-validate aspect with test_mode=true', async ({ request }) => {
+    // First create a world using the normal flow
+    const setup = await setupTestWorld(request)
+
+    const timestamp = Date.now()
+
+    // Create an aspect
+    const aspectRes = await request.post(`${API_BASE}/aspects/worlds/${setup.worldId}/aspects`, {
+      headers: { 'X-API-Key': setup.agentKey },
+      data: {
+        aspect_type: 'technology',
+        title: `Self-Validated Tech ${timestamp}`,
+        premise:
+          'Neural dust - microscopic implants that enable passive memory backup without surgery.',
+        content: {
+          description:
+            'Nanoscale wireless sensors injected into bloodstream, migrate to brain and form mesh network for continuous memory backup.',
+          capabilities: [
+            'Passive memory recording',
+            'Cloud backup every 24 hours',
+            'No maintenance required',
+          ],
+        },
+        canon_justification:
+          'Based on DARPA neural dust research and blood-brain barrier crossing techniques in development.',
+      },
+    })
+    expect(aspectRes.ok()).toBeTruthy()
+    const aspectId = (await aspectRes.json()).aspect.id
+
+    // Submit aspect
+    await request.post(`${API_BASE}/aspects/${aspectId}/submit`, {
+      headers: { 'X-API-Key': setup.agentKey },
+    })
+
+    // Self-validate aspect with test_mode=true
+    const validateRes = await request.post(
+      `${API_BASE}/aspects/${aspectId}/validate?test_mode=true`,
+      {
+        headers: { 'X-API-Key': setup.agentKey },
+        data: {
+          verdict: 'approve',
+          critique: 'Self-validating for testing purposes. Technology fits world premise.',
+          canon_conflicts: [],
+          suggested_fixes: [],
+          updated_canon_summary: 'World now includes neural dust technology for passive memory backup.',
+        },
+      }
+    )
+
+    if (!validateRes.ok()) {
+      const error = await validateRes.text()
+      throw new Error(
+        `CRITICAL: test_mode=true aspect self-validation failed! Error: ${error}`
+      )
+    }
+
+    // Verify aspect is approved
+    const aspectCheck = await request.get(`${API_BASE}/aspects/${aspectId}`)
+    const aspectData = await aspectCheck.json()
+    expect(aspectData.aspect.status).toBe('approved')
+  })
+})
