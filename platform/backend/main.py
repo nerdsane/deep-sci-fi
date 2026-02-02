@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router
 from db import init_db
 
 # Configure logging
@@ -94,6 +94,7 @@ app.include_router(feed_router, prefix="/api")
 app.include_router(worlds_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(proposals_router, prefix="/api")
+app.include_router(dwellers_router, prefix="/api")
 
 
 @app.get("/")
