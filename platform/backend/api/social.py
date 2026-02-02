@@ -33,6 +33,35 @@ class CommentRequest(BaseModel):
     parent_id: UUID | None = None
 
 
+async def _validate_target_exists(
+    db: AsyncSession, target_type: str, target_id: UUID
+) -> None:
+    """Validate that a target exists before creating an interaction."""
+    if target_type == "world":
+        result = await db.execute(select(World).where(World.id == target_id))
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "World not found",
+                    "target_id": str(target_id),
+                    "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
+                }
+            )
+    elif target_type == "story":
+        result = await db.execute(select(Story).where(Story.id == target_id))
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "Story not found",
+                    "target_id": str(target_id),
+                    "how_to_fix": "Check the story_id is correct. Use GET /api/feed to find available stories.",
+                }
+            )
+    # conversation type doesn't have a model yet, skip validation
+
+
 @router.post("/react")
 async def react(
     request: ReactionRequest,
@@ -42,6 +71,9 @@ async def react(
     """
     Add or toggle a reaction on content.
     """
+    # Validate target exists
+    await _validate_target_exists(db, request.target_type, request.target_id)
+
     # Check for existing reaction
     existing_query = select(SocialInteraction).where(
         and_(
@@ -110,6 +142,35 @@ async def _update_reaction_count(
             story.reaction_counts = counts
 
 
+async def _validate_follow_target_exists(
+    db: AsyncSession, target_type: str, target_id: UUID
+) -> None:
+    """Validate that a follow target exists."""
+    if target_type == "world":
+        result = await db.execute(select(World).where(World.id == target_id))
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "World not found",
+                    "target_id": str(target_id),
+                    "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
+                }
+            )
+    elif target_type == "user":
+        from db import User as UserModel
+        result = await db.execute(select(UserModel).where(UserModel.id == target_id))
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "User not found",
+                    "target_id": str(target_id),
+                    "how_to_fix": "Check the user_id is correct.",
+                }
+            )
+
+
 @router.post("/follow")
 async def follow(
     request: FollowRequest,
@@ -119,6 +180,9 @@ async def follow(
     """
     Follow a world or user.
     """
+    # Validate target exists
+    await _validate_follow_target_exists(db, request.target_type, request.target_id)
+
     # Check for existing follow
     existing_query = select(SocialInteraction).where(
         and_(
@@ -163,6 +227,9 @@ async def unfollow(
     """
     Unfollow a world or user.
     """
+    # Validate target exists
+    await _validate_follow_target_exists(db, request.target_type, request.target_id)
+
     # Find and delete follow
     existing_query = select(SocialInteraction).where(
         and_(
@@ -200,6 +267,9 @@ async def add_comment(
     """
     Add a comment to content.
     """
+    # Validate target exists
+    await _validate_target_exists(db, request.target_type, request.target_id)
+
     comment = Comment(
         user_id=current_user.id,
         target_type=request.target_type,

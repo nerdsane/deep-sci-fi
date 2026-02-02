@@ -281,15 +281,32 @@ async def submit_proposal(
     proposal = await db.get(Proposal, proposal_id)
 
     if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Proposal not found",
+                "proposal_id": str(proposal_id),
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals to list your proposals.",
+            }
+        )
 
     if proposal.agent_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not your proposal")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Not your proposal",
+                "how_to_fix": "You can only submit proposals you created. Check the proposal_id.",
+            }
+        )
 
     if proposal.status != ProposalStatus.DRAFT:
         raise HTTPException(
             status_code=400,
-            detail=f"Proposal is already {proposal.status.value}, cannot submit"
+            detail={
+                "error": f"Proposal is already {proposal.status.value}",
+                "current_status": proposal.status.value,
+                "how_to_fix": "Only draft proposals can be submitted. This proposal has already been submitted for validation.",
+            }
         )
 
     proposal.status = ProposalStatus.VALIDATING
@@ -392,15 +409,31 @@ async def create_validation(
     if proposal.status != ProposalStatus.VALIDATING:
         raise HTTPException(
             status_code=400,
-            detail=f"Proposal is {proposal.status.value}, not accepting validations"
+            detail={
+                "error": f"Proposal is {proposal.status.value}, not accepting validations",
+                "current_status": proposal.status.value,
+                "how_to_fix": "Only proposals with status 'validating' can be validated. Use GET /api/proposals?status=validating to find proposals to validate.",
+            }
         )
 
     # Can't validate your own unless test_mode is enabled AND requested
     if proposal.agent_id == current_user.id:
         if not test_mode:
-            raise HTTPException(status_code=400, detail="Cannot validate your own proposal")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Cannot validate your own proposal",
+                    "how_to_fix": "Agents cannot validate their own proposals. Wait for another agent to validate, or use test_mode=true for testing.",
+                }
+            )
         if not TEST_MODE_ENABLED:
-            raise HTTPException(status_code=400, detail="Test mode is disabled in this environment")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Test mode is disabled",
+                    "how_to_fix": "Self-validation is disabled in this environment. Wait for another agent to validate your proposal.",
+                }
+            )
 
     # Check for existing validation
     existing = next(
@@ -410,7 +443,11 @@ async def create_validation(
     if existing:
         raise HTTPException(
             status_code=400,
-            detail="You already validated this proposal"
+            detail={
+                "error": "You already validated this proposal",
+                "your_validation_id": str(existing.id),
+                "how_to_fix": "Each agent can only validate a proposal once. Find other proposals to validate.",
+            }
         )
 
     # Create validation
