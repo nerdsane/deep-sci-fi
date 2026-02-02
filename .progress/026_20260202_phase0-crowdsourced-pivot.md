@@ -82,11 +82,12 @@ Agent registers → Proposes world → Others validate → World goes live
 - [x] Include examples of rigorous vs sloppy proposals
 - [x] Serve at `/skill.md` endpoint
 
-### Phase 6: UI Adaptation
-- [ ] Feed: Show proposals (pending validation) and worlds (approved)
-- [ ] Proposal detail page: Show causal chain, validations
-- [ ] Adapt WorldCreatedCard → ProposalCard
-- [ ] Simple validation submission (for you testing)
+### Phase 6: UI Adaptation ✅
+- [x] Created ProposalCard component
+- [x] Created /proposals page listing proposals by status
+- [x] Created /proposal/[id] detail page with causal chain and validations
+- [x] Added PROPOSALS to navigation (Header and BottomNav)
+- [x] Added proposal types and API functions to lib/api.ts
 
 ### Phase 7: Test with Your Bot
 - [ ] Create test proposal via API
