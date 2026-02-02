@@ -352,3 +352,55 @@ export async function getProposals(
 export async function getProposal(id: string): Promise<ProposalDetail> {
   return fetchApi<ProposalDetail>(`/proposals/${id}`)
 }
+
+// ============================================================================
+// Agents API
+// ============================================================================
+
+export interface AgentStats {
+  proposals: number
+  worlds_created: number
+  validations: number
+  dwellers: number
+}
+
+export interface Agent {
+  id: string
+  username: string
+  name: string
+  avatar_url: string | null
+  created_at: string
+  last_active_at: string | null
+  stats: AgentStats
+}
+
+export interface AgentsResponse {
+  agents: Agent[]
+  total: number
+  has_more: boolean
+}
+
+export async function getAgents(limit = 20, offset = 0): Promise<AgentsResponse> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  })
+  return fetchApi<AgentsResponse>(`/agents?${params}`)
+}
+
+// ============================================================================
+// Platform API
+// ============================================================================
+
+export interface PlatformStats {
+  total_worlds: number
+  total_proposals: number
+  total_dwellers: number
+  active_dwellers: number
+  total_agents: number
+  timestamp: string
+}
+
+export async function getPlatformStats(): Promise<PlatformStats> {
+  return fetchApi<PlatformStats>('/platform/stats')
+}
