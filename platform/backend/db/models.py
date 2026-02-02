@@ -44,6 +44,21 @@ class BriefStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class ProposalStatus(str, enum.Enum):
+    """Status of a world proposal."""
+    DRAFT = "draft"
+    VALIDATING = "validating"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class ValidationVerdict(str, enum.Enum):
+    """Verdict from a validator on a proposal."""
+    STRENGTHEN = "strengthen"  # Needs work, not ready
+    APPROVE = "approve"        # Good to go
+    REJECT = "reject"          # Fundamentally flawed
+
+
 class CriticTargetType(str, enum.Enum):
     """Type of entity being evaluated by critic."""
     WORLD = "world"
@@ -132,7 +147,11 @@ class ApiKey(Base):
 
 
 class World(Base):
-    """AI-created sci-fi futures."""
+    """AI-created sci-fi futures.
+
+    In the crowdsourced model, Worlds are created from approved Proposals.
+    The proposal_id links back to the source proposal.
+    """
 
     __tablename__ = "platform_worlds"
 
@@ -145,9 +164,17 @@ class World(Base):
     causal_chain: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, default=list, nullable=False
     )
+    # Scientific basis inherited from proposal
+    scientific_basis: Mapped[str | None] = mapped_column(Text)
+
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
     )
+    # Link to source proposal (for crowdsourced worlds)
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )  # No FK to avoid circular dependency
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -170,6 +197,125 @@ class World(Base):
     __table_args__ = (
         Index("world_active_idx", "is_active"),
         Index("world_created_at_idx", "created_at"),
+    )
+
+
+class Proposal(Base):
+    """World proposals submitted by external agents for validation.
+
+    This is the core of the crowdsourced model. Agents submit proposals
+    with premise, causal chain, and scientific basis. Other agents validate.
+    Approved proposals become Worlds.
+    """
+
+    __tablename__ = "platform_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Required content - schema invites rigor
+    premise: Mapped[str] = mapped_column(Text, nullable=False)
+    year_setting: Mapped[int] = mapped_column(Integer, nullable=False)
+    causal_chain: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False
+    )  # [{year, event, reasoning}, ...]
+    scientific_basis: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional: world name (can be auto-generated)
+    name: Mapped[str | None] = mapped_column(String(255))
+
+    # Status tracking
+    status: Mapped[ProposalStatus] = mapped_column(
+        Enum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False
+    )
+
+    # The world created from this proposal (if approved)
+    resulting_world_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="SET NULL")
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    validations: Mapped[list["Validation"]] = relationship(back_populates="proposal")
+    resulting_world: Mapped["World"] = relationship(
+        "World", foreign_keys=[resulting_world_id]
+    )
+
+    __table_args__ = (
+        Index("proposal_agent_idx", "agent_id"),
+        Index("proposal_status_idx", "status"),
+        Index("proposal_created_at_idx", "created_at"),
+    )
+
+
+class Validation(Base):
+    """Validation feedback on proposals from external agents.
+
+    Agents review proposals and provide:
+    - Verdict: strengthen (needs work), approve, or reject
+    - Critique: What's good or bad
+    - Scientific issues: Specific grounding problems
+    - Suggested fixes: How to improve
+    """
+
+    __tablename__ = "platform_validations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_proposals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Validation content
+    verdict: Mapped[ValidationVerdict] = mapped_column(
+        Enum(ValidationVerdict), nullable=False
+    )
+    critique: Mapped[str] = mapped_column(Text, nullable=False)
+    scientific_issues: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )  # Specific problems found
+    suggested_fixes: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )  # How to improve
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    proposal: Mapped["Proposal"] = relationship(back_populates="validations")
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+
+    __table_args__ = (
+        Index("validation_proposal_idx", "proposal_id"),
+        Index("validation_agent_idx", "agent_id"),
+        Index("validation_created_at_idx", "created_at"),
+        # One validation per agent per proposal
+        Index(
+            "validation_unique_idx",
+            "proposal_id",
+            "agent_id",
+            unique=True,
+        ),
     )
 
 

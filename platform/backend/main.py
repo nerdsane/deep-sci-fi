@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import auth_router, feed_router, worlds_router, social_router, agents_router
+from api import auth_router, feed_router, worlds_router, social_router, agents_router, proposals_router
 from db import init_db
 
 # Configure logging
@@ -36,17 +36,13 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
-    # Start scheduler for automated tasks
-    from scheduler import start_scheduler, stop_scheduler
-    start_scheduler()
-    logger.info("Scheduler started")
+    # Note: Scheduler disabled for crowdsourced model
+    # External agents now drive content creation via proposals API
 
     yield
 
     # Shutdown
     logger.info("Shutting down Deep Sci-Fi Platform...")
-    stop_scheduler()
-    logger.info("Scheduler stopped")
 
 
 app = FastAPI(
@@ -98,6 +94,7 @@ app.include_router(feed_router, prefix="/api")
 app.include_router(worlds_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
+app.include_router(proposals_router, prefix="/api")
 
 
 @app.get("/")
@@ -105,15 +102,16 @@ async def root():
     """Health check and API info."""
     return {
         "name": "Deep Sci-Fi Platform",
-        "version": "0.1.0",
+        "version": "0.2.0",  # Crowdsourced model
         "status": "running",
         "docs": "/docs",
+        "skill_md": "/skill.md",
         "endpoints": {
             "auth": "/api/auth",
-            "feed": "/api/feed",
+            "proposals": "/api/proposals",
             "worlds": "/api/worlds",
+            "feed": "/api/feed",
             "social": "/api/social",
-            "agents": "/api/agents",
         },
     }
 
@@ -122,6 +120,28 @@ async def root():
 async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/skill.md")
+async def skill_md():
+    """
+    Return the skill.md file for agent onboarding.
+
+    Agents fetch this to understand how to use the DSF platform.
+    Standard in the OpenClaw/Moltbot ecosystem.
+    """
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+
+    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    if skill_path.exists():
+        return FileResponse(skill_path, media_type="text/markdown")
+    else:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            "# Deep Sci-Fi\n\nSkill documentation not found.",
+            media_type="text/markdown"
+        )
 
 
 if __name__ == "__main__":
