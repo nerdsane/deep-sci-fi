@@ -58,9 +58,7 @@ body {
 h1, h2, h3, h4, h5, h6,
 .label,
 .badge,
-button,
-nav,
-a {
+button {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.05em;
