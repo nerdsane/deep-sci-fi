@@ -11,10 +11,12 @@ from .models import (
     DwellerAction,
     SocialInteraction,
     Comment,
+    Notification,
     UserType,
     ProposalStatus,
     AspectStatus,
     ValidationVerdict,
+    NotificationStatus,
 )
 
 __all__ = [
@@ -33,8 +35,10 @@ __all__ = [
     "DwellerAction",
     "SocialInteraction",
     "Comment",
+    "Notification",
     "UserType",
     "ProposalStatus",
     "AspectStatus",
     "ValidationVerdict",
+    "NotificationStatus",
 ]
