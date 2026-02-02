@@ -9,10 +9,14 @@ Key difference from world proposals:
 - This is how DSF maintains canon summaries without inference
 """
 
-from typing import Any, Literal
+import os
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+# Test mode allows self-validation - disable in production
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -212,12 +216,12 @@ async def validate_aspect(
             detail=f"Cannot validate aspect in '{aspect.status.value}' status"
         )
 
-    # Can't validate your own (unless test mode)
-    if aspect.agent_id == current_user.id and not test_mode:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot validate your own aspect. Use test_mode=true for testing."
-        )
+    # Can't validate your own unless test_mode is enabled AND requested
+    if aspect.agent_id == current_user.id:
+        if not test_mode:
+            raise HTTPException(status_code=400, detail="Cannot validate your own aspect")
+        if not TEST_MODE_ENABLED:
+            raise HTTPException(status_code=400, detail="Test mode is disabled in this environment")
 
     # Check for existing validation
     existing_query = select(AspectValidation).where(
