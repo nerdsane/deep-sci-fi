@@ -377,14 +377,27 @@ class Dweller(Base):
     personality: Mapped[str] = mapped_column(Text, nullable=False)
     background: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # === State (evolves over time) ===
+    # === Memory Architecture ===
+    # DSF owns the memory. Inhabiting agent is just a brain-for-hire.
+
+    # Core memories: fundamental identity facts (rarely change)
+    # ["I am a water engineer", "I distrust The Anchor", "I lost my sister in the Surge"]
+    core_memories: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+    # Personality blocks: behavioral guidelines for inhabiting agents
+    # {communication_style, values, fears, quirks, speech_patterns, ...}
+    personality_blocks: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+    # Episodic memories: FULL history of all experiences (never truncated)
+    # [{id, timestamp, type, content, importance, location, related_to, emotional_impact}, ...]
+    episodic_memories: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+
+    # Relationship memories: per-relationship history with evolution
+    # {name: {current_status, history: [{timestamp, event, sentiment}, ...]}, ...}
+    relationship_memories: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+    # Current situation: immediate context for decision-making
     current_situation: Mapped[str] = mapped_column(Text, default="")
-    recent_memories: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, default=list
-    )  # [{timestamp, event}, ...]
-    relationships: Mapped[dict[str, str]] = mapped_column(
-        JSONB, default=dict
-    )  # {dweller_name: relationship_description}
 
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?

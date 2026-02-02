@@ -9,6 +9,7 @@ the world's future context, not AI-slop defaults.
 """
 
 from typing import Any, Literal
+import uuid as uuid_module
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -53,6 +54,24 @@ class RegionCreateRequest(BaseModel):
     )
 
 
+class PersonalityBlocks(BaseModel):
+    """Behavioral guidelines for the inhabiting agent."""
+    communication_style: str = Field(..., description="How they talk")
+    values: list[str] = Field(default=[], description="Core values")
+    fears: list[str] = Field(default=[], description="What they fear")
+    quirks: list[str] = Field(default=[], description="Behavioral quirks")
+    speech_patterns: str = Field(default="", description="How they speak")
+
+
+class RelationshipInit(BaseModel):
+    """Initial relationship with another dweller."""
+    current_status: str = Field(..., description="Current relationship state")
+    history: list[dict[str, str]] = Field(
+        default=[],
+        description="List of {timestamp, event, sentiment}"
+    )
+
+
 class DwellerCreateRequest(BaseModel):
     """Request to create a dweller persona."""
     # Identity (culturally grounded)
@@ -79,15 +98,25 @@ class DwellerCreateRequest(BaseModel):
     # Character
     role: str = Field(..., min_length=1, description="Job/function in world")
     age: int = Field(..., ge=0, le=200)
-    personality: str = Field(..., min_length=50, description="Personality traits")
+    personality: str = Field(..., min_length=50, description="Personality traits (summary)")
     background: str = Field(..., min_length=50, description="Life history")
 
-    # Initial state (optional)
-    current_situation: str = Field(default="", description="Current circumstances")
-    relationships: dict[str, str] = Field(
-        default={},
-        description="Initial relationships: {name: description}"
+    # Memory Architecture
+    core_memories: list[str] = Field(
+        default=[],
+        description="Fundamental identity facts: ['I am a water engineer', 'I distrust authority']"
     )
+    personality_blocks: dict[str, Any] = Field(
+        default={},
+        description="Behavioral guidelines: {communication_style, values, fears, quirks, speech_patterns}"
+    )
+    relationship_memories: dict[str, Any] = Field(
+        default={},
+        description="Per-relationship history: {name: {current_status, history: [{timestamp, event, sentiment}]}}"
+    )
+
+    # Initial state
+    current_situation: str = Field(default="", description="Current circumstances")
 
 
 class DwellerActionRequest(BaseModel):
@@ -222,7 +251,7 @@ async def create_dweller(
     # Get the actual region for response
     region = next(r for r in world.regions if r["name"].lower() == request.origin_region.lower())
 
-    # Create dweller
+    # Create dweller with full memory architecture
     dweller = Dweller(
         world_id=world_id,
         created_by=current_user.id,
@@ -235,8 +264,12 @@ async def create_dweller(
         age=request.age,
         personality=request.personality,
         background=request.background,
+        # Memory architecture
+        core_memories=request.core_memories,
+        personality_blocks=request.personality_blocks,
+        episodic_memories=[],  # Starts empty, builds over time
+        relationship_memories=request.relationship_memories,
         current_situation=request.current_situation,
-        relationships=request.relationships,
         is_available=True,
     )
     db.add(dweller)
@@ -476,6 +509,9 @@ async def get_dweller_state(
         None
     )
 
+    # Get recent episodic memories (last 20 for immediate context)
+    recent_episodes = dweller.episodic_memories[-20:] if dweller.episodic_memories else []
+
     return {
         "dweller_id": str(dweller_id),
         "world": {
@@ -497,12 +533,18 @@ async def get_dweller_state(
             "generation": dweller.generation,
             "region_details": region,
         },
+        # Full memory architecture
+        "memory": {
+            "core_memories": dweller.core_memories,
+            "personality_blocks": dweller.personality_blocks,
+            "recent_episodes": recent_episodes,
+            "total_episodes": len(dweller.episodic_memories),
+            "relationships": dweller.relationship_memories,
+        },
         "current_state": {
             "situation": dweller.current_situation,
-            "recent_memories": dweller.recent_memories[-10:],  # Last 10 memories
-            "relationships": dweller.relationships,
         },
-        "instructions": "Use POST /dwellers/{id}/act to take actions. Stay in character.",
+        "instructions": "Use POST /dwellers/{id}/act to take actions. Stay in character. Your memories and personality are defined above - embody them.",
     }
 
 
@@ -550,19 +592,38 @@ async def take_action(
         content=request.content,
     )
     db.add(action)
+    await db.flush()  # Get the action ID
 
-    # Add to dweller's memories
+    # Create episodic memory (FULL history, never truncated)
     from datetime import datetime
-    memory = {
+
+    episodic_memory = {
+        "id": str(uuid_module.uuid4()),
+        "action_id": str(action.id),
         "timestamp": datetime.utcnow().isoformat(),
         "type": request.action_type,
-        "content": f"[{request.action_type.upper()}] {request.content}" + (f" (to {request.target})" if request.target else ""),
+        "content": request.content,
+        "target": request.target,
+        "importance": 0.5,  # Default importance, could be adjusted
     }
-    dweller.recent_memories = dweller.recent_memories + [memory]
 
-    # Keep only last 50 memories
-    if len(dweller.recent_memories) > 50:
-        dweller.recent_memories = dweller.recent_memories[-50:]
+    # Append to episodic memories (NEVER truncate - full history)
+    dweller.episodic_memories = dweller.episodic_memories + [episodic_memory]
+
+    # If this action involves another dweller, update relationship memories
+    if request.target and request.action_type in ["speak", "interact"]:
+        rel_memories = dweller.relationship_memories or {}
+        if request.target not in rel_memories:
+            rel_memories[request.target] = {
+                "current_status": "acquaintance",
+                "history": []
+            }
+        rel_memories[request.target]["history"].append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "event": f"{request.action_type}: {request.content[:100]}",
+            "sentiment": "neutral"  # Could be inferred or specified
+        })
+        dweller.relationship_memories = rel_memories
 
     await db.commit()
     await db.refresh(action)
@@ -631,4 +692,215 @@ async def get_world_activity(
             for a in actions
         ],
         "total": len(actions),
+    }
+
+
+# ============================================================================
+# Memory Endpoints
+# ============================================================================
+
+
+@router.get("/{dweller_id}/memory")
+async def get_full_memory(
+    dweller_id: UUID,
+    include_episodes: bool = Query(True, description="Include full episodic history"),
+    episode_limit: int = Query(100, ge=1, le=1000, description="Max episodes to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get full memory for a dweller.
+
+    Only the inhabiting agent can access full memory.
+    Use this when you need to look further back than recent episodes.
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    episodes = []
+    if include_episodes:
+        episodes = dweller.episodic_memories[-episode_limit:] if dweller.episodic_memories else []
+
+    return {
+        "dweller_id": str(dweller_id),
+        "dweller_name": dweller.name,
+        "memory": {
+            "core_memories": dweller.core_memories,
+            "personality_blocks": dweller.personality_blocks,
+            "episodic_memories": episodes,
+            "total_episodes": len(dweller.episodic_memories) if dweller.episodic_memories else 0,
+            "relationship_memories": dweller.relationship_memories,
+        },
+    }
+
+
+class CoreMemoryUpdate(BaseModel):
+    """Update to core memories."""
+    add: list[str] = Field(default=[], description="Memories to add")
+    remove: list[str] = Field(default=[], description="Memories to remove (exact match)")
+
+
+class RelationshipUpdate(BaseModel):
+    """Update to a relationship."""
+    target: str = Field(..., description="Name of the other dweller")
+    new_status: str | None = Field(None, description="New relationship status")
+    add_event: dict[str, str] | None = Field(
+        None,
+        description="Event to add: {event, sentiment}"
+    )
+
+
+class SituationUpdate(BaseModel):
+    """Update to current situation."""
+    situation: str = Field(..., description="New current situation")
+
+
+@router.patch("/{dweller_id}/memory/core")
+async def update_core_memories(
+    dweller_id: UUID,
+    request: CoreMemoryUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update core memories for a dweller.
+
+    Core memories are fundamental identity facts that define the character.
+    Only the inhabiting agent can modify these.
+
+    Use sparingly - core memories should be stable.
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    # Update core memories
+    current = dweller.core_memories or []
+
+    # Remove specified memories
+    for mem in request.remove:
+        if mem in current:
+            current.remove(mem)
+
+    # Add new memories
+    for mem in request.add:
+        if mem not in current:
+            current.append(mem)
+
+    dweller.core_memories = current
+    await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "core_memories": dweller.core_memories,
+        "message": "Core memories updated.",
+    }
+
+
+@router.patch("/{dweller_id}/memory/relationship")
+async def update_relationship(
+    dweller_id: UUID,
+    request: RelationshipUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update a relationship for a dweller.
+
+    Relationships track how the dweller relates to others and the history
+    of their interactions.
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    rel_memories = dweller.relationship_memories or {}
+
+    # Initialize relationship if new
+    if request.target not in rel_memories:
+        rel_memories[request.target] = {
+            "current_status": "acquaintance",
+            "history": []
+        }
+
+    # Update status if provided
+    if request.new_status:
+        rel_memories[request.target]["current_status"] = request.new_status
+
+    # Add event if provided
+    if request.add_event:
+        from datetime import datetime
+        event_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "event": request.add_event.get("event", ""),
+            "sentiment": request.add_event.get("sentiment", "neutral"),
+        }
+        rel_memories[request.target]["history"].append(event_entry)
+
+    dweller.relationship_memories = rel_memories
+    await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "relationship": {
+            "target": request.target,
+            "data": rel_memories[request.target],
+        },
+        "message": "Relationship updated.",
+    }
+
+
+@router.patch("/{dweller_id}/situation")
+async def update_situation(
+    dweller_id: UUID,
+    request: SituationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update the current situation for a dweller.
+
+    The situation is the immediate context for decision-making.
+    Update this when circumstances change significantly.
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    dweller.current_situation = request.situation
+    await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "situation": dweller.current_situation,
+        "message": "Situation updated.",
     }
