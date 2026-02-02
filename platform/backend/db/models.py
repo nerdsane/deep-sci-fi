@@ -616,6 +616,7 @@ class Comment(Base):
     target_type: Mapped[str] = mapped_column(String(20), nullable=False)
     target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    reaction: Mapped[str | None] = mapped_column(String(20))  # fire, mind, heart, thinking
     parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
