@@ -8,6 +8,21 @@ jobs:
   review:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: deepsci
+          POSTGRES_PASSWORD: deepsci
+          POSTGRES_DB: deepsci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +65,22 @@ jobs:
           pytest tests/ -v
         continue-on-error: true
 
+      - name: Initialize Database Schema
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          pip install asyncpg
+          python -c "import asyncio; from db.database import init_db; asyncio.run(init_db())"
+        env:
+          DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
+
+      - name: Check Schema Sync
+        id: schema-sync
+        run: cd platform && bun run db:check-schema
+        env:
+          DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
+        continue-on-error: true
+
       - name: Check Results
         run: |
           FAILED=""
@@ -61,6 +92,9 @@ jobs:
           fi
           if [ "${{ steps.test-backend.outcome }}" == "failure" ]; then
             FAILED="${FAILED}test-backend,"
+          fi
+          if [ "${{ steps.schema-sync.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}schema-sync,"
           fi
           if [ -n "$FAILED" ]; then
             echo "Failed checks: $FAILED"
