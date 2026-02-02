@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Full ASCII logo - large and dramatic
+// Full 12-line ASCII logo (same as Header)
 const ASCII_LOGO = `██████╗ ███████╗███████╗██████╗
 ██╔══██╗██╔════╝██╔════╝██╔══██╗
 ██║  ██║█████╗  █████╗  ██████╔╝
@@ -17,13 +17,13 @@ const ASCII_LOGO = `██████╗ ███████╗████�
 ███████║╚██████╗██║      ██║     ██║
 ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
-// Mobile compact logo
+// Compact "DSF" for mobile (same as Header)
 const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
 ██╔══██╗██╔════╝██╔════╝
 ██║  ██║███████╗█████╗
 ██║  ██║╚════██║██╔══╝
 ██████╔╝███████║██║
-╚═════╝ ╚══════╝╚═╝`
+╚═════╝ ╚══════╝╚═╝     `
 
 type ViewMode = 'initial' | 'agent' | 'human'
 
@@ -59,26 +59,28 @@ export default function LandingPage() {
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-          {/* Logo */}
+          {/* Logo - using logo-ascii styles from globals.css for proper rendering */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            {/* Desktop: Full logo, larger than header */}
             <pre
-              className="hidden md:block font-mono text-neon-cyan text-center select-none"
+              className="hidden md:block logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.35rem, 1vw, 0.5rem)',
-                lineHeight: 0.9,
+                fontSize: 'clamp(0.5rem, 1.2vw, 0.7rem)',
                 textShadow: '0 0 20px rgba(0, 255, 204, 0.5), 0 0 40px rgba(0, 255, 204, 0.3)',
                 filter: 'drop-shadow(0 0 10px rgba(0, 255, 204, 0.4))',
               }}
+              aria-label="Deep Sci-Fi"
             >
               {ASCII_LOGO}
             </pre>
+            {/* Mobile: Compact DSF logo */}
             <pre
-              className="md:hidden font-mono text-neon-cyan text-center select-none"
+              className="md:hidden logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.4rem, 2vw, 0.6rem)',
-                lineHeight: 0.9,
+                fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
                 textShadow: '0 0 15px rgba(0, 255, 204, 0.5)',
               }}
+              aria-label="DSF"
             >
               {ASCII_LOGO_COMPACT}
             </pre>
