@@ -1,261 +1,69 @@
-# Claude Code Review Workflow
-# Uses Claude Opus 4.5 for high-quality code review on PRs
-# Based on: https://github.com/anthropics/claude-code-action
-
-name: Claude Code Review
+name: PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-  issue_comment:
-    types: [created]
-
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: read
+    branches: [main, staging]
 
 jobs:
-  # Job 1: Run tests and typecheck first
-  test:
-    name: Test & Typecheck
+  review:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
+      - uses: actions/checkout@v4
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
-      - name: Install dependencies (letta-code)
-        run: cd letta-code && bun install
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install frontend dependencies
+        run: cd platform && bun install
+
+      - name: Run Frontend Typecheck
+        id: typecheck-frontend
+        run: cd platform && bun run typecheck
         continue-on-error: true
 
-      - name: Install dependencies (letta-ui)
-        run: cd letta-ui && bun install
+      - name: Run Frontend Tests
+        id: test-frontend
+        run: cd platform && bun run test:run
         continue-on-error: true
 
-      - name: Run Tests (letta-code)
-        id: test-letta-code
-        run: cd letta-code && bun test
+      - name: Install backend dependencies
+        run: |
+          cd platform/backend
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run Backend Tests
+        id: test-backend
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          pytest tests/ -v
         continue-on-error: true
 
-      - name: Run Typecheck (letta-code)
-        id: typecheck-letta-code
-        run: cd letta-code && bun run typecheck
-        continue-on-error: true
-
-      - name: Run Typecheck (letta-ui)
-        id: typecheck-letta-ui
-        run: cd letta-ui && bun run typecheck
-        continue-on-error: true
-
-      - name: Check for failures
-        id: check-failures
+      - name: Check Results
         run: |
           FAILED=""
-          if [ "${{ steps.test-letta-code.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}tests,"
+          if [ "${{ steps.typecheck-frontend.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}typecheck-frontend,"
           fi
-          if [ "${{ steps.typecheck-letta-code.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}typecheck-letta-code,"
+          if [ "${{ steps.test-frontend.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}test-frontend,"
           fi
-          if [ "${{ steps.typecheck-letta-ui.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}typecheck-letta-ui,"
+          if [ "${{ steps.test-backend.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}test-backend,"
           fi
-          echo "failures=${FAILED}" >> $GITHUB_OUTPUT
           if [ -n "$FAILED" ]; then
-            echo "has_failures=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "Failed checks: $FAILED"
+            exit 1
           fi
-
-    outputs:
-      has_failures: ${{ steps.check-failures.outputs.has_failures }}
-      failures: ${{ steps.check-failures.outputs.failures }}
-
-  # Job 2: Claude review (always runs on PRs)
-  review:
-    name: Claude Code Review (Opus 4.5)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: test
-    if: |
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Claude Code Review
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          additional_permissions: |
-            actions: read
-          claude_args: |
-            --model claude-opus-4-5-20251101
-            --max-turns 15
-            --allowedTools "Bash(bun test*),Bash(bun run typecheck*),Bash(git*),Read,Edit,Write,Glob,Grep"
-          settings: |
-            {
-              "env": {
-                "CI": "true",
-                "NODE_ENV": "test"
-              }
-            }
-          prompt: |
-            ## Code Review Task
-
-            Review this PR for quality, correctness, and alignment with project vision.
-
-            ### 1. Code Quality
-            - Bugs, logic errors, edge cases
-            - Security vulnerabilities (injection, auth, data exposure)
-            - Performance issues
-            - TypeScript safety (flag any `any` without justification)
-            - Error handling (no silent failures)
-
-            ### 2. Vision Alignment
-            Read `.vision/CONSTRAINTS.md` and `.vision/PHILOSOPHY.md`.
-            Verify the changes:
-            - Follow TigerStyle principles (tests prove it works, no placeholders)
-            - Align with "tools not workflows" philosophy
-            - Don't over-engineer or under-test
-
-            If `.vision/` doesn't exist, note this as a setup issue.
-
-            ### 3. Test Coverage
-            - Every changed `.ts` file should have corresponding `.test.ts`
-            - Flag missing tests as CRITICAL
-            - Check test quality, not just existence
-
-            ### 4. No Placeholders
-            Search for: TODO, FIXME, HACK, XXX, PLACEHOLDER
-            Flag any new instances as blockers unless clearly documented as intentional.
-
-            ### 5. Submodule Consideration
-            This repo has submodules: `letta/` (Python) and `letta-code/` (TypeScript).
-            Check if changes properly consider submodule boundaries.
-
-            ### 6. CI/CD Failures
-            ${{ needs.test.outputs.has_failures == 'true' && format('CI FAILURES DETECTED: {0}', needs.test.outputs.failures) || 'All tests passed.' }}
-
-            ${{ needs.test.outputs.has_failures == 'true' && 'YOU MUST: 1) Identify root cause from error output, 2) Propose specific fix, 3) If straightforward, push the fix directly.' || '' }}
-
-            ### Output Format
-            Provide structured feedback:
-            - **CRITICAL**: Must fix before merge (blocks PR)
-            - **WARNING**: Should fix (doesn't block)
-            - **SUGGESTION**: Nice to have (informational)
-
-            Be direct and specific. Reference file paths and line numbers.
-
-  # Job 3: Auto-fix CI failures (if Claude can fix them)
-  auto-fix:
-    name: Auto-Fix CI Failures
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [test, review]
-    if: needs.test.outputs.has_failures == 'true' && github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.head_ref }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: |
-          cd letta-code && bun install
-          cd ../letta-ui && bun install
-
-      - name: Claude Auto-Fix
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: |
-            --model claude-opus-4-5-20251101
-            --max-turns 20
-            --allowedTools "Bash(bun*),Bash(git add*),Bash(git commit*),Read,Edit,Write,Glob,Grep"
-          prompt: |
-            ## Auto-Fix CI Failures
-
-            CI failures detected: ${{ needs.test.outputs.failures }}
-
-            Your task:
-            1. Run the failing commands to see detailed error output
-            2. Identify the root cause of each failure
-            3. Fix the issues directly in the code
-            4. Verify your fixes work by running the commands again
-            5. Commit the fix with message: "fix: resolve CI failures [auto]
-
-               Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
-
-            Rules:
-            - Only fix what's broken, don't refactor unrelated code
-            - Ensure fix doesn't break other tests
-            - If fix is non-trivial or unclear, explain in commit message
-            - If you can't fix it, explain why in a comment
-
-            Do NOT push - just commit. The PR will be updated automatically.
-
-  # Job 4: Run evaluations (if tests pass)
-  eval:
-    name: Run Evaluations
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: test
-    if: needs.test.outputs.has_failures == 'false' && github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: cd letta-code && bun install
-
-      - name: Run Eval Suite
-        id: run-evals
-        run: |
-          cd letta-code
-          # Run eval tests if they exist
-          if [ -d "tests/eval" ]; then
-            bun test tests/eval/ || echo "EVAL_FAILED=true" >> $GITHUB_OUTPUT
-          else
-            echo "No eval tests found"
-          fi
-        continue-on-error: true
-
-      - name: Generate Eval Report
-        if: always()
-        run: |
-          echo "## Evaluation Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.run-evals.outputs.EVAL_FAILED }}" == "true" ]; then
-            echo "⚠️ Some evaluations failed. See job logs for details." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ All evaluations passed." >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "All checks passed!"
