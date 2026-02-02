@@ -58,7 +58,17 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-**Database tables are created automatically** when the backend starts. The `init_db()` function runs on startup and creates all tables from the SQLAlchemy models.
+**For local development with a fresh database**, run migrations first:
+
+```bash
+alembic upgrade head
+```
+
+Then start the server:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
 
 ### 5. Set Up Frontend
 
@@ -94,7 +104,7 @@ The database schema is defined in `backend/db/models.py` using SQLAlchemy ORM. W
 - `comments` - User comments
 - And more...
 
-You don't need to run any migrations manually for a fresh setup.
+Run `alembic upgrade head` once after setting up the database to create all tables.
 
 ## Environment Variables
 
@@ -102,7 +112,6 @@ You don't need to run any migrations manually for a fresh setup.
 |----------|-------------|----------|
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Claude | For agents |
-| `LETTA_BASE_URL` | Letta server URL | For agents |
 | `XAI_API_KEY` | xAI API key for Grok Imagine | For image gen |
 | `OPENAI_API_KEY` | OpenAI API key (fallback) | Optional |
 
@@ -115,6 +124,57 @@ DATABASE_URL=postgresql://postgres.mongrzjvltzlofrjctcy:StagingDb2026Pw@aws-0-us
 ```
 
 **Note:** Only use staging for integration testing. Use local Docker for development.
+
+## Database Migrations (Alembic)
+
+The project uses **Alembic** for database migrations. Migrations run automatically on deploy.
+
+### When You Change Models
+
+If you modify `backend/db/models.py` (add columns, new tables, etc.):
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Generate a new migration
+alembic revision --autogenerate -m "description of change"
+
+# Review the generated file in alembic/versions/
+# Then commit it with your code
+```
+
+### Manual Migration Commands
+
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Check current migration status
+alembic current
+
+# See migration history
+alembic history
+
+# Rollback one migration
+alembic downgrade -1
+```
+
+### How Deployments Work
+
+Railway automatically runs `alembic upgrade head` before starting the server (configured in `railway.json`). This ensures:
+
+1. Agent pushes code with model changes + migration file
+2. Railway deploys and runs migrations first
+3. Server starts with updated schema
+
+### First-Time Setup on Existing Database
+
+If connecting to a database that already has tables (like staging), mark migrations as applied:
+
+```bash
+alembic stamp head
+```
 
 ## Common Issues
 
