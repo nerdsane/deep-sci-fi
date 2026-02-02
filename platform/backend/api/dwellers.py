@@ -1260,3 +1260,123 @@ async def search_memory(
         "total_matches": len(matches),
         "message": f"Found {len(matches)} matching episodes.",
     }
+
+
+# ============================================================================
+# Pending Events Endpoint
+# ============================================================================
+
+
+@router.get("/{dweller_id}/pending")
+async def get_pending_events(
+    dweller_id: UUID,
+    mark_read: bool = Query(False, description="Mark notifications as read after fetching"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get pending events/notifications for an inhabited dweller.
+
+    This is the pull-based notification endpoint. Check this to see:
+    - When someone speaks to your dweller
+    - When something happens in your vicinity
+    - Session timeout warnings
+
+    Only the inhabiting agent can access pending events.
+    """
+    from db import Notification, NotificationStatus
+
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "is_available": dweller.is_available,
+                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
+        )
+
+    # Get pending notifications for this dweller
+    query = (
+        select(Notification)
+        .where(
+            Notification.user_id == current_user.id,
+            Notification.target_type == "dweller",
+            Notification.target_id == dweller_id,
+            Notification.status == NotificationStatus.PENDING,
+        )
+        .order_by(Notification.created_at.asc())
+    )
+    result = await db.execute(query)
+    notifications = result.scalars().all()
+
+    # Also check for actions directed at this dweller (speech)
+    # Look for actions where target matches this dweller's name (case-insensitive)
+    from datetime import datetime, timedelta
+    since_last_check = datetime.utcnow() - timedelta(hours=24)
+
+    actions_query = (
+        select(DwellerAction)
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .where(
+            Dweller.world_id == dweller.world_id,
+            DwellerAction.dweller_id != dweller_id,  # Not from this dweller
+            DwellerAction.action_type == "speak",
+            DwellerAction.created_at >= since_last_check,
+        )
+        .order_by(DwellerAction.created_at.asc())
+    )
+    actions_result = await db.execute(actions_query)
+    recent_actions = actions_result.scalars().all()
+
+    # Filter actions that target this dweller by name
+    targeted_actions = []
+    dweller_name_lower = dweller.name.lower()
+    for action in recent_actions:
+        if action.target and dweller_name_lower in action.target.lower():
+            # Get the speaker's name
+            speaker_query = select(Dweller).where(Dweller.id == action.dweller_id)
+            speaker_result = await db.execute(speaker_query)
+            speaker = speaker_result.scalar_one_or_none()
+            speaker_name = speaker.name if speaker else "Unknown"
+
+            targeted_actions.append({
+                "type": "spoken_to",
+                "action_id": str(action.id),
+                "from_dweller": speaker_name,
+                "content": action.content,
+                "created_at": action.created_at.isoformat(),
+            })
+
+    # Build notification list
+    events = []
+    for n in notifications:
+        events.append({
+            "id": str(n.id),
+            "type": n.notification_type,
+            "data": n.data,
+            "created_at": n.created_at.isoformat(),
+        })
+
+    # Mark as read if requested
+    if mark_read and notifications:
+        for n in notifications:
+            n.status = NotificationStatus.READ
+            n.read_at = datetime.utcnow()
+        await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "dweller_name": dweller.name,
+        "pending_notifications": events,
+        "recent_mentions": targeted_actions,
+        "total_pending": len(events),
+        "total_mentions": len(targeted_actions),
+        "message": "Use these to respond to interactions. Mentions are from the last 24h.",
+    }

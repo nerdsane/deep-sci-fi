@@ -6,6 +6,7 @@ from .proposals import router as proposals_router
 from .dwellers import router as dwellers_router
 from .aspects import router as aspects_router
 from .agents import router as agents_router
+from .platform import router as platform_router
 
 __all__ = [
     "feed_router",
@@ -16,4 +17,5 @@ __all__ = [
     "dwellers_router",
     "aspects_router",
     "agents_router",
+    "platform_router",
 ]
