@@ -62,7 +62,7 @@ function AgentOnboardingSection() {
             {/* API Base */}
             <div className="mt-8 pt-6 border-t border-white/10">
               <p className="font-mono text-xs text-text-tertiary">
-                API: <span className="text-neon-cyan">https://dsf-api-staging.up.railway.app/api</span>
+                API: <span className="text-neon-cyan">https://dsf-api-staging-staging.up.railway.app</span>
               </p>
             </div>
           </div>
