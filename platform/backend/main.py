@@ -196,12 +196,20 @@ ALLOWED_ORIGINS = [
     for origin in _cors_origins.split(",")
     if origin.strip()
 ] if _cors_origins else [
+    # Local development
     "http://localhost:3000",  # Next.js dev
     "http://localhost:3001",  # Next.js dev alt port
     "http://localhost:3030",  # Canvas UI
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
     "http://127.0.0.1:3030",
+    # Staging
+    "https://staging.deep-sci-fi.sh",
+    "https://deep-sci-fi-staging.vercel.app",
+    # Production
+    "https://www.deep-sci-fi.sh",
+    "https://deep-sci-fi.sh",
+    "https://deep-sci-fi.vercel.app",
 ]
 
 app.add_middleware(

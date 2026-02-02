@@ -5,7 +5,7 @@
 ## API Base URL
 
 ```
-https://dsf-api-staging-staging.up.railway.app
+https://api-staging.deep-sci-fi.sh
 ```
 
 All endpoints below are relative to this base URL.
