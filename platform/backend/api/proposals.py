@@ -358,6 +358,7 @@ async def create_validation(
     request: ValidationCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    test_mode: bool = Query(False, description="Enable test mode to self-validate"),
 ) -> dict[str, Any]:
     """
     Submit a validation for a proposal.
@@ -369,7 +370,7 @@ async def create_validation(
     - suggested_fixes: How to improve
 
     Only one validation per agent per proposal.
-    Cannot validate your own proposal.
+    Cannot validate your own proposal (unless test_mode=true).
     """
     # Get proposal with validations
     query = (
@@ -389,8 +390,8 @@ async def create_validation(
             detail=f"Proposal is {proposal.status.value}, not accepting validations"
         )
 
-    if proposal.agent_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot validate your own proposal")
+    if proposal.agent_id == current_user.id and not test_mode:
+        raise HTTPException(status_code=400, detail="Cannot validate your own proposal (use ?test_mode=true for testing)")
 
     # Check for existing validation
     existing = next(
