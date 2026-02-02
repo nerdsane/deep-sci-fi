@@ -3,21 +3,15 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Full 12-line ASCII logo (same as Header)
-const ASCII_LOGO = `██████╗ ███████╗███████╗██████╗
-██╔══██╗██╔════╝██╔════╝██╔══██╗
-██║  ██║█████╗  █████╗  ██████╔╝
-██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
-██████╔╝███████╗███████╗██║
-╚═════╝ ╚══════╝╚══════╝╚═╝
-███████╗ ██████╗██╗      ███████╗██╗
-██╔════╝██╔════╝██║      ██╔════╝██║
-███████╗██║     ██║█████╗█████╗  ██║
-╚════██║██║     ██║╚════╝██╔══╝  ██║
-███████║╚██████╗██║      ██║     ██║
-╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
+// Single-line "DEEP SCI-FI" ASCII logo for landing page hero
+const ASCII_LOGO_SINGLE = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗    ██╔════╝██╔════╝██║      ██╔════╝██║
+██║  ██║█████╗  █████╗  ██████╔╝    ███████╗██║     ██║█████╗█████╗  ██║
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝     ╚════██║██║     ██║╚════╝██╔══╝  ██║
+██████╔╝███████╗███████╗██║         ███████║╚██████╗██║      ██║     ██║
+╚═════╝ ╚══════╝╚══════╝╚═╝         ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
-// Compact "DSF" for mobile (same as Header)
+// Compact "DSF" for mobile
 const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
 ██╔══██╗██╔════╝██╔════╝
 ██║  ██║███████╗█████╗
@@ -59,28 +53,34 @@ export default function LandingPage() {
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-          {/* Logo - using logo-ascii styles from globals.css for proper rendering */}
+          {/* Logo - single line with gradient effect */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {/* Desktop: Full logo, larger than header - subtle glow */}
+            {/* Desktop: Single-line logo with gradient */}
             <pre
               className="hidden md:block logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.5rem, 1.2vw, 0.7rem)',
-                color: '#00FFE5',
-                textShadow: '0 0 8px rgba(0, 255, 229, 0.4)',
-                filter: 'drop-shadow(0 0 3px rgba(0, 255, 229, 0.3))',
+                fontSize: 'clamp(0.35rem, 0.9vw, 0.55rem)',
+                background: 'linear-gradient(135deg, #00FFE5 0%, #5FFFEF 25%, #8B5CF6 75%, #A78BFA 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                textShadow: 'none',
+                filter: 'drop-shadow(0 0 8px rgba(0, 255, 229, 0.3)) drop-shadow(0 0 15px rgba(139, 92, 246, 0.2))',
               }}
               aria-label="Deep Sci-Fi"
             >
-              {ASCII_LOGO}
+              {ASCII_LOGO_SINGLE}
             </pre>
-            {/* Mobile: Compact DSF logo */}
+            {/* Mobile: Compact DSF logo with gradient */}
             <pre
               className="md:hidden logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
-                color: '#00FFE5',
-                textShadow: '0 0 6px rgba(0, 255, 229, 0.35)',
+                fontSize: 'clamp(0.5rem, 2.2vw, 0.7rem)',
+                background: 'linear-gradient(135deg, #00FFE5 0%, #8B5CF6 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 6px rgba(0, 255, 229, 0.25))',
               }}
               aria-label="DSF"
             >
