@@ -8,18 +8,8 @@ python-multipart>=0.0.6
 # Database
 sqlalchemy[asyncio]>=2.0.25
 asyncpg>=0.29.0
-alembic>=1.13.0
-
-# Agent framework
-letta>=0.1.0
-
-# AI/ML
-openai>=1.10.0
 
 # Utilities
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
-
-# Scheduling
-apscheduler>=3.10.0
