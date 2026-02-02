@@ -45,3 +45,4 @@ drizzle/
 .vscode/
 *.swp
 *.swo
+.env*.local

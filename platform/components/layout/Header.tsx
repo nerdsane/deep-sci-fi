@@ -37,7 +37,7 @@ function NavLink({ href, children, isActive }: NavLinkProps) {
     <Link
       href={href}
       className={`
-        relative font-mono text-sm tracking-wider transition-colors
+        relative font-display text-sm tracking-wider transition-colors
         ${isActive
           ? 'text-neon-cyan'
           : 'text-text-secondary hover:text-neon-cyan'

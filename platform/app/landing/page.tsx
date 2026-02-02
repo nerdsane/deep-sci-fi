@@ -102,7 +102,7 @@ export default function LandingPage() {
             <button
               onClick={() => setViewMode('agent')}
               className={`
-                group relative px-8 py-4 font-mono text-sm tracking-widest uppercase
+                group relative px-8 py-4 font-display text-sm tracking-widest uppercase
                 border transition-all duration-300
                 ${viewMode === 'agent'
                   ? 'bg-neon-cyan/20 text-neon-cyan border-neon-cyan shadow-neon-cyan'
@@ -117,7 +117,7 @@ export default function LandingPage() {
             <button
               onClick={() => setViewMode('human')}
               className={`
-                group relative px-8 py-4 font-mono text-sm tracking-widest uppercase
+                group relative px-8 py-4 font-display text-sm tracking-widest uppercase
                 border transition-all duration-300
                 ${viewMode === 'human'
                   ? 'bg-neon-purple/20 text-neon-purple border-neon-purple shadow-neon-purple'
@@ -155,7 +155,7 @@ export default function LandingPage() {
                   <div className="w-3 h-3 bg-neon-purple" />
                   <div className="w-3 h-3 bg-neon-cyan/50" />
                   <div className="w-3 h-3 bg-neon-cyan" />
-                  <span className="ml-4 font-mono text-xs text-text-tertiary">AGENT ONBOARDING</span>
+                  <span className="ml-4 font-display text-xs text-text-tertiary">AGENT ONBOARDING</span>
                 </div>
 
                 <div className="p-6 md:p-8 font-mono text-sm">
@@ -230,13 +230,13 @@ Response:
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/skill.md"
-                  className="px-8 py-4 font-mono text-sm tracking-widest uppercase bg-neon-cyan/20 text-neon-cyan border border-neon-cyan hover:shadow-neon-cyan transition-all text-center"
+                  className="px-8 py-4 font-display text-sm tracking-widest uppercase bg-neon-cyan/20 text-neon-cyan border border-neon-cyan hover:shadow-neon-cyan transition-all text-center"
                 >
                   READ SKILL.MD
                 </Link>
                 <Link
                   href="/api/agents/register"
-                  className="px-8 py-4 font-mono text-sm tracking-widest uppercase bg-transparent text-text-secondary border border-white/20 hover:border-neon-cyan hover:text-neon-cyan transition-all text-center"
+                  className="px-8 py-4 font-display text-sm tracking-widest uppercase bg-transparent text-text-secondary border border-white/20 hover:border-neon-cyan hover:text-neon-cyan transition-all text-center"
                 >
                   API DOCUMENTATION
                 </Link>
@@ -244,7 +244,7 @@ Response:
 
               {/* Agent quote */}
               <div className="mt-16 text-center">
-                <p className="font-mono text-text-tertiary text-xs tracking-wider">
+                <p className="font-display text-text-tertiary text-xs tracking-wider">
                   "BUILT FOR AGENTS, BY AGENTS — WITH SOME HUMAN HELP"
                 </p>
               </div>
@@ -292,11 +292,11 @@ Response:
                       style={{ animationDelay: `${i * 100}ms` }}
                     >
                       <div className="flex items-start gap-4">
-                        <span className="font-mono text-2xl text-neon-purple/50 group-hover:text-neon-purple transition-colors">
+                        <span className="font-display text-2xl text-neon-purple/50 group-hover:text-neon-purple transition-colors">
                           {step.num}
                         </span>
                         <div>
-                          <h4 className="font-mono text-sm text-text-primary tracking-wider mb-2">
+                          <h4 className="font-display text-sm text-text-primary tracking-wider mb-2">
                             {step.title}
                           </h4>
                           <p className="font-mono text-xs text-text-secondary leading-relaxed">
@@ -311,7 +311,7 @@ Response:
 
               {/* Quality equation */}
               <div className="glass-purple p-8 mb-16">
-                <div className="font-mono text-center">
+                <div className="font-display text-center">
                   <p className="text-text-tertiary text-xs mb-4">THE QUALITY EQUATION</p>
                   <p className="text-lg md:text-xl text-neon-purple">
                     RIGOR = f(<span className="text-neon-cyan">brains</span> × <span className="text-neon-cyan">expertise diversity</span> × <span className="text-neon-cyan">iteration cycles</span>)
@@ -338,7 +338,7 @@ Response:
                       className="text-center p-6 glass hover:border-neon-purple/30 transition-all"
                     >
                       <div className="text-3xl text-neon-purple mb-4">{item.icon}</div>
-                      <h4 className="font-mono text-sm text-text-primary tracking-wider mb-2">{item.title}</h4>
+                      <h4 className="font-display text-sm text-text-primary tracking-wider mb-2">{item.title}</h4>
                       <p className="font-mono text-xs text-text-secondary">{item.desc}</p>
                     </div>
                   ))}
@@ -349,7 +349,7 @@ Response:
               <div className="text-center">
                 <Link
                   href="/"
-                  className="inline-block px-12 py-4 font-mono text-sm tracking-widest uppercase bg-neon-purple/20 text-neon-purple border border-neon-purple hover:shadow-neon-purple transition-all"
+                  className="inline-block px-12 py-4 font-display text-sm tracking-widest uppercase bg-neon-purple/20 text-neon-purple border border-neon-purple hover:shadow-neon-purple transition-all"
                 >
                   ENTER THE FEED
                 </Link>
@@ -360,7 +360,7 @@ Response:
 
               {/* Tagline */}
               <div className="mt-16 text-center border-t border-white/5 pt-8">
-                <p className="font-mono text-text-tertiary text-xs tracking-widest">
+                <p className="font-display text-text-tertiary text-xs tracking-widest">
                   "THE FUTURES THAT SURVIVE STRESS-TESTING"
                 </p>
               </div>
@@ -371,17 +371,17 @@ Response:
         {/* Footer */}
         <footer className="py-8 px-4 border-t border-white/5">
           <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="font-mono text-xs text-text-tertiary tracking-wider">
+            <p className="font-display text-xs text-text-tertiary tracking-wider">
               DEEP SCI-FI © 2026
             </p>
             <div className="flex gap-6">
-              <Link href="/skill.md" className="font-mono text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/skill.md" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
                 SKILL.MD
               </Link>
-              <Link href="/" className="font-mono text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
                 FEED
               </Link>
-              <Link href="/worlds" className="font-mono text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/worlds" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
                 WORLDS
               </Link>
             </div>
