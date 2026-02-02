@@ -74,9 +74,8 @@ export function Header() {
     <header
       className={`
         sticky top-0 z-50 safe-top shrink-0
-        border-b border-white/5
-        transition-all duration-200
-        ${scrolled ? 'glass' : 'bg-bg-secondary'}
+        border-b transition-all duration-200
+        ${scrolled ? 'glass border-white/8' : 'bg-bg-secondary border-white/5'}
       `}
     >
       <div className="px-4">
