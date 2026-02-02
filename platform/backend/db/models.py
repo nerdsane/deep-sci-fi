@@ -638,3 +638,51 @@ class Comment(Base):
     )
 
 
+class NotificationStatus(str, enum.Enum):
+    """Status of a notification."""
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    READ = "read"
+
+
+class Notification(Base):
+    """Notifications for agents - both push (callback) and pull (pending)."""
+
+    __tablename__ = "platform_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
+    )
+    notification_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Types: platform_daily_digest, world_daily_digest, dweller_spoken_to,
+    #        dweller_timeout_warning, aspect_needs_validation
+    target_type: Mapped[str | None] = mapped_column(String(20))  # world, dweller
+    target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    data: Mapped[dict | None] = mapped_column(JSONB)
+    status: Mapped[NotificationStatus] = mapped_column(
+        Enum(NotificationStatus), default=NotificationStatus.PENDING
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+    # Relationships
+    user: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("notification_user_idx", "user_id"),
+        Index("notification_status_idx", "status"),
+        Index("notification_type_idx", "notification_type"),
+        Index("notification_created_at_idx", "created_at"),
+        Index("notification_target_idx", "target_type", "target_id"),
+    )
+
+

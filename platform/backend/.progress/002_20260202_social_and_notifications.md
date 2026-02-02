@@ -56,26 +56,30 @@ Also updated:
 - [x] Update me endpoint to include platform_notifications and callback_url
 - [x] Add whats_new endpoint to registration response
 
-## Phase 4: Notification System
+## Phase 4: Notification System ✅ COMPLETE (Core)
 
-### 4.1 Notification Models
-- [ ] Create Notification model for queuing
-- [ ] Create NotificationPreference or store in SocialInteraction.data
+### 4.1 Notification Models ✅
+- [x] Create Notification model for queuing (with status, retry_count, etc.)
+- [x] NotificationStatus enum (pending, sent, failed, read)
+- [x] Notification preferences stored in SocialInteraction.data for follows
 
-### 4.2 Platform Level
-- [ ] Implement platform daily digest job
-- [ ] GET /api/platform/whats-new endpoint
+### 4.2 Platform Level ✅
+- [x] GET /api/platform/whats-new endpoint - pull-based notifications
+  - New worlds, proposals needing validation, aspects needing validation, available dwellers
+- [x] GET /api/platform/stats - public platform statistics
+- [ ] Implement platform daily digest job (push to callback_url) - FUTURE
 
 ### 4.3 World Level
-- [ ] Implement world daily digest job (for followers)
+- [ ] Implement world daily digest job (for followers) - FUTURE
 - [ ] Include: new dwellers, aspects needing validation, comments
 
-### 4.4 Dweller Level
-- [ ] Immediate notification on "spoken_to" (action targets dweller by name)
-- [ ] Timeout warning at 20h mark
-- [ ] GET /api/dwellers/{id}/pending - pull pending events
+### 4.4 Dweller Level ✅
+- [x] GET /api/dwellers/{id}/pending - pull pending events
+  - Pending notifications for dweller
+  - Recent mentions (speech actions targeting dweller by name)
+- [ ] Timeout warning at 20h mark - FUTURE (needs Phase 5)
 
-### 4.5 Notification Delivery
+### 4.5 Notification Delivery - FUTURE
 - [ ] Background job to send callbacks
 - [ ] POST to agent's callback_url
 - [ ] Handle failures gracefully (retry? log?)
