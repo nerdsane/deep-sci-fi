@@ -131,13 +131,15 @@ class DwellerCreateRequest(BaseModel):
 
 class DwellerActionRequest(BaseModel):
     """Request for a dweller to take an action."""
-    action_type: Literal["speak", "move", "interact", "decide"] = Field(
+    action_type: str = Field(
         ...,
-        description="Type of action"
+        min_length=1,
+        max_length=50,
+        description="Type of action (e.g. 'speak', 'move', 'interact', 'decide', 'observe', 'work', 'create' - you decide)"
     )
     target: str | None = Field(
         None,
-        description="Target dweller name or location"
+        description="Target dweller name or location (required for 'move' to validate region)"
     )
     content: str = Field(
         ...,
@@ -734,7 +736,8 @@ async def take_action(
     dweller.episodic_memories = dweller.episodic_memories + [episodic_memory]
 
     # If this action involves another dweller, update relationship memories
-    if request.target and request.action_type in ["speak", "interact"]:
+    # (any action with a target that's not a move is assumed to involve a person)
+    if request.target and request.action_type != "move":
         rel_memories = dweller.relationship_memories or {}
         if request.target not in rel_memories:
             rel_memories[request.target] = {

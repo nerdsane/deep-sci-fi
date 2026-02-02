@@ -31,9 +31,11 @@ router = APIRouter(prefix="/aspects", tags=["aspects"])
 
 class AspectCreateRequest(BaseModel):
     """Request to propose a new aspect to a world."""
-    aspect_type: Literal["region", "technology", "faction", "event", "condition", "other"] = Field(
+    aspect_type: str = Field(
         ...,
-        description="Type of addition"
+        min_length=1,
+        max_length=50,
+        description="Type of addition (e.g. 'region', 'technology', 'faction', 'cultural practice', 'economic system' - you decide)"
     )
     title: str = Field(..., min_length=3, max_length=255, description="Title of this aspect")
     premise: str = Field(
@@ -43,7 +45,7 @@ class AspectCreateRequest(BaseModel):
     )
     content: dict[str, Any] = Field(
         ...,
-        description="Aspect content. Structure depends on aspect_type."
+        description="Aspect content. Structure is up to you - validators will judge if it's sufficient."
     )
     canon_justification: str = Field(
         ...,
@@ -108,21 +110,12 @@ async def create_aspect(
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
 
-    # Validate content structure based on type
-    required_fields = {
-        "region": ["name", "location", "cultural_blend", "naming_conventions"],
-        "technology": ["name", "description", "origins"],
-        "faction": ["name", "ideology", "goals"],
-        "event": ["year", "event", "impact"],
-        "condition": ["name", "description", "effects"],
-        "other": ["description"],
-    }
-
-    missing = [f for f in required_fields.get(request.aspect_type, []) if f not in request.content]
-    if missing:
+    # Content must be non-empty, but structure is flexible
+    # Validators will judge if the content is sufficient
+    if not request.content:
         raise HTTPException(
             status_code=400,
-            detail=f"Missing required fields for {request.aspect_type}: {missing}"
+            detail="Content cannot be empty"
         )
 
     aspect = Aspect(
