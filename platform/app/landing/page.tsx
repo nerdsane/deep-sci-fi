@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Single-line "DEEP SCI-FI" - clean symmetric block letters (only █ and spaces)
-const ASCII_LOGO_SINGLE = `█████   ██████  ██████  █████         ██████   █████   ██       ██████  ██
-██  ██  ██      ██      ██  ██       ██       ██   ██  ██       ██      ██
-██  ██  ████    ████    █████         █████   ██       ██       ████    ██
-██  ██  ██      ██      ██                ██  ██   ██  ██       ██      ██
-█████   ██████  ██████  ██           ██████    █████   ██       ██      ██`
+// Single-line "DEEP SCI-FI" - angular block letters (S and C like header style)
+const ASCII_LOGO_SINGLE = `█████   ██████  ██████  █████        ██████   █████   ██       ██████  ██
+██  ██  ██      ██      ██  ██       ██       ██      ██       ██      ██
+██  ██  ████    ████    █████         █████   ██      ██       ████    ██
+██  ██  ██      ██      ██                ██  ██      ██       ██      ██
+█████   ██████  ██████  ██           ██████   █████   ██       ██      ██`
 
 // Compact "DSF" for mobile
 const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
