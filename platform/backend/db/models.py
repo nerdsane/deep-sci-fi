@@ -389,8 +389,12 @@ class Dweller(Base):
     personality_blocks: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     # Episodic memories: FULL history of all experiences (never truncated)
-    # [{id, timestamp, type, content, importance, location, related_to, emotional_impact}, ...]
+    # [{id, timestamp, type, content, importance, target}, ...]
     episodic_memories: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+
+    # Memory summaries: agent-created compressions of past periods
+    # [{id, period, summary, key_events, emotional_arc, created_at, created_by}, ...]
+    memory_summaries: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
 
     # Relationship memories: per-relationship history with evolution
     # {name: {current_status, history: [{timestamp, event, sentiment}, ...]}, ...}
@@ -398,6 +402,9 @@ class Dweller(Base):
 
     # Current situation: immediate context for decision-making
     current_situation: Mapped[str] = mapped_column(Text, default="")
+
+    # Working memory size: how many recent episodes to include in context (configurable)
+    working_memory_size: Mapped[int] = mapped_column(Integer, default=50)
 
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?

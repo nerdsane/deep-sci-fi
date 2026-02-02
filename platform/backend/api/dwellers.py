@@ -134,6 +134,12 @@ class DwellerActionRequest(BaseModel):
         min_length=1,
         description="What the dweller says/does"
     )
+    importance: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="How important is this action? 0.0-1.0. You decide."
+    )
 
 
 # ============================================================================
@@ -509,8 +515,11 @@ async def get_dweller_state(
         None
     )
 
-    # Get recent episodic memories (last 20 for immediate context)
-    recent_episodes = dweller.episodic_memories[-20:] if dweller.episodic_memories else []
+    # Get working memory (recent episodes based on configurable size)
+    working_size = dweller.working_memory_size or 50
+    total_episodes = len(dweller.episodic_memories) if dweller.episodic_memories else 0
+    recent_episodes = dweller.episodic_memories[-working_size:] if dweller.episodic_memories else []
+    episodes_in_archive = max(0, total_episodes - working_size)
 
     return {
         "dweller_id": str(dweller_id),
@@ -533,18 +542,23 @@ async def get_dweller_state(
             "generation": dweller.generation,
             "region_details": region,
         },
-        # Full memory architecture
         "memory": {
             "core_memories": dweller.core_memories,
             "personality_blocks": dweller.personality_blocks,
+            "summaries": dweller.memory_summaries or [],
             "recent_episodes": recent_episodes,
-            "total_episodes": len(dweller.episodic_memories),
             "relationships": dweller.relationship_memories,
+        },
+        "memory_metrics": {
+            "working_memory_size": working_size,
+            "total_episodes": total_episodes,
+            "episodes_in_context": len(recent_episodes),
+            "episodes_in_archive": episodes_in_archive,
+            "summaries_count": len(dweller.memory_summaries) if dweller.memory_summaries else 0,
         },
         "current_state": {
             "situation": dweller.current_situation,
         },
-        "instructions": "Use POST /dwellers/{id}/act to take actions. Stay in character. Your memories and personality are defined above - embody them.",
     }
 
 
@@ -604,7 +618,7 @@ async def take_action(
         "type": request.action_type,
         "content": request.content,
         "target": request.target,
-        "importance": 0.5,  # Default importance, could be adjusted
+        "importance": request.importance,
     }
 
     # Append to episodic memories (NEVER truncate - full history)
@@ -903,4 +917,198 @@ async def update_situation(
         "dweller_id": str(dweller_id),
         "situation": dweller.current_situation,
         "message": "Situation updated.",
+    }
+
+
+# ============================================================================
+# Summary, Personality, and Search Endpoints
+# ============================================================================
+
+
+class MemorySummaryRequest(BaseModel):
+    """Request to create a memory summary."""
+    period: str = Field(..., description="Time period covered, e.g. '2089-03-01 to 2089-03-15'")
+    summary: str = Field(..., min_length=20, description="Your summary of what happened")
+    key_events: list[str] = Field(default=[], description="Important events in this period")
+    emotional_arc: str = Field(default="", description="How emotions evolved")
+
+
+class PersonalityUpdateRequest(BaseModel):
+    """Request to update personality blocks."""
+    updates: dict[str, Any] = Field(
+        ...,
+        description="Fields to update: {communication_style, values, fears, quirks, speech_patterns, ...}"
+    )
+
+
+@router.post("/{dweller_id}/memory/summarize")
+async def create_summary(
+    dweller_id: UUID,
+    request: MemorySummaryRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Create a memory summary for a period.
+
+    You decide when to summarize. DSF just stores it.
+    Summaries are always included in your context when you GET /state.
+
+    Good times to summarize:
+    - When you feel you're losing track of what happened
+    - When a chapter of the story feels complete
+    - Before releasing the dweller
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    from datetime import datetime
+
+    summary_entry = {
+        "id": str(uuid_module.uuid4()),
+        "period": request.period,
+        "summary": request.summary,
+        "key_events": request.key_events,
+        "emotional_arc": request.emotional_arc,
+        "created_at": datetime.utcnow().isoformat(),
+        "created_by": str(current_user.id),
+    }
+
+    dweller.memory_summaries = (dweller.memory_summaries or []) + [summary_entry]
+    await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "summary": summary_entry,
+        "total_summaries": len(dweller.memory_summaries),
+        "message": "Summary created. It will be included in your context on GET /state.",
+    }
+
+
+@router.patch("/{dweller_id}/memory/personality")
+async def update_personality(
+    dweller_id: UUID,
+    request: PersonalityUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update personality blocks for a dweller.
+
+    Personality changes should be rare - only when something
+    fundamentally shifts the character.
+
+    You decide when this happens. DSF just stores it.
+    """
+    query = select(Dweller).options(selectinload(Dweller.world)).where(Dweller.id == dweller_id)
+    result = await db.execute(query)
+    dweller = result.scalar_one_or_none()
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    # Allow world creator OR inhabiting agent to update
+    is_creator = dweller.world.created_by == current_user.id
+    is_inhabitant = dweller.inhabited_by == current_user.id
+
+    if not is_creator and not is_inhabitant:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the world creator or inhabiting agent can update personality"
+        )
+
+    # Merge updates into existing personality blocks
+    current_blocks = dweller.personality_blocks or {}
+    for key, value in request.updates.items():
+        if value is None:
+            current_blocks.pop(key, None)  # Remove if set to None
+        elif isinstance(value, list) and key in current_blocks and isinstance(current_blocks[key], list):
+            # For lists, extend rather than replace
+            current_blocks[key] = list(set(current_blocks[key] + value))
+        else:
+            current_blocks[key] = value
+
+    dweller.personality_blocks = current_blocks
+    await db.commit()
+
+    return {
+        "dweller_id": str(dweller_id),
+        "personality_blocks": dweller.personality_blocks,
+        "updated_by": "creator" if is_creator else "inhabitant",
+        "message": "Personality updated.",
+    }
+
+
+@router.get("/{dweller_id}/memory/search")
+async def search_memory(
+    dweller_id: UUID,
+    q: str = Query(..., min_length=1, description="Search query"),
+    importance_min: float = Query(0.0, ge=0.0, le=1.0, description="Minimum importance"),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Search episodic memories.
+
+    Simple text search - matches words in content.
+    Only the inhabiting agent can search.
+
+    Use this when:
+    - Someone mentions something from the past
+    - You need to recall a specific event
+    - Making a decision that depends on history
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not inhabiting this dweller"
+        )
+
+    # Simple text search through episodic memories
+    query_lower = q.lower()
+    query_terms = query_lower.split()
+
+    matches = []
+    for episode in (dweller.episodic_memories or []):
+        content_lower = episode.get("content", "").lower()
+        target_lower = (episode.get("target") or "").lower()
+        importance = episode.get("importance", 0.5)
+
+        # Check importance threshold
+        if importance < importance_min:
+            continue
+
+        # Check if any query term matches
+        text_to_search = f"{content_lower} {target_lower}"
+        if any(term in text_to_search for term in query_terms):
+            matches.append(episode)
+
+    # Sort by importance (desc), then by timestamp (desc)
+    matches.sort(key=lambda x: (-x.get("importance", 0.5), x.get("timestamp", "")), reverse=False)
+    matches.sort(key=lambda x: x.get("importance", 0.5), reverse=True)
+
+    # Limit results
+    matches = matches[:limit]
+
+    return {
+        "dweller_id": str(dweller_id),
+        "query": q,
+        "importance_min": importance_min,
+        "results": matches,
+        "total_matches": len(matches),
+        "message": f"Found {len(matches)} matching episodes.",
     }
