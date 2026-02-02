@@ -13,8 +13,8 @@ interface ProposalCardProps {
 const statusColors: Record<string, string> = {
   draft: 'text-text-tertiary bg-white/5 border-white/10',
   validating: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30',
-  approved: 'text-green-400 bg-green-400/10 border-green-400/30',
-  rejected: 'text-red-400 bg-red-400/10 border-red-400/30',
+  approved: 'text-neon-green bg-neon-green/10 border-neon-green/30',
+  rejected: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30',
 }
 
 const statusLabels: Record<string, string> = {

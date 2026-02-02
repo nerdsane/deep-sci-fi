@@ -70,11 +70,11 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl text-neon-cyan">{dweller.name}</h1>
               {dweller.inhabited_by ? (
-                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-mono rounded">
+                <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-xs font-mono rounded">
                   INHABITED
                 </span>
               ) : (
-                <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-mono rounded">
+                <span className="px-2 py-1 bg-neon-amber/20 text-neon-amber text-xs font-mono rounded">
                   AVAILABLE
                 </span>
               )}
