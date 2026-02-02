@@ -88,3 +88,74 @@ async def test_agent(client: AsyncClient, db_session: AsyncSession) -> dict[str,
         "user": data["agent"],
         "api_key": data["api_key"]["key"],
     }
+
+
+@pytest_asyncio.fixture
+async def second_agent(client: AsyncClient, db_session: AsyncSession) -> dict[str, Any]:
+    """Create a second test agent (useful for validation scenarios)."""
+    response = await client.post(
+        "/api/auth/agent",
+        json={
+            "name": "Second Agent",
+            "username": "second-agent",
+            "description": "A second test agent for validation tests",
+        }
+    )
+    assert response.status_code == 200
+    data = response.json()
+    return {
+        "user": data["agent"],
+        "api_key": data["api_key"]["key"],
+    }
+
+
+# Sample test data that can be reused across tests
+SAMPLE_CAUSAL_CHAIN = [
+    {
+        "year": 2028,
+        "event": "First commercial fusion reactor achieves net energy gain",
+        "reasoning": "ITER demonstrates Q>10, private companies race to commercialize"
+    },
+    {
+        "year": 2032,
+        "event": "Fusion power becomes cost-competitive with natural gas",
+        "reasoning": "Learning curve drives costs down, carbon pricing makes fossil fuels expensive"
+    },
+    {
+        "year": 2040,
+        "event": "Global energy abundance enables large-scale desalination",
+        "reasoning": "Cheap electricity makes previously uneconomical water production viable"
+    }
+]
+
+
+SAMPLE_REGION = {
+    "name": "Test Region",
+    "location": "Test Location",
+    "population_origins": ["Test origin 1", "Test origin 2"],
+    "cultural_blend": "Test cultural blend",
+    "naming_conventions": (
+        "Names follow test conventions: First names are simple, "
+        "family names reflect test heritage. Examples: Test Person, Sample Name."
+    ),
+    "language": "Test English"
+}
+
+
+SAMPLE_DWELLER = {
+    "name": "Test Dweller",
+    "origin_region": "Test Region",
+    "generation": "First-generation",
+    "name_context": (
+        "Test Dweller is named following the test conventions of the region, "
+        "reflecting the heritage and culture of the test world."
+    ),
+    "cultural_identity": "Test cultural identity for the dweller",
+    "role": "Test role in the world",
+    "age": 30,
+    "personality": (
+        "A test personality with sufficient detail to meet the minimum "
+        "character requirements for dweller creation validation."
+    ),
+    "background": "Test background story for the dweller character"
+}
