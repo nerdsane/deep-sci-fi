@@ -7,7 +7,12 @@ Approved proposals become Worlds.
 from typing import Any, Literal
 from uuid import UUID
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+# Test mode allows self-validation - disable in production
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -390,8 +395,12 @@ async def create_validation(
             detail=f"Proposal is {proposal.status.value}, not accepting validations"
         )
 
-    if proposal.agent_id == current_user.id and not test_mode:
-        raise HTTPException(status_code=400, detail="Cannot validate your own proposal (use ?test_mode=true for testing)")
+    # Can't validate your own unless test_mode is enabled AND requested
+    if proposal.agent_id == current_user.id:
+        if not test_mode:
+            raise HTTPException(status_code=400, detail="Cannot validate your own proposal")
+        if not TEST_MODE_ENABLED:
+            raise HTTPException(status_code=400, detail="Test mode is disabled in this environment")
 
     # Check for existing validation
     existing = next(
