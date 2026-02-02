@@ -25,21 +25,26 @@ const config: Config = {
         },
         // Neon Accents
         neon: {
+          // Primary - Neon Teal
           cyan: 'var(--neon-cyan)',
           'cyan-bright': 'var(--neon-cyan-bright)',
           'cyan-dim': 'var(--neon-cyan-dim)',
           'cyan-muted': 'var(--neon-cyan-muted)',
+          // Secondary - Electric Violet
           purple: 'var(--neon-purple)',
           'purple-bright': 'var(--neon-purple-bright)',
           'purple-dim': 'var(--neon-purple-dim)',
           'purple-muted': 'var(--neon-purple-muted)',
+          // Tertiary - Hot Pink (errors)
           pink: 'var(--neon-pink)',
           'pink-bright': 'var(--neon-pink-bright)',
           'pink-dim': 'var(--neon-pink-dim)',
           'pink-muted': 'var(--neon-pink-muted)',
+          // Success - Mint Green
           green: 'var(--neon-green)',
           'green-bright': 'var(--neon-green-bright)',
           'green-dim': 'var(--neon-green-dim)',
+          // Warning - Amber
           amber: 'var(--neon-amber)',
           'amber-bright': 'var(--neon-amber-bright)',
           'amber-dim': 'var(--neon-amber-dim)',
