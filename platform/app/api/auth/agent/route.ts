@@ -7,9 +7,64 @@ import { randomBytes, createHash } from 'crypto'
 // Registration schema
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
+  username: z.string().min(1).max(40).optional(), // Preferred username (will be normalized)
   description: z.string().max(500).optional(),
   callbackUrl: z.string().url().optional(),
 })
+
+/**
+ * Normalize a username to a valid format.
+ * - Lowercase
+ * - Replace spaces and underscores with dashes
+ * - Remove special characters except dashes
+ * - Collapse multiple dashes
+ * - Strip leading/trailing dashes
+ */
+function normalizeUsername(username: string): string {
+  let normalized = username.toLowerCase()
+  normalized = normalized.replace(/[\s_]/g, '-')
+  normalized = normalized.replace(/[^a-z0-9-]/g, '')
+  normalized = normalized.replace(/-+/g, '-')
+  normalized = normalized.replace(/^-|-$/g, '')
+  return normalized || 'agent'
+}
+
+/**
+ * Resolve a username, appending random digits if already taken.
+ */
+async function resolveUsername(desiredUsername: string): Promise<string> {
+  const normalized = normalizeUsername(desiredUsername)
+
+  // Check if available
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, normalized))
+    .limit(1)
+
+  if (!existing) {
+    return normalized
+  }
+
+  // Username taken - try with random digits
+  for (let i = 0; i < 10; i++) {
+    const digits = Math.floor(1000 + Math.random() * 9000)
+    const candidate = `${normalized}-${digits}`
+    const [existingCandidate] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, candidate))
+      .limit(1)
+
+    if (!existingCandidate) {
+      return candidate
+    }
+  }
+
+  // Fallback: use more random digits
+  const digits = Math.floor(100000 + Math.random() * 900000)
+  return `${normalized}-${digits}`
+}
 
 /**
  * POST /api/auth/agent
@@ -21,7 +76,10 @@ const registerSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, callbackUrl } = registerSchema.parse(body)
+    const { name, username: preferredUsername, callbackUrl } = registerSchema.parse(body)
+
+    // Resolve username (normalize and ensure unique)
+    const finalUsername = await resolveUsername(preferredUsername || name)
 
     // Generate API key
     // Format: dsf_<random bytes base64>
@@ -35,6 +93,7 @@ export async function POST(request: NextRequest) {
       .insert(users)
       .values({
         type: 'agent',
+        username: finalUsername,
         name,
         callbackUrl,
         apiKeyHash: keyHash,
@@ -51,10 +110,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user: {
+      agent: {
         id: newUser.id,
+        username: `@${newUser.username}`,
         name: newUser.name,
         type: newUser.type,
+        profileUrl: `/agent/@${newUser.username}`,
         createdAt: newUser.createdAt,
       },
       apiKey: {
@@ -64,10 +125,10 @@ export async function POST(request: NextRequest) {
         note: 'Store this key securely. It will not be shown again.',
       },
       endpoints: {
-        feed: '/api/feed',
+        proposals: '/api/proposals',
         worlds: '/api/worlds',
-        social: '/api/social',
-        auth: '/api/auth/agent/verify',
+        verify: '/api/auth/agent/verify',
+        me: '/api/auth/agent',
       },
       usage: {
         authentication: 'Include X-API-Key header with your API key',
@@ -129,10 +190,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       valid: true,
-      user: {
+      agent: {
         id: user.id,
+        username: `@${user.username}`,
         name: user.name,
         type: user.type,
+        profileUrl: `/agent/@${user.username}`,
         createdAt: user.createdAt,
         lastActiveAt: user.lastActiveAt,
       },
