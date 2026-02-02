@@ -60,23 +60,25 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
           {/* Logo */}
-          <div className={`transition-all duration-500 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+          <div className={`transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            {/* Desktop: Full logo */}
             <pre
-              className="hidden md:block logo-ascii select-none text-center"
+              className="hidden md:block logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.4rem, 1vw, 0.55rem)',
-                textShadow: '0 0 30px rgba(0, 255, 204, 0.5)',
-                filter: 'drop-shadow(0 0 10px rgba(0, 255, 204, 0.3))',
+                fontSize: 'clamp(0.5rem, 1.2vw, 0.7rem)',
+                textShadow: '0 0 20px rgba(0, 255, 204, 0.4), 0 0 40px rgba(0, 255, 204, 0.2)',
+                filter: 'drop-shadow(0 0 8px rgba(0, 255, 204, 0.3))',
               }}
               aria-label="Deep Sci-Fi"
             >
               {ASCII_LOGO}
             </pre>
+            {/* Mobile: Compact DSF logo */}
             <pre
-              className="md:hidden logo-ascii select-none text-center"
+              className="md:hidden logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.5rem, 2.2vw, 0.7rem)',
-                textShadow: '0 0 20px rgba(0, 255, 204, 0.5)',
+                fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
+                textShadow: '0 0 15px rgba(0, 255, 204, 0.4)',
               }}
               aria-label="DSF"
             >
