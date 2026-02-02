@@ -21,14 +21,19 @@ requires_postgres = pytest.mark.skipif(
 
 SAMPLE_CAUSAL_CHAIN = [
     {
-        "year": 2030,
-        "event": "Global shipping goes autonomous",
-        "reasoning": "IMO framework + insurance economics drive adoption"
+        "year": 2028,
+        "event": "IMO adopts international framework for autonomous vessel navigation and operations",
+        "reasoning": "Following successful trials and industry pressure, international maritime body establishes standards"
+    },
+    {
+        "year": 2033,
+        "event": "Insurance industry standardizes autonomous shipping risk models and pricing",
+        "reasoning": "Five years of accident data proves autonomous ships are safer than human-crewed vessels"
     },
     {
         "year": 2040,
-        "event": "Port cities transform into logistics hubs",
-        "reasoning": "Autonomous ships need different infrastructure"
+        "event": "Major shipping routes are 80% autonomous, transforming port cities into logistics hubs",
+        "reasoning": "Economic pressure and regulatory support drive widespread adoption of proven technology"
     }
 ]
 
@@ -57,18 +62,24 @@ class TestAspectFlow:
         validator = response.json()
         validator_key = validator["api_key"]["key"]
 
-        # Create and approve proposal
+        # Create and approve proposal - premise must be 50+ chars, 3+ causal steps
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": creator_key},
             json={
                 "name": "Autonomous Shipping 2040",
-                "premise": "Global shipping is fully autonomous",
+                "premise": "Global shipping is fully autonomous by 2040, transforming port cities into logistics hubs",
                 "year_setting": 2040,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on current maritime automation trends"
+                "scientific_basis": (
+                    "Based on current maritime automation trends including autonomous navigation systems, "
+                    "international maritime organization frameworks for unmanned vessels, and insurance "
+                    "industry adoption of autonomous vehicle risk models. Economic modeling shows 40% "
+                    "cost reduction in shipping operations drives rapid adoption."
+                )
             }
         )
+        assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
         await client.post(
@@ -76,19 +87,21 @@ class TestAspectFlow:
             headers={"X-API-Key": creator_key}
         )
 
-        await client.post(
+        validation_response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Solid proposal",
+                "critique": "Well-reasoned proposal with solid causal chain and scientific grounding",
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
         )
+        assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"
 
         response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["resulting_world_id"]
+        # Proposal detail response is {"proposal": {...}, "validations": [...]}
+        world_id = response.json()["proposal"]["resulting_world_id"]
 
         return {
             "world_id": world_id,
@@ -142,10 +155,11 @@ class TestAspectFlow:
             }
         )
         assert response.status_code == 200
-        aspect = response.json()
-        aspect_id = aspect["id"]
-        assert aspect["status"] == "draft"
-        assert aspect["title"] == "Quantum Navigation System"
+        aspect_data = response.json()
+        # Response is {"aspect": {...}, "message": "..."}
+        aspect_id = aspect_data["aspect"]["id"]
+        assert aspect_data["aspect"]["status"] == "draft"
+        assert aspect_data["aspect"]["title"] == "Quantum Navigation System"
 
         # === Step 2: Submit for validation ===
         response = await client.post(
@@ -153,6 +167,7 @@ class TestAspectFlow:
             headers={"X-API-Key": creator_key}
         )
         assert response.status_code == 200
+        # Submit response is {"aspect_id": ..., "status": ..., "message": ...}
         assert response.json()["status"] == "validating"
 
         # === Step 3: Validator approves with updated canon ===
@@ -236,20 +251,20 @@ class TestAspectFlow:
                 )
             }
         )
-        aspect_id = response.json()["id"]
+        aspect_id = response.json()["aspect"]["id"]
 
         await client.post(
             f"/api/aspects/{aspect_id}/submit",
             headers={"X-API-Key": creator_key}
         )
 
-        # Approve with canon update
+        # Approve with canon update - critique must be 20+ chars
         await client.post(
             f"/api/aspects/{aspect_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Well-designed region with strong cultural grounding",
+                "critique": "Well-designed region with strong cultural grounding and realistic details",
                 "canon_conflicts": [],
                 "suggested_fixes": [],
                 "updated_canon_summary": (
@@ -263,7 +278,8 @@ class TestAspectFlow:
 
         # Verify region was added to world.regions
         response = await client.get(f"/api/worlds/{world_id}")
-        world = response.json()
+        # World detail response is {"world": {...}}
+        world = response.json()["world"]
         assert any(r["name"] == "Singapore Nexus" for r in world.get("regions", []))
 
     @pytest.mark.asyncio
@@ -290,23 +306,23 @@ class TestAspectFlow:
                     "impact": "Proves autonomous systems can handle extreme conditions",
                     "actors": ["IMO", "Major shipping companies", "Singapore port"]
                 },
-                "canon_justification": "Adds drama and validates the technology"
+                "canon_justification": "Adds dramatic tension to the world narrative and validates the resilience of autonomous shipping technology"
             }
         )
-        aspect_id = response.json()["id"]
+        aspect_id = response.json()["aspect"]["id"]
 
         await client.post(
             f"/api/aspects/{aspect_id}/submit",
             headers={"X-API-Key": creator_key}
         )
 
-        # Try to approve WITHOUT updated_canon_summary
+        # Try to approve WITHOUT updated_canon_summary - critique must be 20+ chars
         response = await client.post(
             f"/api/aspects/{aspect_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
-                "critique": "Good event",
+                "critique": "Good event that adds drama to the world narrative",
                 "canon_conflicts": [],
                 "suggested_fixes": []
                 # Missing: updated_canon_summary
@@ -340,10 +356,10 @@ class TestAspectFlow:
                     "structure": "Decentralized chapters in major ports",
                     "goals": ["Mandatory human oversight", "Retraining programs"]
                 },
-                "canon_justification": "Adds human tension to tech-driven world"
+                "canon_justification": "Adds human tension and social conflict to an otherwise purely tech-driven world narrative"
             }
         )
-        aspect_id = response.json()["id"]
+        aspect_id = response.json()["aspect"]["id"]
 
         await client.post(
             f"/api/aspects/{aspect_id}/submit",
@@ -392,17 +408,17 @@ class TestAspectFlow:
                     "implications": ["Ships obey human thought"],
                     "limitations": ["None"]
                 },
-                "canon_justification": "Magic is cool"
+                "canon_justification": "Magic is cool and would make the world more interesting for storytelling"
             }
         )
-        aspect_id = response.json()["id"]
+        aspect_id = response.json()["aspect"]["id"]
 
         await client.post(
             f"/api/aspects/{aspect_id}/submit",
             headers={"X-API-Key": creator_key}
         )
 
-        # Reject - fundamentally breaks the world
+        # Reject - fundamentally breaks the world - critique 20+ chars
         response = await client.post(
             f"/api/aspects/{aspect_id}/validate",
             headers={"X-API-Key": validator_key},
@@ -439,17 +455,17 @@ class TestAspectFlow:
                 json={
                     "aspect_type": "event",
                     "title": f"Event {i}",
-                    "premise": f"Historical event number {i}",
-                    "content": {"year": 2030 + i, "event": f"Something happened {i}"},
-                    "canon_justification": f"Adds depth {i}"
+                    "premise": f"Historical event number {i} that shaped the development of autonomous shipping",
+                    "content": {"year": 2030 + i, "event": f"Something significant happened during year {i} of the transition"},
+                    "canon_justification": f"Event {i} adds historical depth and context to the world's development timeline"
                 }
             )
 
-        # List aspects
+        # List aspects - response is {"world_id": ..., "aspects": [...]}
         response = await client.get(f"/api/aspects/worlds/{world_id}/aspects")
         assert response.status_code == 200
         aspects = response.json()
-        assert len(aspects["items"]) >= 3
+        assert len(aspects["aspects"]) >= 3
 
     @pytest.mark.asyncio
     async def test_get_aspect_detail(
@@ -475,32 +491,32 @@ class TestAspectFlow:
                     "effects": ["Seamless coordination", "Reduced accidents"],
                     "duration": "Permanent standard from 2035"
                 },
-                "canon_justification": "Explains how ships coordinate"
+                "canon_justification": "Explains the technical foundation for how autonomous ships coordinate and communicate at scale"
             }
         )
-        aspect_id = response.json()["id"]
+        aspect_id = response.json()["aspect"]["id"]
 
         await client.post(
             f"/api/aspects/{aspect_id}/submit",
             headers={"X-API-Key": creator_key}
         )
 
-        # Add validation
+        # Add validation - critique 20+ chars
         await client.post(
             f"/api/aspects/{aspect_id}/validate",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
-                "critique": "Good concept, needs version history",
+                "critique": "Good concept but needs version history for completeness",
                 "canon_conflicts": [],
                 "suggested_fixes": ["Add GSP v1 and v2 history"]
             }
         )
 
-        # Get detail
+        # Get detail - response is {"aspect": {...}, "validations": [...]}
         response = await client.get(f"/api/aspects/{aspect_id}")
         assert response.status_code == 200
         detail = response.json()
-        assert detail["title"] == "Global Shipping Protocol v3"
+        assert detail["aspect"]["title"] == "Global Shipping Protocol v3"
         assert len(detail["validations"]) == 1
         assert detail["validations"][0]["verdict"] == "strengthen"
