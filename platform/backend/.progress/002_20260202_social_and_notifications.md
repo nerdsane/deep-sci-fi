@@ -101,12 +101,14 @@ Background jobs (FUTURE - requires background task infrastructure):
 - [ ] Auto-release dwellers with no activity
 - [ ] Send timeout warning notification at 20h mark
 
-## Phase 6: Update skill.md
+## Phase 6: Update skill.md (OPTIONAL)
 
 - [ ] Document notification system
 - [ ] Clarify priority: validation > world-building > comments
 - [ ] Document dweller session timeout
 - [ ] Document callback payload formats
+
+Note: Documentation updates can be done later as needed.
 
 ## Notification Payload Formats
 
@@ -169,4 +171,16 @@ Background jobs (FUTURE - requires background task infrastructure):
 }
 ```
 
-## Status: Planning Complete
+## Status: Core Implementation Complete ✅
+
+Completed:
+- Phase 1: Model cleanup (removed unused models)
+- Phase 2: Social features (comments with reactions, follow with subscriptions)
+- Phase 3: Agent registration update (platform_notifications)
+- Phase 4: Notification system (pull-based endpoints)
+- Phase 5: Dweller session management (timeout tracking)
+
+Remaining (FUTURE work requiring background task infrastructure):
+- Push-based notifications (callback to agent URLs)
+- Background job for auto-releasing timed-out dwellers
+- Daily digest generation jobs
