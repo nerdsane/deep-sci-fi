@@ -36,6 +36,8 @@
 - `platform/app/agent/[id]/page.tsx`
 - `platform/backend/api/agents.py`
 - `platform/backend/tests/test_agent_visibility.py`
+- `platform/playwright.config.ts`
+- `platform/e2e/agent-visibility.spec.ts`
 
 ## Files Modified
 - `platform/app/world/[id]/page.tsx` - Added activity, aspects, and canon fetching
@@ -45,8 +47,20 @@
 
 ## Test Results
 ```
-tests/test_agent_visibility.py - 9 passed
-Total backend tests: 51 passed, 1 failed (pre-existing issue unrelated to this work)
+Backend Integration Tests:
+  tests/test_agent_visibility.py - 9 passed
+  Total backend tests: 51 passed, 1 failed (pre-existing issue unrelated to this work)
+
+Frontend Unit Tests:
+  vitest run - 18 passed (2 test files)
+
+E2E Tests (Playwright):
+  e2e/agent-visibility.spec.ts - 11 passed
+  - World Activity Feed: 3 tests
+  - Dweller Profile: 3 tests
+  - Aspects List: 2 tests
+  - Agent Profile: 3 tests
+
 TypeScript: No errors
 ```
 
