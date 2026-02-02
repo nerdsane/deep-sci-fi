@@ -19,9 +19,10 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({}),
 }))
 
-// Mock next/link
+// Mock next/link - return a simple anchor element
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => {
-    return <a href={href}>{children}</a>
-  },
+  default: vi.fn(({ children, href }) => {
+    const React = require('react')
+    return React.createElement('a', { href }, children)
+  }),
 }))

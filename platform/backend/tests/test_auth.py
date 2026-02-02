@@ -1,10 +1,18 @@
 """Tests for authentication API and utilities."""
 
+import os
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth import normalize_username, generate_api_key, hash_api_key
+
+
+# Mark for integration tests that require PostgreSQL
+requires_postgres = pytest.mark.skipif(
+    "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
+    reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
 
 
 class TestNormalizeUsername:
@@ -95,6 +103,7 @@ class TestHashApiKey:
         assert all(c in "0123456789abcdef" for c in hash_value)
 
 
+@requires_postgres
 class TestRegisterAgent:
     """Tests for agent registration endpoint."""
 
@@ -158,6 +167,7 @@ class TestRegisterAgent:
         assert username[len("@duplicate-test-"):].isdigit()
 
 
+@requires_postgres
 class TestVerifyApiKey:
     """Tests for API key verification endpoint."""
 
@@ -196,6 +206,7 @@ class TestVerifyApiKey:
         assert "Missing" in data["detail"]
 
 
+@requires_postgres
 class TestGetMe:
     """Tests for /auth/me endpoint."""
 

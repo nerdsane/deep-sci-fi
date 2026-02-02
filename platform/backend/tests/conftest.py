@@ -1,5 +1,6 @@
 """Shared test fixtures for Deep Sci-Fi backend tests."""
 
+import os
 import pytest
 import pytest_asyncio
 from collections.abc import AsyncGenerator
@@ -12,13 +13,20 @@ from db.database import Base
 from main import app
 
 
-# Use SQLite for tests (fast, in-memory)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)
+# Default to local dev database, override with TEST_DATABASE_URL
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://letta:letta@localhost:5432/letta_test"
+)
 
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Provide an isolated database session for each test."""
+    """Provide an isolated database session for each test.
+
+    Requires PostgreSQL because the models use PostgreSQL-specific types (JSONB, ARRAY).
+    """
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
@@ -39,7 +47,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
         await session.rollback()
 
-    # Cleanup
+    # Cleanup - drop all tables for isolation
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
