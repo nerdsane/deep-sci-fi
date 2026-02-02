@@ -16,43 +16,71 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Backgrounds
+        // Backgrounds - subtle depth levels
         bg: {
-          primary: '#000000',
-          secondary: '#0a0a0a',
-          tertiary: '#0f0f0f',
+          primary: 'var(--bg-primary)',
+          secondary: 'var(--bg-secondary)',
+          tertiary: 'var(--bg-tertiary)',
+          elevated: 'var(--bg-elevated)',
         },
         // Neon Accents
         neon: {
-          cyan: '#00ffcc',
-          'cyan-bright': '#00ffff',
-          purple: '#aa00ff',
+          cyan: 'var(--neon-cyan)',
+          'cyan-bright': 'var(--neon-cyan-bright)',
+          'cyan-muted': 'var(--neon-cyan-muted)',
+          purple: 'var(--neon-purple)',
+          'purple-muted': 'var(--neon-purple-muted)',
         },
-        // Text
+        // Text hierarchy
         text: {
-          primary: '#c8c8c8',
-          secondary: '#8a8a8a',
-          tertiary: '#5a5a5a',
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          tertiary: 'var(--text-tertiary)',
+          muted: 'var(--text-muted)',
+        },
+        // Borders
+        border: {
+          subtle: 'var(--border-subtle)',
+          DEFAULT: 'var(--border-default)',
+          strong: 'var(--border-strong)',
         },
       },
       fontFamily: {
-        mono: ['Berkeley Mono', 'SF Mono', 'JetBrains Mono', 'monospace'],
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'Inter', 'sans-serif'],
+        mono: ['var(--font-mono)'],
+        sans: ['var(--font-sans)'],
+      },
+      fontSize: {
+        // Fluid type scale
+        'display': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'h1': ['clamp(2rem, 4vw, 3rem)', { lineHeight: '1.2', letterSpacing: '-0.01em' }],
+        'h2': ['clamp(1.5rem, 3vw, 2rem)', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
+        'h3': ['clamp(1.25rem, 2vw, 1.5rem)', { lineHeight: '1.3' }],
+        'h4': ['clamp(1.125rem, 1.5vw, 1.25rem)', { lineHeight: '1.4' }],
+        'body-lg': ['1.125rem', { lineHeight: '1.6' }],
+        'body': ['1rem', { lineHeight: '1.6' }],
+        'body-sm': ['0.875rem', { lineHeight: '1.5' }],
+        'caption': ['0.75rem', { lineHeight: '1.5' }],
+        'overline': ['0.6875rem', { lineHeight: '1.5', letterSpacing: '0.1em' }],
       },
       borderRadius: {
-        // No rounded corners - sharp aesthetic
-        none: '0',
+        'none': '0',
       },
       boxShadow: {
-        'neon-cyan': '0 0 10px rgba(0, 255, 204, 0.5), 0 0 20px rgba(0, 255, 204, 0.3)',
-        'neon-purple': '0 0 10px rgba(170, 0, 255, 0.5), 0 0 20px rgba(170, 0, 255, 0.3)',
-        'neon-cyan-lg': '0 0 20px rgba(0, 255, 204, 0.6), 0 0 40px rgba(0, 255, 204, 0.4)',
+        'neon-cyan': '0 0 10px var(--shadow-cyan)',
+        'neon-cyan-lg': '0 0 20px var(--shadow-cyan), 0 0 40px var(--shadow-cyan-soft)',
+        'neon-purple': '0 0 10px var(--shadow-purple)',
+        'neon-purple-lg': '0 0 20px var(--shadow-purple), 0 0 40px var(--shadow-purple-soft)',
+        'elevated': '0 4px 24px rgba(0, 0, 0, 0.5)',
       },
       spacing: {
         '18': '4.5rem',
         '22': '5.5rem',
         'safe-top': 'env(safe-area-inset-top)',
         'safe-bottom': 'env(safe-area-inset-bottom)',
+      },
+      maxWidth: {
+        'prose': '65ch',
+        'content': '72rem',
       },
       keyframes: {
         'fade-in': {
@@ -72,32 +100,16 @@ const config: Config = {
           '100%': { backgroundPosition: '200% 0' },
         },
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 10px rgba(0, 255, 204, 0.5)' },
-          '50%': { boxShadow: '0 0 20px rgba(0, 255, 204, 0.8), 0 0 30px rgba(0, 255, 204, 0.4)' },
-        },
-        'slide-in-right': {
-          '0%': { transform: 'translateX(100%)' },
-          '100%': { transform: 'translateX(0)' },
-        },
-        'slide-out-right': {
-          '0%': { transform: 'translateX(0)' },
-          '100%': { transform: 'translateX(100%)' },
-        },
-        'pop': {
-          '0%': { transform: 'scale(1)' },
-          '50%': { transform: 'scale(1.2)' },
-          '100%': { transform: 'scale(1)' },
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '1' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.3s ease-out',
-        'slide-up': 'slide-up 0.3s ease-out',
-        'scale-in': 'scale-in 0.2s ease-out',
+        'fade-in': 'fade-in 0.4s ease-out',
+        'slide-up': 'slide-up 0.4s ease-out',
+        'scale-in': 'scale-in 0.3s ease-out',
         'shimmer': 'shimmer 2s infinite linear',
-        'pulse-glow': 'pulse-glow 2s infinite',
-        'slide-in-right': 'slide-in-right 0.3s ease-out',
-        'slide-out-right': 'slide-out-right 0.3s ease-out',
-        'pop': 'pop 0.3s ease-out',
+        'pulse-glow': 'pulse-glow 2s infinite ease-in-out',
       },
     },
   },

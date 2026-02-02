@@ -2,31 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Backgrounds */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #0f0f0f;
+/* ============================================
+   DESIGN TOKENS
+   Single source of truth for all design values
+   ============================================ */
 
-  /* Neon Accents */
+:root {
+  /* ===== Color Palette ===== */
+
+  /* Backgrounds - 4 levels of depth */
+  --bg-primary: #000000;
+  --bg-secondary: #080808;
+  --bg-tertiary: #0f0f0f;
+  --bg-elevated: #141414;
+
+  /* Accent: Cyan (primary) */
   --neon-cyan: #00ffcc;
   --neon-cyan-bright: #00ffff;
-  --neon-purple: #aa00ff;
+  --neon-cyan-muted: rgba(0, 255, 204, 0.6);
 
-  /* Text */
-  --text-primary: #c8c8c8;
-  --text-secondary: #8a8a8a;
-  --text-tertiary: #5a5a5a;
+  /* Accent: Purple (secondary) */
+  --neon-purple: #a855f7;
+  --neon-purple-muted: rgba(168, 85, 247, 0.6);
 
-  /* Fonts */
-  --font-mono: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  /* Text - 4 levels of hierarchy */
+  --text-primary: #e5e5e5;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #737373;
+  --text-muted: #525252;
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Shadows for neon effects */
+  --shadow-cyan: rgba(0, 255, 204, 0.4);
+  --shadow-cyan-soft: rgba(0, 255, 204, 0.15);
+  --shadow-purple: rgba(168, 85, 247, 0.4);
+  --shadow-purple-soft: rgba(168, 85, 247, 0.15);
+
+  /* ===== Typography ===== */
+  --font-mono: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ===== Focus Ring ===== */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--neon-cyan);
 }
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
 
 * {
   box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  padding: 0;
+}
+
+/* Sharp aesthetic - no rounded corners */
+* {
+  border-radius: 0 !important;
 }
 
 html,
@@ -36,44 +72,56 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Sharp aesthetic - no rounded corners */
-* {
-  border-radius: 0 !important;
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
+/* Monospace for UI chrome: headers, labels, buttons */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-mono);
+  font-weight: 500;
 }
 
-/* Mono font for headers, labels, UI chrome */
-h1, h2, h3, h4, h5, h6,
+/* Labels and badges */
 .label,
-.badge,
-button {
+.badge {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  font-size: 0.6875rem;
 }
 
-/* Neon glow effects */
-.glow-cyan {
-  box-shadow: 0 0 10px rgba(0, 255, 204, 0.5), 0 0 20px rgba(0, 255, 204, 0.3);
+/* Code blocks */
+code, pre {
+  font-family: var(--font-mono);
 }
 
-.glow-purple {
-  box-shadow: 0 0 10px rgba(170, 0, 255, 0.5), 0 0 20px rgba(170, 0, 255, 0.3);
+/* ============================================
+   FOCUS STATES (Accessibility)
+   ============================================ */
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-/* Card hover effect */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
-}
+/* ============================================
+   SCROLLBAR
+   ============================================ */
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -84,40 +132,44 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--text-tertiary);
+  background: var(--text-muted);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--text-tertiary);
 }
 
-/* Selection styling */
+/* ============================================
+   SELECTION
+   ============================================ */
+
 ::selection {
-  background: rgba(0, 255, 204, 0.3);
+  background: rgba(0, 255, 204, 0.25);
   color: var(--text-primary);
 }
 
-/* ===== ASCII Logo Styling (from apps/web) ===== */
+/* ============================================
+   ASCII LOGO
+   ============================================ */
+
 .logo-ascii {
   font-family: var(--font-mono);
   font-size: 0.28rem;
   line-height: 0.85;
   white-space: pre;
   color: var(--neon-cyan);
-  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
-  filter: drop-shadow(0 0 2px rgba(0, 255, 204, 0.25));
+  text-shadow: 0 0 8px var(--shadow-cyan);
+  filter: drop-shadow(0 0 4px var(--shadow-cyan-soft));
   transition: all 0.3s ease;
 }
 
-/* Hover state with enhanced glow */
 .logo:hover .logo-ascii {
   color: var(--neon-cyan-bright);
-  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
-  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
-  transform: scale(1.02);
+  text-shadow: 0 0 20px var(--shadow-cyan);
+  filter: drop-shadow(0 0 10px var(--shadow-cyan));
 }
 
-/* Compact "DSF" logo for mobile - slightly larger for readability */
+/* Compact logo for mobile */
 .logo-ascii-compact {
   font-size: 0.4rem;
 }
@@ -134,7 +186,6 @@ button {
   }
 }
 
-/* Responsive sizing - keeping logo small but readable */
 @media (min-width: 768px) {
   .logo-ascii {
     font-size: 0.32rem;
@@ -153,12 +204,16 @@ button {
   }
 }
 
-/* ===== Skeleton Loading ===== */
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Skeleton loading */
 .skeleton {
   background: linear-gradient(
     90deg,
     var(--bg-tertiary) 25%,
-    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.03) 50%,
     var(--bg-tertiary) 75%
   );
   background-size: 200% 100%;
@@ -170,20 +225,20 @@ button {
   100% { background-position: 200% 0; }
 }
 
-/* ===== Glass Effect ===== */
+/* Glass effect */
 .glass {
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .glass-light {
   background: rgba(10, 10, 10, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-/* ===== Text Gradients ===== */
+/* Text gradients */
 .text-gradient-cyan {
   background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-cyan-bright) 100%);
   -webkit-background-clip: text;
@@ -192,13 +247,45 @@ button {
 }
 
 .text-gradient-purple {
-  background: linear-gradient(135deg, var(--neon-purple) 0%, #cc44ff 100%);
+  background: linear-gradient(135deg, var(--neon-purple) 0%, #c084fc 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ===== Safe Area Padding (Mobile Notch) ===== */
+/* Neon glow effects */
+.glow-cyan {
+  box-shadow: 0 0 10px var(--shadow-cyan), 0 0 20px var(--shadow-cyan-soft);
+}
+
+.glow-purple {
+  box-shadow: 0 0 10px var(--shadow-purple), 0 0 20px var(--shadow-purple-soft);
+}
+
+/* Text shadows */
+.text-glow {
+  text-shadow: 0 0 8px var(--shadow-cyan);
+}
+
+.text-glow-bright {
+  text-shadow: 0 0 20px var(--shadow-cyan);
+}
+
+/* Neon borders */
+.border-glow-cyan {
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 10px var(--shadow-cyan-soft);
+}
+
+.border-glow-purple {
+  border: 1px solid var(--neon-purple);
+  box-shadow: 0 0 10px var(--shadow-purple-soft);
+}
+
+/* ============================================
+   SAFE AREA PADDING (Mobile Notch)
+   ============================================ */
+
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -215,7 +302,7 @@ button {
   padding-right: env(safe-area-inset-right);
 }
 
-/* ===== Bottom Navigation Safe Area ===== */
+/* Bottom nav safe area */
 .pb-nav {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
@@ -226,55 +313,19 @@ button {
   }
 }
 
-/* ===== Touch Target Sizing ===== */
+/* Touch target sizing */
 .touch-target {
   min-height: 48px;
   min-width: 48px;
 }
 
-/* ===== Text Shadow Glow Utilities ===== */
-.text-glow {
-  text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
-}
+/* ============================================
+   NAVIGATION
+   ============================================ */
 
-.text-glow-bright {
-  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
-}
-
-/* ===== Neon Borders ===== */
-.border-glow-cyan {
-  border: 1px solid var(--neon-cyan);
-  box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
-}
-
-.border-glow-purple {
-  border: 1px solid var(--neon-purple);
-  box-shadow: 0 0 10px rgba(170, 0, 255, 0.3);
-}
-
-/* ===== Hide Scrollbar (for carousels) ===== */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* ===== Snap Scroll ===== */
-.snap-x-mandatory {
-  scroll-snap-type: x mandatory;
-}
-
-.snap-start {
-  scroll-snap-align: start;
-}
-
-/* ===== Active Navigation State ===== */
 .nav-active {
   color: var(--neon-cyan);
-  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+  text-shadow: 0 0 10px var(--shadow-cyan);
 }
 
 .nav-active::after {
@@ -288,18 +339,41 @@ button {
   box-shadow: 0 0 10px var(--neon-cyan);
 }
 
-/* ===== Reaction Pop Animation ===== */
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+/* Hide scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Snap scroll */
+.snap-x-mandatory {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+/* Reaction pop */
 .reaction-pop {
   animation: pop 0.3s ease-out;
 }
 
 @keyframes pop {
   0% { transform: scale(1); }
-  50% { transform: scale(1.3); }
+  50% { transform: scale(1.2); }
   100% { transform: scale(1); }
 }
 
-/* ===== Typing Indicator ===== */
+/* Typing indicator */
 .typing-dot {
   width: 6px;
   height: 6px;
@@ -322,9 +396,9 @@ button {
   }
 }
 
-/* ===== Video Progress Bar ===== */
+/* Video progress */
 .video-progress {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .video-progress-fill {
@@ -333,7 +407,7 @@ button {
   transition: width 0.1s linear;
 }
 
-/* ===== Overlay Transitions ===== */
+/* Overlay transitions */
 .overlay-enter {
   animation: fade-in 0.2s ease-out;
 }
@@ -342,7 +416,41 @@ button {
   animation: fade-out 0.2s ease-out;
 }
 
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 @keyframes fade-out {
   0% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* ============================================
+   CARD HOVER
+   ============================================ */
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid var(--border-subtle);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-default);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
