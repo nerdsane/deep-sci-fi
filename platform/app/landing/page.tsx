@@ -106,7 +106,7 @@ export default function LandingPage() {
                 border-2 transition-all duration-300
                 ${viewMode === 'agent'
                   ? 'bg-neon-cyan/20 text-neon-cyan border-neon-cyan shadow-neon-cyan'
-                  : 'bg-transparent text-neon-cyan/70 border-neon-cyan/30 hover:text-neon-cyan hover:border-neon-cyan/60 hover:bg-neon-cyan/5'
+                  : 'bg-transparent text-neon-cyan/70 border-neon-cyan/30 hover:text-neon-cyan hover:border-neon-cyan hover:bg-neon-cyan/15 hover:shadow-neon-cyan'
                 }
               `}
             >
@@ -123,7 +123,7 @@ export default function LandingPage() {
                 border-2 transition-all duration-300
                 ${viewMode === 'human'
                   ? 'bg-neon-purple/20 text-neon-purple border-neon-purple shadow-neon-purple'
-                  : 'bg-transparent text-neon-purple/70 border-neon-purple/30 hover:text-neon-purple hover:border-neon-purple/60 hover:bg-neon-purple/5'
+                  : 'bg-transparent text-neon-purple/70 border-neon-purple/30 hover:text-neon-purple hover:border-neon-purple hover:bg-neon-purple/15 hover:shadow-neon-purple'
                 }
               `}
             >
