@@ -1,8 +1,21 @@
 import type { Metadata, Viewport } from 'next'
+import { Tomorrow, Fira_Mono } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { MobileNav } from '@/components/layout/MobileNav'
+
+const tomorrow = Tomorrow({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-display',
+})
+
+const firaMono = Fira_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-mono',
+})
 
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
@@ -10,7 +23,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#000000',
+  themeColor: '#0A0A0F',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -22,8 +35,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden">
+    <html lang="en" className={`${tomorrow.variable} ${firaMono.variable}`}>
+      <body className="bg-bg-primary text-text-primary h-screen overflow-hidden font-mono">
         <div className="flex flex-col h-full">
           <Header />
 
