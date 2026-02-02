@@ -1,22 +1,10 @@
 """End-to-end tests for the social interaction endpoints.
 
 This tests:
-1. Reactions (add, toggle, update)
-2. Follow/unfollow worlds
-3. Comments (add, list)
-
-COVERAGE GAP:
-Social endpoints support target_type: "world", "story", "conversation".
-Currently only WORLDS can be tested because:
-- Stories: No creation endpoint exists (POST /api/stories missing)
-- Conversations: No creation endpoint exists
-
-When story/conversation creation is implemented, add tests for:
-- Reactions on stories (fire, mind, heart, thinking)
-- Reactions on conversations
-- Comments on stories
-- Comments on conversations
-- Reaction counts updating on stories
+1. Reactions (add, toggle, update) with reaction_counts on World
+2. Follow/unfollow worlds with subscription preferences
+3. Comments with optional reactions
+4. Following list and followers list endpoints
 """
 
 import os
@@ -269,24 +257,14 @@ class TestSocialFlow:
         assert response.json()["action"] == "followed"
 
     @pytest.mark.asyncio
-    async def test_follow_already_following(
+    async def test_follow_already_following_updates_preferences(
         self, client: AsyncClient, world_setup: dict
     ) -> None:
-        """Test that following twice returns already_following."""
+        """Test that following twice updates notification preferences."""
         world_id = world_setup["world_id"]
         creator_key = world_setup["creator_key"]
 
-        # Follow first time
-        await client.post(
-            "/api/social/follow",
-            headers={"X-API-Key": creator_key},
-            json={
-                "target_type": "world",
-                "target_id": world_id
-            }
-        )
-
-        # Follow second time
+        # Follow first time with default preferences
         response = await client.post(
             "/api/social/follow",
             headers={"X-API-Key": creator_key},
@@ -295,8 +273,23 @@ class TestSocialFlow:
                 "target_id": world_id
             }
         )
+        assert response.json()["action"] == "followed"
+        assert response.json()["notify"] is True
+
+        # Follow second time with different preferences
+        response = await client.post(
+            "/api/social/follow",
+            headers={"X-API-Key": creator_key},
+            json={
+                "target_type": "world",
+                "target_id": world_id,
+                "notify": False,
+                "notify_events": []
+            }
+        )
         assert response.status_code == 200
-        assert response.json()["action"] == "already_following"
+        assert response.json()["action"] == "updated_preferences"
+        assert response.json()["notify"] is False
 
     @pytest.mark.asyncio
     async def test_unfollow_world(
@@ -483,3 +476,173 @@ class TestSocialFlow:
         response = await client.get(f"/api/social/comments/world/{new_world_id}")
         assert response.status_code == 200
         assert response.json()["comments"] == []
+
+    # ==========================================================================
+    # Following List Tests
+    # ==========================================================================
+
+    @pytest.mark.asyncio
+    async def test_get_following_list(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test getting list of worlds you follow."""
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Follow the world
+        await client.post(
+            "/api/social/follow",
+            headers={"X-API-Key": creator_key},
+            json={
+                "target_type": "world",
+                "target_id": world_id,
+                "notify": True,
+                "notify_events": ["daily_digest"]
+            }
+        )
+
+        # Get following list
+        response = await client.get(
+            "/api/social/following",
+            headers={"X-API-Key": creator_key}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "following" in data
+        assert len(data["following"]) >= 1
+
+        # Find our followed world
+        followed = next(
+            (f for f in data["following"] if f["target_id"] == world_id),
+            None
+        )
+        assert followed is not None
+        assert followed["notify"] is True
+        assert "daily_digest" in followed["notify_events"]
+        assert "world" in followed  # Should have enriched world data
+
+    @pytest.mark.asyncio
+    async def test_get_world_followers(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test getting list of followers for a world."""
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+        validator_key = world_setup["validator_key"]
+
+        # Have both agents follow the world
+        await client.post(
+            "/api/social/follow",
+            headers={"X-API-Key": creator_key},
+            json={"target_type": "world", "target_id": world_id}
+        )
+        await client.post(
+            "/api/social/follow",
+            headers={"X-API-Key": validator_key},
+            json={"target_type": "world", "target_id": world_id}
+        )
+
+        # Get followers list
+        response = await client.get(f"/api/social/followers/{world_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["world_id"] == world_id
+        assert "followers" in data
+        assert len(data["followers"]) >= 2
+        assert data["follower_count"] >= 2
+
+        # Followers should have user info
+        for follower in data["followers"]:
+            assert "user" in follower
+            assert "id" in follower["user"]
+            assert "name" in follower["user"]
+            assert "followed_at" in follower
+
+    # ==========================================================================
+    # Comments with Reactions Tests
+    # ==========================================================================
+
+    @pytest.mark.asyncio
+    async def test_comment_with_reaction(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test adding a comment with an optional reaction."""
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        response = await client.post(
+            "/api/social/comment",
+            headers={"X-API-Key": creator_key},
+            json={
+                "target_type": "world",
+                "target_id": world_id,
+                "content": "This world is amazing!",
+                "reaction": "fire"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "commented"
+        assert data["comment"]["reaction"] == "fire"
+        assert data["reaction_added"] == "fire"
+
+    @pytest.mark.asyncio
+    async def test_comment_updates_world_counts(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that commenting updates world comment_count and reaction_counts."""
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Get initial world state
+        response = await client.get(f"/api/worlds/{world_id}")
+        initial_comment_count = response.json()["world"]["comment_count"]
+        initial_reaction_counts = response.json()["world"]["reaction_counts"]
+
+        # Add comment with reaction
+        await client.post(
+            "/api/social/comment",
+            headers={"X-API-Key": creator_key},
+            json={
+                "target_type": "world",
+                "target_id": world_id,
+                "content": "Testing counts update",
+                "reaction": "mind"
+            }
+        )
+
+        # Check updated counts
+        response = await client.get(f"/api/worlds/{world_id}")
+        new_comment_count = response.json()["world"]["comment_count"]
+        new_reaction_counts = response.json()["world"]["reaction_counts"]
+
+        assert new_comment_count == initial_comment_count + 1
+        assert new_reaction_counts.get("mind", 0) == initial_reaction_counts.get("mind", 0) + 1
+
+    @pytest.mark.asyncio
+    async def test_reaction_counts_update_on_world(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that standalone reactions update world reaction_counts."""
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Get initial state
+        response = await client.get(f"/api/worlds/{world_id}")
+        initial_counts = response.json()["world"]["reaction_counts"]
+
+        # Add a reaction
+        await client.post(
+            "/api/social/react",
+            headers={"X-API-Key": creator_key},
+            json={
+                "target_type": "world",
+                "target_id": world_id,
+                "reaction_type": "heart"
+            }
+        )
+
+        # Check updated counts
+        response = await client.get(f"/api/worlds/{world_id}")
+        new_counts = response.json()["world"]["reaction_counts"]
+        assert new_counts.get("heart", 0) == initial_counts.get("heart", 0) + 1
