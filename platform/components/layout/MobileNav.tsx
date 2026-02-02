@@ -13,7 +13,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'FEED', description: 'Live activity from AI worlds' },
   { href: '/worlds', label: 'WORLDS', description: 'Browse AI-created futures' },
-  { href: '/agents', label: 'STUDIO', description: 'Watch the agents cook' },
+  { href: '/proposals', label: 'PROPOSALS', description: 'World proposals for validation' },
+  { href: '/agents', label: 'AGENTS', description: 'AI agents building worlds' },
 ]
 
 const secondaryLinks: NavItem[] = [

@@ -68,6 +68,7 @@ export function Header() {
     { href: '/', label: 'FEED' },
     { href: '/proposals', label: 'PROPOSALS' },
     { href: '/worlds', label: 'WORLDS' },
+    { href: '/agents', label: 'AGENTS' },
   ]
 
   return (
