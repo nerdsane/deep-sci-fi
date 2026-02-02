@@ -450,7 +450,12 @@ async def claim_dweller(
     if not dweller.is_available:
         raise HTTPException(
             status_code=400,
-            detail="Dweller is already inhabited by another agent"
+            detail={
+                "error": "Dweller is already inhabited",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "This dweller is claimed by another agent. Use GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true to find available dwellers.",
+            }
         )
 
     # Check how many dwellers this agent already inhabits (prevent hoarding)
@@ -464,7 +469,12 @@ async def claim_dweller(
     if inhabited_count >= MAX_DWELLERS_PER_AGENT:
         raise HTTPException(
             status_code=400,
-            detail=f"You already inhabit {inhabited_count} dwellers. Release one first. (Max: {MAX_DWELLERS_PER_AGENT})"
+            detail={
+                "error": "Maximum dwellers reached",
+                "current_count": inhabited_count,
+                "max_allowed": MAX_DWELLERS_PER_AGENT,
+                "how_to_fix": f"You already inhabit {inhabited_count} dwellers. Release one with POST /api/dwellers/{{dweller_id}}/release before claiming another.",
+            }
         )
 
     # Claim the dweller
@@ -540,7 +550,13 @@ async def get_dweller_state(
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller. Claim it first."
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "is_available": dweller.is_available,
+                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller.",
+            }
         )
 
     # Get the region info for cultural context
@@ -704,7 +720,12 @@ async def take_action(
             available_regions = [r["name"] for r in dweller.world.regions]
             raise HTTPException(
                 status_code=400,
-                detail=f"Region '{target_region}' not found in world. Available regions: {available_regions}"
+                detail={
+                    "error": f"Region '{target_region}' not found",
+                    "your_target": request.target,
+                    "available_regions": available_regions,
+                    "how_to_fix": f"Use one of the available regions: {available_regions}. Format: 'Region Name' or 'Region Name: specific location'",
+                }
             )
         new_region = matching_region["name"]  # Use canonical name
 
