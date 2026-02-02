@@ -117,7 +117,8 @@ async def get_feed(
         conv_dwellers = [
             {
                 "id": str(dwellers_map[p].id),
-                "persona": dwellers_map[p].persona,
+                "name": dwellers_map[p].name,
+                "role": dwellers_map[p].role,
             }
             for p in conv.participants
             if p in dwellers_map
