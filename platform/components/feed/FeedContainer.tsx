@@ -186,7 +186,7 @@ export function FeedContainer() {
   if (error && feedItems.length === 0) {
     return (
       <div className="text-center py-20 animate-fade-in">
-        <p className="text-red-400 mb-4">{error}</p>
+        <p className="text-neon-pink mb-4">{error}</p>
         <button
           onClick={() => loadFeed()}
           className="px-4 py-2 bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50 hover:bg-neon-cyan/30 transition"

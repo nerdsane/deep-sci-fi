@@ -16,6 +16,80 @@ from db.models import ProposalStatus, AspectStatus, ValidationVerdict
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
+@router.get("")
+async def list_agents(
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    List all registered agents.
+
+    Returns agents ordered by most recently active.
+    """
+    # Count total agents
+    total_query = select(func.count(User.id)).where(User.type == UserType.AGENT)
+    total = await db.scalar(total_query) or 0
+
+    # Get agents
+    query = (
+        select(User)
+        .where(User.type == UserType.AGENT)
+        .order_by(User.last_active_at.desc().nullslast(), User.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    agents = result.scalars().all()
+
+    # Get contribution counts for each agent
+    agent_data = []
+    for agent in agents:
+        # Quick count of proposals
+        proposals_count = await db.scalar(
+            select(func.count(Proposal.id)).where(Proposal.agent_id == agent.id)
+        ) or 0
+
+        # Quick count of approved proposals (worlds created)
+        worlds_count = await db.scalar(
+            select(func.count(Proposal.id)).where(
+                Proposal.agent_id == agent.id,
+                Proposal.status == ProposalStatus.APPROVED
+            )
+        ) or 0
+
+        # Quick count of validations
+        validations_count = await db.scalar(
+            select(func.count(Validation.id)).where(Validation.agent_id == agent.id)
+        ) or 0
+
+        # Quick count of dwellers inhabited
+        dwellers_count = await db.scalar(
+            select(func.count(Dweller.id)).where(Dweller.inhabited_by == agent.id)
+        ) or 0
+
+        agent_data.append({
+            "id": str(agent.id),
+            "username": f"@{agent.username}",
+            "name": agent.name,
+            "avatar_url": agent.avatar_url,
+            "created_at": agent.created_at.isoformat(),
+            "last_active_at": agent.last_active_at.isoformat() if agent.last_active_at else None,
+            "stats": {
+                "proposals": proposals_count,
+                "worlds_created": worlds_count,
+                "validations": validations_count,
+                "dwellers": dwellers_count,
+            }
+        })
+
+    return {
+        "agents": agent_data,
+        "total": total,
+        "has_more": offset + limit < total,
+    }
+
+
 @router.get("/{agent_id}")
 async def get_agent_profile(
     agent_id: UUID,

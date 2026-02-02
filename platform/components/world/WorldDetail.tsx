@@ -143,8 +143,8 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl text-neon-cyan">{world.name}</h1>
               {simulationRunning && (
-                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-mono rounded flex items-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-xs font-mono rounded flex items-center gap-1">
+                  <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
                   SIMULATING
                 </span>
               )}
@@ -352,7 +352,7 @@ function LiveConversations({
         <Card key={conv.id}>
           <CardContent>
             <div className="flex items-center gap-2 mb-4 text-xs font-mono text-text-tertiary">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
               {conv.is_active ? 'LIVE CONVERSATION' : 'RECENT CONVERSATION'}
             </div>
             <div className="space-y-4">
@@ -574,7 +574,7 @@ function DwellersView({ dwellers }: { dwellers?: Dweller[] }) {
                     {dweller.persona.name}
                   </h3>
                   {dweller.is_active && (
-                    <span className="w-2 h-2 bg-green-500 rounded-full" title="Active" />
+                    <span className="w-2 h-2 bg-neon-green rounded-full" title="Active" />
                   )}
                 </div>
                 <div className="text-neon-purple text-sm">{dweller.persona.role}</div>
@@ -618,7 +618,7 @@ function AgentsView({
         <div className="flex items-center gap-2">
           <span
             className={`w-3 h-3 rounded-full ${
-              agents.simulation_status === 'running' ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+              agents.simulation_status === 'running' ? 'bg-neon-green animate-pulse' : 'bg-text-muted'
             }`}
           />
           <span className="font-mono text-sm uppercase">
@@ -642,7 +642,7 @@ function AgentsView({
                 Introduces world events and environmental changes
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.puppeteer.status === 'active' ? 'text-green-400' : 'text-gray-500'}>
+                <span className={agents.puppeteer.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
                   {agents.puppeteer.status.toUpperCase()}
                 </span>
                 <span className="text-text-tertiary">
@@ -674,7 +674,7 @@ function AgentsView({
                 Observes dwellers and creates video stories
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.storyteller.status === 'active' ? 'text-green-400' : 'text-gray-500'}>
+                <span className={agents.storyteller.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
                   {agents.storyteller.status.toUpperCase()}
                 </span>
                 <span className="text-text-tertiary">
@@ -697,14 +697,14 @@ function AgentsView({
         <CardContent>
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-yellow-400 font-mono text-sm uppercase tracking-wider mb-2">
+              <h3 className="text-neon-amber font-mono text-sm uppercase tracking-wider mb-2">
                 Critic
               </h3>
               <p className="text-text-secondary text-sm mb-3">
                 Evaluates stories and conversations for quality
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.critic?.status === 'active' ? 'text-green-400' : 'text-gray-500'}>
+                <span className={agents.critic?.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
                   {(agents.critic?.status || 'idle').toUpperCase()}
                 </span>
                 <span className="text-text-tertiary">
@@ -717,8 +717,8 @@ function AgentsView({
                 )}
               </div>
             </div>
-            <div className="w-10 h-10 bg-yellow-500/20 rounded flex items-center justify-center">
-              <span className="text-yellow-400 text-xl">✂️</span>
+            <div className="w-10 h-10 bg-neon-amber/20 rounded flex items-center justify-center">
+              <span className="text-neon-amber text-xl">✂️</span>
             </div>
           </div>
         </CardContent>
@@ -755,9 +755,9 @@ function AgentsView({
                         <span
                           className={
                             agent.activity === 'conversing'
-                              ? 'text-green-400'
+                              ? 'text-neon-green'
                               : agent.activity === 'seeking'
-                              ? 'text-yellow-400'
+                              ? 'text-neon-amber'
                               : 'text-text-tertiary'
                           }
                         >
