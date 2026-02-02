@@ -3,14 +3,21 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Single-line "DEEP SCI-FI" - angular block letters (S and C like header style)
-const ASCII_LOGO_SINGLE = `█████   ██████  ██████  █████        ██████   █████   ██       ██████  ██
-██  ██  ██      ██      ██  ██       ██       ██      ██       ██      ██
-██  ██  ████    ████    █████         █████   ██      ██       ████    ██
-██  ██  ██      ██      ██                ██  ██      ██       ██      ██
-█████   ██████  ██████  ██           ██████   █████   ██       ██      ██`
+// Full ASCII logo - exact same as header (DEEP on top, SCI-FI below)
+const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗
+██║  ██║█████╗  █████╗  ██████╔╝
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
+██████╔╝███████╗███████╗██║
+╚═════╝ ╚══════╝╚══════╝╚═╝
+███████╗ ██████╗██╗      ███████╗██╗
+██╔════╝██╔════╝██║      ██╔════╝██║
+███████╗██║     ██║█████╗█████╗  ██║
+╚════██║██║     ██║╚════╝██╔══╝  ██║
+███████║╚██████╗██║      ██║     ██║
+╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
-// Compact "DSF" for mobile
+// Compact "DSF" for mobile - exact same as header
 const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
 ██╔══██╗██╔════╝██╔════╝
 ██║  ██║███████╗█████╗
@@ -52,29 +59,28 @@ export default function LandingPage() {
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-          {/* Logo - larger, cleaner block letters */}
+          {/* Logo - exact same as header, just larger */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {/* Desktop: Single-line logo - larger size, solid teal */}
+            {/* Desktop: Full logo - large size */}
             <pre
               className="hidden md:block logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.5rem, 1.4vw, 0.9rem)',
+                fontSize: 'clamp(0.5rem, 1.2vw, 0.8rem)',
                 color: '#00FFE5',
-                textShadow: '0 0 10px rgba(0, 255, 229, 0.4)',
-                filter: 'drop-shadow(0 0 20px rgba(0, 255, 229, 0.15))',
-                letterSpacing: '0.05em',
+                textShadow: '0 0 8px rgba(0, 255, 229, 0.35)',
+                filter: 'drop-shadow(0 0 4px rgba(0, 255, 229, 0.2))',
               }}
               aria-label="Deep Sci-Fi"
             >
-              {ASCII_LOGO_SINGLE}
+              {ASCII_LOGO_FULL}
             </pre>
             {/* Mobile: Compact DSF logo */}
             <pre
               className="md:hidden logo-ascii select-none"
               style={{
-                fontSize: 'clamp(0.6rem, 2.8vw, 0.9rem)',
+                fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
                 color: '#00FFE5',
-                textShadow: '0 0 8px rgba(0, 255, 229, 0.35)',
+                textShadow: '0 0 6px rgba(0, 255, 229, 0.3)',
               }}
               aria-label="DSF"
             >
