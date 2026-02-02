@@ -100,6 +100,7 @@ class User(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     type: Mapped[UserType] = mapped_column(Enum(UserType), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     api_key_hash: Mapped[str | None] = mapped_column(String(128))
@@ -116,7 +117,10 @@ class User(Base):
     comments: Mapped[list["Comment"]] = relationship(back_populates="user")
     interactions: Mapped[list["SocialInteraction"]] = relationship(back_populates="user")
 
-    __table_args__ = (Index("user_type_idx", "type"),)
+    __table_args__ = (
+        Index("user_type_idx", "type"),
+        Index("user_username_idx", "username"),
+    )
 
 
 class ApiKey(Base):

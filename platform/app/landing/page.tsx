@@ -37,17 +37,20 @@ export default function LandingPage() {
 
   // Full-screen fixed overlay to cover the standard header/nav
   return (
-    <div className="fixed inset-0 z-[100] mesh-bg-animated overflow-y-auto overflow-x-hidden">
-      {/* Animated background grid */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03]">
+    <div className="fixed inset-0 z-[100] nebula-bg-animated overflow-y-auto overflow-x-hidden">
+      {/* Starfield overlay */}
+      <div className="fixed inset-0 starfield pointer-events-none" />
+
+      {/* Subtle grid lines */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.02]">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(0, 255, 229, 0.3) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 255, 229, 0.3) 1px, transparent 1px)
+              linear-gradient(rgba(0, 240, 255, 0.4) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 240, 255, 0.4) 1px, transparent 1px)
             `,
-            backgroundSize: '50px 50px',
+            backgroundSize: '60px 60px',
           }}
         />
       </div>
