@@ -3,7 +3,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,30 +16,34 @@ router = APIRouter(prefix="/social", tags=["social"])
 
 # Request models
 class ReactionRequest(BaseModel):
-    target_type: Literal["story", "world", "conversation"]
+    target_type: Literal["world"] = "world"
     target_id: UUID
     reaction_type: Literal["fire", "mind", "heart", "thinking"]
 
 
 class FollowRequest(BaseModel):
-    target_type: Literal["world", "user"]
+    target_type: Literal["world", "user"] = "world"
     target_id: UUID
+    notify: bool = True
+    notify_events: list[str] = ["daily_digest"]
 
 
 class CommentRequest(BaseModel):
-    target_type: Literal["story", "world", "conversation"]
+    target_type: Literal["world"] = "world"
     target_id: UUID
     content: str
     parent_id: UUID | None = None
+    reaction: Literal["fire", "mind", "heart", "thinking"] | None = None
 
 
 async def _validate_target_exists(
     db: AsyncSession, target_type: str, target_id: UUID
-) -> None:
-    """Validate that a target exists before creating an interaction."""
+) -> World | None:
+    """Validate that a target exists before creating an interaction. Returns the world if found."""
     if target_type == "world":
         result = await db.execute(select(World).where(World.id == target_id))
-        if not result.scalar_one_or_none():
+        world = result.scalar_one_or_none()
+        if not world:
             raise HTTPException(
                 status_code=404,
                 detail={
@@ -48,7 +52,8 @@ async def _validate_target_exists(
                     "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
                 }
             )
-    # Other target types not currently supported
+        return world
+    return None
 
 
 @router.post("/react")
@@ -58,7 +63,9 @@ async def react(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Add or toggle a reaction on content.
+    Add or toggle a reaction on a world.
+
+    Reaction types: fire (🔥), mind (🧠), heart (❤️), thinking (🤔)
     """
     # Validate target exists
     await _validate_target_exists(db, request.target_type, request.target_id)
@@ -167,7 +174,11 @@ async def follow(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Follow a world or user.
+    Follow a world or user with notification preferences.
+
+    - notify: Whether to receive notifications about this target (default: true)
+    - notify_events: List of events to be notified about (default: ["daily_digest"])
+      Available events: "daily_digest" (world activity summary)
     """
     # Validate target exists
     await _validate_follow_target_exists(db, request.target_type, request.target_id)
@@ -185,7 +196,16 @@ async def follow(
     existing = result.scalar_one_or_none()
 
     if existing:
-        return {"action": "already_following"}
+        # Update notification preferences
+        existing.data = {
+            "notify": request.notify,
+            "notify_events": request.notify_events,
+        }
+        return {
+            "action": "updated_preferences",
+            "notify": request.notify,
+            "notify_events": request.notify_events,
+        }
 
     # Add follow
     interaction = SocialInteraction(
@@ -193,6 +213,10 @@ async def follow(
         target_type=request.target_type,
         target_id=request.target_id,
         interaction_type="follow",
+        data={
+            "notify": request.notify,
+            "notify_events": request.notify_events,
+        },
     )
     db.add(interaction)
 
@@ -204,7 +228,11 @@ async def follow(
             .values(follower_count=World.follower_count + 1)
         )
 
-    return {"action": "followed"}
+    return {
+        "action": "followed",
+        "notify": request.notify,
+        "notify_events": request.notify_events,
+    }
 
 
 @router.post("/unfollow")
@@ -247,6 +275,137 @@ async def unfollow(
     return {"action": "unfollowed"}
 
 
+@router.get("/following")
+async def get_following(
+    target_type: Literal["world", "user"] = Query("world"),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    List entities you are following.
+
+    Returns worlds or users you follow, with notification preferences.
+    """
+    query = (
+        select(SocialInteraction)
+        .where(
+            and_(
+                SocialInteraction.user_id == current_user.id,
+                SocialInteraction.target_type == target_type,
+                SocialInteraction.interaction_type == "follow",
+            )
+        )
+        .order_by(SocialInteraction.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(query)
+    follows = result.scalars().all()
+
+    items = []
+    for f in follows:
+        item: dict[str, Any] = {
+            "target_id": str(f.target_id),
+            "target_type": f.target_type,
+            "followed_at": f.created_at.isoformat(),
+            "notify": f.data.get("notify", True) if f.data else True,
+            "notify_events": f.data.get("notify_events", ["daily_digest"]) if f.data else ["daily_digest"],
+        }
+
+        # Enrich with target details
+        if target_type == "world":
+            world_result = await db.execute(select(World).where(World.id == f.target_id))
+            world = world_result.scalar_one_or_none()
+            if world:
+                item["world"] = {
+                    "id": str(world.id),
+                    "name": world.name,
+                    "premise": world.premise,
+                    "year_setting": world.year_setting,
+                    "dweller_count": world.dweller_count,
+                    "follower_count": world.follower_count,
+                }
+
+        items.append(item)
+
+    return {"following": items, "count": len(items)}
+
+
+@router.get("/followers/{world_id}")
+async def get_world_followers(
+    world_id: UUID,
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    List followers of a world.
+
+    Returns users following the specified world.
+    """
+    # Validate world exists
+    world_result = await db.execute(select(World).where(World.id == world_id))
+    world = world_result.scalar_one_or_none()
+    if not world:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
+            }
+        )
+
+    query = (
+        select(SocialInteraction)
+        .where(
+            and_(
+                SocialInteraction.target_type == "world",
+                SocialInteraction.target_id == world_id,
+                SocialInteraction.interaction_type == "follow",
+            )
+        )
+        .order_by(SocialInteraction.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(query)
+    follows = result.scalars().all()
+
+    # Get user details
+    user_ids = [f.user_id for f in follows]
+    users_map: dict[UUID, User] = {}
+    if user_ids:
+        users_query = select(User).where(User.id.in_(user_ids))
+        users_result = await db.execute(users_query)
+        for user in users_result.scalars().all():
+            users_map[user.id] = user
+
+    followers = []
+    for f in follows:
+        user = users_map.get(f.user_id)
+        if user:
+            followers.append({
+                "user": {
+                    "id": str(user.id),
+                    "name": user.name,
+                    "username": user.username,
+                    "type": user.type.value,
+                    "avatar_url": user.avatar_url,
+                },
+                "followed_at": f.created_at.isoformat(),
+            })
+
+    return {
+        "world_id": str(world_id),
+        "world_name": world.name,
+        "follower_count": world.follower_count,
+        "followers": followers,
+    }
+
+
 @router.post("/comment")
 async def add_comment(
     request: CommentRequest,
@@ -254,10 +413,16 @@ async def add_comment(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Add a comment to content.
+    Add a comment to a world, optionally with a reaction.
+
+    - content: Your comment text
+    - reaction: Optional reaction emoji (fire, mind, heart, thinking)
+
+    Comments are merged with reactions - a single interaction that can include
+    both a text comment and an emoji reaction.
     """
-    # Validate target exists
-    await _validate_target_exists(db, request.target_type, request.target_id)
+    # Validate target exists and get the world
+    world = await _validate_target_exists(db, request.target_type, request.target_id)
 
     comment = Comment(
         user_id=current_user.id,
@@ -265,15 +430,28 @@ async def add_comment(
         target_id=request.target_id,
         content=request.content,
         parent_id=request.parent_id,
+        reaction=request.reaction,
     )
     db.add(comment)
+
+    # Update world comment count
+    if world:
+        world.comment_count = (world.comment_count or 0) + 1
+
+        # Update reaction counts if reaction provided
+        if request.reaction:
+            counts = dict(world.reaction_counts) if world.reaction_counts else {}
+            counts[request.reaction] = counts.get(request.reaction, 0) + 1
+            world.reaction_counts = counts
+
     await db.flush()  # Get the ID
 
-    return {
+    response: dict[str, Any] = {
         "action": "commented",
         "comment": {
             "id": str(comment.id),
             "content": comment.content,
+            "reaction": comment.reaction,
             "created_at": comment.created_at.isoformat(),
             "user": {
                 "id": str(current_user.id),
@@ -284,15 +462,20 @@ async def add_comment(
         },
     }
 
+    if request.reaction:
+        response["reaction_added"] = request.reaction
+
+    return response
+
 
 @router.get("/comments/{target_type}/{target_id}")
 async def get_comments(
-    target_type: Literal["story", "world", "conversation"],
+    target_type: Literal["world"],
     target_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Get comments for content.
+    Get comments for a world.
     """
     query = (
         select(Comment)
@@ -322,6 +505,7 @@ async def get_comments(
             {
                 "id": str(c.id),
                 "content": c.content,
+                "reaction": getattr(c, 'reaction', None),
                 "parent_id": str(c.parent_id) if c.parent_id else None,
                 "created_at": c.created_at.isoformat(),
                 "user": {

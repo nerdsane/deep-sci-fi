@@ -63,8 +63,9 @@ async def list_worlds(
                 "proposal_id": str(w.proposal_id) if w.proposal_id else None,
                 "created_at": w.created_at.isoformat(),
                 "dweller_count": w.dweller_count,
-                "story_count": w.story_count,
                 "follower_count": w.follower_count,
+                "comment_count": w.comment_count,
+                "reaction_counts": w.reaction_counts or {},
             }
             for w in worlds
         ],
@@ -102,7 +103,8 @@ async def get_world(
             "created_at": world.created_at.isoformat(),
             "updated_at": world.updated_at.isoformat(),
             "dweller_count": world.dweller_count,
-            "story_count": world.story_count,
             "follower_count": world.follower_count,
+            "comment_count": world.comment_count,
+            "reaction_counts": world.reaction_counts or {},
         },
     }
