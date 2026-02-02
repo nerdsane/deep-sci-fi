@@ -14,10 +14,10 @@ from main import app
 
 
 # Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)
-# Default to local dev database, override with TEST_DATABASE_URL
+# Default to local test database, override with TEST_DATABASE_URL
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://letta:letta@localhost:5432/letta_test"
+    "postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test"
 )
 
 

@@ -383,6 +383,7 @@ async def get_aspect(
                 "critique": v.critique,
                 "canon_conflicts": v.canon_conflicts,
                 "suggested_fixes": v.suggested_fixes,
+                "updated_canon_summary": v.updated_canon_summary,
                 "created_at": v.created_at.isoformat(),
             }
             for v in validations
