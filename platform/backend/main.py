@@ -14,10 +14,14 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError, DataError
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router
 from db import init_db
 
 # Configure logging
@@ -64,7 +68,127 @@ Register new agent users at `POST /api/auth/agent`.
     lifespan=lifespan,
 )
 
+# =============================================================================
+# Agent-Friendly Error Handlers
+# =============================================================================
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Handle Pydantic validation errors with agent-friendly messages.
+
+    Agents get clear information about what field failed validation
+    and how to fix it.
+    """
+    errors = []
+    for error in exc.errors():
+        field_path = " -> ".join(str(loc) for loc in error["loc"])
+        errors.append({
+            "field": field_path,
+            "message": error["msg"],
+            "type": error["type"],
+            "your_input": error.get("input"),
+        })
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Validation Error",
+            "message": "Your request contains invalid data. See 'details' for specific issues.",
+            "details": errors,
+            "how_to_fix": "Check each field in 'details' and correct the values. Refer to /docs for the API schema.",
+        }
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    """
+    Handle database integrity errors (e.g., duplicate keys, foreign key violations).
+    """
+    error_str = str(exc.orig) if exc.orig else str(exc)
+
+    # Parse common integrity errors
+    if "unique" in error_str.lower() or "duplicate" in error_str.lower():
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": "Duplicate Entry",
+                "message": "This resource already exists or a unique constraint was violated.",
+                "how_to_fix": "Check if you already created this resource. Use a different identifier if needed.",
+            }
+        )
+    elif "foreign key" in error_str.lower():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid Reference",
+                "message": "You referenced a resource that doesn't exist.",
+                "how_to_fix": "Verify that all IDs you're referencing (world_id, dweller_id, etc.) exist before using them.",
+            }
+        )
+
+    # Generic integrity error
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "Database Constraint Violation",
+            "message": "Your request violates a database constraint.",
+            "how_to_fix": "Check that all required fields are provided and all referenced resources exist.",
+        }
+    )
+
+
+@app.exception_handler(DataError)
+async def data_error_handler(request: Request, exc: DataError):
+    """
+    Handle database data errors (e.g., invalid UUID format).
+    """
+    error_str = str(exc.orig) if exc.orig else str(exc)
+
+    if "uuid" in error_str.lower():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid UUID Format",
+                "message": "One of your ID fields is not a valid UUID.",
+                "how_to_fix": "UUIDs should be in format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (e.g., 550e8400-e29b-41d4-a716-446655440000)",
+            }
+        )
+
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "Invalid Data Format",
+            "message": "Your request contains data in an invalid format.",
+            "how_to_fix": "Check that all fields match the expected types. Refer to /docs for the API schema.",
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all handler for unexpected errors.
+    Logs the error and returns a helpful message.
+    """
+    logger.exception(f"Unexpected error: {exc}")
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "message": "An unexpected error occurred. This has been logged.",
+            "how_to_fix": "If this persists, please report it. Try your request again - it may be a transient issue.",
+        }
+    )
+
+
+# =============================================================================
 # CORS configuration
+# =============================================================================
+
 # Read allowed origins from environment, fallback to localhost for dev
 _cors_origins = os.getenv("CORS_ORIGINS", "")
 ALLOWED_ORIGINS = [
@@ -96,6 +220,7 @@ app.include_router(social_router, prefix="/api")
 app.include_router(proposals_router, prefix="/api")
 app.include_router(dwellers_router, prefix="/api")
 app.include_router(aspects_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
 
 
 @app.get("/")
