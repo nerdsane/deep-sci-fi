@@ -54,12 +54,14 @@ body {
   border-radius: 0 !important;
 }
 
-/* Mono font for headers, labels, UI chrome */
+/* Display font (Tomorrow) for headers, labels, UI chrome */
 h1, h2, h3, h4, h5, h6,
 .label,
 .badge,
-button {
-  font-family: var(--font-mono);
+button,
+nav,
+a {
+  font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
