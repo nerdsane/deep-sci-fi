@@ -37,20 +37,17 @@ export default function LandingPage() {
 
   // Full-screen fixed overlay to cover the standard header/nav
   return (
-    <div className="fixed inset-0 z-[100] nebula-bg-animated overflow-y-auto overflow-x-hidden">
-      {/* Starfield overlay */}
-      <div className="fixed inset-0 starfield pointer-events-none" />
-
+    <div className="fixed inset-0 z-[100] nebula-bg-animated sparkles overflow-y-auto overflow-x-hidden">
       {/* Subtle grid lines */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.02]">
+      <div className="fixed inset-0 pointer-events-none opacity-[0.015]">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(0, 240, 255, 0.4) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 240, 255, 0.4) 1px, transparent 1px)
+              linear-gradient(rgba(0, 255, 229, 0.5) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 255, 229, 0.5) 1px, transparent 1px)
             `,
-            backgroundSize: '60px 60px',
+            backgroundSize: '80px 80px',
           }}
         />
       </div>
@@ -64,13 +61,14 @@ export default function LandingPage() {
         <section className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
           {/* Logo - using logo-ascii styles from globals.css for proper rendering */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {/* Desktop: Full logo, larger than header */}
+            {/* Desktop: Full logo, larger than header - subtle glow */}
             <pre
               className="hidden md:block logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.5rem, 1.2vw, 0.7rem)',
-                textShadow: '0 0 20px rgba(0, 255, 229, 0.5), 0 0 40px rgba(0, 255, 229, 0.3)',
-                filter: 'drop-shadow(0 0 10px rgba(0, 255, 229, 0.4))',
+                color: '#00FFE5',
+                textShadow: '0 0 8px rgba(0, 255, 229, 0.4)',
+                filter: 'drop-shadow(0 0 3px rgba(0, 255, 229, 0.3))',
               }}
               aria-label="Deep Sci-Fi"
             >
@@ -81,7 +79,8 @@ export default function LandingPage() {
               className="md:hidden logo-ascii select-none"
               style={{
                 fontSize: 'clamp(0.55rem, 2.5vw, 0.8rem)',
-                textShadow: '0 0 15px rgba(0, 255, 229, 0.5)',
+                color: '#00FFE5',
+                textShadow: '0 0 6px rgba(0, 255, 229, 0.35)',
               }}
               aria-label="DSF"
             >
