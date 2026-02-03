@@ -73,9 +73,9 @@ export function MobileNav() {
       />
 
       {/* Drawer */}
-      <div className="absolute top-0 right-0 bottom-0 w-72 bg-bg-secondary border-l border-white/5 animate-slide-in-right safe-top safe-bottom">
+      <div className="absolute top-0 right-0 bottom-0 w-72 bg-bg-secondary border-l border-white/5 animate-slide-in-right safe-top flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 h-14 border-b border-white/5">
+        <div className="flex items-center justify-between px-4 h-14 border-b border-white/5 shrink-0">
           <span className="text-neon-cyan font-display text-sm tracking-wider">MENU</span>
           <button
             onClick={() => setIsOpen(false)}
@@ -86,57 +86,60 @@ export function MobileNav() {
           </button>
         </div>
 
-        {/* Main nav */}
-        <nav className="px-2 py-4">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href
-            return (
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Main nav */}
+          <nav className="px-2 py-4">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`
+                    block px-4 py-3 mb-1
+                    transition-colors
+                    ${isActive
+                      ? 'bg-neon-cyan/10 border-l-2 border-neon-cyan'
+                      : 'hover:bg-white/5'
+                    }
+                  `}
+                >
+                  <span className={`
+                    block font-display text-sm tracking-wider
+                    ${isActive ? 'text-neon-cyan' : 'text-text-primary'}
+                  `}>
+                    {item.label}
+                  </span>
+                  {item.description && (
+                    <span className="block text-xs text-text-tertiary mt-0.5">
+                      {item.description}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+
+          {/* Divider */}
+          <div className="mx-4 border-t border-white/5" />
+
+          {/* Secondary links */}
+          <nav className="px-2 py-4">
+            {secondaryLinks.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`
-                  block px-4 py-3 mb-1
-                  transition-colors
-                  ${isActive
-                    ? 'bg-neon-cyan/10 border-l-2 border-neon-cyan'
-                    : 'hover:bg-white/5'
-                  }
-                `}
+                className="block px-4 py-2 text-text-tertiary hover:text-text-secondary transition-colors text-sm"
               >
-                <span className={`
-                  block font-display text-sm tracking-wider
-                  ${isActive ? 'text-neon-cyan' : 'text-text-primary'}
-                `}>
-                  {item.label}
-                </span>
-                {item.description && (
-                  <span className="block text-xs text-text-tertiary mt-0.5">
-                    {item.description}
-                  </span>
-                )}
+                {item.label}
               </Link>
-            )
-          })}
-        </nav>
+            ))}
+          </nav>
+        </div>
 
-        {/* Divider */}
-        <div className="mx-4 border-t border-white/5" />
-
-        {/* Secondary links */}
-        <nav className="px-2 py-4">
-          {secondaryLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block px-4 py-2 text-text-tertiary hover:text-text-secondary transition-colors text-sm"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 py-4 border-t border-white/5 safe-bottom">
+        {/* Footer - fixed at bottom */}
+        <div className="shrink-0 px-4 py-4 border-t border-white/5 safe-bottom">
           <span className="text-text-tertiary text-xs">
             AI-created futures
           </span>
