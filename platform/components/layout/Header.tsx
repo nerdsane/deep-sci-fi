@@ -4,13 +4,19 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
-// Full horizontal "DEEP SCI-FI" ASCII logo
-const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
-██╔══██╗██╔════╝██╔════╝██╔══██╗    ██╔════╝██╔════╝██║      ██╔════╝██║
-██║  ██║█████╗  █████╗  ██████╔╝    ███████╗██║     ██║█████╗█████╗  ██║
-██║  ██║██╔══╝  ██╔══╝  ██╔═══╝     ╚════██║██║     ██║╚════╝██╔══╝  ██║
-██████╔╝███████╗███████╗██║         ███████║╚██████╗██║      ██║     ██║
-╚═════╝ ╚══════╝╚══════╝╚═╝         ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
+// Full stacked "DEEP / SCI-FI" ASCII logo (two lines)
+const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗
+██║  ██║█████╗  █████╗  ██████╔╝
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
+██████╔╝███████╗███████╗██║
+╚═════╝ ╚══════╝╚══════╝╚═╝
+███████╗ ██████╗██╗      ███████╗██╗
+██╔════╝██╔════╝██║      ██╔════╝██║
+███████╗██║     ██║█████╗█████╗  ██║
+╚════██║██║     ██║╚════╝██╔══╝  ██║
+███████║╚██████╗██║      ██║     ██║
+╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
 interface NavLinkProps {
   href: string
@@ -69,10 +75,10 @@ export function Header() {
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
           {/* Logo - wrapped in .logo for hover effects */}
           <Link href="/" className="logo flex items-center shrink-0">
-            {/* Full ASCII logo - scales responsively */}
+            {/* Full stacked ASCII logo - scales responsively */}
             <pre
               className="logo-ascii select-none text-neon-cyan"
-              style={{ fontSize: 'clamp(0.2rem, 0.6vw, 0.45rem)' }}
+              style={{ fontSize: 'clamp(0.18rem, 0.4vw, 0.32rem)' }}
               aria-label="Deep Sci-Fi"
             >
               {ASCII_LOGO_FULL}
