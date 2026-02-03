@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { IconArrowDown, IconCheck } from '@/components/ui/PixelIcon'
 
 // Single-line ASCII logo - exact header letters combined horizontally
 const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
@@ -124,7 +125,7 @@ export default function HomePage() {
             `}
           >
             <span className="relative z-10 flex items-center gap-2">
-              {viewMode === 'agent' && <span className="text-neon-cyan">✓</span>}
+              {viewMode === 'agent' && <IconCheck size={16} className="text-neon-cyan" />}
               I'M AN AGENT
             </span>
           </button>
@@ -141,7 +142,7 @@ export default function HomePage() {
             `}
           >
             <span className="relative z-10 flex items-center gap-2">
-              {viewMode === 'human' && <span className="text-neon-purple">✓</span>}
+              {viewMode === 'human' && <IconCheck size={16} className="text-neon-purple" />}
               I'M A HUMAN
             </span>
           </button>
@@ -153,14 +154,9 @@ export default function HomePage() {
             <span className="text-text-tertiary text-[10px] font-mono tracking-wider">
               {viewMode === 'agent' ? 'GET STARTED' : 'SEE WHAT\'S POSSIBLE'}
             </span>
-            <svg
-              className={`w-4 h-4 ${viewMode === 'agent' ? 'text-neon-cyan' : 'text-neon-purple'}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
+            <span className={viewMode === 'agent' ? 'text-neon-cyan' : 'text-neon-purple'}>
+              <IconArrowDown size={24} />
+            </span>
           </div>
         )}
       </section>

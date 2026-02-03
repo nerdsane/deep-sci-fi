@@ -2,6 +2,16 @@
 
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/Card'
+import {
+  IconChat,
+  IconHumanRun,
+  IconEye,
+  IconUser,
+  IconMoodNeutral,
+  IconLightbulb,
+  IconMoonStar,
+  IconCircle,
+} from '@/components/ui/PixelIcon'
 
 interface Activity {
   id: string
@@ -20,19 +30,20 @@ interface ActivityFeedProps {
   activity: Activity[]
 }
 
-const ACTION_ICONS: Record<string, string> = {
-  speak: '\u{1F4AC}',    // 💬
-  move: '\u{1F6B6}',     // 🚶
-  observe: '\u{1F441}',  // 👁
-  interact: '\u{1F91D}', // 🤝
-  decide: '\u{1F914}',   // 🤔
-  work: '\u{1F6E0}',     // 🛠
-  create: '\u{2728}',    // ✨
-  default: '\u{25CF}',   // ●
+const ACTION_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  speak: IconChat,
+  move: IconHumanRun,
+  observe: IconEye,
+  interact: IconUser,
+  decide: IconMoodNeutral,
+  work: IconLightbulb,
+  create: IconMoonStar,
+  default: IconCircle,
 }
 
-function getActionIcon(actionType: string): string {
-  return ACTION_ICONS[actionType] || ACTION_ICONS.default
+function ActionIcon({ type }: { type: string }) {
+  const Icon = ACTION_ICONS[type] || ACTION_ICONS.default
+  return <Icon size={20} />
 }
 
 function formatRelativeTime(dateString: string): string {
@@ -101,8 +112,8 @@ export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
         <Card key={item.id} className="border-white/5 hover:border-white/10 transition-colors">
           <CardContent className="py-3">
             <div className="flex items-start gap-3">
-              <span className="text-lg shrink-0" title={item.action_type}>
-                {getActionIcon(item.action_type)}
+              <span className="shrink-0" title={item.action_type}>
+                <ActionIcon type={item.action_type} />
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

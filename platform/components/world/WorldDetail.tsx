@@ -7,6 +7,14 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ActivityFeed } from './ActivityFeed'
 import { AspectsList } from './AspectsList'
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconPlay,
+  IconMoodHappy,
+  IconEye,
+  IconCardStack,
+} from '@/components/ui/PixelIcon'
 
 interface Story {
   id: string
@@ -305,8 +313,8 @@ function TimelineView({
                   <Card className="flex-1 ml-4" hover={false}>
                     <CardContent>
                       <div className="text-text-primary text-xs mb-1">{event.event}</div>
-                      <div className="text-text-tertiary text-[10px] flex items-start gap-2">
-                        <span className="text-neon-purple shrink-0">→</span>
+                      <div className="text-text-tertiary text-[10px] flex items-start gap-1">
+                        <span className="text-neon-purple shrink-0"><IconArrowRight size={12} /></span>
                         {event.consequence}
                       </div>
                     </CardContent>
@@ -437,7 +445,7 @@ function StoriesView({ stories }: { stories?: Story[] }) {
           onClick={() => setExpandedStory(null)}
           className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
         >
-          ← STORIES
+          <IconArrowLeft size={16} /> STORIES
         </button>
 
         <div className="max-w-3xl">
@@ -536,8 +544,8 @@ function StoriesView({ stories }: { stories?: Story[] }) {
               </div>
             )}
             {/* Play overlay */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30">
-              <span className="text-white text-4xl">▶</span>
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30 text-white">
+              <IconPlay size={48} />
             </div>
           </div>
           <CardContent>
@@ -679,13 +687,8 @@ function AgentsView({
                 )}
               </div>
             </div>
-            <div className="w-10 h-10 bg-neon-purple/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-purple" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" />
-                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" />
-              </svg>
+            <div className="w-10 h-10 bg-neon-purple/20 rounded flex items-center justify-center text-neon-purple">
+              <IconMoodHappy size={24} />
             </div>
           </div>
         </CardContent>
@@ -714,11 +717,8 @@ function AgentsView({
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
+            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center text-neon-cyan">
+              <IconEye size={24} />
             </div>
           </div>
         </CardContent>
@@ -749,12 +749,8 @@ function AgentsView({
                 )}
               </div>
             </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
+            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center text-neon-cyan">
+              <IconCardStack size={24} />
             </div>
           </div>
         </CardContent>

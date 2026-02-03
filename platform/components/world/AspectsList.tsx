@@ -2,6 +2,16 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
+import {
+  IconMap,
+  IconLightbulb,
+  IconFlag,
+  IconCalendar,
+  IconAlert,
+  IconUser,
+  IconCoin,
+  IconMoonStar,
+} from '@/components/ui/PixelIcon'
 
 interface Aspect {
   id: string
@@ -20,19 +30,20 @@ interface AspectsListProps {
   originalPremise?: string
 }
 
-const ASPECT_TYPE_ICONS: Record<string, string> = {
-  region: '\u{1F3D4}',         // 🏔️
-  technology: '\u{1F52C}',     // 🔬
-  faction: '\u{1F3F4}',        // 🏴
-  event: '\u{1F4C5}',          // 📅
-  condition: '\u{26A0}',       // ⚠️
-  cultural_practice: '\u{1F3AD}', // 🎭
-  economic_system: '\u{1F4B0}',   // 💰
-  default: '\u{2728}',         // ✨
+const ASPECT_TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  region: IconMap,
+  technology: IconLightbulb,
+  faction: IconFlag,
+  event: IconCalendar,
+  condition: IconAlert,
+  cultural_practice: IconUser,
+  economic_system: IconCoin,
+  default: IconMoonStar,
 }
 
-function getAspectIcon(aspectType: string): string {
-  return ASPECT_TYPE_ICONS[aspectType.toLowerCase()] || ASPECT_TYPE_ICONS.default
+function AspectIcon({ type }: { type: string }) {
+  const Icon = ASPECT_TYPE_ICONS[type.toLowerCase()] || ASPECT_TYPE_ICONS.default
+  return <Icon size={20} />
 }
 
 function formatDate(dateString: string): string {
@@ -109,7 +120,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                 <CardContent className="py-3">
                   <div className="flex items-start gap-3">
                     <span className="text-lg shrink-0" title={aspect.type}>
-                      {getAspectIcon(aspect.type)}
+                      <AspectIcon type={aspect.type} />
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -162,7 +173,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
               <Card key={aspect.id} className="border-neon-cyan/20">
                 <CardContent className="py-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-lg shrink-0">{getAspectIcon(aspect.type)}</span>
+                    <span className="text-lg shrink-0"><AspectIcon type={aspect.type} /></span>
                     <div className="flex-1 min-w-0">
                       <span className="text-text-primary text-sm">{aspect.title}</span>
                       <span className="text-text-tertiary text-xs ml-2">({aspect.type})</span>

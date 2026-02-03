@@ -6,6 +6,7 @@ import type { World } from '@/types'
 import { Carousel, CarouselItem } from '@/components/ui/Carousel'
 import { WorldCardSkeleton } from '@/components/ui/Skeleton'
 import { getWorlds, type World as ApiWorld } from '@/lib/api'
+import { IconArrowRight } from '@/components/ui/PixelIcon'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
@@ -131,8 +132,8 @@ function WorldMiniCard({ world }: { world: World }) {
           transition-opacity duration-200
           ${isHovering ? 'opacity-100' : 'opacity-0'}
         `}>
-          <span className="text-neon-cyan font-mono text-sm tracking-wider">
-            EXPLORE →
+          <span className="text-neon-cyan font-mono text-sm tracking-wider flex items-center gap-1">
+            EXPLORE <IconArrowRight size={16} />
           </span>
         </div>
       </div>
@@ -199,9 +200,9 @@ export function WorldRow({ title, sortBy, limit = 10 }: WorldRowProps) {
         </h2>
         <Link
           href={`/worlds?sort=${sortBy}`}
-          className="text-text-tertiary hover:text-neon-cyan transition-colors text-xs font-mono"
+          className="text-text-tertiary hover:text-neon-cyan transition-colors text-xs font-mono flex items-center gap-1"
         >
-          SEE ALL →
+          SEE ALL <IconArrowRight size={12} />
         </Link>
       </div>
 

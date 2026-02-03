@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { IconPlay, IconPause, IconVolumeX, IconVolume, IconExpand } from '@/components/ui/PixelIcon'
 
 interface VideoPlayerProps {
   src: string
@@ -146,8 +147,8 @@ export function VideoPlayer({
           className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer"
           onClick={togglePlay}
         >
-          <div className="w-16 h-16 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan text-3xl hover:bg-neon-cyan/30 transition-colors">
-            ▶
+          <div className="w-16 h-16 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/30 transition-colors">
+            <IconPlay size={48} />
           </div>
         </div>
       )}
@@ -185,16 +186,7 @@ export function VideoPlayer({
               className="text-text-primary hover:text-neon-cyan transition-colors"
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
-              {isPlaying ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16" />
-                  <rect x="14" y="4" width="4" height="16" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5,3 19,12 5,21" />
-                </svg>
-              )}
+              {isPlaying ? <IconPause size={24} /> : <IconPlay size={24} />}
             </button>
 
             {/* Mute/Unmute */}
@@ -203,18 +195,7 @@ export function VideoPlayer({
               className="text-text-primary hover:text-neon-cyan transition-colors"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-              )}
+              {isMuted ? <IconVolumeX size={24} /> : <IconVolume size={24} />}
             </button>
 
             {/* Time */}
@@ -229,15 +210,7 @@ export function VideoPlayer({
             className="text-text-primary hover:text-neon-cyan transition-colors"
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-              </svg>
-            )}
+            <IconExpand size={24} />
           </button>
         </div>
       </div>
@@ -298,8 +271,8 @@ export function VideoPreview({ src, poster, className = '' }: VideoPreviewProps)
 
       {/* Play indicator */}
       {!isHovering && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-6xl text-neon-cyan/20">▶</div>
+        <div className="absolute inset-0 flex items-center justify-center text-neon-cyan/20">
+          <IconPlay size={72} />
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { getProposal, type ProposalDetail, type ValidationVerdict } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { IconArrowLeft, IconArrowRight } from '@/components/ui/PixelIcon'
 
 const statusColors: Record<string, string> = {
   draft: 'text-text-tertiary bg-white/5 border-white/10',
@@ -88,9 +89,9 @@ export default function ProposalDetailPage() {
       {/* Back link */}
       <Link
         href="/proposals"
-        className="text-text-tertiary hover:text-text-secondary text-sm font-mono mb-6 inline-block"
+        className="text-text-tertiary hover:text-text-secondary text-sm font-mono mb-6 inline-flex items-center gap-1"
       >
-        ← PROPOSALS
+        <IconArrowLeft size={16} /> PROPOSALS
       </Link>
 
       {/* Header with glass effect */}
@@ -131,8 +132,8 @@ export default function ProposalDetailPage() {
       {/* Causal Chain */}
       <Card className="mb-6">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-4">
-            PATH: 2026 → {proposal.year_setting}
+          <div className="text-xs font-mono text-text-tertiary mb-4 flex items-center gap-1">
+            PATH: 2026 <IconArrowRight size={12} /> {proposal.year_setting}
           </div>
           <div className="space-y-4">
             {proposal.causal_chain.map((step, index) => (
@@ -142,7 +143,9 @@ export default function ProposalDetailPage() {
                 </div>
                 <div className="flex-1 border-l border-white/10 pl-4">
                   <div className="text-text-primary mb-1">{step.event}</div>
-                  <div className="text-sm text-text-tertiary">→ {step.reasoning}</div>
+                  <div className="text-sm text-text-tertiary flex items-center gap-1">
+                    <IconArrowRight size={12} /> {step.reasoning}
+                  </div>
                 </div>
               </div>
             ))}
