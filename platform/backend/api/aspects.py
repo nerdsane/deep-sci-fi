@@ -356,6 +356,10 @@ async def submit_aspect(
     aspect_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    force: bool = Query(
+        False,
+        description="Submit even if similar aspects exist. Use if you've reviewed the suggestions and your aspect is genuinely different."
+    ),
 ) -> dict[str, Any]:
     """
     Submit an aspect for validation.
@@ -364,7 +368,13 @@ async def submit_aspect(
     validate it. Make sure your canon_justification clearly explains how this
     fits with existing world elements.
 
+    SIMILARITY CHECK:
+    Before submitting, we check for similar existing aspects in this world.
+    If similar content is found, you'll see suggestions and must decide whether
+    to proceed. Use force=true to submit anyway if yours is genuinely different.
+
     BEFORE SUBMITTING:
+    - Review world canon first: GET /aspects/worlds/{world_id}/canon
     - Verify your aspect doesn't contradict the causal_chain
     - Check that any region references match existing regions
     - Ensure content is detailed enough for validators to assess
@@ -385,6 +395,79 @@ async def submit_aspect(
             status_code=400,
             detail=f"Cannot submit aspect in '{aspect.status.value}' status"
         )
+
+    # Similarity check against approved aspects in this world
+    similar_aspects = []
+    if not force:
+        try:
+            from utils.embeddings import (
+                generate_embedding,
+                SIMILARITY_THRESHOLD_GLOBAL,
+            )
+            from sqlalchemy import text
+
+            # Generate embedding for this aspect
+            aspect_text = f"Type: {aspect.aspect_type}\nTitle: {aspect.title}\nPremise: {aspect.premise}\nCanon Justification: {aspect.canon_justification}"
+            embedding = await generate_embedding(aspect_text)
+
+            # Check for similar approved aspects in this world
+            result = await db.execute(
+                text("""
+                    SELECT
+                        a.id, a.title, a.premise, a.aspect_type,
+                        1 - (a.premise_embedding <=> :embedding::vector) as similarity
+                    FROM platform_aspects a
+                    WHERE a.world_id = :world_id
+                    AND a.status = 'approved'
+                    AND a.premise_embedding IS NOT NULL
+                    AND a.id != :aspect_id
+                    AND 1 - (a.premise_embedding <=> :embedding::vector) > :threshold
+                    ORDER BY similarity DESC
+                    LIMIT 5
+                """),
+                {
+                    "embedding": str(embedding),
+                    "world_id": str(aspect.world_id),
+                    "aspect_id": str(aspect_id),
+                    "threshold": SIMILARITY_THRESHOLD_GLOBAL,
+                }
+            )
+            rows = result.fetchall()
+
+            if rows:
+                similar_aspects = [
+                    {
+                        "id": str(row.id),
+                        "title": row.title,
+                        "premise": row.premise[:200] + "..." if len(row.premise) > 200 else row.premise,
+                        "type": row.aspect_type,
+                        "similarity": round(row.similarity, 3),
+                    }
+                    for row in rows
+                ]
+
+                return {
+                    "submitted": False,
+                    "similar_aspects_found": True,
+                    "message": "We found similar existing aspects in this world. Review these before submitting.",
+                    "similar_aspects": similar_aspects,
+                    "proceed_endpoint": f"/api/aspects/{aspect_id}/submit?force=true",
+                    "note": "If your aspect is genuinely different from these, use force=true to proceed.",
+                }
+
+            # Store the embedding for future comparisons (via raw SQL)
+            await db.execute(
+                text("UPDATE platform_aspects SET premise_embedding = :embedding::vector WHERE id = :id"),
+                {"embedding": str(embedding), "id": str(aspect_id)}
+            )
+
+        except ImportError:
+            pass  # pgvector or openai not available
+        except ValueError:
+            pass  # OPENAI_API_KEY not set
+        except Exception as e:
+            import logging
+            logging.warning(f"Aspect similarity check failed: {e}")
 
     aspect.status = AspectStatus.VALIDATING
     await db.commit()
