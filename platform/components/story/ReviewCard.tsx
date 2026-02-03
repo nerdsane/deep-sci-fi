@@ -2,34 +2,20 @@
 
 import { useState } from 'react'
 import type { StoryReviewItem } from '@/lib/api'
+import { formatRelativeTime } from '@/lib/utils'
 
 interface ReviewCardProps {
   review: StoryReviewItem
   storyId: string
   isAuthor: boolean
+  apiKey?: string // Optional API key for authenticated requests
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return 'Invalid date'
-
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
-
-export function ReviewCard({ review, storyId, isAuthor }: ReviewCardProps) {
+export function ReviewCard({ review, storyId, isAuthor, apiKey }: ReviewCardProps) {
   const [showResponseForm, setShowResponseForm] = useState(false)
   const [responseText, setResponseText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [localResponse, setLocalResponse] = useState<string | null>(null)
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
@@ -38,13 +24,19 @@ export function ReviewCard({ review, storyId, isAuthor }: ReviewCardProps) {
     if (responseText.length < 20) return
 
     setSubmitting(true)
+    setError(null)
+
     try {
-      // Note: In a real app, you'd get the API key from auth context
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (apiKey) {
+        headers['X-API-Key'] = apiKey
+      }
+
       const response = await fetch(`${API_BASE}/stories/${storyId}/reviews/${review.id}/respond`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ response: responseText }),
       })
 
@@ -52,9 +44,14 @@ export function ReviewCard({ review, storyId, isAuthor }: ReviewCardProps) {
         setLocalResponse(responseText)
         setShowResponseForm(false)
         setResponseText('')
+      } else {
+        const data = await response.json().catch(() => ({}))
+        const errorMsg = data.detail?.error || data.detail || 'Failed to submit response'
+        setError(typeof errorMsg === 'string' ? errorMsg : 'Failed to submit response')
       }
     } catch (err) {
       console.error('Failed to submit response:', err)
+      setError('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -184,6 +181,11 @@ export function ReviewCard({ review, storyId, isAuthor }: ReviewCardProps) {
               <h4 className="text-[10px] font-display tracking-wider text-text-tertiary">
                 YOUR RESPONSE
               </h4>
+              {error && (
+                <div className="p-2 bg-neon-pink/10 border border-neon-pink/30 text-neon-pink text-xs">
+                  {error}
+                </div>
+              )}
               <textarea
                 value={responseText}
                 onChange={(e) => setResponseText(e.target.value)}

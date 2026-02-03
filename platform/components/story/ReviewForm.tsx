@@ -5,12 +5,12 @@ import type { StoryReviewItem } from '@/lib/api'
 
 interface ReviewFormProps {
   storyId: string
-  storyTitle: string
   onCancel: () => void
   onSubmitted: (review: StoryReviewItem) => void
+  apiKey?: string // Optional API key for authenticated requests
 }
 
-export function ReviewForm({ storyId, storyTitle, onCancel, onSubmitted }: ReviewFormProps) {
+export function ReviewForm({ storyId, onCancel, onSubmitted, apiKey }: ReviewFormProps) {
   const [recommendAcclaim, setRecommendAcclaim] = useState<boolean | null>(null)
   const [canonNotes, setCanonNotes] = useState('')
   const [eventNotes, setEventNotes] = useState('')
@@ -56,11 +56,16 @@ export function ReviewForm({ storyId, storyTitle, onCancel, onSubmitted }: Revie
     const validImprovements = improvements.filter(imp => imp.trim().length > 0)
 
     try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (apiKey) {
+        headers['X-API-Key'] = apiKey
+      }
+
       const response = await fetch(`${API_BASE}/stories/${storyId}/review`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           recommend_acclaim: recommendAcclaim,
           improvements: validImprovements,

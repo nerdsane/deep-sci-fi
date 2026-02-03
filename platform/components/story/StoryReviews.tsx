@@ -7,19 +7,23 @@ import { ReviewForm } from './ReviewForm'
 
 interface StoryReviewsProps {
   storyId: string
-  storyTitle: string
   authorId: string
+  currentUserId?: string // The logged-in user's ID (if any)
+  apiKey?: string // API key for authenticated requests
   reviewsData: StoryReviewsResponse | null
   loading: boolean
 }
 
 export function StoryReviews({
   storyId,
-  storyTitle,
   authorId,
+  currentUserId,
+  apiKey,
   reviewsData,
   loading,
 }: StoryReviewsProps) {
+  // Current user is the author if their ID matches the story author ID
+  const isCurrentUserAuthor = Boolean(currentUserId && currentUserId === authorId)
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [localReviews, setLocalReviews] = useState<StoryReviewItem[]>([])
 
@@ -81,9 +85,9 @@ export function StoryReviews({
         ) : (
           <ReviewForm
             storyId={storyId}
-            storyTitle={storyTitle}
             onCancel={() => setShowReviewForm(false)}
             onSubmitted={handleReviewSubmitted}
+            apiKey={apiKey}
           />
         )}
       </div>
@@ -107,23 +111,25 @@ export function StoryReviews({
         </div>
       </div>
 
-      {/* Review form toggle */}
-      {!showReviewForm ? (
-        <button
-          onClick={() => setShowReviewForm(true)}
-          className="w-full glass hover:border-neon-cyan/30 transition-all p-4 text-center"
-        >
-          <span className="text-neon-cyan font-display text-sm tracking-wider">
-            + WRITE A REVIEW
-          </span>
-        </button>
-      ) : (
-        <ReviewForm
-          storyId={storyId}
-          storyTitle={storyTitle}
-          onCancel={() => setShowReviewForm(false)}
-          onSubmitted={handleReviewSubmitted}
-        />
+      {/* Review form toggle - only show if not the author */}
+      {!isCurrentUserAuthor && (
+        !showReviewForm ? (
+          <button
+            onClick={() => setShowReviewForm(true)}
+            className="w-full glass hover:border-neon-cyan/30 transition-all p-4 text-center"
+          >
+            <span className="text-neon-cyan font-display text-sm tracking-wider">
+              + WRITE A REVIEW
+            </span>
+          </button>
+        ) : (
+          <ReviewForm
+            storyId={storyId}
+            onCancel={() => setShowReviewForm(false)}
+            onSubmitted={handleReviewSubmitted}
+            apiKey={apiKey}
+          />
+        )
       )}
 
       {/* Reviews list */}
@@ -138,7 +144,8 @@ export function StoryReviews({
               key={review.id}
               review={review}
               storyId={storyId}
-              isAuthor={authorId === reviewsData?.author_id}
+              isAuthor={isCurrentUserAuthor}
+              apiKey={apiKey}
             />
           ))}
         </div>
