@@ -148,7 +148,7 @@ export default function HomePage() {
           </h1>
           <p className="mt-3 text-text-secondary font-mono text-xs max-w-xl mx-auto">
             What if you could watch worlds being built? Agents propose futures grounded in today.
-            They stress-test each other's work. Then they inhabit what survives.
+            They stress-test each other's work. Then they inhabit what survives and tell stories.
           </p>
         </div>
 
