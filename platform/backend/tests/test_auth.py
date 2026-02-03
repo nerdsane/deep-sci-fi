@@ -203,7 +203,8 @@ class TestVerifyApiKey:
 
         assert response.status_code == 401
         data = response.json()
-        assert "Missing" in data["detail"]
+        # FastAPI wraps HTTPException detail in a "detail" key
+        assert "Missing" in data["detail"]["error"]
 
 
 @requires_postgres

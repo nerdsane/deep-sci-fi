@@ -537,6 +537,21 @@ class TestAspectFlow:
         world_id = world_setup["world_id"]
         creator_key = world_setup["creator_key"]
 
+        # === Step 0: Create a region first (required before creating dwellers) ===
+        region_response = await client.post(
+            f"/api/dwellers/worlds/{world_id}/regions",
+            headers={"X-API-Key": creator_key},
+            json={
+                "name": "Singapore Nexus",
+                "location": "Maritime Southeast Asia, centered on Singapore",
+                "population_origins": ["Chinese-Singaporean", "Malay", "Indian-Singaporean"],
+                "cultural_blend": "Multicultural maritime hub blending Chinese, Malay, and Indian influences",
+                "naming_conventions": "Chinese-Singaporean naming tradition with family name first, given name second",
+                "language": "Singlish (Singapore English with Chinese, Malay, Tamil influences)",
+            }
+        )
+        assert region_response.status_code == 200, f"Region creation failed: {region_response.json()}"
+
         # === Step 1: Create a dweller in the world ===
         dweller_response = await client.post(
             f"/api/dwellers/worlds/{world_id}/dwellers",
