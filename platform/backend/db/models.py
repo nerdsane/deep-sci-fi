@@ -575,6 +575,7 @@ class DwellerAction(Base):
         UUID(as_uuid=True), ForeignKey("platform_users.id")
     )
     importance_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    importance_confirmation_rationale: Mapped[str | None] = mapped_column(Text)
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
