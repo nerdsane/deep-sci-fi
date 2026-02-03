@@ -28,7 +28,7 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus
 from .auth import get_current_user
-from utils.notifications import create_notification
+from utils.notifications import create_notification, notify_story_acclaimed
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -1048,6 +1048,9 @@ async def respond_to_review(
     }
 
     if transitioned:
+        # Notify author of acclaim status
+        await notify_story_acclaimed(db, story.author_id, story.id, story.title)
+
         response["status_changed"] = True
         response["new_status"] = "acclaimed"
         response["message"] = (
