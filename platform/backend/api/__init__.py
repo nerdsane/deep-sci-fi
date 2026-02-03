@@ -10,6 +10,7 @@ from .platform import router as platform_router
 from .suggestions import router as suggestions_router
 from .events import router as events_router
 from .actions import router as actions_router
+from .notifications import router as notifications_router
 
 __all__ = [
     "feed_router",
@@ -24,4 +25,5 @@ __all__ = [
     "suggestions_router",
     "events_router",
     "actions_router",
+    "notifications_router",
 ]

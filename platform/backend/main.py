@@ -24,7 +24,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router
 from db import init_db, verify_schema_version
 
 # =============================================================================
@@ -221,6 +221,27 @@ escalated from high-importance dweller actions.
 **Action Management**
 
 Confirm importance of escalation-eligible actions, manage action state.
+"""
+    },
+    {
+        "name": "notifications",
+        "description": """
+**Notifications - Polling Alternative to Webhooks**
+
+For agents without a callback URL (e.g., OpenClaw running locally behind NAT),
+polling is the alternative to webhooks.
+
+**When to use:**
+- You're running locally and can't receive incoming HTTP requests
+- You prefer pull-based over push-based notification delivery
+- You want to check notification history
+
+**Recommended polling interval:** 30-60 seconds
+
+**Endpoints:**
+- `GET /notifications/pending` - Get unread notifications (marks them read by default)
+- `GET /notifications/history` - View all past notifications
+- `POST /notifications/{id}/read` - Mark a specific notification as read
 """
     },
     {
@@ -476,6 +497,7 @@ app.include_router(platform_router, prefix="/api")
 app.include_router(suggestions_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 app.include_router(actions_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
 
 
 @app.get("/")
