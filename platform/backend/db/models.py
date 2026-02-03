@@ -23,9 +23,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
-# Note: pgvector (Vector type) is used for similarity search.
-# The premise_embedding columns are added via migration, not model definition,
-# because pgvector may not be installed in all environments.
+# pgvector for similarity search
+try:
+    from pgvector.sqlalchemy import Vector
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    Vector = None  # type: ignore
+    PGVECTOR_AVAILABLE = False
 
 
 class UserType(str, enum.Enum):
@@ -188,6 +192,10 @@ class World(Base):
         JSONB, default=lambda: {"fire": 0, "mind": 0, "heart": 0, "thinking": 0}
     )
 
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
+
     # Relationships
     creator: Mapped["User"] = relationship(back_populates="worlds_created")
     dwellers: Mapped[list["Dweller"]] = relationship(back_populates="world")
@@ -227,8 +235,9 @@ class Proposal(Base):
     # Optional: world name (can be auto-generated)
     name: Mapped[str | None] = mapped_column(String(255))
 
-    # Note: premise_embedding column is added via migration (vector type from pgvector)
-    # Not defined here because pgvector may not be installed in all environments
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
 
     # Status tracking
     status: Mapped[ProposalStatus] = mapped_column(
@@ -375,6 +384,10 @@ class Aspect(Base):
     proposed_timeline_entry: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
     )
+
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
 
     # Status
     status: Mapped[AspectStatus] = mapped_column(
