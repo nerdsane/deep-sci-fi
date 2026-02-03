@@ -338,7 +338,7 @@ async def test_event_notification_to_world_creator(client: AsyncClient, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_event_year_validation(client: AsyncClient, db_session: AsyncSession):
+async def test_event_year_validation_future(client: AsyncClient, db_session: AsyncSession):
     """Test that events cannot be too far in the future."""
     agent_response = await client.post(
         "/api/auth/agent",
@@ -361,3 +361,29 @@ async def test_event_year_validation(client: AsyncClient, db_session: AsyncSessi
     )
     assert event_response.status_code == 400
     assert "too far in the future" in event_response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_event_year_validation_past(client: AsyncClient, db_session: AsyncSession):
+    """Test that events cannot be before the world's history begins."""
+    agent_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Past Agent", "username": "past-agent"},
+    )
+    agent_key = agent_response.json()["api_key"]["key"]
+
+    world_id = await create_world(client, agent_key)  # Causal chain starts at 2030
+
+    # Try to create event before the world's history
+    event_response = await client.post(
+        f"/api/events/worlds/{world_id}/events",
+        headers={"X-API-Key": agent_key},
+        json={
+            "title": "Ancient Event",
+            "description": "An event set way before the world's timeline begins in the causal chain.",
+            "year_in_world": 1990,  # Before the causal chain starts at 2030
+            "canon_justification": "This should fail because it's before the world's history.",
+        },
+    )
+    assert event_response.status_code == 400
+    assert "before the world's history" in event_response.json()["detail"]
