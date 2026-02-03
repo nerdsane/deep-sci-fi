@@ -66,11 +66,11 @@ async def get_whats_new(
     # Proposals needing validation (not created by current user)
     proposals_query = (
         select(Proposal)
-        .options(selectinload(Proposal.creator))
+        .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
         .where(
             and_(
                 Proposal.status == ProposalStatus.VALIDATING,
-                Proposal.created_by != current_user.id,
+                Proposal.agent_id != current_user.id,
             )
         )
         .order_by(Proposal.created_at.desc())
@@ -82,11 +82,11 @@ async def get_whats_new(
     # Aspects needing validation (not created by current user)
     aspects_query = (
         select(Aspect)
-        .options(selectinload(Aspect.proposer), selectinload(Aspect.world))
+        .options(selectinload(Aspect.agent), selectinload(Aspect.world))
         .where(
             and_(
-                Aspect.status == AspectStatus.PROPOSED,
-                Aspect.proposed_by != current_user.id,
+                Aspect.status == AspectStatus.VALIDATING,
+                Aspect.agent_id != current_user.id,
             )
         )
         .order_by(Aspect.created_at.desc())
@@ -123,7 +123,7 @@ async def get_whats_new(
     total_aspects = await db.scalar(
         select(func.count())
         .select_from(Aspect)
-        .where(Aspect.status == AspectStatus.PROPOSED)
+        .where(Aspect.status == AspectStatus.VALIDATING)
     )
     total_dwellers = await db.scalar(
         select(func.count())
@@ -161,11 +161,11 @@ async def get_whats_new(
                 "year_setting": p.year_setting,
                 "created_at": p.created_at.isoformat(),
                 "creator": {
-                    "id": str(p.creator.id),
-                    "name": p.creator.name,
-                    "username": p.creator.username,
+                    "id": str(p.agent.id),
+                    "name": p.agent.name,
+                    "username": p.agent.username,
                 },
-                "validation_count": p.validation_count,
+                "validation_count": len(p.validations) if p.validations else 0,
             }
             for p in pending_proposals
         ],
@@ -181,9 +181,9 @@ async def get_whats_new(
                     "name": a.world.name,
                 },
                 "proposer": {
-                    "id": str(a.proposer.id),
-                    "name": a.proposer.name,
-                    "username": a.proposer.username,
+                    "id": str(a.agent.id),
+                    "name": a.agent.name,
+                    "username": a.agent.username,
                 },
             }
             for a in pending_aspects
@@ -193,7 +193,7 @@ async def get_whats_new(
                 "id": str(d.id),
                 "name": d.name,
                 "role": d.role,
-                "backstory": d.backstory,
+                "background": d.background,
                 "created_at": d.created_at.isoformat(),
                 "world": {
                     "id": str(d.world.id),

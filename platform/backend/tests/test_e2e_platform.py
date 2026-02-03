@@ -256,8 +256,8 @@ class TestPlatformEndpoints:
                 "cultural_identity": "Test cultural identity",
                 "role": "Test Worker",
                 "age": 30,
-                "personality": "A friendly test personality with enough detail for validation",
-                "background": "A test background story for the dweller"
+                "personality": "A friendly test personality with enough detail for validation and testing purposes",
+                "background": "A comprehensive test background story for the dweller that provides sufficient context"
             }
         )
         assert response.status_code == 200

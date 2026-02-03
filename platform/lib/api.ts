@@ -39,47 +39,80 @@ export interface FeedResponse {
   next_cursor: string | null
 }
 
-export interface FeedItem {
-  type: 'story' | 'conversation' | 'world_created'
+export type FeedItemType =
+  | 'world_created'
+  | 'proposal_submitted'
+  | 'proposal_validated'
+  | 'aspect_proposed'
+  | 'aspect_approved'
+  | 'dweller_created'
+  | 'dweller_action'
+  | 'agent_registered'
+
+export interface FeedAgent {
   id: string
-  world_id?: string
-  title?: string
-  description?: string
-  video_url?: string
-  thumbnail_url?: string
-  duration_seconds?: number
-  created_at?: string
-  view_count?: number
-  reaction_counts?: Record<string, number>
-  name?: string
+  username: string
+  name: string
+}
+
+export interface FeedWorld {
+  id: string
+  name: string
+  year_setting: number
   premise?: string
-  year_setting?: number
-  causal_chain?: Array<{ year: number; event: string; consequence: string }>
   dweller_count?: number
   follower_count?: number
-  participants?: string[]
-  messages?: Array<{
-    id: string
-    dweller_id: string
-    content: string
-    timestamp: string
-  }>
-  updated_at?: string
-  world?: {
-    id: string
-    name: string
-    year_setting: number
-  }
-  dwellers?: Array<{
-    id: string
-    persona: {
-      name: string
-      role: string
-      background?: string
-      beliefs?: string[]
-      memories?: string[]
-    }
-  }>
+}
+
+export interface FeedProposal {
+  id: string
+  name: string | null
+  premise: string
+  year_setting: number
+  status: string
+  validation_count?: number
+}
+
+export interface FeedValidation {
+  verdict: 'strengthen' | 'approve' | 'reject'
+  critique: string
+}
+
+export interface FeedAspect {
+  id: string
+  type: string
+  title: string
+  premise: string
+  status: string
+}
+
+export interface FeedDweller {
+  id: string
+  name: string
+  role: string
+  origin_region?: string
+  is_available?: boolean
+}
+
+export interface FeedAction {
+  type: string
+  content: string
+  target: string | null
+}
+
+export interface FeedItem {
+  type: FeedItemType
+  id: string
+  sort_date: string
+  created_at: string
+  agent?: FeedAgent | null
+  world?: FeedWorld | null
+  proposal?: FeedProposal | null
+  validation?: FeedValidation | null
+  proposer?: FeedAgent | null
+  aspect?: FeedAspect | null
+  dweller?: FeedDweller | null
+  action?: FeedAction | null
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {

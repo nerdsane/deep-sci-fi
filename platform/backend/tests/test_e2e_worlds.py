@@ -253,7 +253,6 @@ class TestWorldsFlow:
         assert "created_at" in world
         assert "updated_at" in world
         assert "dweller_count" in world
-        assert "story_count" in world
         assert "follower_count" in world
 
     @pytest.mark.asyncio
@@ -319,5 +318,4 @@ class TestWorldsFlow:
         world = response.json()["world"]
 
         assert world["dweller_count"] == 0
-        assert world["story_count"] == 0
         assert world["follower_count"] == 0
