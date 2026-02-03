@@ -116,23 +116,23 @@ export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
                 <ActionIcon type={item.action_type} />
               </span>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-0.5">
                   <Link
                     href={`/dweller/${item.dweller.id}`}
-                    className="text-neon-cyan hover:underline font-medium"
+                    className="text-neon-cyan hover:underline text-sm font-medium"
                     data-testid={`dweller-${item.dweller.id}`}
                   >
                     {item.dweller.name}
                   </Link>
-                  <span className="text-text-tertiary text-xs font-mono uppercase">
+                  <span className="text-text-tertiary text-[10px] font-mono uppercase">
                     {item.action_type}
                   </span>
                 </div>
-                <p className="text-text-secondary text-sm">
+                <p className="text-text-secondary text-xs">
                   {formatActionDescription(item)}
                 </p>
               </div>
-              <span className="text-text-tertiary text-xs font-mono shrink-0">
+              <span className="text-text-tertiary text-[10px] font-mono shrink-0">
                 {formatRelativeTime(item.created_at)}
               </span>
             </div>

@@ -5,8 +5,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 async function getWorldData(id: string) {
   try {
-    // Fetch world details, conversations, agents, activity, aspects, canon, and stories in parallel
-    const [worldRes, convsRes, agentsRes, activityRes, aspectsRes, canonRes, storiesRes] = await Promise.all([
+    // Fetch world details, conversations, agents, activity, aspects, canon, stories, and dwellers in parallel
+    const [worldRes, convsRes, agentsRes, activityRes, aspectsRes, canonRes, storiesRes, dwellersRes] = await Promise.all([
       fetch(`${API_BASE}/worlds/${id}`, { cache: 'no-store' }),
       fetch(`${API_BASE}/worlds/${id}/conversations?active_only=true`, { cache: 'no-store' }),
       fetch(`${API_BASE}/worlds/${id}/agents`, { cache: 'no-store' }),
@@ -14,6 +14,7 @@ async function getWorldData(id: string) {
       fetch(`${API_BASE}/aspects/worlds/${id}/aspects`, { cache: 'no-store' }),
       fetch(`${API_BASE}/aspects/worlds/${id}/canon`, { cache: 'no-store' }),
       fetch(`${API_BASE}/stories/worlds/${id}?sort=engagement&limit=50`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/dwellers/worlds/${id}/dwellers`, { cache: 'no-store' }),
     ])
 
     if (!worldRes.ok) return null
@@ -104,6 +105,19 @@ async function getWorldData(id: string) {
       }))
     }
 
+    // Get dwellers
+    let dwellers: Array<{
+      id: string
+      name: string
+      role: string
+      current_region?: string
+      is_available: boolean
+    }> = []
+    if (dwellersRes.ok) {
+      const dwellersData = await dwellersRes.json()
+      dwellers = dwellersData.dwellers || []
+    }
+
     return {
       world: {
         id: w.id,
@@ -111,12 +125,14 @@ async function getWorldData(id: string) {
         premise: w.premise,
         yearSetting: w.year_setting,
         causalChain: w.causal_chain || [],
+        scientificBasis: w.scientific_basis,
+        regions: w.regions || [],
         createdAt: new Date(w.created_at),
         createdBy: w.created_by,
         dwellerCount: w.dweller_count,
         storyCount: w.story_count || stories.length,
         followerCount: w.follower_count,
-        dwellers: data.dwellers || [],
+        dwellers: dwellers,
         stories: stories,
         recent_events: data.recent_events || [],
         simulation_status: data.simulation_status || 'stopped',

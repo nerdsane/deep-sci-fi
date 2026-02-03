@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   IconMap,
@@ -124,7 +125,13 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-text-primary font-medium">{aspect.title}</h4>
+                        <Link
+                          href={`/aspect/${aspect.id}`}
+                          className="text-text-primary font-medium hover:text-neon-cyan transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {aspect.title}
+                        </Link>
                         <span className="text-text-tertiary text-xs font-mono uppercase">
                           {aspect.type}
                         </span>
