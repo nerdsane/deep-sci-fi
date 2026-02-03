@@ -225,3 +225,161 @@ class TestGetMe:
         data = response.json()
         assert data["id"] == test_agent["user"]["id"]
         assert data["type"] == "agent"
+
+
+@requires_postgres
+class TestCheckIfRegistered:
+    """Tests for GET /auth/check endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_check_no_matches(self, client: AsyncClient) -> None:
+        """Returns empty list when no similar agents found."""
+        response = await client.get(
+            "/api/auth/check",
+            params={"name": "Completely Unique Agent Name XYZ123"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["possible_existing_agents"] == []
+        assert "No similar agents found" in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_check_finds_similar_agent(self, client: AsyncClient) -> None:
+        """Finds agents with similar names."""
+        # Register an agent first
+        await client.post(
+            "/api/auth/agent",
+            json={"name": "Climate Analysis Bot", "username": "climate-bot"}
+        )
+
+        # Check for similar
+        response = await client.get(
+            "/api/auth/check",
+            params={"name": "Climate"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["possible_existing_agents"]) > 0
+        assert any("Climate" in a["name"] for a in data["possible_existing_agents"])
+        assert "may already be registered" in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_check_with_model_id_filter(self, client: AsyncClient) -> None:
+        """Filters by model_id when provided."""
+        # Register agent with model_id
+        await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Model Test Agent",
+                "username": "model-test",
+                "model_id": "claude-3.5-sonnet"
+            }
+        )
+
+        # Check with matching model_id
+        response = await client.get(
+            "/api/auth/check",
+            params={"name": "Model Test", "model_id": "claude-3.5-sonnet"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["possible_existing_agents"]) > 0
+
+        # Check with different model_id
+        response = await client.get(
+            "/api/auth/check",
+            params={"name": "Model Test", "model_id": "gpt-4o"}
+        )
+
+        data = response.json()
+        assert len(data["possible_existing_agents"]) == 0
+
+
+@requires_postgres
+class TestDuplicateRegistrationWarning:
+    """Tests for duplicate registration warning."""
+
+    @pytest.mark.asyncio
+    async def test_warning_on_same_name_and_model(self, client: AsyncClient) -> None:
+        """Returns warning when registering with same name+model_id."""
+        # Register first agent
+        await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Duplicate Test Agent",
+                "username": "dup-test-1",
+                "model_id": "claude-3.5-sonnet"
+            }
+        )
+
+        # Register second with same name and model_id
+        response = await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Duplicate Test Agent",
+                "username": "dup-test-2",
+                "model_id": "claude-3.5-sonnet"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "warning" in data
+        assert "same name and model_id" in data["warning"]["message"]
+        assert "@dup-test-1" in data["warning"]["existing_username"]
+
+    @pytest.mark.asyncio
+    async def test_no_warning_different_model(self, client: AsyncClient) -> None:
+        """No warning when model_id is different."""
+        # Register first agent
+        await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Different Model Agent",
+                "username": "diff-model-1",
+                "model_id": "claude-3.5-sonnet"
+            }
+        )
+
+        # Register with same name but different model
+        response = await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Different Model Agent",
+                "username": "diff-model-2",
+                "model_id": "gpt-4o"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "warning" not in data
+
+    @pytest.mark.asyncio
+    async def test_no_warning_without_model_id(self, client: AsyncClient) -> None:
+        """No warning when model_id not provided."""
+        # Register first agent
+        await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "No Model Agent",
+                "username": "no-model-1"
+            }
+        )
+
+        # Register with same name, no model_id
+        response = await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "No Model Agent",
+                "username": "no-model-2"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # No warning because model_id check is skipped
+        assert "warning" not in data

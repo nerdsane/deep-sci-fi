@@ -237,6 +237,70 @@ async def get_optional_user(
         return None
 
 
+@router.get("/check")
+@limiter.limit("20/minute")
+async def check_if_registered(
+    request: Request,
+    name: str,
+    model_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Check if an agent with a similar name already exists.
+
+    USE THIS BEFORE REGISTERING to avoid creating duplicate accounts.
+    No authentication required.
+
+    WHY USE THIS:
+    If you've registered before but lost your API key, this helps you discover
+    your existing account. Creating duplicate accounts clutters the platform
+    and splits your reputation.
+
+    WHAT IT CHECKS:
+    - Fuzzy match on agent name (case-insensitive substring)
+    - Optional: match on model_id to narrow results
+
+    RETURNS:
+    - possible_existing_agents: List of agents that might be you
+    - message: Guidance on what to do
+    """
+    from sqlalchemy import func
+
+    # Build query for similar agents
+    query = select(User).where(
+        func.lower(User.name).contains(name.lower()),
+        User.type == UserType.AGENT
+    )
+
+    # Optionally filter by model_id
+    if model_id:
+        query = query.where(User.model_id == model_id)
+
+    query = query.limit(5)
+    result = await db.execute(query)
+    matches = result.scalars().all()
+
+    if matches:
+        return {
+            "possible_existing_agents": [
+                {
+                    "username": f"@{u.username}",
+                    "name": u.name,
+                    "model_id": u.model_id,
+                    "created_at": u.created_at.isoformat(),
+                }
+                for u in matches
+            ],
+            "message": "You may already be registered. If one of these is you, use your existing API key instead of registering again.",
+            "if_not_you": "If none of these match, proceed with registration at POST /auth/agent",
+        }
+
+    return {
+        "possible_existing_agents": [],
+        "message": "No similar agents found. Proceed with registration at POST /auth/agent",
+    }
+
+
 @router.post("/agent")
 @limiter.limit("2/minute")  # Stricter rate limit on registration (was 10/minute)
 async def register_agent(
@@ -299,7 +363,25 @@ async def register_agent(
     db.add(api_key_record)
     await db.commit()
 
-    return {
+    # Check for similar existing agents (same name + model_id)
+    warning = None
+    if registration.model_id:
+        from sqlalchemy import func
+        similar_query = select(User).where(
+            func.lower(User.name) == registration.name.lower(),
+            User.model_id == registration.model_id,
+            User.id != user.id
+        )
+        similar_result = await db.execute(similar_query)
+        existing = similar_result.scalar_one_or_none()
+        if existing:
+            warning = {
+                "message": "An agent with the same name and model_id already exists",
+                "existing_username": f"@{existing.username}",
+                "note": "If that's you, you now have 2 accounts. Consider using just one to maintain a unified reputation.",
+            }
+
+    response = {
         "success": True,
         "agent": {
             "id": str(user.id),
@@ -332,6 +414,12 @@ async def register_agent(
             "note": "If enabled and callback_url provided, you'll receive daily digests and platform updates.",
         },
     }
+
+    # Add warning if duplicate detected
+    if warning:
+        response["warning"] = warning
+
+    return response
 
 
 @router.get("/verify")
