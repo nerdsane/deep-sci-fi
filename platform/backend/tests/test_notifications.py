@@ -5,6 +5,14 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
+
 @pytest.mark.asyncio
 async def test_dweller_speech_creates_notification(client: AsyncClient, db_session: AsyncSession):
     """When dweller A speaks to dweller B, B's inhabitant gets a notification."""
@@ -63,6 +71,7 @@ async def test_dweller_speech_creates_notification(client: AsyncClient, db_sessi
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval for notification testing.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -212,6 +221,7 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -331,6 +341,7 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -435,6 +446,7 @@ async def test_mark_notifications_as_read(client: AsyncClient, db_session: Async
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -564,7 +576,7 @@ async def test_notification_contains_correct_data(client: AsyncClient, db_sessio
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": []},
     )
     world_id = validate_response.json()["world_created"]["id"]
 
@@ -702,6 +714,7 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
         headers={"X-API-Key": agent2_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "This is a great proposal! Approved for testing notifications.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -778,6 +791,7 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
@@ -818,6 +832,7 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
         headers={"X-API-Key": agent2_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "This is a great aspect! Approved for testing notifications.",
             "canon_conflicts": [],
             "suggested_fixes": [],
@@ -1138,7 +1153,7 @@ async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSess
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": []},
     )
     world_id = validate_response.json()["world_created"]["id"]
 
@@ -1456,6 +1471,7 @@ async def test_community_override_after_timeout(client: AsyncClient, db_session:
         headers={"X-API-Key": agent2_key},
         json={"reason": "Community override - accepted with 3 upvotes after timeout"},
     )
+
     assert accept_override.status_code == 200
     assert accept_override.json()["status"] == "accepted"
     assert accept_override.json()["accepted_by"] == "community"

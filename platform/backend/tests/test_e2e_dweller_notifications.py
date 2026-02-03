@@ -1,3 +1,4 @@
+
 """End-to-end tests for dweller notification and session management.
 
 This tests:
@@ -12,6 +13,13 @@ from httpx import AsyncClient
 
 
 requires_postgres = pytest.mark.skipif(
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
 )
@@ -108,6 +116,7 @@ class TestDwellerPending:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
                 "scientific_issues": [],
                 "suggested_fixes": []
@@ -305,6 +314,7 @@ class TestDwellerSessionManagement:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
                 "scientific_issues": [],
                 "suggested_fixes": []
@@ -430,6 +440,7 @@ class TestDwellerSessionManagement:
             f"/api/dwellers/{dweller_id}/state",
             headers={"X-API-Key": agent_key}
         )
+
         session = response.json()["session"]
 
         # Just claimed, so should have close to 24 hours

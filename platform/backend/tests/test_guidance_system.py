@@ -1,3 +1,4 @@
+
 """End-to-end tests for the guidance system.
 
 Tests that write endpoints return:
@@ -14,6 +15,12 @@ from httpx import AsyncClient
 
 from tests.conftest import SAMPLE_CAUSAL_CHAIN, SAMPLE_DWELLER
 
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
 
 # Override SAMPLE_REGION with one that meets all minimum length requirements
 SAMPLE_REGION = {
@@ -107,6 +114,7 @@ class TestGuidanceInResponses:
             headers={"X-API-Key": test_agent["api_key"]},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Test approval for guidance testing purposes.",
             }
         )
@@ -171,7 +179,7 @@ class TestGuidanceInResponses:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements."},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -278,7 +286,7 @@ class TestPendingConfirmationTimeouts:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements."},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -354,7 +362,7 @@ class TestAspectGuidance:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements."},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -423,9 +431,11 @@ class TestValidationGuidance:
             headers={"X-API-Key": test_agent["api_key"]},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Test approval for guidance verification with sufficient length to meet requirements.",
             }
         )
+
         assert response.status_code == 200
         data = response.json()
 

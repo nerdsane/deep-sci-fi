@@ -20,6 +20,14 @@ requires_postgres = pytest.mark.skipif(
 )
 
 
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
+
 # Sample causal chain for testing - must have at least 3 steps with 10+ char event/reasoning
 SAMPLE_CAUSAL_CHAIN = [
     {
@@ -144,7 +152,7 @@ class TestProposalFlow:
         assert len(proposals["items"]) >= 1
         assert any(p["id"] == proposal_id for p in proposals["items"])
 
-        # === Step 5: Validator approves the proposal ===
+        # === Step 5: First validator approves the proposal ===
         response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
@@ -155,6 +163,38 @@ class TestProposalFlow:
                     "connection is well-reasoned. Minor note: timeline for cost parity "
                     "might be optimistic but within reasonable bounds."
                 ),
+                "research_conducted": VALID_RESEARCH,
+                "scientific_issues": [],
+                "suggested_fixes": []
+            }
+        )
+        assert response.status_code == 200
+        validation_data = response.json()
+        # With threshold=2, one approval keeps status as validating
+        assert validation_data["proposal_status"] == "validating"
+
+        # === Step 5b: Register second validator and approve ===
+        response = await client.post(
+            "/api/auth/agent",
+            json={
+                "name": "Second Validator Agent",
+                "username": "validator2",
+                "description": "Second agent that validates proposals"
+            }
+        )
+        assert response.status_code == 200
+        validator2_key = response.json()["api_key"]["key"]
+
+        response = await client.post(
+            f"/api/proposals/{proposal_id}/validate",
+            headers={"X-API-Key": validator2_key},
+            json={
+                "verdict": "approve",
+                "critique": (
+                    "Agreeing with first validator. The proposal is well-structured "
+                    "and the scientific basis is solid."
+                ),
+                "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
@@ -234,7 +274,7 @@ class TestProposalFlow:
             headers={"X-API-Key": proposer_key}
         )
 
-        # Reject the proposal - validator catches the scientific flaw
+        # First rejection - validator catches the scientific flaw
         response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": validator_key},
@@ -242,11 +282,34 @@ class TestProposalFlow:
                 "verdict": "reject",
                 "critique": "This proposal fundamentally violates the laws of thermodynamics. "
                            "The second law has no known exceptions that would allow perpetual motion.",
+                "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [
                     "Perpetual motion machines violate the second law of thermodynamics",
                     "No credible physics research supports 'thermodynamic loopholes'",
                     "The causal chain relies on non-existent scientific discoveries"
                 ],
+                "suggested_fixes": []
+            }
+        )
+        assert response.status_code == 200
+        # With threshold=2, one rejection keeps status as validating
+        assert response.json()["proposal_status"] == "validating"
+
+        # Second validator also rejects - now threshold met
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Second Validator", "username": "val-reject-2"}
+        )
+        validator2_key = response.json()["api_key"]["key"]
+
+        response = await client.post(
+            f"/api/proposals/{proposal_id}/validate",
+            headers={"X-API-Key": validator2_key},
+            json={
+                "verdict": "reject",
+                "critique": "Agreeing with first validator - perpetual motion is physically impossible.",
+                "research_conducted": VALID_RESEARCH,
+                "scientific_issues": ["Violates thermodynamics"],
                 "suggested_fixes": []
             }
         )
@@ -326,6 +389,7 @@ class TestProposalFlow:
                 "verdict": "strengthen",
                 "critique": "Good concept but causal chain needs more specificity. "
                            "Which nations pilot first? What specific capabilities emerge?",
+                "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [
                     "Vague on which AI capabilities enable governance",
                     "Missing regulatory framework evolution"
@@ -384,7 +448,7 @@ class TestProposalFlow:
         )
         second_validator_key = response.json()["api_key"]["key"]
 
-        # Second validation: approve the revised proposal
+        # Second validation: approve the revised proposal (first approval)
         response = await client.post(
             f"/api/proposals/{proposal_id}/validate",
             headers={"X-API-Key": second_validator_key},
@@ -392,6 +456,30 @@ class TestProposalFlow:
                 "verdict": "approve",
                 "critique": "Much improved. Causal chain now has specific actors, dates, "
                            "and regulatory evolution. The Singapore/Estonia pilot choice is well-reasoned.",
+                "research_conducted": VALID_RESEARCH,
+                "scientific_issues": [],
+                "suggested_fixes": []
+            }
+        )
+        assert response.status_code == 200
+        # First approval - still validating
+        assert response.json()["proposal_status"] == "validating"
+
+        # Register third validator for second approval
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Third Validator", "username": "val-strengthen-3"}
+        )
+        third_validator_key = response.json()["api_key"]["key"]
+
+        # Third validation: second approval triggers world creation
+        response = await client.post(
+            f"/api/proposals/{proposal_id}/validate",
+            headers={"X-API-Key": third_validator_key},
+            json={
+                "verdict": "approve",
+                "critique": "Agreeing with the second validator's assessment of the revised proposal.",
+                "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
@@ -443,6 +531,7 @@ class TestProposalFlow:
             json={
                 "verdict": "approve",
                 "critique": "My own work is excellent and should be approved immediately.",
+                "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
                 "suggested_fixes": []
             }
@@ -504,7 +593,7 @@ class TestProposalFlow:
         )
 
         # Submit validations - two strengthen, then one approve
-        # Note: first approve with no rejects will trigger approval
+        # Note: with threshold=2, first approve won't trigger approval
         verdicts = ["strengthen", "strengthen", "approve"]
         critiques = [
             "First validator thinks the causal chain needs more economic detail",
@@ -518,6 +607,7 @@ class TestProposalFlow:
                 json={
                     "verdict": verdicts[i],
                     "critique": critiques[i],
+                    "research_conducted": VALID_RESEARCH,
                     "scientific_issues": [],
                     "suggested_fixes": []
                 }
