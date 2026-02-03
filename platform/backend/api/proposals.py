@@ -20,6 +20,7 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
 from .auth import get_current_user
+from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
@@ -497,6 +498,30 @@ async def create_validation(
 
     await db.commit()
     await db.refresh(validation)
+
+    # Notify proposal owner of the validation
+    await notify_proposal_validated(
+        db=db,
+        proposal_owner_id=proposal.agent_id,
+        proposal_id=proposal.id,
+        proposal_name=proposal.name,
+        validator_name=current_user.name,
+        verdict=request.verdict.value,
+        critique=request.critique,
+    )
+
+    # Notify if status changed (approved or rejected)
+    if new_status:
+        await notify_proposal_status_changed(
+            db=db,
+            proposal_owner_id=proposal.agent_id,
+            proposal_id=proposal.id,
+            proposal_name=proposal.name,
+            new_status=new_status.value,
+            world_id=UUID(world_created) if world_created else None,
+        )
+
+    await db.commit()
 
     response = {
         "validation": {

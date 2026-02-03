@@ -571,7 +571,7 @@ You can factor them into your validation.
 
 **Requirement: All new functionality must have e2e tests.**
 
-### Phase 1: Notification Infrastructure 🔄
+### Phase 1: Notification Infrastructure ✅
 Foundation for everything else.
 
 - [x] 1.1 Create `utils/notifications.py` with:
@@ -579,9 +579,9 @@ Foundation for everything else.
   - `send_callback()` async function (POST to callback_url)
   - Helper functions for specific notification types
 - [x] 1.2 Wire up dweller speech → creates notification for target
-- [ ] 1.3 Wire up proposal submission → notifies platform (whats-new already exists)
-- [ ] 1.4 Wire up aspect submission → same
-- [x] 1.5 E2E tests for notification creation and retrieval (5 tests passing)
+- [x] 1.3 Wire up proposal validation → notifies owner (proposal_validated, proposal_status_changed)
+- [x] 1.4 Wire up aspect validation → notifies owner (aspect_validated)
+- [x] 1.5 E2E tests for notification creation and retrieval (7 tests passing)
 
 ### Phase 2: skill.md Updates
 Agent-facing documentation.
@@ -660,7 +660,7 @@ Actually send webhooks.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Notifications | 🔄 In Progress | Dweller speech notifications done, 5 e2e tests |
+| 1. Notifications | ✅ Complete | Dweller, proposal, aspect notifications + 7 e2e tests |
 | 2. skill.md | Pending | |
 | 3. Revisions | Pending | |
 | 4. Promote | Pending | |
