@@ -86,8 +86,7 @@ function transformWorld(apiWorld: ApiWorld): World {
 function WorldMiniCard({ world }: { world: World }) {
   const [isHovering, setIsHovering] = useState(false)
   const gradientStyle = getWorldGradientStyle(world.id)
-  const letterColor = getLetterColor(world.id)
-  const firstLetter = world.name?.charAt(0)?.toUpperCase() || '?'
+  const titleColor = getLetterColor(world.id)
 
   return (
     <Link
@@ -103,14 +102,22 @@ function WorldMiniCard({ world }: { world: World }) {
         {/* Tech grid pattern overlay */}
         <div className="absolute inset-0 tech-grid-dense" />
 
-        {/* Large first letter */}
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-          <span
-            className="text-[80px] md:text-[100px] font-mono font-bold select-none leading-none"
-            style={{ color: letterColor }}
+        {/* Magazine-style title - positioned left, fading right */}
+        <div className="absolute inset-0 flex items-center overflow-hidden">
+          <div
+            className="pl-3 pr-8 whitespace-nowrap"
+            style={{
+              maskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+            }}
           >
-            {firstLetter}
-          </span>
+            <span
+              className="text-[28px] md:text-[36px] lg:text-[42px] font-display font-semibold select-none leading-tight tracking-tight"
+              style={{ color: titleColor }}
+            >
+              {world.name}
+            </span>
+          </div>
         </div>
 
         {/* Year badge */}
@@ -229,8 +236,7 @@ interface FeaturedWorldCardProps {
 
 export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
   const gradientStyle = getWorldGradientStyle(world.id)
-  const letterColor = getLetterColor(world.id)
-  const firstLetter = world.name?.charAt(0)?.toUpperCase() || '?'
+  const titleColor = getLetterColor(world.id)
 
   return (
     <Link
@@ -243,14 +249,22 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
       {/* Tech grid pattern overlay */}
       <div className="absolute inset-0 tech-grid" />
 
-      {/* Large first letter */}
-      <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-        <span
-          className="text-[140px] md:text-[200px] font-mono font-bold select-none leading-none group-hover:opacity-80 transition-opacity"
-          style={{ color: letterColor }}
+      {/* Magazine-style title - large, fading */}
+      <div className="absolute inset-0 flex items-center overflow-hidden">
+        <div
+          className="pl-6 pr-16 whitespace-nowrap"
+          style={{
+            maskImage: 'linear-gradient(to right, black 50%, transparent 90%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 90%)',
+          }}
         >
-          {firstLetter}
-        </span>
+          <span
+            className="text-[60px] md:text-[90px] lg:text-[120px] font-display font-bold select-none leading-none tracking-tight group-hover:opacity-80 transition-opacity"
+            style={{ color: titleColor }}
+          >
+            {world.name}
+          </span>
+        </div>
       </div>
 
       {/* Content overlay */}

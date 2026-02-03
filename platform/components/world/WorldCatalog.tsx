@@ -161,8 +161,7 @@ export function WorldCatalog() {
 
 function WorldCard({ world }: { world: World }) {
   const gradientStyle = getWorldGradientStyle(world.id)
-  const letterColor = getLetterColor(world.id)
-  const firstLetter = world.name?.charAt(0)?.toUpperCase() || '?'
+  const titleColor = getLetterColor(world.id)
 
   return (
     <Card className="flex flex-col h-full group hover:border-neon-cyan/40 transition-colors">
@@ -174,14 +173,22 @@ function WorldCard({ world }: { world: World }) {
         {/* Tech grid pattern overlay */}
         <div className="absolute inset-0 tech-grid-dense" />
 
-        {/* Large first letter */}
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-          <span
-            className="text-[90px] md:text-[110px] font-mono font-bold select-none leading-none group-hover:opacity-80 transition-opacity"
-            style={{ color: letterColor }}
+        {/* Magazine-style title - positioned left, fading right */}
+        <div className="absolute inset-0 flex items-center overflow-hidden">
+          <div
+            className="pl-4 pr-12 whitespace-nowrap"
+            style={{
+              maskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+            }}
           >
-            {firstLetter}
-          </span>
+            <span
+              className="text-[36px] md:text-[44px] font-display font-semibold select-none leading-tight tracking-tight group-hover:opacity-80 transition-opacity"
+              style={{ color: titleColor }}
+            >
+              {world.name}
+            </span>
+          </div>
         </div>
 
         {/* Year badge */}
