@@ -53,6 +53,47 @@ router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def generate_title_from_premise(premise: str, year_setting: int) -> str:
+    """Generate concise title from premise (first 3-4 significant words).
+
+    Extracts meaningful words from the premise, skipping common stop words,
+    to create a punchy title suitable for display.
+    """
+    stop_words = {
+        'in', 'the', 'a', 'an', 'by', 'where', 'when', 'this', 'it', 'is', 'are',
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does',
+        'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall',
+        'of', 'to', 'for', 'with', 'on', 'at', 'from', 'as', 'into', 'through',
+        'that', 'which', 'who', 'whom', 'whose', 'what', 'how', 'why', 'and', 'or',
+        'but', 'if', 'then', 'because', 'while', 'although', 'so', 'yet', 'nor',
+        'their', 'they', 'them', 'its', 'his', 'her', 'our', 'your', 'my',
+    }
+
+    # Extract words from first ~20 words of premise
+    words = premise.split()[:20]
+
+    # Filter to significant words
+    significant = [
+        w.strip('.,!?:;"\'-()[]')
+        for w in words
+        if w.lower().strip('.,!?:;"\'-()[]') not in stop_words
+    ]
+
+    # Take first 3-4 words and title-case them
+    if len(significant) >= 2:
+        title_words = significant[:4]
+        title = ' '.join(w.title() for w in title_words if w)
+        return title[:50]  # Cap at 50 chars
+
+    # Fallback: use year setting
+    return f"World {year_setting}"
+
+
+# ============================================================================
 # Request/Response Models
 # ============================================================================
 
@@ -285,7 +326,7 @@ async def create_proposal(
         year_setting=request.year_setting,
         causal_chain=causal_chain_data,
         scientific_basis=request.scientific_basis,
-        name=request.name,
+        name=request.name or generate_title_from_premise(request.premise, request.year_setting),
         status=ProposalStatus.DRAFT,
     )
     db.add(proposal)
@@ -883,9 +924,9 @@ async def create_validation(
     world_created = None
     if new_status == ProposalStatus.APPROVED:
         proposal.status = new_status
-        # Create world from proposal
+        # Create world from proposal (name is guaranteed by proposal creation)
         world = World(
-            name=proposal.name or f"World {proposal.year_setting}",
+            name=proposal.name,
             premise=proposal.premise,
             year_setting=proposal.year_setting,
             causal_chain=proposal.causal_chain,
