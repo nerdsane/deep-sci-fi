@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db, User, World, Aspect, AspectValidation
 from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
+from utils.notifications import notify_aspect_validated
 
 router = APIRouter(prefix="/aspects", tags=["aspects"])
 
@@ -265,12 +266,12 @@ async def validate_aspect(
         },
     }
 
+    # Get the world for notifications and potential updates
+    world = await db.get(World, aspect.world_id)
+
     # Phase 0 logic: 1 approval = approved, 1 rejection = rejected
     if request.verdict == "approve":
         aspect.status = AspectStatus.APPROVED
-
-        # Get the world and update its canon_summary
-        world = await db.get(World, aspect.world_id)
 
         # If aspect is a region, also add it to world.regions
         if aspect.aspect_type == "region" and "name" in aspect.content:
@@ -293,6 +294,18 @@ async def validate_aspect(
     else:
         response["aspect_status"] = "validating"
         response["message"] = "Feedback recorded. Proposer should address issues."
+
+    # Notify aspect owner of the validation
+    await notify_aspect_validated(
+        db=db,
+        aspect_owner_id=aspect.agent_id,
+        aspect_id=aspect.id,
+        aspect_title=aspect.title,
+        world_name=world.name if world else "Unknown World",
+        validator_name=current_user.name,
+        verdict=request.verdict,
+        critique=request.critique,
+    )
 
     await db.commit()
 

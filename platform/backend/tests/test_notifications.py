@@ -649,3 +649,195 @@ async def test_notification_contains_correct_data(client: AsyncClient, db_sessio
     assert data["from_dweller_id"] == d1_id
     assert data["action_id"] == action_id
     assert data["content"] == test_content
+
+
+@pytest.mark.asyncio
+async def test_proposal_validation_creates_notification(client: AsyncClient, db_session: AsyncSession):
+    """When agent B validates agent A's proposal, A gets a notification."""
+    from sqlalchemy import select
+    from db import Notification
+
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Proposal Owner", "username": "proposal-owner-notif"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+    agent1_id = agent1_response.json()["agent"]["id"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Proposal Validator", "username": "proposal-validator-notif"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Agent 1 creates a proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Notification Proposal Test",
+            "premise": "A world for testing proposal validation notifications.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    assert proposal_response.status_code == 200
+    proposal_id = proposal_response.json()["id"]
+
+    # Submit proposal
+    await client.post(
+        f"/api/proposals/{proposal_id}/submit",
+        headers={"X-API-Key": agent1_key},
+    )
+
+    # Agent 2 validates the proposal
+    validate_response = await client.post(
+        f"/api/proposals/{proposal_id}/validate",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "verdict": "approve",
+            "critique": "This is a great proposal! Approved for testing notifications.",
+            "scientific_issues": [],
+            "suggested_fixes": [],
+        },
+    )
+    assert validate_response.status_code == 200
+
+    # Check that notifications were created for agent 1
+    query = select(Notification).where(Notification.user_id == agent1_id)
+    result = await db_session.execute(query)
+    notifications = result.scalars().all()
+
+    # Should have both validation and status change notifications
+    notification_types = [n.notification_type for n in notifications]
+    assert "proposal_validated" in notification_types, "Should have proposal_validated notification"
+    assert "proposal_status_changed" in notification_types, "Should have proposal_status_changed notification"
+
+    # Verify validation notification content
+    validation_notif = next(n for n in notifications if n.notification_type == "proposal_validated")
+    assert validation_notif.data["validator"] == "Proposal Validator"
+    assert validation_notif.data["verdict"] == "approve"
+
+    # Verify status change notification content
+    status_notif = next(n for n in notifications if n.notification_type == "proposal_status_changed")
+    assert status_notif.data["new_status"] == "approved"
+    assert "world_id" in status_notif.data
+
+
+@pytest.mark.asyncio
+async def test_aspect_validation_creates_notification(client: AsyncClient, db_session: AsyncSession):
+    """When agent B validates agent A's aspect, A gets a notification."""
+    from sqlalchemy import select
+    from db import Notification
+
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Aspect Owner", "username": "aspect-owner-notif"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+    agent1_id = agent1_response.json()["agent"]["id"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Aspect Validator", "username": "aspect-validator-notif"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Agent 1 creates a proposal and world
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Aspect Notification Test World",
+            "premise": "A world for testing aspect validation notifications.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+
+    await client.post(
+        f"/api/proposals/{proposal_id}/submit",
+        headers={"X-API-Key": agent1_key},
+    )
+
+    validate_response = await client.post(
+        f"/api/proposals/{proposal_id}/validate?test_mode=true",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "verdict": "approve",
+            "critique": "Test approval with sufficient length for validation.",
+            "scientific_issues": [],
+            "suggested_fixes": [],
+        },
+    )
+    world_id = validate_response.json()["world_created"]["id"]
+
+    # Agent 1 creates an aspect
+    aspect_response = await client.post(
+        f"/api/aspects/worlds/{world_id}/aspects",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "aspect_type": "technology",
+            "title": "Notification Test Technology",
+            "premise": "A technology for testing aspect notifications.",
+            "content": {"name": "Test Tech", "description": "A test technology for notification testing purposes."},
+            "canon_justification": "This technology fits the world's scientific basis and timeline perfectly.",
+        },
+    )
+    assert aspect_response.status_code == 200
+    aspect_id = aspect_response.json()["aspect"]["id"]
+
+    # Submit aspect
+    await client.post(
+        f"/api/aspects/{aspect_id}/submit",
+        headers={"X-API-Key": agent1_key},
+    )
+
+    # Clear notifications from proposal validation
+    await db_session.execute(
+        Notification.__table__.delete().where(Notification.user_id == agent1_id)
+    )
+    await db_session.commit()
+
+    # Agent 2 validates the aspect
+    validate_aspect_response = await client.post(
+        f"/api/aspects/{aspect_id}/validate",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "verdict": "approve",
+            "critique": "This is a great aspect! Approved for testing notifications.",
+            "canon_conflicts": [],
+            "suggested_fixes": [],
+            "updated_canon_summary": "The world now includes this new notification test technology that is part of the canon.",
+        },
+    )
+    assert validate_aspect_response.status_code == 200
+
+    # Check that notifications were created for agent 1
+    query = select(Notification).where(Notification.user_id == agent1_id)
+    result = await db_session.execute(query)
+    notifications = result.scalars().all()
+
+    # Should have aspect validation notification
+    assert len(notifications) >= 1, "Should have at least one notification"
+    notification_types = [n.notification_type for n in notifications]
+    assert "aspect_validated" in notification_types, "Should have aspect_validated notification"
+
+    # Verify notification content
+    validation_notif = next(n for n in notifications if n.notification_type == "aspect_validated")
+    assert validation_notif.data["validator"] == "Aspect Validator"
+    assert validation_notif.data["verdict"] == "approve"
+    assert validation_notif.data["aspect_title"] == "Notification Test Technology"
