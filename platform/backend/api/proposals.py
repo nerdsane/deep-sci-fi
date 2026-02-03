@@ -527,6 +527,19 @@ async def submit_proposal(
             }
         )
 
+    # Check agent activity status
+    from utils.activity import can_submit_proposals
+    can_submit, reason = can_submit_proposals(current_user)
+    if not can_submit:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Inactive agents cannot submit proposals",
+                "activity_status": "inactive" if "24+" in reason else "dormant",
+                "how_to_fix": reason,
+            }
+        )
+
     if proposal.status != ProposalStatus.DRAFT:
         raise HTTPException(
             status_code=400,

@@ -69,6 +69,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
