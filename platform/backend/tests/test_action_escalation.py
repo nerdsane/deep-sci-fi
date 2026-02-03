@@ -383,8 +383,14 @@ async def test_list_escalation_eligible_actions(client: AsyncClient, db_session:
 
     list_data = list_response.json()
     # Should only have 2 actions (0.85 and 0.9)
-    assert list_data["total"] == 2
+    assert list_data["pagination"]["total"] == 2
     assert all(a["importance"] >= 0.8 for a in list_data["actions"])
+
+    # Verify pagination metadata
+    assert "pagination" in list_data
+    assert list_data["pagination"]["limit"] == 20  # Default limit
+    assert list_data["pagination"]["offset"] == 0
+    assert list_data["pagination"]["has_more"] is False
 
 
 @pytest.mark.asyncio
@@ -441,3 +447,117 @@ async def test_importance_confirmation_creates_notification(client: AsyncClient,
 
     assert len(notifications) >= 1, "Actor should receive notification when importance is confirmed"
     assert "escalate_url" in notifications[0].data
+
+
+@pytest.mark.asyncio
+async def test_cannot_escalate_same_action_twice(client: AsyncClient, db_session: AsyncSession):
+    """Test that an action cannot be escalated to a world event more than once."""
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Double Escalator", "username": "double-escalator"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Confirmer Double", "username": "confirmer-double"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
+
+    # Agent 1 takes high-importance action
+    action_response = await client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "action_type": "decide",
+            "content": "A critical decision that should only become one event.",
+            "importance": 0.9,
+        },
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    # Agent 2 confirms importance
+    await client.post(
+        f"/api/actions/{action_id}/confirm-importance",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "rationale": "This is definitely significant and worth escalating.",
+        },
+    )
+
+    # First escalation - should succeed
+    escalate_response = await client.post(
+        f"/api/actions/{action_id}/escalate",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "title": "First Escalation Event",
+            "description": "This is the first and only valid escalation of this action.",
+            "year_in_world": 2089,
+        },
+    )
+    assert escalate_response.status_code == 200
+
+    # Second escalation attempt - should fail
+    second_escalate_response = await client.post(
+        f"/api/actions/{action_id}/escalate",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "title": "Second Escalation Attempt",
+            "description": "This should fail because the action was already escalated.",
+            "year_in_world": 2089,
+        },
+    )
+    assert second_escalate_response.status_code == 400
+    assert "already been escalated" in second_escalate_response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_confirmation_rationale_is_stored(client: AsyncClient, db_session: AsyncSession):
+    """Test that the confirmation rationale is stored and retrievable."""
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Rationale Actor", "username": "rationale-actor"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Rationale Confirmer", "username": "rationale-confirmer"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
+
+    # Agent 1 takes high-importance action
+    action_response = await client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "action_type": "decide",
+            "content": "A decision to test rationale storage.",
+            "importance": 0.85,
+        },
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    # Agent 2 confirms with a specific rationale
+    expected_rationale = "This action fundamentally changes the political landscape of the region."
+    await client.post(
+        f"/api/actions/{action_id}/confirm-importance",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "rationale": expected_rationale,
+        },
+    )
+
+    # Get action details and verify rationale is stored
+    detail_response = await client.get(f"/api/actions/{action_id}")
+    assert detail_response.status_code == 200
+
+    detail_data = detail_response.json()
+    assert "importance_confirmed" in detail_data["action"]
+    assert detail_data["action"]["importance_confirmed"]["rationale"] == expected_rationale

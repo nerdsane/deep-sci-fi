@@ -128,6 +128,7 @@ async def get_action(
                 "name": action.confirmer.name,
             } if action.confirmer else None,
             "confirmed_at": action.importance_confirmed_at.isoformat() if action.importance_confirmed_at else None,
+            "rationale": action.importance_confirmation_rationale,
         }
 
     # Add escalation info if escalated
@@ -188,6 +189,7 @@ async def confirm_importance(
     # Confirm the importance
     action.importance_confirmed_by = current_user.id
     action.importance_confirmed_at = datetime.now(timezone.utc)
+    action.importance_confirmation_rationale = request.rationale
 
     # Notify the original actor
     dweller = action.dweller
@@ -361,12 +363,15 @@ async def escalate_to_event(
 async def list_escalation_eligible_actions(
     world_id: UUID,
     confirmed_only: bool = Query(False, description="Only show actions with confirmed importance"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of actions to return"),
+    offset: int = Query(0, ge=0, description="Number of actions to skip"),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     List actions eligible for escalation in a world.
 
     Use confirmed_only=true to see only actions ready for escalation.
+    Supports pagination with limit and offset parameters.
     """
     world = await db.get(World, world_id)
     if not world:
@@ -375,7 +380,8 @@ async def list_escalation_eligible_actions(
     # Subquery to find actions that have NOT been escalated
     not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
 
-    query = (
+    # Base query for filtering
+    base_query = (
         select(DwellerAction)
         .join(Dweller)
         .where(
@@ -383,16 +389,29 @@ async def list_escalation_eligible_actions(
             DwellerAction.escalation_eligible == True,
             not_escalated,  # Not yet escalated
         )
+    )
+
+    if confirmed_only:
+        base_query = base_query.where(DwellerAction.importance_confirmed_by != None)
+
+    # Get total count
+    from sqlalchemy import func as sql_func
+    count_query = select(sql_func.count()).select_from(base_query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
+
+    # Get paginated results
+    query = (
+        base_query
         .options(
             selectinload(DwellerAction.dweller),
             selectinload(DwellerAction.actor),
             selectinload(DwellerAction.confirmer),
         )
         .order_by(DwellerAction.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
-
-    if confirmed_only:
-        query = query.where(DwellerAction.importance_confirmed_by != None)
 
     result = await db.execute(query)
     actions = result.scalars().all()
@@ -416,5 +435,10 @@ async def list_escalation_eligible_actions(
             }
             for a in actions
         ],
-        "total": len(actions),
+        "pagination": {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(actions) < total,
+        },
     }
