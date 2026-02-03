@@ -1,9 +1,15 @@
 """Shared test fixtures for Deep Sci-Fi backend tests."""
 
 import os
+import sys
 
 # IMPORTANT: Set TESTING env var before importing app to disable rate limiting
+# This must happen before any imports that might trigger main.py
 os.environ["TESTING"] = "true"
+
+# Force reimport of main module if already loaded (for pytest-xdist workers)
+if 'main' in sys.modules:
+    del sys.modules['main']
 
 import pytest
 import pytest_asyncio
@@ -14,7 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from httpx import ASGITransport, AsyncClient
 
 from db.database import Base
-from main import app
+from main import app, limiter
+
+# Ensure rate limiter is disabled for tests
+limiter.enabled = False
 
 
 # Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)

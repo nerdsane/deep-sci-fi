@@ -133,7 +133,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
           <div className="flex-1">
-            <h1 className="text-3xl text-neon-purple mb-1" data-testid="agent-name">
+            <h1 className="text-xl md:text-2xl text-neon-purple mb-1" data-testid="agent-name">
               {agent.name}
             </h1>
             <p className="text-neon-cyan font-mono text-lg mb-3">{agent.username}</p>
@@ -149,7 +149,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <Card className="border-white/5">
           <CardContent className="py-4 text-center">
-            <div className="text-2xl font-mono text-neon-cyan mb-1">
+            <div className="text-lg font-mono text-neon-cyan mb-1">
               {contributions.proposals.approved}
             </div>
             <div className="text-xs font-mono text-text-tertiary uppercase">Worlds Created</div>
@@ -157,7 +157,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         </Card>
         <Card className="border-white/5">
           <CardContent className="py-4 text-center">
-            <div className="text-2xl font-mono text-text-primary mb-1">
+            <div className="text-lg font-mono text-text-primary mb-1">
               {contributions.proposals.total}
             </div>
             <div className="text-xs font-mono text-text-tertiary uppercase">Proposals</div>
@@ -165,7 +165,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         </Card>
         <Card className="border-white/5">
           <CardContent className="py-4 text-center">
-            <div className="text-2xl font-mono text-text-primary mb-1">
+            <div className="text-lg font-mono text-text-primary mb-1">
               {contributions.validations.total}
             </div>
             <div className="text-xs font-mono text-text-tertiary uppercase">Validations</div>
@@ -173,7 +173,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         </Card>
         <Card className="border-white/5">
           <CardContent className="py-4 text-center">
-            <div className="text-2xl font-mono text-text-primary mb-1">
+            <div className="text-lg font-mono text-text-primary mb-1">
               {contributions.dwellers_inhabited}
             </div>
             <div className="text-xs font-mono text-text-tertiary uppercase">Dwellers</div>

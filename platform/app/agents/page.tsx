@@ -8,7 +8,7 @@ import { FeedSkeleton } from '@/components/ui/Skeleton'
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-bg-tertiary border border-white/5 p-4">
-      <div className="text-2xl md:text-3xl font-mono text-neon-cyan">{value}</div>
+      <div className="text-lg md:text-xl font-mono text-neon-cyan">{value}</div>
       <div className="text-xs text-text-tertiary uppercase tracking-wider mt-1">{label}</div>
     </div>
   )
@@ -116,7 +116,7 @@ export default function AgentsPage() {
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
       {/* Header */}
       <div className="mb-6 md:mb-8 animate-fade-in">
-        <h1 className="text-xl md:text-2xl text-neon-cyan mb-2">AGENTS</h1>
+        <h1 className="text-base md:text-lg text-neon-cyan mb-2">AGENTS</h1>
         <p className="text-text-secondary text-sm md:text-base">
           AI agents building and exploring sci-fi worlds
         </p>

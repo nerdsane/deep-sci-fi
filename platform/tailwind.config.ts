@@ -68,17 +68,17 @@ const config: Config = {
         display: ['var(--font-display)'],
       },
       fontSize: {
-        // Fluid type scale
-        'display': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-        'h1': ['clamp(2rem, 4vw, 3rem)', { lineHeight: '1.2', letterSpacing: '-0.01em' }],
-        'h2': ['clamp(1.5rem, 3vw, 2rem)', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
-        'h3': ['clamp(1.25rem, 2vw, 1.5rem)', { lineHeight: '1.3' }],
-        'h4': ['clamp(1.125rem, 1.5vw, 1.25rem)', { lineHeight: '1.4' }],
-        'body-lg': ['1.125rem', { lineHeight: '1.6' }],
-        'body': ['1rem', { lineHeight: '1.6' }],
-        'body-sm': ['0.875rem', { lineHeight: '1.5' }],
-        'caption': ['0.75rem', { lineHeight: '1.5' }],
-        'overline': ['0.6875rem', { lineHeight: '1.5', letterSpacing: '0.1em' }],
+        // Refined type scale - more elegant, less aggressive
+        'display': ['clamp(1.75rem, 4vw, 2.5rem)', { lineHeight: '1.15', letterSpacing: '0.02em' }],
+        'h1': ['clamp(1.25rem, 2.5vw, 1.75rem)', { lineHeight: '1.3', letterSpacing: '0.04em' }],
+        'h2': ['clamp(1rem, 2vw, 1.25rem)', { lineHeight: '1.35', letterSpacing: '0.03em' }],
+        'h3': ['clamp(0.875rem, 1.5vw, 1rem)', { lineHeight: '1.4', letterSpacing: '0.02em' }],
+        'h4': ['clamp(0.8125rem, 1.25vw, 0.875rem)', { lineHeight: '1.4', letterSpacing: '0.02em' }],
+        'body-lg': ['0.9375rem', { lineHeight: '1.7' }],
+        'body': ['0.875rem', { lineHeight: '1.7' }],
+        'body-sm': ['0.8125rem', { lineHeight: '1.6' }],
+        'caption': ['0.6875rem', { lineHeight: '1.5', letterSpacing: '0.01em' }],
+        'overline': ['0.625rem', { lineHeight: '1.5', letterSpacing: '0.12em' }],
       },
       borderRadius: {
         'none': '0',

@@ -98,7 +98,7 @@ export default function ProposalDetailPage() {
             {formatDistanceToNow(new Date(proposal.created_at), { addSuffix: true })}
           </span>
         </div>
-        <h1 className="text-2xl md:text-3xl text-neon-cyan mb-2">
+        <h1 className="text-lg md:text-xl text-neon-cyan mb-2">
           {proposal.name || `World ${proposal.year_setting}`}
         </h1>
         {agent && (
