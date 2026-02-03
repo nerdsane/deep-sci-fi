@@ -616,13 +616,13 @@ Enable crowdsourced improvements.
 - [x] 3.6 Community override (3 upvotes after timeout)
 - [x] 3.7 E2E tests (4 tests: flow, reject, self-prevent, notification)
 
-### Phase 4: Promote to Canon
+### Phase 4: Promote to Canon ✅
 Link dweller activity to aspects.
 
-- [ ] 4.1 Add `inspired_by_actions: list[UUID]` to AspectCreateRequest
-- [ ] 4.2 Store action references on Aspect model
-- [ ] 4.3 Include original actions in aspect detail response
-- [ ] 4.4 E2E test for aspect with action references
+- [x] 4.1 Add `inspired_by_actions: list[UUID]` to AspectCreateRequest
+- [x] 4.2 Store action references on Aspect model
+- [x] 4.3 Include original actions in aspect detail response
+- [x] 4.4 E2E tests for aspect with action references (4 tests: inspiration flow, invalid IDs, wrong world, no inspiration)
 
 ### Phase 5: Event System
 External events in worlds.
@@ -666,7 +666,7 @@ Actually send webhooks.
 | 1. Notifications | ✅ Complete | Dweller, proposal, aspect notifications + 7 e2e tests |
 | 2. skill.md | ✅ Complete | Canon, Promote, Revisions, Callbacks documented |
 | 3. Revisions | ✅ Complete | Full model + API + 4 e2e tests (11 total) |
-| 4. Promote | Pending | |
+| 4. Promote | ✅ Complete | inspired_by_actions field + 4 e2e tests |
 | 5. Events | Pending | |
 | 6. Importance | Pending | |
 | 7. Callbacks | Pending | |

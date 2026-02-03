@@ -520,3 +520,216 @@ class TestAspectFlow:
         assert detail["aspect"]["title"] == "Global Shipping Protocol v3"
         assert len(detail["validations"]) == 1
         assert detail["validations"][0]["verdict"] == "strengthen"
+
+    @pytest.mark.asyncio
+    async def test_aspect_inspired_by_dweller_actions(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test creating an aspect inspired by dweller actions (soft canon → hard canon).
+
+        This tests the flow:
+        1. Dweller takes actions in the world
+        2. Agent observes patterns in dweller activity
+        3. Agent creates aspect citing those actions
+        4. Aspect detail includes full action context
+        """
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # === Step 1: Create a dweller in the world ===
+        dweller_response = await client.post(
+            f"/api/dwellers/worlds/{world_id}/dwellers",
+            headers={"X-API-Key": creator_key},
+            json={
+                "name": "Chen Wei",
+                "origin_region": "Singapore Nexus",
+                "generation": "Second-gen",
+                "name_context": "Chinese-Singaporean naming tradition, Wei means 'great'",
+                "cultural_identity": "Maritime logistics family, three generations in shipping",
+                "role": "Autonomous Fleet Coordinator",
+                "age": 34,
+                "personality": "Methodical, pragmatic, distrustful of untested systems",
+                "background": "Grew up in port worker family, witnessed automation displacement"
+            }
+        )
+        assert dweller_response.status_code == 200, f"Dweller creation failed: {dweller_response.json()}"
+        dweller_id = dweller_response.json()["dweller"]["id"]
+
+        # === Step 2: Claim the dweller ===
+        claim_response = await client.post(
+            f"/api/dwellers/{dweller_id}/claim",
+            headers={"X-API-Key": creator_key}
+        )
+        assert claim_response.status_code == 200
+
+        # === Step 3: Have dweller take actions (speak about something) ===
+        action_ids = []
+
+        # First action - mentions informal trading
+        action1_response = await client.post(
+            f"/api/dwellers/{dweller_id}/act",
+            headers={"X-API-Key": creator_key},
+            json={
+                "action_type": "speak",
+                "content": "You want to know about the gray market? Everyone knows about it. "
+                           "When the official water credits run low, people trade favors. "
+                           "Credits for shifts, credits for silence. Nothing illegal, just... flexible.",
+                "target": "passing dock worker"
+            }
+        )
+        assert action1_response.status_code == 200
+        action_ids.append(action1_response.json()["action"]["id"])
+
+        # Second action - more detail about the system
+        action2_response = await client.post(
+            f"/api/dwellers/{dweller_id}/act",
+            headers={"X-API-Key": creator_key},
+            json={
+                "action_type": "speak",
+                "content": "The exchange happens at the old dock 7. Before dawn, after the "
+                           "autonomous systems complete their routes. We call it the 'morning market'. "
+                           "Been running since the drought of '38.",
+                "target": "curious journalist"
+            }
+        )
+        assert action2_response.status_code == 200
+        action_ids.append(action2_response.json()["action"]["id"])
+
+        # Third action - establishes the social dynamics
+        action3_response = await client.post(
+            f"/api/dwellers/{dweller_id}/act",
+            headers={"X-API-Key": creator_key},
+            json={
+                "action_type": "speak",
+                "content": "The Guild knows. They turn a blind eye because it keeps people fed. "
+                           "The automation took our jobs, but it can't take our networks. "
+                           "We built this from nothing.",
+                "target": "old friend"
+            }
+        )
+        assert action3_response.status_code == 200
+        action_ids.append(action3_response.json()["action"]["id"])
+
+        # === Step 4: Create aspect citing these actions ===
+        aspect_response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "economic system",
+                "title": "The Morning Market",
+                "premise": "An informal water credit exchange that operates in the gray zones of "
+                           "automation, emerging from the social networks of displaced port workers.",
+                "content": {
+                    "name": "Morning Market",
+                    "location": "Abandoned dock 7, Singapore Nexus",
+                    "origins": "Emerged during the drought of 2038 when official water rationing failed to meet needs",
+                    "structure": "Peer-to-peer credit trading, reputation-based trust",
+                    "rules": [
+                        "Trading before dawn, after autonomous systems complete routes",
+                        "Credits for shifts, services, or silence",
+                        "Port Masters Guild tacitly approves"
+                    ],
+                    "participants": "Primarily displaced dock workers and their networks"
+                },
+                "canon_justification": "This economic system emerged organically from dweller conversations "
+                                      "about water scarcity and the social impacts of automation. It adds "
+                                      "human texture to the technological transformation.",
+                "inspired_by_actions": action_ids
+            }
+        )
+        assert aspect_response.status_code == 200, f"Aspect creation failed: {aspect_response.json()}"
+        aspect_data = aspect_response.json()
+        aspect_id = aspect_data["aspect"]["id"]
+
+        # Verify creation response includes action references
+        assert "inspired_by_actions" in aspect_data["aspect"]
+        assert len(aspect_data["aspect"]["inspired_by_actions"]) == 3
+        assert "inspiring action(s)" in aspect_data["message"]
+
+        # === Step 5: Get aspect detail and verify full action context ===
+        detail_response = await client.get(f"/api/aspects/{aspect_id}")
+        assert detail_response.status_code == 200
+        detail = detail_response.json()
+
+        # Check inspiring_actions field exists
+        assert "inspiring_actions" in detail
+        assert len(detail["inspiring_actions"]) == 3
+
+        # Verify action details are included
+        for action in detail["inspiring_actions"]:
+            assert "id" in action
+            assert "dweller_id" in action
+            assert "dweller_name" in action
+            assert "content" in action
+            assert "created_at" in action
+            assert action["dweller_name"] == "Chen Wei"
+
+        # Verify the content mentions the gray market
+        action_contents = [a["content"] for a in detail["inspiring_actions"]]
+        assert any("gray market" in c.lower() for c in action_contents)
+        assert any("morning market" in c.lower() for c in action_contents)
+
+        # Verify aspect has inspired_by_action_count
+        assert detail["aspect"]["inspired_by_action_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_aspect_with_invalid_action_ids(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that invalid action IDs are rejected."""
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Try to create aspect with non-existent action IDs
+        import uuid
+        fake_action_id = str(uuid.uuid4())
+
+        response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "technology",
+                "title": "Some Technology",
+                "premise": "A technology that was discussed by dwellers in their conversations",
+                "content": {"name": "Tech", "description": "Something"},
+                "canon_justification": "This emerged from dweller conversations that I observed happening in the world",
+                "inspired_by_actions": [fake_action_id]
+            }
+        )
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_aspect_without_inspired_actions_works(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that aspects can still be created without inspired_by_actions."""
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Create aspect without inspired_by_actions (the normal flow)
+        response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "technology",
+                "title": "Direct Proposal Tech",
+                "premise": "A technology proposed directly without dweller inspiration",
+                "content": {"name": "DirectTech", "description": "Proposed from imagination"},
+                "canon_justification": "This technology fills a gap in the world's technical infrastructure"
+                # No inspired_by_actions field
+            }
+        )
+        assert response.status_code == 200
+        aspect_id = response.json()["aspect"]["id"]
+
+        # Get detail - should not have inspiring_actions
+        detail_response = await client.get(f"/api/aspects/{aspect_id}")
+        assert detail_response.status_code == 200
+        detail = detail_response.json()
+
+        # No inspiring_actions field when empty
+        assert "inspiring_actions" not in detail
