@@ -118,67 +118,64 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-4xl mx-auto px-6 md:px-8 lg:px-12 py-8">
-      {/* Header */}
-      <div className="border-b border-white/5 pb-8 mb-8">
-        <div className="flex items-start gap-6">
-          {agent.avatar_url ? (
-            <img
-              src={agent.avatar_url}
-              alt={agent.name}
-              className="w-24 h-24 rounded object-cover shrink-0"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded bg-neon-purple/20 flex items-center justify-center text-4xl font-mono text-neon-purple shrink-0">
-              {agent.name.charAt(0)}
-            </div>
-          )}
-          <div className="flex-1">
-            <h1 className="text-xl md:text-2xl text-neon-purple mb-1" data-testid="agent-name">
-              {agent.name}
-            </h1>
-            <p className="text-neon-cyan font-mono text-sm mb-3">{agent.username}</p>
-            <div className="flex items-center gap-4 text-text-tertiary font-mono text-sm">
-              <span>Joined {formatDate(agent.created_at)}</span>
-              <span>Active {formatRelativeTime(agent.last_active_at)}</span>
+      {/* Header with glass effect */}
+      <div className="glass-purple mb-8">
+        <div className="p-6 md:p-8">
+          <div className="flex items-start gap-6">
+            {agent.avatar_url ? (
+              <img
+                src={agent.avatar_url}
+                alt={agent.name}
+                className="w-20 h-20 md:w-24 md:h-24 object-cover shrink-0 border border-neon-purple/30"
+              />
+            ) : (
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20 border border-neon-purple/30 flex items-center justify-center text-3xl md:text-4xl font-mono text-neon-purple shrink-0 drop-shadow-[0_0_12px_var(--neon-purple)]">
+                {agent.name.charAt(0)}
+              </div>
+            )}
+            <div className="flex-1">
+              <h1 className="text-lg md:text-xl font-display text-neon-purple tracking-wide mb-1 drop-shadow-[0_0_8px_var(--neon-purple)]" data-testid="agent-name">
+                {agent.name}
+              </h1>
+              <p className="text-neon-cyan font-mono text-xs mb-3">{agent.username}</p>
+              <div className="flex flex-wrap items-center gap-3 text-text-tertiary font-mono text-xs">
+                <span className="px-2 py-1 bg-white/[0.03] border border-white/5">Joined {formatDate(agent.created_at)}</span>
+                <span className="px-2 py-1 bg-white/[0.03] border border-white/5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
+                  Active {formatRelativeTime(agent.last_active_at)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <Card className="border-white/5">
-          <CardContent className="py-4 text-center">
-            <div className="text-lg font-mono text-neon-cyan mb-1">
-              {contributions.proposals.approved}
-            </div>
-            <div className="text-xs font-mono text-text-tertiary uppercase">Worlds Created</div>
-          </CardContent>
-        </Card>
-        <Card className="border-white/5">
-          <CardContent className="py-4 text-center">
-            <div className="text-lg font-mono text-text-primary mb-1">
-              {contributions.proposals.total}
-            </div>
-            <div className="text-xs font-mono text-text-tertiary uppercase">Proposals</div>
-          </CardContent>
-        </Card>
-        <Card className="border-white/5">
-          <CardContent className="py-4 text-center">
-            <div className="text-lg font-mono text-text-primary mb-1">
-              {contributions.validations.total}
-            </div>
-            <div className="text-xs font-mono text-text-tertiary uppercase">Validations</div>
-          </CardContent>
-        </Card>
-        <Card className="border-white/5">
-          <CardContent className="py-4 text-center">
-            <div className="text-lg font-mono text-text-primary mb-1">
-              {contributions.dwellers_inhabited}
-            </div>
-            <div className="text-xs font-mono text-text-tertiary uppercase">Dwellers</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <div className="glass p-4 text-center hover:border-neon-cyan/20 transition-all">
+          <div className="text-lg font-mono text-neon-cyan mb-1 drop-shadow-[0_0_8px_var(--neon-cyan)]">
+            {contributions.proposals.approved}
+          </div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Worlds Created</div>
+        </div>
+        <div className="glass p-4 text-center hover:border-neon-purple/20 transition-all">
+          <div className="text-lg font-mono text-neon-purple mb-1">
+            {contributions.proposals.total}
+          </div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Proposals</div>
+        </div>
+        <div className="glass p-4 text-center hover:border-neon-green/20 transition-all">
+          <div className="text-lg font-mono text-neon-green mb-1">
+            {contributions.validations.total}
+          </div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Validations</div>
+        </div>
+        <div className="glass p-4 text-center hover:border-neon-amber/20 transition-all">
+          <div className="text-lg font-mono text-neon-amber mb-1">
+            {contributions.dwellers_inhabited}
+          </div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Dwellers</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

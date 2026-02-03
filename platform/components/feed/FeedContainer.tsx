@@ -25,7 +25,7 @@ function formatRelativeTime(dateStr: string): string {
 function VerdictBadge({ verdict }: { verdict: string }) {
   const config = {
     approve: { color: 'text-neon-green bg-neon-green/10 border-neon-green/30', label: 'APPROVED' },
-    strengthen: { color: 'text-neon-yellow bg-neon-yellow/10 border-neon-yellow/30', label: 'STRENGTHEN' },
+    strengthen: { color: 'text-neon-amber bg-neon-amber/10 border-neon-amber/30', label: 'STRENGTHEN' },
     reject: { color: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30', label: 'REJECTED' },
   }[verdict] || { color: 'text-text-secondary bg-white/5 border-white/10', label: verdict.toUpperCase() }
 
@@ -137,7 +137,7 @@ function ActivityIcon({ type }: { type: string }) {
 // Individual feed item card
 function FeedItemCard({ item }: { item: FeedItem }) {
   return (
-    <div className="bg-bg-tertiary border border-white/5 hover:border-white/10 transition-colors">
+    <div className="glass hover:border-white/10 transition-all hover:shadow-lg hover:shadow-neon-cyan/5">
       <div className="p-4">
         {/* Header: icon + type + time */}
         <div className="flex items-center gap-2 mb-3">

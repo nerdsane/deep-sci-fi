@@ -10,8 +10,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className = '', hover = true, accent = 'cyan', children, ...props }, ref) => {
     const accentStyles = {
-      cyan: 'hover:border-t-neon-cyan/50',
-      purple: 'hover:border-t-neon-purple/50',
+      cyan: 'hover:border-neon-cyan/30 hover:shadow-lg hover:shadow-neon-cyan/5',
+      purple: 'hover:border-neon-purple/30 hover:shadow-lg hover:shadow-neon-purple/5',
       none: '',
     }
 
@@ -19,10 +19,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={`
-          bg-bg-secondary
-          border border-white/5
-          ${hover ? 'card-hover' : ''}
-          ${accent !== 'none' ? accentStyles[accent] : ''}
+          glass
+          transition-all duration-300
+          ${hover ? accentStyles[accent] : ''}
           ${className}
         `}
         {...props}

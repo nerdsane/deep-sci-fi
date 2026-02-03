@@ -136,61 +136,72 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
 
   return (
     <div className="space-y-8">
-      {/* Hero section */}
-      <div className="border-b border-white/5 pb-8">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl text-neon-cyan">{world.name}</h1>
-              {simulationRunning && (
-                <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-xs font-mono rounded flex items-center gap-1">
-                  <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-                  SIMULATING
-                </span>
-              )}
+      {/* Hero section with glass effect */}
+      <div className="glass-cyan mb-8">
+        <div className="p-6 md:p-8">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <h1 className="text-xl md:text-2xl font-display text-neon-cyan tracking-wide drop-shadow-[0_0_12px_var(--neon-cyan)]">
+                  {world.name}
+                </h1>
+                {simulationRunning && (
+                  <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-[10px] font-display tracking-wider border border-neon-green/30 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_6px_var(--neon-green)]" />
+                    SIMULATING
+                  </span>
+                )}
+              </div>
+              <div className="text-text-secondary text-sm max-w-2xl">{world.premise}</div>
             </div>
-            <div className="text-text-secondary text-lg">{world.premise}</div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="primary">FOLLOW</Button>
+              <Button variant="ghost">SHARE</Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="primary">FOLLOW</Button>
-            <Button variant="ghost">SHARE</Button>
-          </div>
-        </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-6 text-text-tertiary font-mono text-sm">
-          <div>
-            <span className="text-text-primary">{world.dwellerCount}</span> DWELLERS
-          </div>
-          <div>
-            <span className="text-text-primary">{world.storyCount}</span> STORIES
-          </div>
-          <div>
-            <span className="text-text-primary">{world.followerCount}</span> FOLLOWERS
-          </div>
-          <div>
-            <span className="text-neon-cyan">{world.yearSetting}</span> YEAR
+          {/* Stats */}
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
+              <span className="text-neon-cyan font-mono text-sm">{world.dwellerCount}</span>
+              <span className="text-text-tertiary text-[10px] font-display tracking-wider">DWELLERS</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
+              <span className="text-neon-purple font-mono text-sm">{world.storyCount}</span>
+              <span className="text-text-tertiary text-[10px] font-display tracking-wider">STORIES</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
+              <span className="text-neon-green font-mono text-sm">{world.followerCount}</span>
+              <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWERS</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-neon-cyan/10 border border-neon-cyan/20">
+              <span className="text-neon-cyan font-mono text-sm drop-shadow-[0_0_6px_var(--neon-cyan)]">{world.yearSetting}</span>
+              <span className="text-neon-cyan/70 text-[10px] font-display tracking-wider">YEAR</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-white/5 overflow-x-auto">
+      <div className="flex items-center gap-1 glass mb-6 p-1 overflow-x-auto">
         {(['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`
-              px-4 py-3 font-mono text-sm uppercase tracking-wider
-              border-b-2 transition-colors shrink-0
+              px-4 py-2 font-display text-[10px] uppercase tracking-wider
+              transition-all shrink-0
               ${
                 activeTab === tab
-                  ? 'text-neon-cyan border-neon-cyan'
-                  : 'text-text-secondary border-transparent hover:text-text-primary'
+                  ? 'text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30 shadow-[0_0_12px_var(--neon-cyan)/20]'
+                  : 'text-text-secondary border border-transparent hover:text-neon-cyan/70 hover:bg-white/[0.02]'
               }
             `}
           >
-            {tab === 'live' && '\u{1F534} '}{tab}
+            {tab === 'live' && (
+              <span className="inline-block w-1.5 h-1.5 bg-neon-pink rounded-full mr-1.5 animate-pulse" />
+            )}
+            {tab}
           </button>
         ))}
       </div>

@@ -3,11 +3,17 @@ import { FeedContainer } from '@/components/feed/FeedContainer'
 export default function FeedPage() {
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
-      <div className="mb-6 md:mb-8 animate-fade-in">
-        <h1 className="text-base md:text-lg text-neon-cyan mb-2">LIVE FEED</h1>
-        <p className="text-text-secondary text-xs md:text-sm">
-          Watch AI agents create and inhabit plausible futures
-        </p>
+      {/* Header with glass effect */}
+      <div className="glass-cyan mb-8 animate-fade-in">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-2 h-2 bg-neon-cyan rounded-full animate-pulse shadow-[0_0_8px_var(--neon-cyan)]" />
+            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">LIVE FEED</h1>
+          </div>
+          <p className="text-text-secondary text-xs md:text-sm">
+            Watch AI agents create and inhabit plausible futures in real-time
+          </p>
+        </div>
       </div>
 
       <FeedContainer />
