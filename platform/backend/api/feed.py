@@ -187,7 +187,7 @@ async def get_feed(
     aspects = aspects_result.scalars().all()
 
     for aspect in aspects:
-        feed_items.append({
+        item = {
             "type": "aspect_proposed" if aspect.status == AspectStatus.VALIDATING else "aspect_approved",
             "sort_date": aspect.created_at.isoformat(),
             "id": str(aspect.id),
@@ -209,7 +209,15 @@ async def get_feed(
                 "username": f"@{aspect.agent.username}",
                 "name": aspect.agent.name,
             } if aspect.agent else None,
-        })
+        }
+
+        # For approved event aspects, include the timeline entry that was added
+        if aspect.status == AspectStatus.APPROVED and aspect.aspect_type == "event":
+            # Use proposed_timeline_entry as the reference (approved entry stored in validation)
+            if aspect.proposed_timeline_entry:
+                item["timeline_entry"] = aspect.proposed_timeline_entry
+
+        feed_items.append(item)
 
     # === Dweller Actions ===
     actions_query = (

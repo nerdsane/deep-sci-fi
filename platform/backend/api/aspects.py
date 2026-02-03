@@ -50,6 +50,25 @@ from guidance import (
 router = APIRouter(prefix="/aspects", tags=["aspects"])
 
 
+def insert_chronologically(causal_chain: list[dict], new_entry: dict) -> list[dict]:
+    """Insert timeline entry in chronological order by year.
+
+    Finds the correct position in the existing causal_chain based on year
+    and inserts the new entry there. Returns a new list.
+    """
+    new_year = new_entry.get("year", 0)
+    result = list(causal_chain)
+
+    for i, existing in enumerate(result):
+        if existing.get("year", 0) > new_year:
+            result.insert(i, new_entry)
+            return result
+
+    # If we didn't insert, the new entry goes at the end
+    result.append(new_entry)
+    return result
+
+
 # ============================================================================
 # Request/Response Models
 # ============================================================================
@@ -103,6 +122,10 @@ class AspectCreateRequest(BaseModel):
         default=[],
         description="Dweller action IDs that inspired this aspect. Use when formalizing emergent behavior - patterns you noticed in dweller conversations that should become official canon. Validators can review the original context."
     )
+    proposed_timeline_entry: dict[str, Any] | None = Field(
+        None,
+        description="For 'event' aspects: the proposed timeline entry. REQUIRED for event aspects. Structure: {year: int, event: str, reasoning: str}. The year must fall within the world's timeline (from first causal_chain entry to year_setting)."
+    )
 
 
 class AspectValidationRequest(BaseModel):
@@ -143,6 +166,10 @@ class AspectValidationRequest(BaseModel):
     updated_canon_summary: str | None = Field(
         None,
         description="REQUIRED for approve verdict: The new world canon summary that incorporates this aspect. You are the integrator - write how this fits into the existing world narrative. Must be at least 50 characters."
+    )
+    approved_timeline_entry: dict[str, Any] | None = Field(
+        None,
+        description="REQUIRED when approving 'event' aspects: The timeline entry to add to world.causal_chain. Structure: {year: int, event: str, reasoning: str}. You can accept the proposer's version or refine it."
     )
 
 
@@ -196,6 +223,54 @@ async def create_aspect(
             detail="Content cannot be empty"
         )
 
+    # Validate proposed_timeline_entry for event aspects
+    if request.aspect_type == "event":
+        if not request.proposed_timeline_entry:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Event aspects require a proposed_timeline_entry",
+                    "how_to_fix": "Include proposed_timeline_entry with {year: int, event: str, reasoning: str}. This is how your event will appear in the world's timeline.",
+                }
+            )
+        entry = request.proposed_timeline_entry
+        required_fields = ["year", "event", "reasoning"]
+        missing = [f for f in required_fields if f not in entry]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Invalid proposed_timeline_entry structure",
+                    "missing_fields": missing,
+                    "required_fields": required_fields,
+                    "how_to_fix": f"Add the missing fields: {', '.join(missing)}",
+                }
+            )
+        # Validate year is an integer
+        if not isinstance(entry["year"], int):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "proposed_timeline_entry.year must be an integer",
+                    "provided": entry["year"],
+                    "how_to_fix": "Provide the year as an integer, e.g., 2087",
+                }
+            )
+        # Validate year is within world timeline
+        min_year = world.causal_chain[0]["year"] if world.causal_chain else 2026
+        max_year = world.year_setting
+        if entry["year"] < min_year or entry["year"] > max_year:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Timeline entry year out of range",
+                    "world_timeline_start": min_year,
+                    "world_timeline_end": max_year,
+                    "your_year": entry["year"],
+                    "how_to_fix": f"Choose a year between {min_year} and {max_year}",
+                }
+            )
+
     # Validate that inspired_by_actions reference real actions in this world
     # Use a single batch query to avoid N+1 pattern
     action_ids_str = []
@@ -235,6 +310,7 @@ async def create_aspect(
         content=request.content,
         canon_justification=request.canon_justification,
         inspired_by_actions=action_ids_str,
+        proposed_timeline_entry=request.proposed_timeline_entry,
         status=AspectStatus.DRAFT,
     )
     db.add(aspect)
@@ -252,7 +328,16 @@ async def create_aspect(
             "created_at": aspect.created_at.isoformat(),
         },
         "message": "Aspect created. Call POST /aspects/{id}/submit to begin validation.",
+        "guidance": {
+            "next_step": "Submit your aspect for validation with POST /aspects/{id}/submit",
+            "for_validators": "Validators will review your canon_justification to ensure you understand the world's existing timeline.",
+            "tip": "Reference specific events from the causal_chain in your canon_justification to demonstrate familiarity.",
+        },
     }
+
+    if request.proposed_timeline_entry:
+        response["aspect"]["proposed_timeline_entry"] = request.proposed_timeline_entry
+        response["guidance"]["event_note"] = "Your proposed_timeline_entry will be reviewed by validators. If approved, it will be inserted chronologically into the world's causal_chain."
 
     if action_ids_str:
         response["aspect"]["inspired_by_actions"] = action_ids_str
@@ -335,6 +420,7 @@ async def validate_aspect(
     3. Does it mesh with existing factions and cultural dynamics?
     4. Is the content detailed enough to be usable by dwellers?
     5. Does the canon_justification make sense?
+    6. For event aspects: Does the proposed_timeline_entry fit chronologically?
 
     CRITICAL FOR APPROVE:
     You MUST provide updated_canon_summary when approving. DSF cannot do inference -
@@ -342,8 +428,14 @@ async def validate_aspect(
     current canon_summary and write an updated version that integrates the new
     element naturally.
 
+    WHEN APPROVING EVENT ASPECTS:
+    You MUST also provide approved_timeline_entry with {year, event, reasoning}.
+    You can accept the proposer's proposed_timeline_entry or refine it.
+    The entry will be inserted chronologically into world.causal_chain.
+
     VERDICTS:
-    - 'approve': Consistent, adds depth. REQUIRES updated_canon_summary (min 50 chars)
+    - 'approve': Consistent, adds depth. REQUIRES updated_canon_summary (min 50 chars).
+      For event aspects, also REQUIRES approved_timeline_entry.
     - 'strengthen': Good idea but needs work. Provide specific suggested_fixes.
     - 'reject': Contradicts canon or fundamentally flawed. Explain in canon_conflicts.
 
@@ -393,6 +485,41 @@ async def validate_aspect(
             detail="updated_canon_summary must be at least 50 characters. Provide a meaningful summary."
         )
 
+    # CRITICAL: approving event aspects requires approved_timeline_entry
+    if request.verdict == "approve" and aspect.aspect_type == "event":
+        if not request.approved_timeline_entry:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Approving event aspects requires approved_timeline_entry",
+                    "proposer_suggested": aspect.proposed_timeline_entry,
+                    "how_to_fix": "Include approved_timeline_entry with {year: int, event: str, reasoning: str}. You can use the proposer's version or refine it.",
+                }
+            )
+        entry = request.approved_timeline_entry
+        required_fields = ["year", "event", "reasoning"]
+        missing = [f for f in required_fields if f not in entry]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Invalid approved_timeline_entry structure",
+                    "missing_fields": missing,
+                    "required_fields": required_fields,
+                    "proposer_suggested": aspect.proposed_timeline_entry,
+                    "how_to_fix": f"Add the missing fields: {', '.join(missing)}",
+                }
+            )
+        if not isinstance(entry["year"], int):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "approved_timeline_entry.year must be an integer",
+                    "provided": entry["year"],
+                    "how_to_fix": "Provide the year as an integer, e.g., 2087",
+                }
+            )
+
     # Create validation
     validation = AspectValidation(
         aspect_id=aspect_id,
@@ -402,6 +529,7 @@ async def validate_aspect(
         canon_conflicts=request.canon_conflicts,
         suggested_fixes=request.suggested_fixes,
         updated_canon_summary=request.updated_canon_summary,
+        approved_timeline_entry=request.approved_timeline_entry,
     )
     db.add(validation)
 
@@ -424,6 +552,15 @@ async def validate_aspect(
         if aspect.aspect_type == "region" and "name" in aspect.content:
             world.regions = world.regions + [aspect.content]
 
+        # If aspect is an event, integrate the timeline entry into causal_chain
+        timeline_updated = False
+        if aspect.aspect_type == "event" and request.approved_timeline_entry:
+            world.causal_chain = insert_chronologically(
+                world.causal_chain,
+                request.approved_timeline_entry
+            )
+            timeline_updated = True
+
         # Update the world's canon summary with the integrator's version
         world.canon_summary = request.updated_canon_summary
 
@@ -431,8 +568,13 @@ async def validate_aspect(
         response["world_updated"] = {
             "id": str(world.id),
             "canon_summary_updated": True,
+            "timeline_updated": timeline_updated,
             "message": "Aspect integrated. World canon summary updated.",
         }
+
+        if timeline_updated:
+            response["world_updated"]["new_timeline_entry"] = request.approved_timeline_entry
+            response["world_updated"]["message"] = "Aspect integrated. World canon summary and causal_chain timeline updated."
 
     elif request.verdict == "reject":
         aspect.status = AspectStatus.REJECTED

@@ -357,6 +357,12 @@ class Aspect(Base):
     # Links emergent dweller behavior to formalized canon additions
     inspired_by_actions: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
+    # Proposed timeline entry - required for "event" aspects, optional for others
+    # Structure: {year: int, event: str, reasoning: str}
+    proposed_timeline_entry: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
     # Status
     status: Mapped[AspectStatus] = mapped_column(
         Enum(AspectStatus), default=AspectStatus.DRAFT, nullable=False
@@ -420,6 +426,13 @@ class AspectValidation(Base):
     # REQUIRED for approve verdict: updated canon summary for the world
     # This is how the integrator incorporates the new aspect
     updated_canon_summary: Mapped[str | None] = mapped_column(Text)
+
+    # For event aspects: the timeline entry as approved/refined by validator
+    # Structure: {year: int, event: str, reasoning: str}
+    # REQUIRED when approving event aspects - will be inserted into world.causal_chain
+    approved_timeline_entry: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
