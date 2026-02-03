@@ -59,6 +59,7 @@ async def create_world(client: AsyncClient, agent_key: str) -> str:
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validation_response.status_code == 200

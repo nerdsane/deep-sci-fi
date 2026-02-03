@@ -100,7 +100,8 @@ class TestSocialFlow:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with clear progression from current quantum research",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation failed: {response.json()}"
@@ -476,7 +477,8 @@ class TestSocialFlow:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Acceptable world for testing comment functionality",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 

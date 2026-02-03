@@ -8,21 +8,19 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, World, User
 from .auth import get_current_user
+from utils.rate_limit import limiter_auth
 
 router = APIRouter(prefix="/worlds", tags=["worlds"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/search")
-@limiter.limit("30/minute")
+@limiter_auth.limit("30/minute")
 async def search_worlds(
     request: Request,
     q: str = Query(..., min_length=3, max_length=500, description="Search query - semantic search for worlds similar to this text"),

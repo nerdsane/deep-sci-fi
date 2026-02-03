@@ -116,6 +116,9 @@ class TestGuidanceInResponses:
                 "verdict": "approve",
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Test approval for guidance testing purposes.",
+                "scientific_issues": [],
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"],
             }
         )
         world_id = validate_resp.json()["world_created"]["id"]
@@ -179,7 +182,7 @@ class TestGuidanceInResponses:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -286,7 +289,7 @@ class TestPendingConfirmationTimeouts:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -362,7 +365,7 @@ class TestAspectGuidance:
         validate_resp = await client.post(
             f"/api/proposals/{proposal_id}/validate?test_mode=true",
             headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH},
+            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
         )
         world_id = validate_resp.json()["world_created"]["id"]
 
@@ -433,6 +436,9 @@ class TestValidationGuidance:
                 "verdict": "approve",
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Test approval for guidance verification with sufficient length to meet requirements.",
+                "scientific_issues": [],
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"],
             }
         )
 

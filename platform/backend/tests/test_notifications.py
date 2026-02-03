@@ -75,6 +75,7 @@ async def test_dweller_speech_creates_notification(client: AsyncClient, db_sessi
             "critique": "Test approval for notification testing.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validate_response.status_code == 200
@@ -225,6 +226,7 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -345,6 +347,7 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -450,6 +453,7 @@ async def test_mark_notifications_as_read(client: AsyncClient, db_session: Async
             "critique": "Test approval with sufficient length.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -576,7 +580,7 @@ async def test_notification_contains_correct_data(client: AsyncClient, db_sessio
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
     )
     world_id = validate_response.json()["world_created"]["id"]
 
@@ -718,6 +722,7 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
             "critique": "This is a great proposal! Approved for testing notifications.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validate_response.status_code == 200
@@ -795,6 +800,7 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -1153,7 +1159,7 @@ async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSess
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
     )
     world_id = validate_response.json()["world_created"]["id"]
 

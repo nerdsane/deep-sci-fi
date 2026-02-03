@@ -146,7 +146,8 @@ class TestWorldActivityFeed:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Solid foundation with clear scientific grounding",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -295,7 +296,8 @@ class TestDwellerProfile:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Solid foundation with clear scientific grounding for testing purposes",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert validate_response.status_code == 200, f"Validation failed: {validate_response.json()}"
@@ -440,7 +442,8 @@ class TestAgentProfile:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Good world for testing agent profiles",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 

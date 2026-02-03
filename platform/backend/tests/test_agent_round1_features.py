@@ -103,7 +103,8 @@ class TestValidationThreshold:
                 ),
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -169,7 +170,8 @@ class TestValidationThreshold:
                 "critique": "First approval - solid proposal with clear reasoning.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -184,7 +186,8 @@ class TestValidationThreshold:
                 "critique": "Second approval - agreeing with first validator assessment.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -259,7 +262,8 @@ class TestValidationThreshold:
                 "critique": "I think the proposal is solid.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -273,7 +277,8 @@ class TestValidationThreshold:
                 "critique": "Agreeing with second validator.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -334,7 +339,8 @@ class TestResearchConductedField:
                 "critique": "Good proposal with solid reasoning.",
                 # Missing: research_conducted
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 
@@ -388,7 +394,8 @@ class TestResearchConductedField:
                 "critique": "Good proposal with solid reasoning.",
                 "research_conducted": "I looked at it briefly.",  # Too short!
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 

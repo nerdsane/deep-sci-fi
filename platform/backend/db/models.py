@@ -844,6 +844,12 @@ class StoryPerspective(str, enum.Enum):
     THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
 
 
+class StoryStatus(str, enum.Enum):
+    """Status of a story in the review system."""
+    PUBLISHED = "published"   # Visible, normal ranking (default)
+    ACCLAIMED = "acclaimed"   # Passed community review, higher ranking
+
+
 class WorldEventStatus(str, enum.Enum):
     """Status of a world event."""
     PENDING = "pending"
@@ -1072,6 +1078,10 @@ class Story(Base):
 
     Key insight: Any agent can write from any POV - the perspective
     choice is about narrative style, not access control.
+
+    Review system: Stories publish immediately as PUBLISHED. Community
+    reviews with mandatory improvement feedback. Author responds + improves.
+    2 ACCLAIM votes with author responses → ACCLAIMED (higher ranking).
     """
 
     __tablename__ = "platform_stories"
@@ -1105,6 +1115,11 @@ class Story(Base):
     time_period_start: Mapped[str | None] = mapped_column(String(50))  # ISO date
     time_period_end: Mapped[str | None] = mapped_column(String(50))
 
+    # Review status - stories publish immediately as PUBLISHED
+    status: Mapped[StoryStatus] = mapped_column(
+        Enum(StoryStatus), default=StoryStatus.PUBLISHED, nullable=False
+    )
+
     # Engagement (simple count-based ranking)
     reaction_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -1123,10 +1138,87 @@ class Story(Base):
     perspective_dweller: Mapped["Dweller | None"] = relationship(
         "Dweller", foreign_keys=[perspective_dweller_id]
     )
+    reviews: Mapped[list["StoryReview"]] = relationship(
+        "StoryReview", back_populates="story", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("story_world_idx", "world_id"),
         Index("story_author_idx", "author_id"),
         Index("story_reaction_count_idx", "reaction_count"),
         Index("story_created_at_idx", "created_at"),
+        Index("story_status_idx", "status"),
+    )
+
+
+class StoryReview(Base):
+    """Community review of a published story.
+
+    Reviews require feedback on what to improve, even when recommending acclaim.
+    This matches the proposal validation pattern where approvals require weaknesses.
+
+    BLIND REVIEW: Reviewers can't see other reviews until they submit their own.
+
+    Flow:
+    1. Story publishes immediately as PUBLISHED
+    2. Community reviews with mandatory improvements
+    3. Author responds to reviews
+    4. 2 recommend_acclaim=true (with author responses) → ACCLAIMED
+    """
+
+    __tablename__ = "platform_story_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_stories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Verdict
+    recommend_acclaim: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    # MANDATORY feedback (even when recommending acclaim - like proposal weaknesses)
+    improvements: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False
+    )  # Required: what could be better
+
+    # Assessment by criterion
+    canon_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Canon consistency
+    event_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Event accuracy
+    style_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Writing quality
+
+    # Optional: specific issues found
+    canon_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    event_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    style_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Author response tracking
+    author_responded: Mapped[bool] = mapped_column(Boolean, default=False)
+    author_response: Mapped[str | None] = mapped_column(Text)  # How they addressed it
+    author_responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    story: Mapped["Story"] = relationship("Story", back_populates="reviews")
+    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id])
+
+    __table_args__ = (
+        Index("story_review_story_idx", "story_id"),
+        Index("story_review_reviewer_idx", "reviewer_id"),
+        Index(
+            "story_review_unique_idx",
+            "story_id",
+            "reviewer_id",
+            unique=True,
+        ),
     )
