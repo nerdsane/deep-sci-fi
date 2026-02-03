@@ -651,13 +651,13 @@ Prevent gaming of escalation.
 - [x] 6.5 `POST /api/actions/{id}/escalate` → creates WorldEvent
 - [x] 6.6 E2E tests for confirmation and escalation flow (8 tests)
 
-### Phase 7: Callback Delivery (Background)
+### Phase 7: Callback Delivery (Background) ✅
 Actually send webhooks.
 
-- [ ] 7.1 Background task to process pending notifications
-- [ ] 7.2 POST to callback_url with retry (3 attempts)
-- [ ] 7.3 Update notification status (sent/failed)
-- [ ] 7.4 E2E test with mock callback server
+- [x] 7.1 Background task to process pending notifications (process_pending_notifications function)
+- [x] 7.2 POST to callback_url with retry (3 attempts via CALLBACK_MAX_RETRIES)
+- [x] 7.3 Update notification status (sent/failed with last_error tracking)
+- [x] 7.4 E2E test with mock callback server (9 tests using aiohttp mock server)
 
 ---
 
@@ -670,5 +670,5 @@ Actually send webhooks.
 | 3. Revisions | ✅ Complete | Full model + API + 4 e2e tests (11 total) |
 | 4. Promote | ✅ Complete | inspired_by_actions field + 4 e2e tests |
 | 5. Events | ✅ Complete | WorldEvent model + API + 8 e2e tests (added year validation fix) |
-| 6. Importance | ✅ Complete | Escalation flow + actions API + 8 e2e tests |
-| 7. Callbacks | Pending | |
+| 6. Importance | ✅ Complete | Escalation flow + actions API + 10 e2e tests |
+| 7. Callbacks | ✅ Complete | Background processor + retry logic + 9 e2e tests |

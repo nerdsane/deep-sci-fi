@@ -61,12 +61,14 @@ async def create_notification(
         # Get user to check for callback_url
         user = await db.get(User, user_id)
         if user and user.callback_url:
-            success = await send_callback(user.callback_url, notification)
+            from datetime import timezone
+            success, error = await send_callback(user.callback_url, notification)
             if success:
                 notification.status = NotificationStatus.SENT
-                notification.sent_at = datetime.utcnow()
+                notification.sent_at = datetime.now(timezone.utc)
             else:
                 notification.retry_count = 1
+                notification.last_error = error
                 # Keep as PENDING for retry by background job
 
     return notification
@@ -75,7 +77,7 @@ async def create_notification(
 async def send_callback(
     callback_url: str,
     notification: Notification,
-) -> bool:
+) -> tuple[bool, str | None]:
     """
     Send a callback to an agent's callback URL.
 
@@ -84,7 +86,7 @@ async def send_callback(
         notification: The notification to send
 
     Returns:
-        True if successful, False otherwise
+        Tuple of (success: bool, error_message: str | None)
     """
     payload = {
         "event": notification.notification_type,
@@ -106,22 +108,109 @@ async def send_callback(
 
             if response.status_code < 400:
                 logger.info(f"Callback sent successfully to {callback_url}")
-                return True
+                return True, None
             else:
+                error = f"HTTP {response.status_code}"
                 logger.warning(
                     f"Callback failed with status {response.status_code}: {callback_url}"
                 )
-                return False
+                return False, error
 
     except httpx.TimeoutException:
+        error = "Request timed out"
         logger.warning(f"Callback timed out: {callback_url}")
-        return False
+        return False, error
     except httpx.RequestError as e:
+        error = f"Request error: {str(e)}"
         logger.warning(f"Callback request error: {callback_url} - {e}")
-        return False
+        return False, error
     except Exception as e:
+        error = f"Unexpected error: {str(e)}"
         logger.error(f"Unexpected callback error: {callback_url} - {e}")
-        return False
+        return False, error
+
+
+async def process_pending_notifications(
+    db: AsyncSession,
+    batch_size: int = 50,
+) -> dict[str, int]:
+    """
+    Process pending notifications that need callback delivery.
+
+    This function should be called periodically by a background task or scheduler.
+    It processes notifications that:
+    - Have status PENDING
+    - Have a user with a callback_url
+    - Have retry_count < CALLBACK_MAX_RETRIES
+
+    Args:
+        db: Database session
+        batch_size: Maximum number of notifications to process in one batch
+
+    Returns:
+        Dict with counts: {"processed": N, "sent": N, "failed": N, "retrying": N}
+    """
+    from datetime import timezone
+
+    # Query pending notifications with users who have callback URLs
+    query = (
+        select(Notification)
+        .join(User, Notification.user_id == User.id)
+        .where(
+            Notification.status == NotificationStatus.PENDING,
+            Notification.retry_count < CALLBACK_MAX_RETRIES,
+            User.callback_url != None,
+        )
+        .order_by(Notification.created_at)
+        .limit(batch_size)
+    )
+
+    result = await db.execute(query)
+    notifications = result.scalars().all()
+
+    stats = {"processed": 0, "sent": 0, "failed": 0, "retrying": 0}
+
+    for notification in notifications:
+        stats["processed"] += 1
+
+        # Get the user's callback URL
+        user = await db.get(User, notification.user_id)
+        if not user or not user.callback_url:
+            continue
+
+        # Attempt to send the callback
+        success, error = await send_callback(user.callback_url, notification)
+
+        if success:
+            notification.status = NotificationStatus.SENT
+            notification.sent_at = datetime.now(timezone.utc)
+            notification.last_error = None
+            stats["sent"] += 1
+            logger.info(f"Notification {notification.id} sent successfully")
+        else:
+            notification.retry_count += 1
+            notification.last_error = error
+
+            if notification.retry_count >= CALLBACK_MAX_RETRIES:
+                notification.status = NotificationStatus.FAILED
+                stats["failed"] += 1
+                logger.warning(
+                    f"Notification {notification.id} failed after {CALLBACK_MAX_RETRIES} retries"
+                )
+            else:
+                stats["retrying"] += 1
+                logger.info(
+                    f"Notification {notification.id} will retry (attempt {notification.retry_count}/{CALLBACK_MAX_RETRIES})"
+                )
+
+    await db.commit()
+
+    logger.info(
+        f"Processed {stats['processed']} notifications: "
+        f"{stats['sent']} sent, {stats['failed']} failed, {stats['retrying']} retrying"
+    )
+
+    return stats
 
 
 async def notify_dweller_spoken_to(
