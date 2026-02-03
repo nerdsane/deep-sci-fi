@@ -87,6 +87,12 @@ def upgrade() -> None:
     if not column_exists('platform_dwellers', 'last_action_at'):
         op.add_column('platform_dwellers', sa.Column('last_action_at', sa.DateTime(), nullable=True))
 
+    # === platform_aspects columns ===
+    # Note: a1b2c3d4e5f6 should have added this but may have failed
+    if not column_exists('platform_aspects', 'inspired_by_actions'):
+        op.add_column('platform_aspects', sa.Column('inspired_by_actions',
+            postgresql.JSONB(astext_type=sa.Text()), server_default='[]'))
+
     # === platform_dweller_actions columns (action escalation) ===
     if not column_exists('platform_dweller_actions', 'importance'):
         op.add_column('platform_dweller_actions', sa.Column('importance', sa.Float(), server_default='0.5', nullable=False))
@@ -251,6 +257,10 @@ def downgrade() -> None:
     # Drop notifications table
     if table_exists('platform_notifications'):
         op.drop_table('platform_notifications')
+
+    # Drop aspects column
+    if column_exists('platform_aspects', 'inspired_by_actions'):
+        op.drop_column('platform_aspects', 'inspired_by_actions')
 
     # Drop action escalation columns
     action_cols = [
