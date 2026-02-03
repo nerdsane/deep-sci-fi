@@ -908,3 +908,694 @@ class TestStoriesAPI:
         )
         assert story_item is not None
         assert story_item["story"]["title"] == "Feed Test Story"
+
+    # ==========================================================================
+    # Story Review Tests
+    # ==========================================================================
+
+    @pytest.mark.asyncio
+    async def test_story_publishes_immediately(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that created stories have status=published immediately."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Immediate Publish Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["story"]["status"] == "published"
+
+    @pytest.mark.asyncio
+    async def test_review_story(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test submitting a story review."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Review Test Story",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Review the story (different agent)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Could add more sensory details", "Third act feels rushed"],
+                "canon_notes": "Story is consistent with world canon and timeline",
+                "event_notes": "No specific events referenced but setting is accurate",
+                "style_notes": "Good voice and perspective maintained throughout"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "review" in data
+        assert data["review"]["recommend_acclaim"] is True
+        assert len(data["review"]["improvements"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_review_requires_improvements(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that improvements list is mandatory."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "No Improvements Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Try to review with empty improvements
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": [],  # Empty - should fail
+                "canon_notes": "Story is consistent with world canon",
+                "event_notes": "Events are accurate",
+                "style_notes": "Good writing quality"
+            }
+        )
+        assert response.status_code == 422  # Validation error
+
+    @pytest.mark.asyncio
+    async def test_blind_review(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that reviewers can't see others' reviews until submitting."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Register another reviewer
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Another Reviewer", "username": "story-test-reviewer-2"}
+        )
+        reviewer2_key = response.json()["api_key"]["key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Blind Review Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # First reviewer submits review (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Some improvement"],
+                "canon_notes": "Canon is consistent with world rules and timeline",
+                "event_notes": "Events are accurate and match world history",
+                "style_notes": "Good writing style with consistent voice"
+            }
+        )
+        assert response.status_code == 200, f"Review failed: {response.json()}"
+
+        # Second reviewer tries to see reviews before submitting
+        response = await client.get(
+            f"/api/stories/{story_id}/reviews",
+            headers={"X-API-Key": reviewer2_key}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "blind_review_notice" in data
+        assert data["reviews"] == []  # Can't see reviews yet
+
+        # Second reviewer submits their review (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": reviewer2_key},
+            json={
+                "recommend_acclaim": False,
+                "improvements": ["Different improvement"],
+                "canon_notes": "Canon notes with sufficient detail for validation",
+                "event_notes": "Event notes with sufficient detail for validation",
+                "style_notes": "Style notes with sufficient detail for validation"
+            }
+        )
+        assert response.status_code == 200, f"Review 2 failed: {response.json()}"
+
+        # Now they can see all reviews
+        response = await client.get(
+            f"/api/stories/{story_id}/reviews",
+            headers={"X-API-Key": reviewer2_key}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "blind_review_notice" not in data
+        assert len(data["reviews"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_cannot_self_review(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that authors cannot review their own stories."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Self Review Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Try to review own story (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": creator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Self improvement"],
+                "canon_notes": "My own canon notes that are long enough",
+                "event_notes": "My own event notes that are long enough",
+                "style_notes": "My own style notes that are long enough"
+            }
+        )
+        assert response.status_code == 403
+        assert "Cannot review your own story" in str(response.json())
+
+    @pytest.mark.asyncio
+    async def test_author_responds_to_review(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test author responding to a review."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Response Test Story",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Review the story (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Add more detail"],
+                "canon_notes": "Canon is consistent with the world's established timeline and technology",
+                "event_notes": "Events are accurate and match world history as established",
+                "style_notes": "Style is good with consistent voice and perspective throughout"
+            }
+        )
+        assert response.status_code == 200, f"Review failed: {response.json()}"
+        review_id = response.json()["review"]["id"]
+
+        # Author responds
+        response = await client.post(
+            f"/api/stories/{story_id}/reviews/{review_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={
+                "response": "Thank you for the feedback! I've added more sensory details to the opening scene."
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["response_recorded"] is True
+
+    @pytest.mark.asyncio
+    async def test_acclaim_requires_two_recommendations(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that 2 recommend_acclaim=true needed."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Two Acclaim Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # First review with acclaim (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Minor improvement"],
+                "canon_notes": "Canon is consistent with established world rules and timeline",
+                "event_notes": "Events accurately reflect what happened in the world",
+                "style_notes": "Writing style is consistent with appropriate voice"
+            }
+        )
+        assert response.status_code == 200, f"Review failed: {response.json()}"
+        review_id = response.json()["review"]["id"]
+
+        # Author responds
+        response = await client.post(
+            f"/api/stories/{story_id}/reviews/{review_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Addressed the feedback by adding more detail."}
+        )
+
+        # Check status - should still be published (only 1 acclaim)
+        response = await client.get(f"/api/stories/{story_id}")
+        data = response.json()
+        assert data["story"]["status"] == "published"
+        assert not data["acclaim_eligibility"]["eligible"]
+        assert "Need 2 acclaim" in data["acclaim_eligibility"]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_acclaim_requires_author_responses(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that author must respond to all reviews before acclaim."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Register second reviewer
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Second Acclaim Reviewer", "username": "story-test-acclaim-reviewer"}
+        )
+        reviewer2_key = response.json()["api_key"]["key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Response Required Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Two reviews with acclaim (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Minor improvement 1"],
+                "canon_notes": "Canon is consistent with established world rules and timeline",
+                "event_notes": "Events accurately reflect what happened in the world",
+                "style_notes": "Writing style is consistent with appropriate voice"
+            }
+        )
+        assert response.status_code == 200, f"Review 1 failed: {response.json()}"
+
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": reviewer2_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Minor improvement 2"],
+                "canon_notes": "Canon is consistent and fits well with world lore",
+                "event_notes": "Events are accurate and historically consistent",
+                "style_notes": "Writing style is engaging and well-maintained"
+            }
+        )
+        assert response.status_code == 200, f"Review 2 failed: {response.json()}"
+
+        # Check status - should NOT be acclaimed (no responses)
+        response = await client.get(f"/api/stories/{story_id}")
+        data = response.json()
+        assert data["story"]["status"] == "published"
+        assert not data["acclaim_eligibility"]["eligible"]
+        assert "must respond" in data["acclaim_eligibility"]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_story_becomes_acclaimed(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test full flow: review → respond → acclaim."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Register second reviewer
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Acclaim Flow Reviewer", "username": "story-test-flow-reviewer"}
+        )
+        reviewer2_key = response.json()["api_key"]["key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Full Acclaim Flow Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # First review (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Small improvement"],
+                "canon_notes": "Canon is great and consistent with world rules and timeline",
+                "event_notes": "Events are accurate and match the established world history",
+                "style_notes": "Style is excellent with strong voice and narrative flow"
+            }
+        )
+        assert response.status_code == 200, f"Review 1 failed: {response.json()}"
+        review1_id = response.json()["review"]["id"]
+
+        # Second review (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": reviewer2_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Another small improvement"],
+                "canon_notes": "Canon is verified and properly references world lore",
+                "event_notes": "Events have been checked and are historically accurate",
+                "style_notes": "Style is verified and maintains consistent perspective"
+            }
+        )
+        assert response.status_code == 200, f"Review 2 failed: {response.json()}"
+        review2_id = response.json()["review"]["id"]
+
+        # Author responds to first review
+        await client.post(
+            f"/api/stories/{story_id}/reviews/{review1_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Thank you! Made the improvement."}
+        )
+
+        # Check status - still published (one response pending)
+        response = await client.get(f"/api/stories/{story_id}")
+        assert response.json()["story"]["status"] == "published"
+
+        # Author responds to second review
+        response = await client.post(
+            f"/api/stories/{story_id}/reviews/{review2_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Addressed this feedback too!"}
+        )
+
+        # Should now be acclaimed!
+        data = response.json()
+        assert data["status_changed"] is True
+        assert data["new_status"] == "acclaimed"
+
+        # Verify status via GET
+        response = await client.get(f"/api/stories/{story_id}")
+        assert response.json()["story"]["status"] == "acclaimed"
+
+    @pytest.mark.asyncio
+    async def test_list_stories_filters_by_status(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test filtering stories by published/acclaimed status."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        # Create a story
+        await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Status Filter Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+
+        # Filter by published
+        response = await client.get("/api/stories?status=published")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filters"]["status"] == "published"
+        # All returned should be published
+        for story in data["stories"]:
+            assert story["status"] == "published"
+
+    @pytest.mark.asyncio
+    async def test_acclaimed_stories_rank_higher(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that acclaimed stories appear first in engagement sort."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Register reviewers
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Ranking Reviewer 1", "username": "story-test-ranking-r1"}
+        )
+        reviewer1_key = response.json()["api_key"]["key"]
+
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Ranking Reviewer 2", "username": "story-test-ranking-r2"}
+        )
+        reviewer2_key = response.json()["api_key"]["key"]
+
+        # Create two stories - first one will be acclaimed
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Will Be Acclaimed",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        acclaimed_story_id = response.json()["story"]["id"]
+
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Just Published",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        published_story_id = response.json()["story"]["id"]
+
+        # Add many reactions to the published story (so it would rank higher without acclaim)
+        for _ in range(5):
+            await client.post(
+                f"/api/stories/{published_story_id}/react",
+                headers={"X-API-Key": validator_key},
+                json={"reaction_type": "fire"}
+            )
+            # Toggle off and on to add multiple
+            await client.post(
+                f"/api/stories/{published_story_id}/react",
+                headers={"X-API-Key": reviewer1_key},
+                json={"reaction_type": "fire"}
+            )
+
+        # Review and acclaim the first story (notes must be 20+ chars)
+        response = await client.post(
+            f"/api/stories/{acclaimed_story_id}/review",
+            headers={"X-API-Key": reviewer1_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Small thing"],
+                "canon_notes": "Canon is good and consistent with world lore",
+                "event_notes": "Events are good and historically accurate",
+                "style_notes": "Style is good with consistent voice"
+            }
+        )
+        assert response.status_code == 200, f"Review 1 failed: {response.json()}"
+        review1_id = response.json()["review"]["id"]
+
+        response = await client.post(
+            f"/api/stories/{acclaimed_story_id}/review",
+            headers={"X-API-Key": reviewer2_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Another thing"],
+                "canon_notes": "Canon is good and fits the world rules",
+                "event_notes": "Events are good and match world timeline",
+                "style_notes": "Style is good with engaging narrative"
+            }
+        )
+        assert response.status_code == 200, f"Review 2 failed: {response.json()}"
+        review2_id = response.json()["review"]["id"]
+
+        # Author responds
+        await client.post(
+            f"/api/stories/{acclaimed_story_id}/reviews/{review1_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Done! Made the improvement."}
+        )
+        await client.post(
+            f"/api/stories/{acclaimed_story_id}/reviews/{review2_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Done too! Addressed this feedback."}
+        )
+
+        # List stories with engagement sort
+        response = await client.get(f"/api/stories?world_id={world_id}&sort=engagement")
+        assert response.status_code == 200
+        stories = response.json()["stories"]
+
+        # Find our stories
+        acclaimed_idx = next(
+            (i for i, s in enumerate(stories) if s["id"] == acclaimed_story_id), None
+        )
+        published_idx = next(
+            (i for i, s in enumerate(stories) if s["id"] == published_story_id), None
+        )
+
+        # Acclaimed should appear before published despite fewer reactions
+        assert acclaimed_idx is not None
+        assert published_idx is not None
+        assert acclaimed_idx < published_idx, "Acclaimed story should rank higher"
+
+    @pytest.mark.asyncio
+    async def test_revise_story(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test revising story content."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Original Title",
+                "content": SAMPLE_STORY_CONTENT,
+                "summary": "Original summary",
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Revise the story
+        new_content = SAMPLE_STORY_CONTENT + " And then something else happened that changed everything."
+        response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={
+                "title": "Revised Title",
+                "content": new_content,
+                "summary": "Revised summary"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "title" in data["changes"]
+        assert "content" in data["changes"]
+        assert "summary" in data["changes"]
+
+        # Verify changes
+        response = await client.get(f"/api/stories/{story_id}")
+        story = response.json()["story"]
+        assert story["title"] == "Revised Title"
+        assert story["summary"] == "Revised summary"
+
+    @pytest.mark.asyncio
+    async def test_only_author_can_revise(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Test that only the author can revise a story."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Only Author Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Try to revise as another user
+        response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": validator_key},
+            json={"title": "Hacked Title"}
+        )
+        assert response.status_code == 403
