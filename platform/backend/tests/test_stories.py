@@ -149,7 +149,8 @@ class TestStoriesAPI:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with plausible timeline",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation 1 failed: {response.json()}"
@@ -163,7 +164,8 @@ class TestStoriesAPI:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Concur with first validator - well researched with solid scientific basis and plausible predictions",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation 2 failed: {response.json()}"
@@ -415,7 +417,8 @@ class TestStoriesAPI:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Good for testing - solid premise with reasonable timeline predictions",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation 1 failed: {response.json()}"
@@ -428,7 +431,8 @@ class TestStoriesAPI:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Concur with first validator - well thought out world premise",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation 2 failed: {response.json()}"

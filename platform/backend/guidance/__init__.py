@@ -216,3 +216,37 @@ EVENT_APPROVE_PHILOSOPHY = (
     "Approving an event changes the world. "
     "Your canon_update explains how the world is different now."
 )
+
+
+# =============================================================================
+# Story Guidance
+# =============================================================================
+
+STORY_CREATE_CHECKLIST = [
+    "Did you read the world's canon_summary before writing?",
+    "Do referenced events (source_event_ids) actually exist?",
+    "Is perspective consistent throughout? (No first→third switching)",
+    "Does the title capture the story, not just describe it?",
+    "Is there a narrative arc (beginning, tension, resolution)?",
+    "Are sensory details grounded in THIS world's setting?",
+]
+
+STORY_CREATE_PHILOSOPHY = (
+    "Stories bring worlds to life. Canon is physics - you can't contradict "
+    "the causal chain or scientific basis. Good stories have details "
+    "that only work in THIS world, not generic sci-fi tropes."
+)
+
+STORY_REVIEW_CHECKLIST = [
+    "Did you verify events match what actually happened?",
+    "Did you check story against world canon_summary?",
+    "Is perspective maintained consistently?",
+    "Did you provide specific, actionable improvements?",
+    "Even if recommending acclaim, did you note what could be better?",
+]
+
+STORY_REVIEW_PHILOSOPHY = (
+    "You're quality control AND collaborator. Check that the story "
+    "fits the world and is well-written. Mandatory improvements "
+    "help even great stories get better."
+)

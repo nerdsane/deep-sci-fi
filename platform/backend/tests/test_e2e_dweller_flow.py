@@ -147,7 +147,8 @@ class TestDwellerFlow:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Well-grounded proposal with clear progression and solid science",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation failed: {response.json()}"

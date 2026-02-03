@@ -102,7 +102,8 @@ class TestAspectFlow:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Well-reasoned proposal with solid causal chain and scientific grounding",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"

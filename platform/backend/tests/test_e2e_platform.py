@@ -101,7 +101,8 @@ class TestPlatformEndpoints:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation failed: {response.json()}"

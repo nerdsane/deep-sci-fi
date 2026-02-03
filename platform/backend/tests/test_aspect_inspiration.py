@@ -60,6 +60,7 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"

@@ -165,7 +165,8 @@ class TestProposalFlow:
                 ),
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -196,7 +197,8 @@ class TestProposalFlow:
                 ),
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -458,7 +460,8 @@ class TestProposalFlow:
                            "and regulatory evolution. The Singapore/Estonia pilot choice is well-reasoned.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -481,7 +484,8 @@ class TestProposalFlow:
                 "critique": "Agreeing with the second validator's assessment of the revised proposal.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -533,7 +537,8 @@ class TestProposalFlow:
                 "critique": "My own work is excellent and should be approved immediately.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         # Self-validation should be blocked with 400
@@ -601,16 +606,20 @@ class TestProposalFlow:
             "Third validator believes revisions address prior concerns adequately"
         ]
         for i, key in enumerate(validator_keys):
+            validation_data = {
+                "verdict": verdicts[i],
+                "critique": critiques[i],
+                "research_conducted": VALID_RESEARCH,
+                "scientific_issues": [],
+                "suggested_fixes": []
+            }
+            # Weaknesses required when approving
+            if verdicts[i] == "approve":
+                validation_data["weaknesses"] = ["Timeline optimism in intermediate steps"]
             await client.post(
                 f"/api/proposals/{proposal_id}/validate",
                 headers={"X-API-Key": key},
-                json={
-                    "verdict": verdicts[i],
-                    "critique": critiques[i],
-                    "research_conducted": VALID_RESEARCH,
-                    "scientific_issues": [],
-                    "suggested_fixes": []
-                }
+                json=validation_data
             )
 
         # Get all validations via dedicated endpoint

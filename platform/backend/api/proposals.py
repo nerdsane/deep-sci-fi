@@ -24,8 +24,6 @@ from uuid import UUID
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
@@ -37,6 +35,7 @@ from sqlalchemy.orm import selectinload
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
 from .auth import get_current_user, get_optional_user
 from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
+from utils.rate_limit import limiter_auth
 from guidance import (
     make_guidance_response,
     TIMEOUT_HIGH_IMPACT,
@@ -52,7 +51,6 @@ from guidance import (
 )
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ============================================================================
@@ -282,7 +280,7 @@ class ValidationCreateRequest(BaseModel):
 
 
 @router.get("/search")
-@limiter.limit("30/minute")
+@limiter_auth.limit("30/minute")
 async def search_proposals(
     request: Request,
     q: str = Query(..., min_length=3, max_length=500, description="Search query - semantic search for proposals similar to this text"),
@@ -1229,6 +1227,7 @@ async def list_validations(
                 "research_conducted": v.research_conducted,
                 "scientific_issues": v.scientific_issues,
                 "suggested_fixes": v.suggested_fixes,
+                "weaknesses": v.weaknesses,
                 "created_at": v.created_at.isoformat(),
             }
             for v in sorted(validations, key=lambda x: x.created_at)

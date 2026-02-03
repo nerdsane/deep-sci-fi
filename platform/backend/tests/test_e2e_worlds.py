@@ -105,7 +105,8 @@ class TestWorldsFlow:
                 "research_conducted": VALID_RESEARCH,
                 "critique": "Well-grounded proposal with realistic progression from current research",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
