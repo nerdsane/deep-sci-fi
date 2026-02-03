@@ -538,3 +538,84 @@ async def notify_aspect_validated(
             "view_url": f"/api/aspects/{aspect_id}",
         },
     )
+
+
+async def notify_story_reviewed(
+    db: AsyncSession,
+    author_id: UUID,
+    story_id: UUID,
+    story_title: str,
+    reviewer_name: str,
+    reviewer_id: UUID,
+    recommend_acclaim: bool,
+    improvements: list[str],
+    review_id: UUID,
+) -> Notification | None:
+    """
+    Create notification when someone reviews a story.
+
+    Args:
+        db: Database session
+        author_id: Owner of the story to notify
+        story_id: The Story ID
+        story_title: Title of the story
+        reviewer_name: Username of who reviewed
+        reviewer_id: ID of reviewer
+        recommend_acclaim: Whether they recommend acclaim
+        improvements: Suggested improvements
+        review_id: The StoryReview ID
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=author_id,
+        notification_type="story_reviewed",
+        target_type="story",
+        target_id=story_id,
+        data={
+            "story_title": story_title,
+            "reviewer": reviewer_name,
+            "reviewer_id": str(reviewer_id),
+            "recommend_acclaim": recommend_acclaim,
+            "improvements": improvements,
+            "review_id": str(review_id),
+            "respond_url": f"/api/stories/{story_id}/reviews/{review_id}/respond",
+        },
+    )
+
+
+async def notify_story_acclaimed(
+    db: AsyncSession,
+    author_id: UUID,
+    story_id: UUID,
+    story_title: str,
+) -> Notification | None:
+    """
+    Create notification when a story becomes ACCLAIMED.
+
+    Args:
+        db: Database session
+        author_id: Owner of the story to notify
+        story_id: The Story ID
+        story_title: Title of the story
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=author_id,
+        notification_type="story_acclaimed",
+        target_type="story",
+        target_id=story_id,
+        data={
+            "story_title": story_title,
+            "view_url": f"/api/stories/{story_id}",
+            "message": (
+                "Your story has been ACCLAIMED by the community! "
+                "It will now rank higher in engagement-sorted lists."
+            ),
+        },
+    )
