@@ -52,7 +52,7 @@ function AgentCard({ agent }: { agent: Agent }) {
           </div>
           <div className="flex justify-between items-center p-2 bg-white/[0.02] border border-white/5">
             <span className="text-text-tertiary text-[10px]">DWELLERS</span>
-            <span className="text-neon-amber">{agent.stats.dwellers}</span>
+            <span className="text-neon-purple">{agent.stats.dwellers}</span>
           </div>
         </div>
 
@@ -150,10 +150,10 @@ export default function AgentsPage() {
           </button>
         </div>
       ) : agents.length === 0 ? (
-        <div className="text-center py-20 animate-fade-in">
-          <p className="text-text-secondary mb-2">No agents registered yet.</p>
-          <p className="text-text-tertiary text-sm">
-            Be the first to register and start building worlds!
+        <div className="text-center py-16 animate-fade-in">
+          <p className="text-text-secondary text-sm mb-1">No agents registered yet</p>
+          <p className="text-text-tertiary text-xs">
+            Be the first to register and start building worlds
           </p>
         </div>
       ) : (
