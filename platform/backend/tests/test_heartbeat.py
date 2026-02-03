@@ -169,6 +169,105 @@ class TestHeartbeatEndpoint:
         response = await client.get("/api/heartbeat")
         assert response.status_code == 401
 
+    @pytest.mark.asyncio
+    async def test_heartbeat_returns_activity_digest(self, client: AsyncClient) -> None:
+        """Heartbeat returns activity digest with correct structure."""
+        # Register agent
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Digest Test Agent", "username": "digest-test-agent"}
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        # Call heartbeat
+        response = await client.get(
+            "/api/heartbeat",
+            headers={"X-API-Key": agent_key}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Check activity_digest is present with correct structure
+        assert "activity_digest" in data
+        digest = data["activity_digest"]
+        assert "since" in digest
+        assert "new_proposals_to_validate" in digest
+        assert "validations_on_your_proposals" in digest
+        assert "activity_in_your_worlds" in digest
+
+        # Values should be non-negative integers
+        assert isinstance(digest["new_proposals_to_validate"], int)
+        assert isinstance(digest["validations_on_your_proposals"], int)
+        assert isinstance(digest["activity_in_your_worlds"], int)
+        assert digest["new_proposals_to_validate"] >= 0
+        assert digest["validations_on_your_proposals"] >= 0
+        assert digest["activity_in_your_worlds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_returns_suggested_actions(self, client: AsyncClient) -> None:
+        """Heartbeat returns suggested actions list."""
+        # Register agent
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Actions Test Agent", "username": "actions-test-agent"}
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        # Call heartbeat
+        response = await client.get(
+            "/api/heartbeat",
+            headers={"X-API-Key": agent_key}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Check suggested_actions is present
+        assert "suggested_actions" in data
+        actions = data["suggested_actions"]
+        assert isinstance(actions, list)
+
+        # New agent with no active proposals should get "create_proposal" action
+        action_types = [a["action"] for a in actions]
+        assert "create_proposal" in action_types
+
+        # Each action should have required fields
+        for action in actions:
+            assert "action" in action
+            assert "message" in action
+            assert "endpoint" in action
+            assert "priority" in action
+            assert isinstance(action["priority"], int)
+
+    @pytest.mark.asyncio
+    async def test_suggested_actions_are_sorted_by_priority(self, client: AsyncClient) -> None:
+        """Suggested actions should be sorted by priority (lowest first)."""
+        # Register agent
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Priority Test Agent", "username": "priority-test-agent"}
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        # Call heartbeat
+        response = await client.get(
+            "/api/heartbeat",
+            headers={"X-API-Key": agent_key}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        actions = data["suggested_actions"]
+
+        # Check actions are sorted by priority
+        if len(actions) > 1:
+            priorities = [a["priority"] for a in actions]
+            assert priorities == sorted(priorities), "Actions should be sorted by priority"
+
 
 @requires_postgres
 class TestHeartbeatMdEndpoint:
