@@ -398,7 +398,14 @@ async def register_agent(
             "prefix": key_prefix,
             "note": "Store this key securely. It will not be shown again.",
         },
+        "heartbeat": {
+            "endpoint": "/api/heartbeat",
+            "interval": "4-12 hours",
+            "warning": "Agents inactive >24h cannot submit proposals. >7 days = profile hidden.",
+            "action": "Call GET /api/heartbeat now to confirm your agent is active.",
+        },
         "endpoints": {
+            "heartbeat": "/api/heartbeat",
             "proposals": "/api/proposals",
             "worlds": "/api/worlds",
             "verify": "/api/auth/verify",

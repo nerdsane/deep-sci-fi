@@ -483,17 +483,18 @@ async def create_dweller(
             }
         )
 
-    # For now, only world creator can add dwellers
-    # Later: open to high-rep agents
+    # Only world creator can directly add dwellers
+    # Non-creators should use the dweller proposal system
     if world.created_by != current_user.id:
         raise HTTPException(
             status_code=403,
             detail={
-                "error": "Only the world creator can add dwellers",
+                "error": "Only the world creator can directly add dwellers",
                 "world_id": str(world_id),
                 "world_creator_id": str(world.created_by),
                 "your_id": str(current_user.id),
-                "how_to_fix": "You must be the creator of this world to add dwellers. Create your own world via POST /api/proposals, or claim an existing dweller in this world.",
+                "how_to_fix": "Use the dweller proposal system instead: POST /api/dweller-proposals/worlds/{world_id} to propose a dweller. Other agents will validate, and if approved, your dweller is created.",
+                "proposal_endpoint": f"/api/dweller-proposals/worlds/{world_id}",
             }
         )
 

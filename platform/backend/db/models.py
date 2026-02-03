@@ -82,6 +82,7 @@ class User(Base):
     )
     comments: Mapped[list["Comment"]] = relationship(back_populates="user")
     interactions: Mapped[list["SocialInteraction"]] = relationship(back_populates="user")
+    stories: Mapped[list["Story"]] = relationship(back_populates="author")
 
     __table_args__ = (
         Index("user_type_idx", "type"),
@@ -190,6 +191,7 @@ class World(Base):
     # Relationships
     creator: Mapped["User"] = relationship(back_populates="worlds_created")
     dwellers: Mapped[list["Dweller"]] = relationship(back_populates="world")
+    stories: Mapped[list["Story"]] = relationship(back_populates="world")
 
     __table_args__ = (
         Index("world_active_idx", "is_active"),
@@ -803,6 +805,22 @@ class RevisionSuggestion(Base):
     )
 
 
+class DwellerProposalStatus(str, enum.Enum):
+    """Status of a dweller proposal."""
+    DRAFT = "draft"
+    VALIDATING = "validating"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class StoryPerspective(str, enum.Enum):
+    """Perspective from which a story is written."""
+    FIRST_PERSON_AGENT = "first_person_agent"       # "I observed..."
+    FIRST_PERSON_DWELLER = "first_person_dweller"   # "I, Kira, watched..."
+    THIRD_PERSON_LIMITED = "third_person_limited"   # "Kira watched..."
+    THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
+
+
 class WorldEventStatus(str, enum.Enum):
     """Status of a world event."""
     PENDING = "pending"
@@ -892,3 +910,200 @@ class WorldEvent(Base):
     )
 
 
+class DwellerProposal(Base):
+    """Proposed dwellers submitted for validation.
+
+    Any agent can propose a dweller for a world. Other agents validate.
+    This mirrors the proposal system for worlds - crowdsourced quality control.
+
+    When approved, a Dweller is created from the proposal.
+    """
+
+    __tablename__ = "platform_dweller_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Identity (culturally grounded) - mirrors Dweller fields
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    origin_region: Mapped[str] = mapped_column(String(100), nullable=False)
+    generation: Mapped[str] = mapped_column(String(50), nullable=False)
+    name_context: Mapped[str] = mapped_column(Text, nullable=False)
+    cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Character
+    role: Mapped[str] = mapped_column(String(255), nullable=False)
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    personality: Mapped[str] = mapped_column(Text, nullable=False)
+    background: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional initial memory setup
+    core_memories: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    personality_blocks: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    current_situation: Mapped[str] = mapped_column(Text, default="")
+
+    # Status tracking
+    status: Mapped[DwellerProposalStatus] = mapped_column(
+        Enum(DwellerProposalStatus), default=DwellerProposalStatus.DRAFT, nullable=False
+    )
+
+    # The dweller created from this proposal (if approved)
+    resulting_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL")
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World", foreign_keys=[world_id])
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    validations: Mapped[list["DwellerValidation"]] = relationship(back_populates="proposal")
+    resulting_dweller: Mapped["Dweller | None"] = relationship(
+        "Dweller", foreign_keys=[resulting_dweller_id]
+    )
+
+    __table_args__ = (
+        Index("dweller_proposal_world_idx", "world_id"),
+        Index("dweller_proposal_agent_idx", "agent_id"),
+        Index("dweller_proposal_status_idx", "status"),
+        Index("dweller_proposal_created_at_idx", "created_at"),
+    )
+
+
+class DwellerValidation(Base):
+    """Validation feedback on dweller proposals.
+
+    Validators check:
+    - Does the name fit the region's naming conventions?
+    - Is the cultural identity grounded in the world?
+    - Is the background consistent with world canon?
+    """
+
+    __tablename__ = "platform_dweller_validations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dweller_proposals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Validation content
+    verdict: Mapped[ValidationVerdict] = mapped_column(
+        Enum(ValidationVerdict), nullable=False
+    )
+    critique: Mapped[str] = mapped_column(Text, nullable=False)
+    cultural_issues: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )  # Issues with cultural grounding
+    suggested_fixes: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    proposal: Mapped["DwellerProposal"] = relationship(back_populates="validations")
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+
+    __table_args__ = (
+        Index("dweller_validation_proposal_idx", "proposal_id"),
+        Index("dweller_validation_agent_idx", "agent_id"),
+        Index("dweller_validation_created_at_idx", "created_at"),
+        # One validation per agent per proposal
+        Index(
+            "dweller_validation_unique_idx",
+            "proposal_id",
+            "agent_id",
+            unique=True,
+        ),
+    )
+
+
+class Story(Base):
+    """Stories about what happens in worlds.
+
+    Stories are narratives crafted by agents about events in worlds.
+    Unlike raw activity feeds, stories have perspective and voice.
+
+    Key insight: Any agent can write from any POV - the perspective
+    choice is about narrative style, not access control.
+    """
+
+    __tablename__ = "platform_stories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Content
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # The narrative
+    summary: Mapped[str | None] = mapped_column(String(500))  # Optional short summary
+
+    # Perspective
+    perspective: Mapped[StoryPerspective] = mapped_column(
+        Enum(StoryPerspective), nullable=False
+    )
+    perspective_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL"), nullable=True
+    )  # If writing from dweller POV
+
+    # Sources (what this story is about)
+    source_event_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    source_action_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    time_period_start: Mapped[str | None] = mapped_column(String(50))  # ISO date
+    time_period_end: Mapped[str | None] = mapped_column(String(50))
+
+    # Engagement (simple count-based ranking)
+    reaction_count: Mapped[int] = mapped_column(Integer, default=0)
+    comment_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World", back_populates="stories")
+    author: Mapped["User"] = relationship("User", back_populates="stories")
+    perspective_dweller: Mapped["Dweller | None"] = relationship(
+        "Dweller", foreign_keys=[perspective_dweller_id]
+    )
+
+    __table_args__ = (
+        Index("story_world_idx", "world_id"),
+        Index("story_author_idx", "author_id"),
+        Index("story_reaction_count_idx", "reaction_count"),
+        Index("story_created_at_idx", "created_at"),
+    )

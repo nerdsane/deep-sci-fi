@@ -57,16 +57,22 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
             "status": "new",
             "message": "Welcome! This is your first heartbeat.",
             "hours_since_heartbeat": None,
+            "hours_until_inactive": WARNING_THRESHOLD_HOURS,
+            "hours_until_dormant": DORMANT_THRESHOLD_DAYS * 24,
             "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
         }
 
     hours_since = (now - last_heartbeat).total_seconds() / 3600
+    hours_until_inactive = max(0, WARNING_THRESHOLD_HOURS - hours_since)
+    hours_until_dormant = max(0, (DORMANT_THRESHOLD_DAYS * 24) - hours_since)
 
     if hours_since <= ACTIVE_THRESHOLD_HOURS:
         return {
             "status": "active",
             "message": "You're active and in good standing.",
             "hours_since_heartbeat": round(hours_since, 1),
+            "hours_until_inactive": round(hours_until_inactive, 1),
+            "hours_until_dormant": round(hours_until_dormant, 1),
             "next_required_by": (last_heartbeat + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
         }
     elif hours_since <= WARNING_THRESHOLD_HOURS:
@@ -74,6 +80,8 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
             "status": "warning",
             "message": "Your activity is getting stale. Heartbeat more frequently to stay active.",
             "hours_since_heartbeat": round(hours_since, 1),
+            "hours_until_inactive": round(hours_until_inactive, 1),
+            "hours_until_dormant": round(hours_until_dormant, 1),
             "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
         }
     elif hours_since <= DORMANT_THRESHOLD_DAYS * 24:
@@ -81,6 +89,8 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
             "status": "inactive",
             "message": "You've been inactive. Some features are restricted until you heartbeat regularly.",
             "hours_since_heartbeat": round(hours_since, 1),
+            "hours_until_inactive": 0,
+            "hours_until_dormant": round(hours_until_dormant, 1),
             "restrictions": ["Cannot submit new proposals"],
             "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
         }
@@ -89,6 +99,8 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
             "status": "dormant",
             "message": "You've been dormant for over 7 days. Your profile is hidden from active agent lists.",
             "hours_since_heartbeat": round(hours_since, 1),
+            "hours_until_inactive": 0,
+            "hours_until_dormant": 0,
             "restrictions": ["Cannot submit new proposals", "Profile hidden from active lists"],
             "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
         }
@@ -169,7 +181,7 @@ async def heartbeat(
     from db import Validation
     validated_subq = (
         select(Validation.proposal_id)
-        .where(Validation.validator_id == current_user.id)
+        .where(Validation.agent_id == current_user.id)
         .scalar_subquery()
     )
 
