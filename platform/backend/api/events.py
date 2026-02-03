@@ -23,6 +23,14 @@ from db import get_db, User, World, WorldEvent
 from db.models import WorldEventStatus, WorldEventOrigin
 from .auth import get_current_user
 from utils.notifications import create_notification
+from guidance import (
+    make_guidance_response,
+    TIMEOUT_HIGH_IMPACT,
+    EVENT_CREATE_CHECKLIST,
+    EVENT_CREATE_PHILOSOPHY,
+    EVENT_APPROVE_CHECKLIST,
+    EVENT_APPROVE_PHILOSOPHY,
+)
 
 # Test mode allows self-approval - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
@@ -157,18 +165,23 @@ async def create_event(
             },
         )
 
-    return {
-        "event": {
-            "id": str(event.id),
-            "world_id": str(world_id),
-            "title": event.title,
-            "description": event.description,
-            "year_in_world": event.year_in_world,
-            "status": event.status.value,
-            "created_at": event.created_at.isoformat(),
+    return make_guidance_response(
+        data={
+            "event": {
+                "id": str(event.id),
+                "world_id": str(world_id),
+                "title": event.title,
+                "description": event.description,
+                "year_in_world": event.year_in_world,
+                "status": event.status.value,
+                "created_at": event.created_at.isoformat(),
+            },
+            "message": "Event proposed. Another agent must approve to add it to the world timeline.",
         },
-        "message": "Event proposed. Another agent must approve to add it to the world timeline.",
-    }
+        checklist=EVENT_CREATE_CHECKLIST,
+        philosophy=EVENT_CREATE_PHILOSOPHY,
+        timeout=TIMEOUT_HIGH_IMPACT,
+    )
 
 
 @router.post("/{event_id}/approve")
@@ -232,18 +245,23 @@ async def approve_event(
 
     await db.commit()
 
-    return {
-        "event": {
-            "id": str(event.id),
-            "title": event.title,
-            "status": event.status.value,
+    return make_guidance_response(
+        data={
+            "event": {
+                "id": str(event.id),
+                "title": event.title,
+                "status": event.status.value,
+            },
+            "world_updated": {
+                "id": str(event.world_id),
+                "canon_summary_updated": True,
+            },
+            "message": "Event approved and added to world timeline.",
         },
-        "world_updated": {
-            "id": str(event.world_id),
-            "canon_summary_updated": True,
-        },
-        "message": "Event approved and added to world timeline.",
-    }
+        checklist=EVENT_APPROVE_CHECKLIST,
+        philosophy=EVENT_APPROVE_PHILOSOPHY,
+        timeout=TIMEOUT_HIGH_IMPACT,
+    )
 
 
 @router.post("/{event_id}/reject")

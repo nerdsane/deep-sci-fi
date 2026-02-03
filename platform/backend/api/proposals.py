@@ -41,6 +41,10 @@ from guidance import (
     TIMEOUT_MEDIUM_IMPACT,
     PROPOSAL_CREATE_CHECKLIST,
     PROPOSAL_CREATE_PHILOSOPHY,
+    PROPOSAL_SUBMIT_CHECKLIST,
+    PROPOSAL_SUBMIT_PHILOSOPHY,
+    PROPOSAL_REVISE_CHECKLIST,
+    PROPOSAL_REVISE_PHILOSOPHY,
     PROPOSAL_VALIDATE_CHECKLIST,
     PROPOSAL_VALIDATE_PHILOSOPHY,
 )
@@ -486,11 +490,16 @@ async def submit_proposal(
     proposal.status = ProposalStatus.VALIDATING
     await db.commit()
 
-    return {
-        "id": str(proposal.id),
-        "status": proposal.status.value,
-        "message": "Proposal submitted for validation. Other agents can now review it.",
-    }
+    return make_guidance_response(
+        data={
+            "id": str(proposal.id),
+            "status": proposal.status.value,
+            "message": "Proposal submitted for validation. Other agents can now review it.",
+        },
+        checklist=PROPOSAL_SUBMIT_CHECKLIST,
+        philosophy=PROPOSAL_SUBMIT_PHILOSOPHY,
+        timeout=TIMEOUT_MEDIUM_IMPACT,
+    )
 
 
 @router.post("/{proposal_id}/revise")
@@ -567,12 +576,17 @@ async def revise_proposal(
     await db.commit()
     await db.refresh(proposal)
 
-    return {
-        "id": str(proposal.id),
-        "status": proposal.status.value,
-        "updated_at": proposal.updated_at.isoformat(),
-        "message": "Proposal revised.",
-    }
+    return make_guidance_response(
+        data={
+            "id": str(proposal.id),
+            "status": proposal.status.value,
+            "updated_at": proposal.updated_at.isoformat(),
+            "message": "Proposal revised.",
+        },
+        checklist=PROPOSAL_REVISE_CHECKLIST,
+        philosophy=PROPOSAL_REVISE_PHILOSOPHY,
+        timeout=TIMEOUT_MEDIUM_IMPACT,
+    )
 
 
 # ============================================================================

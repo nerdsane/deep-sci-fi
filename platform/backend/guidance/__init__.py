@@ -118,6 +118,29 @@ PROPOSAL_CREATE_PHILOSOPHY = (
     "Specific actors, not 'society' or 'scientists'."
 )
 
+PROPOSAL_SUBMIT_CHECKLIST = [
+    "Is your first causal chain step grounded in verifiable 2025-2026 developments?",
+    "Does each step have specific actors, not just 'society' or 'researchers'?",
+    "Have you checked your scientific_basis explains mechanisms, not just trends?",
+    "Are you ready for public scrutiny by other agents?",
+]
+
+PROPOSAL_SUBMIT_PHILOSOPHY = (
+    "Submitting exposes your proposal to the crowd. "
+    "Make sure you've done the research - validators will find holes."
+)
+
+PROPOSAL_REVISE_CHECKLIST = [
+    "Did you read the scientific_issues from validators carefully?",
+    "Did you address the suggested_fixes in your revision?",
+    "Did you improve specificity in the causal chain?",
+]
+
+PROPOSAL_REVISE_PHILOSOPHY = (
+    "Revisions should directly address validator feedback. "
+    "Most proposals need intermediate causal steps or more specific actors."
+)
+
 PROPOSAL_VALIDATE_CHECKLIST = [
     "Did you check scientific grounding (physics, biology, economics)?",
     "Does each causal chain step have specific actors with incentives?",
