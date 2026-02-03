@@ -21,13 +21,25 @@ interface Story {
   type: string
   title: string
   description?: string
-  transcript?: string  // Full storyteller script
+  transcript?: string  // Full storyteller script - deprecated, use content
+  content?: string     // Full story narrative
+  summary?: string     // Short summary
   video_url?: string
   thumbnail_url?: string
   duration_seconds?: number
   created_at: string
   view_count?: number
   reaction_counts?: Record<string, number>
+  // Review system fields
+  status?: 'published' | 'acclaimed'
+  perspective?: string
+  perspective_dweller_name?: string
+  author_name?: string
+  author_username?: string
+  review_count?: number
+  acclaim_count?: number
+  reaction_count?: number
+  comment_count?: number
 }
 
 interface Dweller {
@@ -231,7 +243,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
       <div data-testid="activity-feed">
         {activeTab === 'live' && <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />}
         {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
-        {activeTab === 'stories' && <StoriesView stories={world.stories} />}
+        {activeTab === 'stories' && <StoriesView stories={world.stories} worldId={world.id} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
         {activeTab === 'characters' && <DwellersView dwellers={world.dwellers} />}
         {activeTab === 'aspects' && (
@@ -423,8 +435,26 @@ function LiveConversations({
   )
 }
 
-function StoriesView({ stories }: { stories?: Story[] }) {
+// Story status badge component
+function StoryStatusBadge({ status }: { status?: 'published' | 'acclaimed' }) {
+  if (status === 'acclaimed') {
+    return (
+      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30">
+        ACCLAIMED
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-text-tertiary bg-white/5 border-white/10">
+      PUBLISHED
+    </span>
+  )
+}
+
+function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string }) {
   const [expandedStory, setExpandedStory] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'acclaimed'>('all')
+  const [sortBy, setSortBy] = useState<'engagement' | 'recent'>('engagement')
 
   if (!stories || stories.length === 0) {
     return (
@@ -435,20 +465,59 @@ function StoriesView({ stories }: { stories?: Story[] }) {
     )
   }
 
+  // Filter and sort stories
+  let filteredStories = [...stories]
+  if (statusFilter !== 'all') {
+    filteredStories = filteredStories.filter(s => s.status === statusFilter)
+  }
+
+  // Sort stories
+  if (sortBy === 'engagement') {
+    // Acclaimed first, then by reaction_count
+    filteredStories.sort((a, b) => {
+      if (a.status === 'acclaimed' && b.status !== 'acclaimed') return -1
+      if (b.status === 'acclaimed' && a.status !== 'acclaimed') return 1
+      return (b.reaction_count || 0) - (a.reaction_count || 0)
+    })
+  } else {
+    filteredStories.sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }
+
   const expanded = expandedStory ? stories.find(s => s.id === expandedStory) : null
 
-  // Expanded story view
+  // Expanded story view - now links to dedicated story page
   if (expanded) {
     return (
       <div className="space-y-6">
-        <button
-          onClick={() => setExpandedStory(null)}
-          className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
-        >
-          <IconArrowLeft size={16} /> STORIES
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setExpandedStory(null)}
+            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
+          >
+            <IconArrowLeft size={16} /> STORIES
+          </button>
+          <a
+            href={`/stories/${expanded.id}`}
+            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
+          >
+            VIEW FULL PAGE <IconArrowRight size={16} />
+          </a>
+        </div>
 
         <div className="max-w-3xl">
+          {/* Status badge */}
+          <div className="flex items-center gap-3 mb-4">
+            <StoryStatusBadge status={expanded.status} />
+            {expanded.perspective && (
+              <span className="text-[10px] font-mono text-text-tertiary">
+                {expanded.perspective.replace(/_/g, ' ').toUpperCase()}
+                {expanded.perspective_dweller_name && ` (via ${expanded.perspective_dweller_name})`}
+              </span>
+            )}
+          </div>
+
           {/* Video/thumbnail */}
           <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-6">
             {expanded.video_url ? (
@@ -474,7 +543,13 @@ function StoriesView({ stories }: { stories?: Story[] }) {
             )}
           </div>
 
-          <h1 className="text-lg text-neon-cyan mb-4">{expanded.title}</h1>
+          <h1 className="text-lg text-neon-cyan mb-2">{expanded.title}</h1>
+
+          {expanded.author_username && (
+            <div className="text-text-secondary text-sm mb-4">
+              By <span className="text-neon-cyan">{expanded.author_username}</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mb-6">
             <span>{new Date(expanded.created_at).toLocaleDateString()}</span>
@@ -484,28 +559,48 @@ function StoriesView({ stories }: { stories?: Story[] }) {
             {expanded.view_count !== undefined && expanded.view_count > 0 && (
               <span>{expanded.view_count} views</span>
             )}
+            {expanded.review_count !== undefined && expanded.review_count > 0 && (
+              <span>{expanded.review_count} reviews</span>
+            )}
           </div>
 
-          {expanded.description && (
+          {/* Summary or description */}
+          {(expanded.summary || expanded.description) && (
             <div className="text-text-secondary leading-relaxed mb-6">
-              {expanded.description}
+              {expanded.summary || expanded.description}
             </div>
           )}
 
-          {/* Full storyteller script */}
-          {expanded.transcript ? (
+          {/* Full story content */}
+          {(expanded.content || expanded.transcript) ? (
             <div className="mt-4 p-6 border border-white/10 bg-bg-tertiary">
-              <p className="text-neon-cyan text-sm font-mono mb-4">SCRIPT</p>
-              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap font-mono text-sm">
-                {expanded.transcript}
+              <p className="text-neon-cyan text-sm font-mono mb-4">STORY</p>
+              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm">
+                {expanded.content || expanded.transcript}
               </div>
             </div>
           ) : (
             <div className="mt-8 p-4 border border-white/10 bg-bg-tertiary">
-              <p className="text-text-tertiary text-sm font-mono mb-2">SCRIPT</p>
+              <p className="text-text-tertiary text-sm font-mono mb-2">STORY</p>
               <p className="text-text-secondary text-sm italic">
-                No script recorded.
+                No content available.
               </p>
+            </div>
+          )}
+
+          {/* Engagement stats */}
+          {(expanded.reaction_count !== undefined || expanded.comment_count !== undefined) && (
+            <div className="mt-6 flex items-center gap-6 text-xs font-mono">
+              {expanded.reaction_count !== undefined && (
+                <span className="text-text-secondary">
+                  {expanded.reaction_count} reactions
+                </span>
+              )}
+              {expanded.comment_count !== undefined && (
+                <span className="text-text-secondary">
+                  {expanded.comment_count} comments
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -513,62 +608,114 @@ function StoriesView({ stories }: { stories?: Story[] }) {
     )
   }
 
-  // Grid view
+  // Grid view with filter bar
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {stories.map((story) => (
-        <Card
-          key={story.id}
-          className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
-          onClick={() => setExpandedStory(story.id)}
+    <div className="space-y-6">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-4 glass p-3">
+        <span className="text-[10px] font-display tracking-wider text-text-tertiary">FILTER:</span>
+        <div className="flex gap-1">
+          {(['all', 'published', 'acclaimed'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
+              className={`
+                px-3 py-1 text-[10px] font-display tracking-wider uppercase transition-all
+                ${statusFilter === filter
+                  ? 'text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30'
+                  : 'text-text-tertiary border border-transparent hover:text-neon-cyan/70'
+                }
+              `}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+        <span className="text-white/20">|</span>
+        <span className="text-[10px] font-display tracking-wider text-text-tertiary">SORT:</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'engagement' | 'recent')}
+          className="bg-transparent text-text-secondary text-xs font-mono border border-white/10 px-2 py-1 focus:outline-none focus:border-neon-cyan/30"
         >
-          {/* Video/thumbnail */}
-          <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
-            {story.video_url ? (
-              <video
-                src={story.video_url}
-                className="w-full h-full object-cover"
-                poster={story.thumbnail_url}
-              />
-            ) : story.thumbnail_url ? (
-              <img
-                src={story.thumbnail_url}
-                alt={story.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
-                <span className="text-text-tertiary text-sm font-mono">
-                  {story.type?.toUpperCase() || 'STORY'}
-                </span>
+          <option value="engagement">Engagement</option>
+          <option value="recent">Recent</option>
+        </select>
+      </div>
+
+      {filteredStories.length === 0 ? (
+        <div className="text-center py-12 text-text-secondary">
+          <p className="text-sm">No {statusFilter} stories found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredStories.map((story) => (
+            <Card
+              key={story.id}
+              className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
+              onClick={() => setExpandedStory(story.id)}
+            >
+              {/* Video/thumbnail */}
+              <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
+                {story.video_url ? (
+                  <video
+                    src={story.video_url}
+                    className="w-full h-full object-cover"
+                    poster={story.thumbnail_url}
+                  />
+                ) : story.thumbnail_url ? (
+                  <img
+                    src={story.thumbnail_url}
+                    alt={story.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
+                    <span className="text-text-tertiary text-sm font-mono">
+                      {story.type?.toUpperCase() || 'STORY'}
+                    </span>
+                  </div>
+                )}
+                {/* Status badge overlay */}
+                <div className="absolute top-2 right-2">
+                  <StoryStatusBadge status={story.status} />
+                </div>
+                {/* Play overlay */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30 text-white">
+                  <IconPlay size={48} />
+                </div>
               </div>
-            )}
-            {/* Play overlay */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30 text-white">
-              <IconPlay size={48} />
-            </div>
-          </div>
-          <CardContent>
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm text-text-primary flex-1">{story.title}</h3>
-              {story.duration_seconds && story.duration_seconds > 0 && (
-                <span className="text-text-tertiary text-xs font-mono">
-                  {Math.floor(story.duration_seconds / 60)}:{String(story.duration_seconds % 60).padStart(2, '0')}
-                </span>
-              )}
-            </div>
-            {story.description && (
-              <p className="text-text-secondary text-sm line-clamp-2">{story.description}</p>
-            )}
-            <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mt-2">
-              <span>{new Date(story.created_at).toLocaleDateString()}</span>
-              {story.view_count !== undefined && story.view_count > 0 && (
-                <span>{story.view_count} views</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+              <CardContent>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm text-text-primary flex-1 line-clamp-1">{story.title}</h3>
+                  {story.duration_seconds && story.duration_seconds > 0 && (
+                    <span className="text-text-tertiary text-xs font-mono">
+                      {Math.floor(story.duration_seconds / 60)}:{String(story.duration_seconds % 60).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                {story.author_username && (
+                  <p className="text-text-tertiary text-xs mb-2">
+                    by <span className="text-neon-cyan">{story.author_username}</span>
+                  </p>
+                )}
+                {(story.summary || story.description) && (
+                  <p className="text-text-secondary text-sm line-clamp-2">{story.summary || story.description}</p>
+                )}
+                <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mt-2">
+                  <span>{new Date(story.created_at).toLocaleDateString()}</span>
+                  {story.reaction_count !== undefined && story.reaction_count > 0 && (
+                    <span>{story.reaction_count} reactions</span>
+                  )}
+                  {story.review_count !== undefined && story.review_count > 0 && (
+                    <span>{story.review_count} reviews</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

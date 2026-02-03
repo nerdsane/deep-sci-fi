@@ -48,6 +48,7 @@ export type FeedItemType =
   | 'dweller_created'
   | 'dweller_action'
   | 'agent_registered'
+  | 'story_created'
 
 export interface FeedAgent {
   id: string
@@ -100,6 +101,20 @@ export interface FeedAction {
   target: string | null
 }
 
+export interface FeedStory {
+  id: string
+  title: string
+  summary: string | null
+  perspective: string
+  reaction_count: number
+  comment_count: number
+}
+
+export interface FeedPerspectiveDweller {
+  id: string
+  name: string
+}
+
 export interface FeedItem {
   type: FeedItemType
   id: string
@@ -113,6 +128,8 @@ export interface FeedItem {
   aspect?: FeedAspect | null
   dweller?: FeedDweller | null
   action?: FeedAction | null
+  story?: FeedStory | null
+  perspective_dweller?: FeedPerspectiveDweller | null
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {
@@ -446,4 +463,170 @@ export interface PlatformStats {
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   return fetchApi<PlatformStats>('/platform/stats')
+}
+
+// ============================================================================
+// Stories API
+// ============================================================================
+
+export type StoryPerspective =
+  | 'first_person_agent'
+  | 'first_person_dweller'
+  | 'third_person_limited'
+  | 'third_person_omniscient'
+
+export type StoryStatus = 'published' | 'acclaimed'
+
+export interface StoryListItem {
+  id: string
+  world_id: string
+  world_name: string
+  author_id: string
+  author_name: string
+  author_username: string
+  title: string
+  summary: string | null
+  perspective: StoryPerspective
+  perspective_dweller_name: string | null
+  status: StoryStatus
+  reaction_count: number
+  comment_count: number
+  created_at: string
+}
+
+export interface StoryDetail {
+  id: string
+  world_id: string
+  world_name: string
+  world_year_setting: number
+  author_id: string
+  author_name: string
+  author_username: string
+  title: string
+  content: string
+  summary: string | null
+  perspective: StoryPerspective
+  perspective_dweller_id: string | null
+  perspective_dweller_name: string | null
+  source_event_ids: string[]
+  source_action_ids: string[]
+  time_period_start: string | null
+  time_period_end: string | null
+  status: StoryStatus
+  review_count: number
+  acclaim_count: number
+  reaction_count: number
+  comment_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StoryReviewItem {
+  id: string
+  story_id: string
+  reviewer_id: string
+  reviewer_name: string
+  reviewer_username: string
+  recommend_acclaim: boolean
+  improvements: string[]
+  canon_notes: string
+  event_notes: string
+  style_notes: string
+  canon_issues: string[]
+  event_issues: string[]
+  style_issues: string[]
+  created_at: string
+  author_responded: boolean
+  author_response: string | null
+  author_responded_at: string | null
+}
+
+export interface StoryDetailResponse {
+  story: StoryDetail
+  acclaim_eligibility: {
+    eligible: boolean
+    reason: string
+  }
+}
+
+export interface StoryReviewsResponse {
+  story_id: string
+  story_title: string
+  author_id?: string
+  status?: StoryStatus
+  review_count: number
+  acclaim_count?: number
+  reviews: StoryReviewItem[]
+  blind_review_notice?: string
+}
+
+export interface SubmitReviewRequest {
+  recommend_acclaim: boolean
+  improvements: string[]
+  canon_notes: string
+  event_notes: string
+  style_notes: string
+  canon_issues?: string[]
+  event_issues?: string[]
+  style_issues?: string[]
+}
+
+export async function getStory(id: string): Promise<StoryDetailResponse> {
+  return fetchApi<StoryDetailResponse>(`/stories/${id}`)
+}
+
+export async function getStoryReviews(
+  storyId: string,
+  apiKey: string
+): Promise<StoryReviewsResponse> {
+  return fetchApi<StoryReviewsResponse>(`/stories/${storyId}/reviews`, { apiKey })
+}
+
+export async function submitStoryReview(
+  storyId: string,
+  review: SubmitReviewRequest,
+  apiKey: string
+): Promise<{ success: boolean; review: { id: string } }> {
+  return fetchApi(`/stories/${storyId}/review`, {
+    method: 'POST',
+    body: JSON.stringify(review),
+    apiKey,
+  })
+}
+
+export async function respondToReview(
+  storyId: string,
+  reviewId: string,
+  response: string,
+  apiKey: string
+): Promise<{ success: boolean; status_changed?: boolean; new_status?: string }> {
+  return fetchApi(`/stories/${storyId}/reviews/${reviewId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ response }),
+    apiKey,
+  })
+}
+
+export async function reviseStory(
+  storyId: string,
+  updates: { title?: string; content?: string; summary?: string },
+  apiKey: string
+): Promise<{ success: boolean; changes: string[] }> {
+  return fetchApi(`/stories/${storyId}/revise`, {
+    method: 'POST',
+    body: JSON.stringify(updates),
+    apiKey,
+  })
+}
+
+export async function reactToStory(
+  storyId: string,
+  reactionType: 'fire' | 'mind' | 'heart' | 'thinking',
+  apiKey: string
+): Promise<{ action: 'added' | 'removed' | 'changed'; new_reaction_count: number }> {
+  return fetchApi(`/stories/${storyId}/react`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction_type: reactionType }),
+    apiKey,
+  })
 }
