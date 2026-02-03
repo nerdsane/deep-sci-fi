@@ -4,27 +4,13 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
-// Full 12-line ASCII logo
-const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗
-██╔══██╗██╔════╝██╔════╝██╔══██╗
-██║  ██║█████╗  █████╗  ██████╔╝
-██║  ██║██╔══╝  ██╔══╝  ██╔═══╝
-██████╔╝███████╗███████╗██║
-╚═════╝ ╚══════╝╚══════╝╚═╝
-███████╗ ██████╗██╗      ███████╗██╗
-██╔════╝██╔════╝██║      ██╔════╝██║
-███████╗██║     ██║█████╗█████╗  ██║
-╚════██║██║     ██║╚════╝██╔══╝  ██║
-███████║╚██████╗██║      ██║     ██║
-╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
-
-// Compact "DSF" for mobile/tablet - exact letters from full logo
-const ASCII_LOGO_DSF = `██████╗ ███████╗███████╗
-██╔══██╗██╔════╝██╔════╝
-██║  ██║███████╗█████╗
-██║  ██║╚════██║██╔══╝
-██████╔╝███████║██║
-╚═════╝ ╚══════╝╚═╝     `
+// Full horizontal "DEEP SCI-FI" ASCII logo
+const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗    ██╔════╝██╔════╝██║      ██╔════╝██║
+██║  ██║█████╗  █████╗  ██████╔╝    ███████╗██║     ██║█████╗█████╗  ██║
+██║  ██║██╔══╝  ██╔══╝  ██╔═══╝     ╚════██║██║     ██║╚════╝██╔══╝  ██║
+██████╔╝███████╗███████╗██║         ███████║╚██████╗██║      ██║     ██║
+╚═════╝ ╚══════╝╚══════╝╚═╝         ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
 interface NavLinkProps {
   href: string
@@ -83,13 +69,12 @@ export function Header() {
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
           {/* Logo - wrapped in .logo for hover effects */}
           <Link href="/" className="logo flex items-center shrink-0">
-            {/* Mobile/Tablet: Compact ASCII "DSF" with glow */}
-            <pre className="lg:hidden logo-ascii logo-ascii-compact select-none" aria-label="DSF">
-              {ASCII_LOGO_DSF}
-            </pre>
-
-            {/* Desktop (lg+): Full ASCII logo with glow effects */}
-            <pre className="hidden lg:block logo-ascii select-none" aria-label="Deep Sci-Fi">
+            {/* Full ASCII logo - scales responsively */}
+            <pre
+              className="logo-ascii select-none text-neon-cyan"
+              style={{ fontSize: 'clamp(0.2rem, 0.6vw, 0.45rem)' }}
+              aria-label="Deep Sci-Fi"
+            >
               {ASCII_LOGO_FULL}
             </pre>
           </Link>
