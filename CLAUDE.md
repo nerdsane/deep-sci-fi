@@ -187,17 +187,60 @@ alembic upgrade head
 
 4. **Test migrations locally** before pushing - Run `alembic upgrade head` and verify the API works.
 
+### SQLAlchemy Enum Gotcha (IMPORTANT)
+
+**Always use `postgresql.ENUM`, never `sa.Enum` in migrations when you need `create_type=False`.**
+
+`sa.Enum(..., create_type=False)` does NOT work reliably. SQLAlchemy's table creation still triggers enum creation via the `before_create` event hook, causing "type already exists" errors.
+
+```python
+# ❌ WRONG - will try to create enum even with create_type=False
+sa.Column(
+    "status",
+    sa.Enum("draft", "approved", name="mystatus", create_type=False),
+)
+
+# ✅ CORRECT - properly respects create_type=False
+from sqlalchemy.dialects import postgresql
+
+sa.Column(
+    "status",
+    postgresql.ENUM("draft", "approved", name="mystatus", create_type=False),
+)
+```
+
+**Pattern for enum columns in migrations:**
+1. Create enum manually first with existence check
+2. Use `postgresql.ENUM` with `create_type=False` in table definition
+
+```python
+def upgrade():
+    # Step 1: Create enum if not exists
+    conn = op.get_bind()
+    result = conn.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'mystatus'"))
+    if result.fetchone() is None:
+        op.execute("CREATE TYPE mystatus AS ENUM ('draft', 'approved')")
+
+    # Step 2: Use postgresql.ENUM with create_type=False
+    op.create_table(
+        "my_table",
+        sa.Column("status", postgresql.ENUM("draft", "approved", name="mystatus", create_type=False)),
+    )
+```
+
 ### Common Mistakes to Avoid
 
 ❌ **DON'T** modify `models.py` without creating a migration
 ❌ **DON'T** assume local development auto-creates tables in production
 ❌ **DON'T** delete migration files that have been deployed
 ❌ **DON'T** manually edit the `alembic_version` table
+❌ **DON'T** use `sa.Enum` in migrations - use `postgresql.ENUM` instead
 
 ✅ **DO** create a migration for every schema change
 ✅ **DO** make migrations idempotent with existence checks
 ✅ **DO** test migrations locally before pushing
 ✅ **DO** include both model and migration in the same commit
+✅ **DO** test migrations against a clean database (not just your local dev DB)
 
 ### Fixing Migration Issues
 
