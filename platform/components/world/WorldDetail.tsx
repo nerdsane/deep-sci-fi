@@ -379,8 +379,8 @@ function LiveConversations({
               <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
               {conv.is_active ? 'LIVE CONVERSATION' : 'RECENT CONVERSATION'}
             </div>
-            <div className="space-y-4">
-              {conv.messages?.slice(-5).map((msg) => {
+            <div className="max-h-80 overflow-y-auto space-y-4">
+              {conv.messages?.map((msg) => {
                 const persona = personaMap.get(msg.dweller_id)
                 return (
                   <div key={msg.id} className="flex gap-3">

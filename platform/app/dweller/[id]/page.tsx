@@ -26,6 +26,31 @@ interface DwellerData {
     inhabited_by: string | null
     created_at: string
     updated_at: string
+    personality_blocks?: {
+      communication_style?: string
+      values?: string[]
+      fears?: string[]
+      quirks?: string[]
+      speech_patterns?: string
+      [key: string]: unknown
+    }
+    relationship_memories?: Record<string, {
+      current_status: string
+      history?: Array<{
+        timestamp: string
+        event: string
+        sentiment: string
+      }>
+    }>
+    memory_summaries?: Array<{
+      id: string
+      period: string
+      summary: string
+      key_events?: string[]
+      emotional_arc?: string
+      created_at: string
+    }>
+    episodic_memory_count?: number
   }
 }
 
@@ -117,6 +142,70 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
+          {/* Character Traits (from personality_blocks) */}
+          {dweller.personality_blocks && Object.keys(dweller.personality_blocks).length > 0 && (
+            <Card>
+              <CardContent>
+                <h2 className="text-neon-purple font-display text-[10px] uppercase tracking-wider mb-3">
+                  Character Traits
+                </h2>
+
+                {dweller.personality_blocks.communication_style && (
+                  <div className="mb-3">
+                    <span className="text-text-tertiary text-[10px] uppercase tracking-wide">Communication</span>
+                    <p className="text-text-secondary text-xs mt-1">{dweller.personality_blocks.communication_style}</p>
+                  </div>
+                )}
+
+                {dweller.personality_blocks.values && dweller.personality_blocks.values.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-text-tertiary text-[10px] uppercase tracking-wide">Values</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {dweller.personality_blocks.values.map((v: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-neon-green/10 text-neon-green text-[10px] border border-neon-green/20">
+                          {v}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dweller.personality_blocks.fears && dweller.personality_blocks.fears.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-text-tertiary text-[10px] uppercase tracking-wide">Fears</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {dweller.personality_blocks.fears.map((f: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] border border-red-500/20">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dweller.personality_blocks.quirks && dweller.personality_blocks.quirks.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-text-tertiary text-[10px] uppercase tracking-wide">Quirks</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {dweller.personality_blocks.quirks.map((q: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-neon-purple/10 text-neon-purple text-[10px] border border-neon-purple/20">
+                          {q}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dweller.personality_blocks.speech_patterns && (
+                  <div>
+                    <span className="text-text-tertiary text-[10px] uppercase tracking-wide">Speech</span>
+                    <p className="text-text-secondary text-xs mt-1 italic">&ldquo;{dweller.personality_blocks.speech_patterns}&rdquo;</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Background */}
           <Card>
             <CardContent>
@@ -135,6 +224,33 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
                   Current Situation
                 </h2>
                 <p className="text-text-secondary text-xs leading-relaxed">{dweller.current_situation}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Memory Summaries (Story Chapters) */}
+          {dweller.memory_summaries && dweller.memory_summaries.length > 0 && (
+            <Card>
+              <CardContent>
+                <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-3">
+                  Story Chapters
+                </h2>
+                <div className="space-y-4">
+                  {dweller.memory_summaries.map((summary, i) => (
+                    <div key={summary.id || i} className="relative pl-4 border-l border-neon-purple/30">
+                      <div className="absolute left-0 top-1 w-1.5 h-1.5 -translate-x-[4px] bg-neon-purple" />
+                      <span className="text-neon-purple text-[10px] font-mono">{summary.period}</span>
+                      <p className="text-text-secondary text-xs mt-1 leading-relaxed">{summary.summary}</p>
+                      {summary.key_events && summary.key_events.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {summary.key_events.map((event, j) => (
+                            <li key={j} className="text-text-tertiary text-[10px]">&bull; {event}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -165,6 +281,34 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
               </p>
             </CardContent>
           </Card>
+
+          {/* Relationships */}
+          {dweller.relationship_memories && Object.keys(dweller.relationship_memories).length > 0 && (
+            <Card>
+              <CardContent>
+                <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-3">
+                  Relationships
+                </h2>
+                <div className="space-y-3">
+                  {Object.entries(dweller.relationship_memories).map(([name, rel]) => (
+                    <div key={name} className="border-l border-neon-cyan/30 pl-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-primary text-xs">{name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-white/5 text-text-tertiary border border-white/10">
+                          {rel.current_status}
+                        </span>
+                      </div>
+                      {rel.history && rel.history.length > 0 && (
+                        <p className="text-text-tertiary text-[10px] mt-1 truncate">
+                          {rel.history[rel.history.length - 1].event}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Meta Info */}
           <Card>

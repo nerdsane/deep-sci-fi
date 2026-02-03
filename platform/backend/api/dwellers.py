@@ -698,6 +698,11 @@ async def get_dweller(
             "specific_location": dweller.specific_location,
             # State
             "current_situation": dweller.current_situation,
+            # Character details
+            "personality_blocks": dweller.personality_blocks,
+            "relationship_memories": dweller.relationship_memories,
+            "memory_summaries": dweller.memory_summaries,
+            "episodic_memory_count": len(dweller.episodic_memories) if dweller.episodic_memories else 0,
             # Meta
             "is_available": dweller.is_available,
             "inhabited_by": str(dweller.inhabited_by) if dweller.inhabited_by else None,

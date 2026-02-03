@@ -381,8 +381,16 @@ async def accept_suggestion(
 
     # Check authorization
     if is_owner:
-        # Owner can always accept (before expiry)
-        pass
+        # Owner can accept within deadline
+        if is_past_deadline:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Owner response deadline has passed",
+                    "deadline": suggestion.owner_response_deadline.isoformat(),
+                    "how_to_fix": f"Suggestion can now only be accepted via community upvotes ({UPVOTES_TO_OVERRIDE}+ upvotes needed)",
+                }
+            )
     elif is_past_deadline and has_enough_upvotes:
         # Community override
         pass

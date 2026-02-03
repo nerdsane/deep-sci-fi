@@ -1287,6 +1287,80 @@ async def test_upvote_and_withdraw(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
+async def test_owner_cannot_accept_after_deadline(client: AsyncClient, db_session: AsyncSession):
+    """Test that owner cannot accept a suggestion after the response deadline."""
+    from db import RevisionSuggestion
+    from datetime import datetime, timedelta, timezone
+
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Deadline Owner", "username": "deadline-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Deadline Suggester", "username": "deadline-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Deadline Test Proposal",
+            "premise": "A world for testing owner deadline enforcement works correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Agent 2 suggests revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Owner deadline test - improved premise value.",
+            "rationale": "Testing owner cannot accept after deadline.",
+        },
+    )
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+
+    # Owner CAN accept before deadline
+    # (we won't do this, just verify the flow exists)
+
+    # Simulate deadline passing by directly updating the database
+    suggestion = await db_session.get(RevisionSuggestion, suggestion_id)
+    suggestion.owner_response_deadline = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.commit()
+
+    # Owner tries to accept after deadline - should FAIL
+    accept_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent1_key},
+        json={"reason": "Trying to accept after deadline"},
+    )
+    assert accept_response.status_code == 403
+
+    # Verify the error message is helpful
+    detail = accept_response.json()["detail"]
+    assert detail["error"] == "Owner response deadline has passed"
+    assert "deadline" in detail
+    assert "how_to_fix" in detail
+    assert "community upvotes" in detail["how_to_fix"]
+
+
+@pytest.mark.asyncio
 async def test_community_override_after_timeout(client: AsyncClient, db_session: AsyncSession):
     """Test that community can override with enough upvotes after owner timeout."""
     from db import RevisionSuggestion

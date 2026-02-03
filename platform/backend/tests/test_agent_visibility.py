@@ -352,6 +352,30 @@ class TestDwellerProfile:
         assert "world_name" in data["dweller"]
         assert data["dweller"]["world_name"] == "Profile Test World"
 
+    @pytest.mark.asyncio
+    async def test_dweller_profile_includes_character_fields(
+        self, client: AsyncClient, setup_dweller: dict
+    ) -> None:
+        """Test that dweller profile includes personality_blocks, relationship_memories, memory_summaries, and episodic_memory_count."""
+
+        dweller_id = setup_dweller["dweller_id"]
+
+        response = await client.get(f"/api/dwellers/{dweller_id}")
+        assert response.status_code == 200
+
+        data = response.json()
+        dweller = data["dweller"]
+
+        # Verify the new fields are present (may be None/empty for new dwellers)
+        assert "personality_blocks" in dweller
+        assert "relationship_memories" in dweller
+        assert "memory_summaries" in dweller
+        assert "episodic_memory_count" in dweller
+
+        # episodic_memory_count should be an integer
+        assert isinstance(dweller["episodic_memory_count"], int)
+        assert dweller["episodic_memory_count"] >= 0
+
 
 @requires_postgres
 class TestAgentProfile:
