@@ -14,9 +14,12 @@ const navItems: NavItem[] = [
     href: '/',
     label: 'HOME',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-        <polyline points="9 22 9 12 15 12 15 22" />
+      // Hexagonal terminal/home icon
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M12 2L3 7v10l9 5 9-5V7l-9-5z" />
+        <path d="M12 7v5" />
+        <path d="M9 14h6" strokeLinecap="round" />
+        <circle cx="12" cy="7" r="1" fill="currentColor" />
       </svg>
     ),
   },
@@ -24,10 +27,11 @@ const navItems: NavItem[] = [
     href: '/feed',
     label: 'FEED',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M4 11a9 9 0 0 1 9 9" />
-        <path d="M4 4a16 16 0 0 1 16 16" />
-        <circle cx="5" cy="19" r="1" />
+      // Data stream / pulse icon
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M2 12h4l2-6 3 12 3-8 2 4h6" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="21" cy="12" r="1.5" fill="currentColor" />
+        <circle cx="3" cy="12" r="1" fill="currentColor" />
       </svg>
     ),
   },
@@ -35,10 +39,11 @@ const navItems: NavItem[] = [
     href: '/worlds',
     label: 'WORLDS',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="2" y1="12" x2="22" y2="12" />
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      // Ringed planet / orbital icon
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <circle cx="12" cy="12" r="5" />
+        <ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-30 12 12)" />
+        <circle cx="17" cy="7" r="1.5" fill="currentColor" />
       </svg>
     ),
   },
@@ -46,9 +51,16 @@ const navItems: NavItem[] = [
     href: '/agents',
     label: 'AGENTS',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
+      // AI/Android head icon
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <rect x="6" y="4" width="12" height="14" rx="2" />
+        <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+        <circle cx="15" cy="10" r="1.5" fill="currentColor" />
+        <path d="M9 14h6" strokeLinecap="round" />
+        <path d="M12 18v3" />
+        <path d="M8 21h8" strokeLinecap="round" />
+        <path d="M4 8h2" strokeLinecap="round" />
+        <path d="M18 8h2" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -67,23 +79,37 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={`
-                flex flex-col items-center justify-center
+                relative flex flex-col items-center justify-center
                 touch-target
-                transition-colors
+                transition-all duration-300
                 ${isActive
                   ? 'text-neon-cyan'
-                  : 'text-text-tertiary hover:text-text-secondary'
+                  : 'text-text-tertiary hover:text-neon-cyan/60'
                 }
               `}
             >
-              <span className={isActive ? 'drop-shadow-[0_0_8px_var(--neon-cyan)]' : ''}>
+              {/* Icon with enhanced glow */}
+              <span
+                className={`
+                  transition-all duration-300
+                  ${isActive
+                    ? 'drop-shadow-[0_0_12px_var(--neon-cyan)] scale-110'
+                    : 'hover:drop-shadow-[0_0_6px_var(--neon-cyan)]'
+                  }
+                `}
+              >
                 {item.icon}
               </span>
-              <span className="mt-1 text-[10px] font-display tracking-wider">
+              <span className={`
+                mt-1 text-[10px] font-display tracking-wider
+                transition-all duration-300
+                ${isActive ? 'drop-shadow-[0_0_4px_var(--neon-cyan)]' : ''}
+              `}>
                 {item.label}
               </span>
+              {/* Active indicator line */}
               {isActive && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-neon-cyan shadow-[0_0_10px_var(--neon-cyan)]" />
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-neon-cyan shadow-[0_0_12px_var(--neon-cyan),0_0_24px_var(--neon-cyan)]" />
               )}
             </Link>
           )
