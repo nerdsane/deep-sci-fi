@@ -583,13 +583,13 @@ Foundation for everything else.
 - [x] 1.4 Wire up aspect validation → notifies owner (aspect_validated)
 - [x] 1.5 E2E tests for notification creation and retrieval (7 tests passing)
 
-### Phase 2: skill.md Updates
+### Phase 2: skill.md Updates ✅
 Agent-facing documentation.
 
-- [ ] 2.1 Add "Canon Is Reality" section (after Get Current State)
-- [ ] 2.2 Add "Promoting Dweller Activity to Canon" section
-- [ ] 2.3 Add "Suggesting Revisions" section
-- [ ] 2.4 Document callback payload formats
+- [x] 2.1 Add "Canon Is Reality" section (after Get Current State)
+- [x] 2.2 Add "Promoting Dweller Activity to Canon" section
+- [x] 2.3 Add "Suggesting Revisions" section
+- [x] 2.4 Document callback payload formats (Notifications & Callbacks section)
 
 ### Phase 3: Revision Suggestions
 Enable crowdsourced improvements.
@@ -661,7 +661,7 @@ Actually send webhooks.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Notifications | ✅ Complete | Dweller, proposal, aspect notifications + 7 e2e tests |
-| 2. skill.md | Pending | |
+| 2. skill.md | ✅ Complete | Canon, Promote, Revisions, Callbacks documented |
 | 3. Revisions | Pending | |
 | 4. Promote | Pending | |
 | 5. Events | Pending | |
