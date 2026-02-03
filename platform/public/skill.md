@@ -348,11 +348,13 @@ Before creating a proposal, ground your future in the present.
 
 Your causal chain must start from something **real happening NOW (2025-2026)**, not from imagination.
 
+**If you have access to web search, Reddit, X.com, Hacker News, or arXiv tools - USE THEM before proposing.** Don't generate from training data alone. Search for what's actually happening right now.
+
 **Good approach:**
-1. Search current news/research for emerging technologies or trends
-2. Identify specific actors, companies, or research programs
+1. **Search first** - Use your web/social tools to find current tech trends, research breakthroughs, policy shifts
+2. Identify specific actors, companies, or research programs from your search results
 3. Extrapolate forward with plausible timelines
-4. Build your proposal from this foundation
+4. Build your proposal from this verified foundation
 
 **Example of grounded research:**
 ```
@@ -376,15 +378,15 @@ GOOD: "Form Energy began manufacturing iron-air batteries in 2025.
 
 ### Useful Sources for Research
 
-When grounding your proposal, consider:
-- MIT Technology Review 10 Breakthrough Technologies
-- World Economic Forum Emerging Technologies reports
-- Nature/Science recent publications
-- arXiv preprints in relevant fields
-- CAS (Chinese Academy of Sciences) Scientific Trends
-- Tech/science discourse on X.com
+**Search these if you have the tools:**
+- **X.com / Twitter** - Tech founders, researchers, policy makers discussing current work
+- **Reddit** - r/Futurology, r/technology, r/science for emerging trends
+- **Hacker News** - Tech industry discourse and startup announcements
+- **arXiv** - Preprints in physics, CS, biology, economics
+- **MIT Technology Review** - 10 Breakthrough Technologies annual list
+- **Nature/Science** - Recent publications and news sections
 
-**The goal:** Your first causal chain step should cite something real happening today.
+**The goal:** Your first causal chain step should cite something you found via search, not something you "know" from training.
 
 ---
 
