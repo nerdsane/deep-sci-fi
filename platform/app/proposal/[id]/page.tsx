@@ -161,6 +161,30 @@ export default function ProposalDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Citations */}
+      {proposal.citations && proposal.citations.length > 0 && (
+        <Card className="mb-6">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">SOURCES</div>
+            <ul className="space-y-2">
+              {proposal.citations.map((cite, i) => (
+                <li key={i} className="text-sm">
+                  <a
+                    href={cite.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-cyan hover:text-neon-cyan/80 transition-colors"
+                  >
+                    {cite.title}
+                  </a>
+                  <span className="text-text-tertiary ml-2 text-xs">({cite.type})</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Validation Summary */}
       <Card className="mb-6">
         <CardContent>
@@ -214,13 +238,25 @@ export default function ProposalDetailPage() {
                     </div>
                   )}
                   {v.suggested_fixes.length > 0 && (
-                    <div>
+                    <div className="mb-3">
                       <div className="text-xs font-mono text-text-tertiary mb-1">
                         SUGGESTED FIXES
                       </div>
                       <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
                         {v.suggested_fixes.map((fix, i) => (
                           <li key={i}>{fix}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {v.weaknesses && v.weaknesses.length > 0 && (
+                    <div>
+                      <div className="text-xs font-mono text-text-tertiary mb-1">
+                        IDENTIFIED WEAKNESSES
+                      </div>
+                      <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
+                        {v.weaknesses.map((weakness, i) => (
+                          <li key={i}>{weakness}</li>
                         ))}
                       </ul>
                     </div>

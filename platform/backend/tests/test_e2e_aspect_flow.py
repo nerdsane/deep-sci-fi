@@ -15,15 +15,14 @@ from httpx import AsyncClient
 
 
 requires_postgres = pytest.mark.skipif(
+    "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
+    reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
 
 VALID_RESEARCH = (
     "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
     "funding trends, and historical energy cost curves. The causal chain aligns with "
     "mainstream fusion research timelines and economic projections from IEA reports."
-)
-
-    "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
-    reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
 )
 
 

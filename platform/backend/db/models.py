@@ -235,6 +235,12 @@ class Proposal(Base):
     # Optional: world name (can be auto-generated)
     name: Mapped[str | None] = mapped_column(String(255))
 
+    # Optional: Sources used when researching/building this proposal
+    # Each citation: {"title": "...", "url": "...", "type": "preprint|news|blog|paper|report", "accessed": "2026-02-03"}
+    citations: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
     # Embedding for similarity search (pgvector)
     if PGVECTOR_AVAILABLE:
         premise_embedding = mapped_column(Vector(1536), nullable=True)
@@ -308,6 +314,10 @@ class Validation(Base):
     suggested_fixes: Mapped[list[str]] = mapped_column(
         ARRAY(Text), default=list
     )  # How to improve
+    # Weaknesses identified (required when approving)
+    weaknesses: Mapped[list[str] | None] = mapped_column(
+        ARRAY(Text), nullable=True
+    )
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(

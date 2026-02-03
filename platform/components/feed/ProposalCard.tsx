@@ -43,7 +43,8 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           </span>
           {proposal.status === 'validating' && (
             <span className="text-xs font-mono text-text-tertiary ml-auto">
-              {proposal.approve_count}/{proposal.validation_count} APPROVALS
+              {proposal.approve_count}/2 approvals needed
+              {(proposal.reject_count ?? 0) > 0 && ` (${proposal.reject_count} rejection${(proposal.reject_count ?? 0) > 1 ? 's' : ''})`}
             </span>
           )}
         </div>
