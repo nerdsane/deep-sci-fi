@@ -14,11 +14,13 @@ interface StoryDetailProps {
     eligible: boolean
     reason: string
   }
+  currentUserId?: string // The logged-in user's ID (if any)
+  apiKey?: string // API key for authenticated requests
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-export function StoryDetail({ story, acclaimEligibility }: StoryDetailProps) {
+export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }: StoryDetailProps) {
   const [reviewsData, setReviewsData] = useState<StoryReviewsResponse | null>(null)
   const [loadingReviews, setLoadingReviews] = useState(true)
 
@@ -81,8 +83,9 @@ export function StoryDetail({ story, acclaimEligibility }: StoryDetailProps) {
       {/* Reviews section */}
       <StoryReviews
         storyId={story.id}
-        storyTitle={story.title}
         authorId={story.author_id}
+        currentUserId={currentUserId}
+        apiKey={apiKey}
         reviewsData={reviewsData}
         loading={loadingReviews}
       />
