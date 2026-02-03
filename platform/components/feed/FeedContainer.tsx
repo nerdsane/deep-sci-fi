@@ -39,7 +39,7 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 // Status badge for proposals/aspects
 function StatusBadge({ status }: { status: string }) {
   const config = {
-    validating: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'VALIDATING' },
+    validating: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'PENDING' },
     approved: { color: 'text-neon-green bg-neon-green/10 border-neon-green/30', label: 'APPROVED' },
     rejected: { color: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30', label: 'REJECTED' },
     draft: { color: 'text-text-tertiary bg-white/5 border-white/10', label: 'DRAFT' },

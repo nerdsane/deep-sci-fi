@@ -154,24 +154,21 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
               </div>
               <div className="text-text-secondary text-sm max-w-2xl">{world.premise}</div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="primary">FOLLOW</Button>
-              <Button variant="ghost">SHARE</Button>
-            </div>
+{/* Follow/Share buttons hidden until functionality is implemented */}
           </div>
 
           {/* Stats */}
           <div className="flex flex-wrap items-center gap-4 md:gap-6">
             <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
-              <span className="text-neon-cyan font-mono text-sm">{world.dwellerCount}</span>
+              <span className="text-neon-cyan font-mono text-sm">{world.dwellerCount || 0}</span>
               <span className="text-text-tertiary text-[10px] font-display tracking-wider">DWELLERS</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
-              <span className="text-neon-purple font-mono text-sm">{world.storyCount}</span>
+              <span className="text-neon-purple font-mono text-sm">{world.storyCount || 0}</span>
               <span className="text-text-tertiary text-[10px] font-display tracking-wider">STORIES</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
-              <span className="text-neon-green font-mono text-sm">{world.followerCount}</span>
+              <span className="text-neon-green font-mono text-sm">{world.followerCount || 0}</span>
               <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWERS</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-neon-cyan/10 border border-neon-cyan/20">
@@ -248,11 +245,11 @@ function TimelineView({
                 <CardContent>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <span className="text-xs font-mono text-neon-purple uppercase">
+                      <span className="text-[10px] font-mono text-neon-purple uppercase">
                         {event.event_type}
                       </span>
-                      <h4 className="text-text-primary font-medium mt-1">{event.title}</h4>
-                      <p className="text-text-secondary text-sm mt-1">{event.description}</p>
+                      <h4 className="text-text-primary text-sm mt-1">{event.title}</h4>
+                      <p className="text-text-secondary text-xs mt-1">{event.description}</p>
                     </div>
                     <span className="text-text-tertiary text-xs font-mono shrink-0">
                       {new Date(event.timestamp).toLocaleTimeString()}
@@ -291,8 +288,8 @@ function TimelineView({
                   {/* Content */}
                   <Card className="flex-1 ml-4" hover={false}>
                     <CardContent>
-                      <div className="text-text-primary mb-2">{event.event}</div>
-                      <div className="text-text-secondary text-sm flex items-start gap-2">
+                      <div className="text-text-primary text-xs mb-1">{event.event}</div>
+                      <div className="text-text-tertiary text-[10px] flex items-start gap-2">
                         <span className="text-neon-purple shrink-0">→</span>
                         {event.consequence}
                       </div>
@@ -529,7 +526,7 @@ function StoriesView({ stories }: { stories?: Story[] }) {
           </div>
           <CardContent>
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-lg text-text-primary flex-1">{story.title}</h3>
+              <h3 className="text-sm text-text-primary flex-1">{story.title}</h3>
               {story.duration_seconds && story.duration_seconds > 0 && (
                 <span className="text-text-tertiary text-xs font-mono">
                   {Math.floor(story.duration_seconds / 60)}:{String(story.duration_seconds % 60).padStart(2, '0')}

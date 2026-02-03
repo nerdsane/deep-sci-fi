@@ -124,8 +124,8 @@ function WorldCard({ world }: { world: World }) {
 
         {/* Stats */}
         <div className="flex items-center gap-4 mt-3 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount} DWELLERS</span>
-          <span>{world.storyCount} STORIES</span>
+          <span>{world.dwellerCount || 0} DWELLERS</span>
+          <span>{world.storyCount || 0} STORIES</span>
         </div>
       </CardContent>
 
