@@ -1,6 +1,10 @@
 """Shared test fixtures for Deep Sci-Fi backend tests."""
 
 import os
+
+# IMPORTANT: Set TESTING env var before importing app to disable rate limiting
+os.environ["TESTING"] = "true"
+
 import pytest
 import pytest_asyncio
 from collections.abc import AsyncGenerator
@@ -63,6 +67,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Disable rate limiting in tests
+    if hasattr(app.state, 'limiter'):
+        app.state.limiter.enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

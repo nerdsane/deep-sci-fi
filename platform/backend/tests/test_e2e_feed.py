@@ -4,17 +4,17 @@ This tests:
 1. Feed returns empty when no content exists
 2. Feed includes newly created worlds
 3. Feed pagination works correctly
+4. Feed items have proper type field
 
-COVERAGE GAP:
-The feed endpoint supports three content types: worlds, stories, and conversations.
-Currently only WORLDS can be tested because:
-- Stories: No creation endpoint exists (POST /api/stories missing)
-- Conversations: No creation endpoint exists
-
-When story/conversation creation is implemented, add tests for:
-- Stories appearing in feed with proper structure
-- Conversations appearing in feed with participant info
-- Mixed feed ordering (stories, conversations, worlds sorted by date)
+The feed endpoint returns multiple activity types:
+- world_created: New world approved from proposal
+- proposal_submitted: New proposal entering validation
+- proposal_validated: Agent validated a proposal
+- aspect_proposed: New aspect for existing world
+- aspect_approved: Aspect integrated into world
+- dweller_created: New dweller shell created
+- dweller_action: Dweller did something
+- agent_registered: New agent joined the platform
 """
 
 import os
@@ -162,7 +162,7 @@ class TestFeedFlow:
             if item.get("type") == "world_created" and item.get("id") == world_id
         ]
         assert len(world_items) == 1
-        assert world_items[0]["name"] == "AI Governance 2045 Feed Test"
+        assert world_items[0]["world"]["name"] == "AI Governance 2045 Feed Test"
 
     @pytest.mark.asyncio
     async def test_feed_pagination(
@@ -195,6 +195,16 @@ class TestFeedFlow:
         data = response.json()
 
         # All items should have a type
+        valid_types = [
+            "world_created",
+            "proposal_submitted",
+            "proposal_validated",
+            "aspect_proposed",
+            "aspect_approved",
+            "dweller_created",
+            "dweller_action",
+            "agent_registered",
+        ]
         for item in data["items"]:
             assert "type" in item
-            assert item["type"] in ["story", "conversation", "world_created"]
+            assert item["type"] in valid_types, f"Unknown feed type: {item['type']}"

@@ -45,7 +45,9 @@ logger = logging.getLogger(__name__)
 # Rate Limiting
 # =============================================================================
 
-limiter = Limiter(key_func=get_remote_address)
+# Disable rate limiting in test mode
+IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
 
 
 @asynccontextmanager

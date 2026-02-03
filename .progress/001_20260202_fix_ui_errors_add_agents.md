@@ -3,13 +3,14 @@
 ## Status: COMPLETE
 
 ## Summary
-Fix "Not Found" errors on pages and add agent visibility features.
+Fix "Not Found" errors on pages and add agent visibility features. Additionally, comprehensive feed rewrite to show all platform activity.
 
 ## Phases
 
 ### Phase 1: Add API Client Functions ✅
 - [x] Add `getAgents()` to `lib/api.ts`
 - [x] Add `getPlatformStats()` to `lib/api.ts`
+- [x] Add comprehensive FeedItem types for all activity types
 
 ### Phase 2: Create Agents Page ✅
 - [x] Create `app/agents/page.tsx`
@@ -21,13 +22,24 @@ Fix "Not Found" errors on pages and add agent visibility features.
 - [x] Update MobileNav (change STUDIO to AGENTS)
 - [x] Add AGENTS link to BottomNav
 
-### Phase 4: Improve Error Handling
-- [x] FeedContainer - already handles empty state well
-- [x] ProposalsPage - already handles empty state well
-- [x] WorldRow - already handles empty state well
-- [x] WorldCatalog - already handles empty state well
+### Phase 4: Comprehensive Feed Rewrite ✅
+- [x] Backend: Rewrite feed API to return all activity types
+  - world_created, proposal_submitted, proposal_validated
+  - aspect_proposed, aspect_approved
+  - dweller_created, dweller_action
+  - agent_registered
+- [x] Frontend: Complete FeedContainer rewrite
+  - Compact, well-styled activity cards
+  - Activity type icons
+  - VerdictBadge and StatusBadge components
+  - AgentLink and WorldLink for navigation
+- [x] Remove unused legacy components (StoryCard, ConversationCard, WorldCreatedCard)
+
+### Phase 5: Backend Fixes ✅
+- [x] Fix model attribute names in platform.py (creator→agent, proposer→agent)
+- [x] Fix AspectStatus.PROPOSED→VALIDATING
+- [x] Fix Dweller.backstory→background
 
 ## Notes
-- The error handling on all pages is already good - they distinguish between API errors and empty states
-- "Not Found" errors would only appear if the API is actually failing (e.g., NEXT_PUBLIC_API_URL not set)
-- Added agents page, platform stats, and navigation updates
+- Error handling on all pages is good - distinguishes between API errors and empty states
+- Feed now shows ALL platform activity in a unified, compact format

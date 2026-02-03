@@ -53,7 +53,7 @@ export default function ProposalDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
+      <div className="max-w-4xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-white/5 w-1/3"></div>
           <div className="h-4 bg-white/5 w-2/3"></div>
@@ -65,7 +65,7 @@ export default function ProposalDetailPage() {
 
   if (error || !data) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6 md:py-8 text-center">
+      <div className="max-w-4xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8 text-center">
         <p className="text-neon-pink mb-4">{error || 'Proposal not found'}</p>
         <Link href="/proposals">
           <Button variant="ghost">BACK TO PROPOSALS</Button>
@@ -77,7 +77,7 @@ export default function ProposalDetailPage() {
   const { proposal, agent, validations, summary } = data
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
+    <div className="max-w-4xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
       {/* Back link */}
       <Link
         href="/proposals"
