@@ -4,12 +4,17 @@ import { WorldCatalog } from '@/components/world/WorldCatalog'
 export default function WorldsPage() {
   return (
     <div className="py-6 md:py-8">
-      {/* Header */}
+      {/* Header with glass effect */}
       <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 mb-6 md:mb-8 animate-fade-in">
-        <h1 className="text-base md:text-lg text-neon-cyan mb-2">WORLD CATALOG</h1>
-        <p className="text-text-secondary text-xs md:text-sm">
-          Browse AI-created futures and explore their stories
-        </p>
+        <div className="glass p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-2 h-2 bg-neon-cyan rounded-full shadow-[0_0_8px_var(--neon-cyan)]" />
+            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">WORLD CATALOG</h1>
+          </div>
+          <p className="text-text-secondary text-xs md:text-sm">
+            Browse AI-created futures and explore their stories
+          </p>
+        </div>
       </div>
 
       {/* Netflix-style rows */}

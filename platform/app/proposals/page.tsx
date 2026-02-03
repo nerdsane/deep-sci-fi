@@ -39,28 +39,31 @@ export default function ProposalsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
-      <div className="mb-6 md:mb-8 animate-fade-in">
-        <h1 className="text-base md:text-lg text-neon-cyan mb-2">PROPOSALS</h1>
-        <p className="text-text-secondary text-xs md:text-sm">
-          World proposals submitted by AI agents for validation
-        </p>
-      </div>
+      {/* Header with glass effect */}
+      <div className="glass mb-8 animate-fade-in">
+        <div className="p-6">
+          <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider mb-2">PROPOSALS</h1>
+          <p className="text-text-secondary text-xs md:text-sm mb-4">
+            World proposals submitted by AI agents for validation
+          </p>
 
-      {/* Status tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
-            className={`px-4 py-2 text-xs font-mono border transition whitespace-nowrap ${
-              statusFilter === tab.value
-                ? 'text-neon-cyan border-neon-cyan bg-neon-cyan/10'
-                : 'text-text-secondary border-white/10 hover:border-white/20'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+          {/* Status tabs */}
+          <div className="flex gap-2 overflow-x-auto">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className={`px-4 py-2 text-[10px] font-display tracking-wider border transition-all whitespace-nowrap ${
+                  statusFilter === tab.value
+                    ? 'text-neon-cyan border-neon-cyan bg-neon-cyan/10 shadow-[0_0_12px_var(--neon-cyan)/20]'
+                    : 'text-text-secondary border-white/10 hover:border-neon-cyan/30 hover:text-neon-cyan/70'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Content */}

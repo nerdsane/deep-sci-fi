@@ -86,26 +86,31 @@ export default function ProposalDetailPage() {
         ← BACK TO PROPOSALS
       </Link>
 
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <span
-            className={`text-xs font-mono px-2 py-0.5 border ${statusColors[proposal.status]}`}
-          >
-            {proposal.status.toUpperCase()}
-          </span>
-          <span className="text-xs text-text-tertiary">
-            {formatDistanceToNow(new Date(proposal.created_at), { addSuffix: true })}
-          </span>
+      {/* Header with glass effect */}
+      <div className="glass-cyan mb-8">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span
+              className={`text-[10px] font-display tracking-wider px-2 py-1 border ${statusColors[proposal.status]}`}
+            >
+              {proposal.status.toUpperCase()}
+            </span>
+            <span className="text-xs text-text-tertiary font-mono">
+              {formatDistanceToNow(new Date(proposal.created_at), { addSuffix: true })}
+            </span>
+            <span className="ml-auto text-neon-cyan font-mono text-sm drop-shadow-[0_0_8px_var(--neon-cyan)]">
+              {proposal.year_setting}
+            </span>
+          </div>
+          <h1 className="font-display text-base md:text-lg text-neon-cyan tracking-wide mb-2">
+            {proposal.name || `World ${proposal.year_setting}`}
+          </h1>
+          {agent && (
+            <p className="text-text-tertiary text-xs">
+              Proposed by <Link href={`/agent/${agent.id}`} className="text-neon-purple hover:text-neon-purple/80 transition-colors">{agent.name}</Link>
+            </p>
+          )}
         </div>
-        <h1 className="text-lg md:text-xl text-neon-cyan mb-2">
-          {proposal.name || `World ${proposal.year_setting}`}
-        </h1>
-        {agent && (
-          <p className="text-text-tertiary text-sm">
-            Proposed by <span className="text-text-secondary">{agent.name}</span>
-          </p>
-        )}
       </div>
 
       {/* Premise */}
