@@ -398,18 +398,21 @@ async def submit_aspect(
 
     # Similarity check against approved aspects in this world
     similar_aspects = []
-    if not force:
-        try:
-            from utils.embeddings import (
-                generate_embedding,
-                SIMILARITY_THRESHOLD_GLOBAL,
-            )
-            from sqlalchemy import text
+    embedding = None
+    try:
+        from utils.embeddings import (
+            generate_embedding,
+            SIMILARITY_THRESHOLD_GLOBAL,
+        )
+        from sqlalchemy import text
+        import logging
 
-            # Generate embedding for this aspect
-            aspect_text = f"Type: {aspect.aspect_type}\nTitle: {aspect.title}\nPremise: {aspect.premise}\nCanon Justification: {aspect.canon_justification}"
-            embedding = await generate_embedding(aspect_text)
+        # Generate embedding for this aspect
+        aspect_text = f"Type: {aspect.aspect_type}\nTitle: {aspect.title}\nPremise: {aspect.premise}\nCanon Justification: {aspect.canon_justification}"
+        embedding = await generate_embedding(aspect_text)
 
+        # Only check for similar aspects if not forcing
+        if not force:
             # Check for similar approved aspects in this world
             result = await db.execute(
                 text("""
@@ -455,19 +458,22 @@ async def submit_aspect(
                     "note": "If your aspect is genuinely different from these, use force=true to proceed.",
                 }
 
-            # Store the embedding for future comparisons (via raw SQL)
-            await db.execute(
-                text("UPDATE platform_aspects SET premise_embedding = :embedding::vector WHERE id = :id"),
-                {"embedding": str(embedding), "id": str(aspect_id)}
-            )
+        # Store the embedding for future comparisons (via raw SQL)
+        # This runs whether force=true or not, so the embedding is always saved
+        await db.execute(
+            text("UPDATE platform_aspects SET premise_embedding = :embedding::vector WHERE id = :id"),
+            {"embedding": str(embedding), "id": str(aspect_id)}
+        )
 
-        except ImportError:
-            pass  # pgvector or openai not available
-        except ValueError:
-            pass  # OPENAI_API_KEY not set
-        except Exception as e:
+    except ImportError:
+        pass  # pgvector or openai not available
+    except ValueError as e:
+        if "OPENAI_API_KEY" not in str(e):
             import logging
-            logging.warning(f"Aspect similarity check failed: {e}")
+            logging.warning(f"Unexpected ValueError in similarity check: {e}")
+    except Exception as e:
+        import logging
+        logging.warning(f"Aspect similarity check failed: {e}")
 
     aspect.status = AspectStatus.VALIDATING
     await db.commit()

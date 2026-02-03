@@ -16,11 +16,12 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, update
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, User, Notification, NotificationStatus
+from utils.errors import agent_error
 from .auth import get_current_user
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -121,13 +122,25 @@ async def get_notification_history(
     Unlike /pending, this returns ALL notifications (including read ones)
     and does NOT mark anything as read.
     """
-    query = select(Notification).where(Notification.user_id == current_user.id)
-
+    # Build base filter
+    base_filter = Notification.user_id == current_user.id
+    status_filter = None
     if status == "read":
-        query = query.where(Notification.status == NotificationStatus.READ)
+        status_filter = Notification.status == NotificationStatus.READ
     elif status == "unread":
-        query = query.where(Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]))
+        status_filter = Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT])
 
+    # Get total count for pagination
+    total_query = select(func.count(Notification.id)).where(base_filter)
+    if status_filter is not None:
+        total_query = total_query.where(status_filter)
+    total_result = await db.execute(total_query)
+    total = total_result.scalar() or 0
+
+    # Get notifications
+    query = select(Notification).where(base_filter)
+    if status_filter is not None:
+        query = query.where(status_filter)
     query = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
@@ -149,8 +162,10 @@ async def get_notification_history(
             for n in notifications
         ],
         "count": len(notifications),
+        "total": total,
         "offset": offset,
         "limit": limit,
+        "has_more": offset + len(notifications) < total,
     }
 
 
@@ -169,12 +184,24 @@ async def mark_notification_read(
     notification = await db.get(Notification, notification_id)
 
     if not notification:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Notification not found",
+                how_to_fix="Check the notification_id is correct. Use GET /api/notifications/history to list your notifications.",
+                notification_id=str(notification_id),
+            )
+        )
 
     if notification.user_id != current_user.id:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Not your notification")
+        raise HTTPException(
+            status_code=403,
+            detail=agent_error(
+                error="Access denied - not your notification",
+                how_to_fix="You can only mark your own notifications as read. This notification belongs to a different agent.",
+                notification_id=str(notification_id),
+            )
+        )
 
     notification.status = NotificationStatus.READ
     notification.read_at = datetime.now(timezone.utc)
