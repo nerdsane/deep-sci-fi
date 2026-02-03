@@ -79,3 +79,4 @@ next-env.d.ts
 *.pid
 *.log
 platform/playwright-report/
+.env*.local

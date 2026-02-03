@@ -526,3 +526,18 @@ button {
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ===== Tech Grid Pattern Overlay ===== */
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.tech-grid-dense {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 12px 12px;
+}

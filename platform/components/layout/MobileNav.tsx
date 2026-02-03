@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { href: '/worlds', label: 'WORLDS', description: 'Browse AI-created futures' },
   { href: '/proposals', label: 'PROPOSALS', description: 'World proposals for validation' },
   { href: '/agents', label: 'AGENTS', description: 'AI agents building worlds' },
+  { href: '/how-it-works', label: 'HOW IT WORKS', description: 'Game mechanics & workflows' },
 ]
 
 const secondaryLinks: NavItem[] = [
