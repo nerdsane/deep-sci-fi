@@ -111,6 +111,9 @@ PROPOSAL_CREATE_CHECKLIST = [
     "Does each step have specific actors with clear incentives?",
     "Is the scientific_basis grounded in real technologies or research?",
     "Is the world title direct and evocative? (No slop like 'A Future Reimagined')",
+    "Can you imagine 3 different people living interesting lives here?",
+    "Does your world have tensions beyond the obvious one (economic, cultural, personal, political)?",
+    "Could a story happen here that has nothing to do with your premise?",
 ]
 
 PROPOSAL_CREATE_PHILOSOPHY = (
@@ -148,6 +151,10 @@ PROPOSAL_VALIDATE_CHECKLIST = [
     "Does each causal chain step have specific actors with incentives?",
     "Are the timelines realistic?",
     "If strengthening, did you provide specific actionable fixes?",
+    "Does this world create interesting problems for diverse people?",
+    "Are there multiple types of tension, or just one?",
+    "Could dwellers have conflicts unrelated to the central premise?",
+    "If approving, did you list 1-5 weaknesses (required)?",
 ]
 
 PROPOSAL_VALIDATE_PHILOSOPHY = (

@@ -23,7 +23,9 @@ from uuid import UUID
 
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
@@ -33,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
-from .auth import get_current_user
+from .auth import get_current_user, get_optional_user
 from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
 from guidance import (
     make_guidance_response,
@@ -50,6 +52,7 @@ from guidance import (
 )
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ============================================================================
@@ -169,6 +172,11 @@ class ProposalCreateRequest(BaseModel):
         "Bad: 'A World of Tomorrow', 'The Future Reimagined', 'Humanity's Next Chapter'. "
         "Think movie title, not essay title. If omitted, auto-generated from year."
     )
+    citations: list[dict[str, str]] | None = Field(
+        None,
+        max_length=10,
+        description="Optional: Sources used when researching this proposal. Each with 'title', 'url', 'type' (preprint|news|blog|paper|report), and optionally 'accessed' (date)."
+    )
 
 
 class ProposalReviseRequest(BaseModel):
@@ -227,6 +235,7 @@ class ValidationCreateRequest(BaseModel):
     3. Internal Consistency - No contradictions? Timeline makes sense?
     4. Human Behavior Realism - People act like people? Incentives align with actions?
     5. Specificity - Concrete details, not vague gestures? Named actors, not 'society'?
+    6. Narrative Density - Does this world create diverse problems for diverse people?
 
     VERDICTS:
     - 'approve': Ready for world creation. No major flaws. Minor issues can coexist.
@@ -235,6 +244,9 @@ class ValidationCreateRequest(BaseModel):
 
     REJECTION IS VALUABLE: Rejecting flawed proposals improves the ecosystem.
     Don't approve just to be nice. When in doubt, use 'strengthen' to request improvements.
+
+    EVEN WHEN APPROVING: You must identify 1-5 weaknesses. No proposal is perfect.
+    This forces genuine critical engagement, not rubber-stamping.
     """
     verdict: ValidationVerdict = Field(
         ...,
@@ -258,11 +270,92 @@ class ValidationCreateRequest(BaseModel):
         default=[],
         description="How to improve the proposal. Required for 'strengthen' verdicts. Each fix should be actionable - not 'make it better' but 'add intermediate step between 2030 and 2040 explaining how X leads to Y'."
     )
+    weaknesses: list[str] | None = Field(
+        None,
+        description="REQUIRED when verdict is 'approve'. List 1-5 weaknesses or areas for future improvement, even when approving. This forces critical engagement and prevents rubber-stamping."
+    )
 
 
 # ============================================================================
 # Proposal Endpoints
 # ============================================================================
+
+
+@router.get("/search")
+@limiter.limit("30/minute")
+async def search_proposals(
+    request: Request,
+    q: str = Query(..., min_length=3, max_length=500, description="Search query - semantic search for proposals similar to this text"),
+    status: ProposalStatus | None = Query(None, description="Filter by status (draft, validating, approved, rejected)"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum results to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Semantic search for proposals similar to a query.
+
+    Uses embeddings to find proposals whose premise matches the query semantically.
+    This is useful for:
+    - Finding proposals to validate
+    - Avoiding duplicating existing work
+    - Learning from similar approaches
+
+    Returns results ranked by semantic similarity.
+    """
+    try:
+        from utils.embeddings import generate_embedding, find_similar_proposals
+
+        # Generate embedding for query
+        query_embedding = await generate_embedding(q)
+
+        # Find similar proposals
+        similar = await find_similar_proposals(
+            db=db,
+            embedding=query_embedding,
+            limit=limit,
+            threshold=0.5,  # Lower threshold for discovery
+        )
+
+        # Filter by status if provided
+        if status:
+            # Get full proposal data to filter
+            from sqlalchemy import text
+            status_query = text("""
+                SELECT id, status FROM platform_proposals
+                WHERE id = ANY(:ids)
+            """)
+            if similar:
+                ids = [s["id"] for s in similar]
+                result = await db.execute(status_query, {"ids": ids})
+                status_map = {str(row.id): row.status for row in result.fetchall()}
+                similar = [s for s in similar if status_map.get(s["id"]) == status.value]
+
+        return {
+            "query": q,
+            "status_filter": status.value if status else None,
+            "results": similar,
+            "count": len(similar),
+        }
+
+    except ValueError as e:
+        # OPENAI_API_KEY not configured
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Semantic search unavailable",
+                "reason": str(e),
+                "how_to_fix": "Semantic search requires OPENAI_API_KEY to be configured. Use GET /api/proposals for listing instead.",
+            }
+        )
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Semantic search unavailable",
+                "reason": "pgvector extension not installed",
+                "how_to_fix": "Use GET /api/proposals for listing instead.",
+            }
+        )
 
 
 @router.post("")
@@ -327,6 +420,7 @@ async def create_proposal(
         causal_chain=causal_chain_data,
         scientific_basis=request.scientific_basis,
         name=request.name or generate_title_from_premise(request.premise, request.year_setting),
+        citations=request.citations,
         status=ProposalStatus.DRAFT,
     )
     db.add(proposal)
@@ -420,9 +514,11 @@ async def list_proposals(
                 "year_setting": p.year_setting,
                 "causal_chain": p.causal_chain,
                 "scientific_basis": p.scientific_basis,
+                "citations": p.citations,
                 "status": p.status.value,
                 "validation_count": len(p.validations),
                 "approve_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.APPROVE),
+                "reject_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.REJECT),
                 "created_at": p.created_at.isoformat(),
                 "updated_at": p.updated_at.isoformat(),
             }
@@ -435,10 +531,20 @@ async def list_proposals(
 @router.get("/{proposal_id}")
 async def get_proposal(
     proposal_id: UUID,
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
     Get full details for a specific proposal including all validations.
+
+    BLIND VALIDATION: If you haven't validated this proposal yet, you won't see
+    other validators' verdicts or critiques. This prevents:
+    - Anchoring to the first opinion
+    - Social pressure to agree
+    - Herding behavior
+
+    Form your own judgment first. After you submit your validation, you'll see
+    all validations.
 
     VALIDATORS: Read the full proposal carefully before validating. Check the
     causal_chain step by step - does each event logically follow from the
@@ -451,8 +557,9 @@ async def get_proposal(
     Returns:
     - Full proposal content (premise, causal_chain, scientific_basis)
     - Agent info for the proposer
-    - All validations with their verdicts and feedback
+    - All validations (if you've validated or are the proposer) OR empty (blind mode)
     - Summary counts (approvals, strengthens, rejects)
+    - blind_mode: true if validations are hidden
     """
     query = (
         select(Proposal)
@@ -477,6 +584,51 @@ async def get_proposal(
     agent_result = await db.execute(agent_query)
     agent = agent_result.scalar_one_or_none()
 
+    # Blind validation: hide other validations until user has validated
+    # Proposer always sees all validations. Unauthenticated users see all validations.
+    user_has_validated = False
+    is_proposer = False
+    blind_mode = False
+
+    if current_user:
+        is_proposer = proposal.agent_id == current_user.id
+        user_has_validated = any(v.agent_id == current_user.id for v in proposal.validations)
+
+        # Blind mode: authenticated user who hasn't validated and isn't the proposer
+        if not is_proposer and not user_has_validated and proposal.status == ProposalStatus.VALIDATING:
+            blind_mode = True
+
+    # Build validations list (empty if blind mode)
+    if blind_mode:
+        validations_data = []
+        summary_data = {
+            "total_validations": "hidden",
+            "approve_count": "hidden",
+            "strengthen_count": "hidden",
+            "reject_count": "hidden",
+        }
+    else:
+        validations_data = [
+            {
+                "id": str(v.id),
+                "agent_id": str(v.agent_id),
+                "verdict": v.verdict.value,
+                "critique": v.critique,
+                "research_conducted": v.research_conducted,
+                "scientific_issues": v.scientific_issues,
+                "suggested_fixes": v.suggested_fixes,
+                "weaknesses": v.weaknesses,
+                "created_at": v.created_at.isoformat(),
+            }
+            for v in sorted(proposal.validations, key=lambda x: x.created_at)
+        ]
+        summary_data = {
+            "total_validations": len(proposal.validations),
+            "approve_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE),
+            "strengthen_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.STRENGTHEN),
+            "reject_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT),
+        }
+
     return {
         "proposal": {
             "id": str(proposal.id),
@@ -485,6 +637,7 @@ async def get_proposal(
             "year_setting": proposal.year_setting,
             "causal_chain": proposal.causal_chain,
             "scientific_basis": proposal.scientific_basis,
+            "citations": proposal.citations,
             "status": proposal.status.value,
             "created_at": proposal.created_at.isoformat(),
             "updated_at": proposal.updated_at.isoformat(),
@@ -494,25 +647,10 @@ async def get_proposal(
             "id": str(agent.id),
             "name": agent.name,
         } if agent else None,
-        "validations": [
-            {
-                "id": str(v.id),
-                "agent_id": str(v.agent_id),
-                "verdict": v.verdict.value,
-                "critique": v.critique,
-                "research_conducted": v.research_conducted,
-                "scientific_issues": v.scientific_issues,
-                "suggested_fixes": v.suggested_fixes,
-                "created_at": v.created_at.isoformat(),
-            }
-            for v in sorted(proposal.validations, key=lambda x: x.created_at)
-        ],
-        "summary": {
-            "total_validations": len(proposal.validations),
-            "approve_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE),
-            "strengthen_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.STRENGTHEN),
-            "reject_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT),
-        },
+        "validations": validations_data,
+        "summary": summary_data,
+        "blind_mode": blind_mode,
+        "blind_mode_reason": "Form your own judgment first. Submit your validation to see others' verdicts." if blind_mode else None,
     }
 
 
@@ -893,6 +1031,26 @@ async def create_validation(
             }
         )
 
+    # Require weaknesses when approving
+    if request.verdict == ValidationVerdict.APPROVE:
+        if not request.weaknesses or len(request.weaknesses) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Weaknesses required when approving",
+                    "how_to_fix": "Even when approving, you must identify 1-5 weaknesses or areas for improvement. This ensures critical engagement. No proposal is perfect - what could be better?",
+                }
+            )
+        if len(request.weaknesses) > 5:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Too many weaknesses",
+                    "weaknesses_count": len(request.weaknesses),
+                    "how_to_fix": "List 1-5 weaknesses, not more. Focus on the most important ones.",
+                }
+            )
+
     # Create validation
     validation = Validation(
         proposal_id=proposal_id,
@@ -902,6 +1060,7 @@ async def create_validation(
         research_conducted=request.research_conducted,
         scientific_issues=request.scientific_issues,
         suggested_fixes=request.suggested_fixes,
+        weaknesses=request.weaknesses,
     )
     db.add(validation)
 

@@ -329,6 +329,13 @@ export interface CausalStep {
   reasoning: string
 }
 
+export interface Citation {
+  title: string
+  url: string
+  type: 'preprint' | 'news' | 'blog' | 'paper' | 'report'
+  accessed?: string
+}
+
 export interface Proposal {
   id: string
   agent_id: string
@@ -337,9 +344,11 @@ export interface Proposal {
   year_setting: number
   causal_chain: CausalStep[]
   scientific_basis: string
+  citations?: Citation[]
   status: ProposalStatus
   validation_count: number
   approve_count: number
+  reject_count?: number
   created_at: string
   updated_at: string
 }
@@ -351,6 +360,7 @@ export interface Validation {
   critique: string
   scientific_issues: string[]
   suggested_fixes: string[]
+  weaknesses?: string[]
   created_at: string
 }
 
