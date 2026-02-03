@@ -4,6 +4,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { getFeed, type FeedItem } from '@/lib/api'
 import { FeedSkeleton } from '@/components/ui/Skeleton'
+import {
+  IconFilePlus,
+  IconCheck,
+  IconMoonStar,
+  IconMoonStars,
+  IconUser,
+  IconChat,
+  IconUserPlus,
+  IconArrowRight,
+} from '@/components/ui/PixelIcon'
 
 // Format relative time
 function formatRelativeTime(dateStr: string): string {
@@ -80,61 +90,27 @@ function WorldLink({ world }: { world: { id: string; name: string; year_setting:
   )
 }
 
+// Custom globe icon (no pixelarticons equivalent)
+const GlobeIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M10 2h4v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4V8h2V6h2V4h2V2zm0 2v2H8v2H6v4h2v2h2v2h4v-2h2v-2h2V8h-2V6h-2V4h-4z" />
+    <path d="M11 4h2v2h-2V4zm-1 2h4v2h-4V6zm-1 2h6v2H9V8zm-1 2h8v4H8v-4zm1 4h6v2H9v-2zm1 2h4v2h-4v-2zm1 2h2v2h-2v-2z" fillOpacity="0.3" />
+  </svg>
+)
+
 // Activity type icon
 function ActivityIcon({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
-    world_created: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="2" y1="12" x2="22" y2="12" />
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-      </svg>
-    ),
-    proposal_submitted: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="12" y1="18" x2="12" y2="12" />
-        <line x1="9" y1="15" x2="15" y2="15" />
-      </svg>
-    ),
-    proposal_validated: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 11l3 3L22 4" />
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-      </svg>
-    ),
-    aspect_proposed: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-    aspect_approved: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-    dweller_created: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
-    ),
-    dweller_action: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-    agent_registered: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="8.5" cy="7" r="4" />
-        <line x1="20" y1="8" x2="20" y2="14" />
-        <line x1="23" y1="11" x2="17" y2="11" />
-      </svg>
-    ),
+    world_created: <GlobeIcon />,
+    proposal_submitted: <IconFilePlus size={16} />,
+    proposal_validated: <IconCheck size={16} />,
+    aspect_proposed: <IconMoonStar size={16} />,
+    aspect_approved: <IconMoonStars size={16} />,
+    dweller_created: <IconUser size={16} />,
+    dweller_action: <IconChat size={16} />,
+    agent_registered: <IconUserPlus size={16} />,
   }
-  return <span className="text-text-tertiary">{icons[type] || icons.proposal_submitted}</span>
+  return <span className="text-text-tertiary">{icons[type] || <IconFilePlus size={16} />}</span>
 }
 
 // Get the primary link URL for a feed item
@@ -342,7 +318,9 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   {item.action.type === 'speak' ? `"${item.action.content}"` : item.action.content}
                 </p>
                 {item.action.target && (
-                  <div className="text-text-tertiary text-xs mt-1">→ {item.action.target}</div>
+                  <div className="text-text-tertiary text-xs mt-1 flex items-center gap-1">
+                    <IconArrowRight size={12} /> {item.action.target}
+                  </div>
                 )}
               </div>
             </div>
@@ -408,6 +386,34 @@ export function FeedContainer() {
     }
   }, [cursor])
 
+  // Poll for new items every 30 seconds
+  useEffect(() => {
+    if (loading) return
+
+    const pollForNewItems = async () => {
+      if (feedItems.length === 0) return
+
+      try {
+        const response = await getFeed(undefined, 20)
+        const newestTimestamp = new Date(feedItems[0].created_at).getTime()
+
+        const newItems = response.items.filter(
+          (item) => new Date(item.created_at).getTime() > newestTimestamp
+        )
+
+        if (newItems.length > 0) {
+          setFeedItems((prev) => [...newItems, ...prev])
+        }
+      } catch (err) {
+        // Silent fail on poll - don't disrupt UX
+        console.error('Feed poll failed:', err)
+      }
+    }
+
+    const interval = setInterval(pollForNewItems, 30000)
+    return () => clearInterval(interval)
+  }, [loading, feedItems])
+
   // Initial load
   useEffect(() => {
     loadFeed()
@@ -456,11 +462,9 @@ export function FeedContainer() {
   if (feedItems.length === 0) {
     return (
       <div className="text-center py-16 animate-fade-in">
-        <div className="w-12 h-12 mx-auto mb-4 text-text-tertiary">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-            <circle cx="12" cy="12" r="10" />
-            <ellipse cx="12" cy="12" rx="10" ry="4" />
-            <path d="M12 2v20" />
+        <div className="w-12 h-12 mx-auto mb-4 text-text-tertiary flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+            <path d="M10 2h4v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4V8h2V6h2V4h2V2zm0 2v2H8v2H6v4h2v2h2v2h4v-2h2v-2h2V8h-2V6h-2V4h-4z" />
           </svg>
         </div>
         <p className="text-text-secondary text-sm mb-1">Nothing yet.</p>

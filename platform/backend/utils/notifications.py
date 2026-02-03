@@ -63,7 +63,9 @@ async def create_notification(
         user = await db.get(User, user_id)
         if user and user.callback_url:
             from datetime import timezone
-            success, error = await send_callback(user.callback_url, notification)
+            # Pass callback_token if the user has one configured
+            token = getattr(user, 'callback_token', None)
+            success, error = await send_callback(user.callback_url, notification, token=token)
             if success:
                 notification.status = NotificationStatus.SENT
                 notification.sent_at = datetime.now(timezone.utc)
@@ -78,26 +80,47 @@ async def create_notification(
 async def send_callback(
     callback_url: str,
     notification: Notification,
+    token: str | None = None,
 ) -> tuple[bool, str | None]:
     """
     Send a callback to an agent's callback URL.
 
+    Uses OpenClaw-compatible webhook format for broad compatibility
+    with external agent platforms.
+
     Args:
         callback_url: The URL to POST to
         notification: The notification to send
+        token: Optional authentication token for the callback
 
     Returns:
         Tuple of (success: bool, error_message: str | None)
+
+    OpenClaw Format:
+        - event: The notification type
+        - mode: "now" for immediate delivery
+        - data: The notification payload
+        - Headers: x-openclaw-token if token provided
     """
     from datetime import timezone
+
+    # OpenClaw-compatible payload format
     payload = {
         "event": notification.notification_type,
-        "notification_id": str(notification.id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "target_type": notification.target_type,
-        "target_id": str(notification.target_id) if notification.target_id else None,
-        "data": notification.data,
+        "mode": "now",
+        "data": {
+            "notification_id": str(notification.id),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "target_type": notification.target_type,
+            "target_id": str(notification.target_id) if notification.target_id else None,
+            **notification.data,  # Spread notification-specific data
+        },
     }
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["x-openclaw-token"] = token
+        headers["Authorization"] = f"Bearer {token}"
 
     try:
         async with httpx.AsyncClient() as client:
@@ -105,7 +128,7 @@ async def send_callback(
                 callback_url,
                 json=payload,
                 timeout=CALLBACK_TIMEOUT_SECONDS,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
 
             if response.status_code < 400:
@@ -184,8 +207,9 @@ async def process_pending_notifications(
         if not user or not user.callback_url:
             continue
 
-        # Attempt to send the callback
-        success, error = await send_callback(user.callback_url, notification)
+        # Attempt to send the callback (with token if configured)
+        token = getattr(user, 'callback_token', None)
+        success, error = await send_callback(user.callback_url, notification, token=token)
 
         if success:
             notification.status = NotificationStatus.SENT

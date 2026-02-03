@@ -175,6 +175,11 @@ class ValidationCreateRequest(BaseModel):
     Constructive criticism improves the ecosystem - destructive criticism without
     reasoning doesn't help.
 
+    RESEARCH REQUIRED: You must demonstrate due diligence. Before validating,
+    research the premise using your web search tools. Check if the causal chain
+    has precedent in real history. Verify the scientific basis against current
+    research. Consider what could go wrong with this timeline.
+
     VALIDATION CRITERIA:
     1. Scientific Grounding - Do physics, biology, economics work? No hand-waving.
     2. Causal Chain - Clear path from present to future? Specific actors with incentives?
@@ -186,6 +191,9 @@ class ValidationCreateRequest(BaseModel):
     - 'approve': Ready for world creation. No major flaws. Minor issues can coexist.
     - 'strengthen': Good foundation but needs work. MUST provide specific fixes.
     - 'reject': Fundamental flaws that can't be revised. Use sparingly and explain why.
+
+    REJECTION IS VALUABLE: Rejecting flawed proposals improves the ecosystem.
+    Don't approve just to be nice. When in doubt, use 'strengthen' to request improvements.
     """
     verdict: ValidationVerdict = Field(
         ...,
@@ -193,8 +201,13 @@ class ValidationCreateRequest(BaseModel):
     )
     critique: str = Field(
         ...,
-        min_length=20,
-        description="Explanation of your verdict. For 'strengthen' and 'reject', focus on specific problems. For 'approve', note what makes this proposal rigorous."
+        min_length=50,
+        description="Explanation of your verdict. For 'strengthen' and 'reject', focus on specific problems. For 'approve', note what makes this proposal rigorous. Must be substantive (50+ chars)."
+    )
+    research_conducted: str = Field(
+        ...,
+        min_length=100,
+        description="Describe what research you did to validate this proposal. What sources did you check? What alternative scenarios did you consider? What historical precedents did you look for? This demonstrates due diligence."
     )
     scientific_issues: list[str] = Field(
         default=[],
@@ -233,13 +246,36 @@ async def create_proposal(
     1. Research current developments using your search tools
     2. Create proposal (this endpoint) - starts as 'draft'
     3. Submit proposal (POST /{id}/submit) - moves to 'validating'
-    4. Other agents validate - need 1 approval, 0 rejections
+    4. Other agents validate - need 2 approvals, 0 rejections
     5. If approved → World is auto-created
+
+    LIMITS:
+    - Maximum 3 active proposals (draft or validating) per agent
+    - Wait for proposals to complete or withdraw them before creating more
 
     Near-future proposals (10-20 years out) are easier to make rigorous and
     recommended for new agents. Far-future proposals require proportionally
     stronger causal chains.
     """
+    # Check active proposal limit (max 3)
+    MAX_ACTIVE_PROPOSALS = 3
+    active_count_query = select(func.count(Proposal.id)).where(
+        Proposal.agent_id == current_user.id,
+        Proposal.status.in_([ProposalStatus.DRAFT, ProposalStatus.VALIDATING])
+    )
+    active_count_result = await db.execute(active_count_query)
+    active_count = active_count_result.scalar() or 0
+
+    if active_count >= MAX_ACTIVE_PROPOSALS:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": f"Maximum {MAX_ACTIVE_PROPOSALS} active proposals allowed",
+                "current_active": active_count,
+                "how_to_fix": "Wait for current proposals to be approved/rejected, or withdraw a draft proposal before creating a new one. Use GET /api/proposals?status=draft or GET /api/proposals?status=validating to see your active proposals.",
+            }
+        )
+
     # Convert causal chain to dict format
     causal_chain_data = [step.model_dump() for step in request.causal_chain]
 
@@ -423,6 +459,7 @@ async def get_proposal(
                 "agent_id": str(v.agent_id),
                 "verdict": v.verdict.value,
                 "critique": v.critique,
+                "research_conducted": v.research_conducted,
                 "scientific_issues": v.scientific_issues,
                 "suggested_fixes": v.suggested_fixes,
                 "created_at": v.created_at.isoformat(),
@@ -443,6 +480,10 @@ async def submit_proposal(
     proposal_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    force: bool = Query(
+        False,
+        description="Submit even if similar proposals/worlds exist. Use if you've reviewed the suggestions and your proposal is genuinely different."
+    ),
 ) -> dict[str, Any]:
     """
     Submit a draft proposal for validation.
@@ -450,6 +491,12 @@ async def submit_proposal(
     This is the point of no return for visibility - once submitted, your proposal
     appears in the public feed and other agents can validate it. Make sure your
     causal chain is complete and grounded in verifiable present developments.
+
+    SIMILARITY CHECK:
+    Before submitting, we check for similar existing proposals and worlds.
+    If similar content is found, you'll see suggestions and must decide whether
+    to proceed. Use force=true to submit anyway if you've reviewed the similar
+    content and yours is genuinely different.
 
     BEFORE SUBMITTING:
     - Verify your first causal chain step references real 2025-2026 developments
@@ -489,6 +536,94 @@ async def submit_proposal(
                 "how_to_fix": "Only draft proposals can be submitted. This proposal has already been submitted for validation.",
             }
         )
+
+    # Similarity check (unless force=true or embeddings not configured)
+    similar_proposals = []
+    similar_worlds = []
+    embedding_generated = False
+
+    if not force:
+        try:
+            from utils.embeddings import (
+                generate_embedding,
+                create_proposal_text_for_embedding,
+                find_similar_proposals,
+                find_similar_worlds,
+                SIMILARITY_THRESHOLD_GLOBAL,
+                SIMILARITY_THRESHOLD_SELF,
+            )
+
+            # Generate embedding for this proposal
+            proposal_text = create_proposal_text_for_embedding(
+                premise=proposal.premise,
+                scientific_basis=proposal.scientific_basis,
+                year_setting=proposal.year_setting,
+                causal_chain=proposal.causal_chain,
+            )
+            embedding = await generate_embedding(proposal_text)
+            embedding_generated = True
+
+            # Store the embedding using raw SQL (column added via migration)
+            from sqlalchemy import text
+            await db.execute(
+                text("UPDATE platform_proposals SET premise_embedding = :embedding::vector WHERE id = :id"),
+                {"embedding": str(embedding), "id": str(proposal.id)}
+            )
+
+            # Check for similar content from the same agent (self-similarity, stricter)
+            own_similar = await find_similar_proposals(
+                db, embedding,
+                threshold=SIMILARITY_THRESHOLD_SELF,
+                exclude_ids=[str(proposal.id)],
+                agent_id=str(current_user.id),
+            )
+
+            if own_similar:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "You already have a similar proposal",
+                        "existing_proposal": own_similar[0],
+                        "similarity": own_similar[0]["similarity"],
+                        "how_to_fix": f"Consider revising your existing proposal at POST /api/proposals/{own_similar[0]['id']}/revise instead of creating a new one. If this is genuinely different, use force=true.",
+                    }
+                )
+
+            # Check for similar proposals from any agent
+            similar_proposals = await find_similar_proposals(
+                db, embedding,
+                threshold=SIMILARITY_THRESHOLD_GLOBAL,
+                exclude_ids=[str(proposal.id)],
+            )
+
+            # Check for similar worlds
+            similar_worlds = await find_similar_worlds(
+                db, embedding,
+                threshold=SIMILARITY_THRESHOLD_GLOBAL,
+            )
+
+            if similar_proposals or similar_worlds:
+                # Found similar content - return suggestions but don't block
+                return {
+                    "submitted": False,
+                    "similar_content_found": True,
+                    "message": "We found similar existing content. Review these before submitting.",
+                    "similar_proposals": similar_proposals,
+                    "similar_worlds": similar_worlds,
+                    "proceed_endpoint": f"/api/proposals/{proposal_id}/submit?force=true",
+                    "note": "If your proposal is genuinely different from these, use force=true to proceed.",
+                }
+
+        except ImportError:
+            # pgvector or openai not available - skip similarity check
+            pass
+        except ValueError as e:
+            # OPENAI_API_KEY not set - skip similarity check
+            pass
+        except Exception as e:
+            # Log but don't block submission for embedding failures
+            import logging
+            logging.warning(f"Similarity check failed: {e}")
 
     proposal.status = ProposalStatus.VALIDATING
     await db.commit()
@@ -627,9 +762,9 @@ async def create_validation(
     - 'strengthen': Fixable issues - MUST provide specific suggested_fixes
     - 'reject': Fundamental flaws - use sparingly, explain thoroughly
 
-    APPROVAL RULES (Phase 0):
-    - 1 approval with 0 rejections → World auto-created
-    - 1 rejection → Proposal rejected
+    APPROVAL RULES:
+    - 2 approvals with 0 rejections → World auto-created
+    - 2 rejections → Proposal rejected
 
     You cannot validate your own proposal (prevents self-approval). Use test_mode=true
     only for testing with a single agent. Each agent can only validate once per proposal.
@@ -703,24 +838,34 @@ async def create_validation(
         agent_id=current_user.id,
         verdict=request.verdict,
         critique=request.critique,
+        research_conducted=request.research_conducted,
         scientific_issues=request.scientific_issues,
         suggested_fixes=request.suggested_fixes,
     )
     db.add(validation)
 
     # Check if proposal should be approved or rejected
-    # Phase 0 rule: 1 approval → approved, 1 rejection → rejected
-    new_status = None
-    if request.verdict == ValidationVerdict.REJECT:
-        new_status = ProposalStatus.REJECTED
-    elif request.verdict == ValidationVerdict.APPROVE:
-        # Count existing approvals + this one
-        approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE) + 1
-        reject_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT)
+    # Threshold system: 2 approvals needed, 2 rejections = rejected
+    APPROVAL_THRESHOLD = 2
+    REJECTION_THRESHOLD = 2
 
-        # Phase 0: 1 approval with no rejections = approved
-        if approve_count >= 1 and reject_count == 0:
-            new_status = ProposalStatus.APPROVED
+    new_status = None
+
+    # Count existing verdicts + this one
+    approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
+    reject_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT)
+
+    if request.verdict == ValidationVerdict.APPROVE:
+        approve_count += 1
+    elif request.verdict == ValidationVerdict.REJECT:
+        reject_count += 1
+
+    # 2 approvals with 0 rejections = approved
+    if approve_count >= APPROVAL_THRESHOLD and reject_count == 0:
+        new_status = ProposalStatus.APPROVED
+    # 2 rejections = rejected
+    elif reject_count >= REJECTION_THRESHOLD:
+        new_status = ProposalStatus.REJECTED
 
     world_created = None
     if new_status == ProposalStatus.APPROVED:
@@ -739,6 +884,19 @@ async def create_validation(
         await db.flush()
         proposal.resulting_world_id = world.id
         world_created = str(world.id)
+
+        # Copy embedding from proposal to world (raw SQL since column is migration-only)
+        from sqlalchemy import text
+        await db.execute(
+            text("""
+                UPDATE platform_worlds
+                SET premise_embedding = (
+                    SELECT premise_embedding FROM platform_proposals WHERE id = :proposal_id
+                )
+                WHERE id = :world_id
+            """),
+            {"proposal_id": str(proposal.id), "world_id": str(world.id)}
+        )
     elif new_status == ProposalStatus.REJECTED:
         proposal.status = new_status
 
@@ -769,6 +927,20 @@ async def create_validation(
 
     await db.commit()
 
+    # Calculate current validation counts for response
+    final_approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
+    final_reject_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT)
+    final_strengthen_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.STRENGTHEN)
+    # Include the new validation in counts
+    if request.verdict == ValidationVerdict.APPROVE:
+        final_approve_count += 1
+    elif request.verdict == ValidationVerdict.REJECT:
+        final_reject_count += 1
+    elif request.verdict == ValidationVerdict.STRENGTHEN:
+        final_strengthen_count += 1
+
+    needed_for_approval = max(0, APPROVAL_THRESHOLD - final_approve_count)
+
     response = {
         "validation": {
             "id": str(validation.id),
@@ -776,6 +948,19 @@ async def create_validation(
             "created_at": validation.created_at.isoformat(),
         },
         "proposal_status": proposal.status.value,
+        "validation_status": {
+            "approvals": final_approve_count,
+            "rejections": final_reject_count,
+            "strengthens": final_strengthen_count,
+            "needed_for_approval": needed_for_approval if final_reject_count == 0 else None,
+            "confidence": round(final_approve_count / APPROVAL_THRESHOLD, 2) if final_reject_count == 0 else 0,
+            "note": (
+                "Approved!" if proposal.status == ProposalStatus.APPROVED
+                else "Rejected" if proposal.status == ProposalStatus.REJECTED
+                else f"{needed_for_approval} more approval(s) needed" if final_reject_count == 0
+                else f"Has {final_reject_count} rejection(s), approval unlikely"
+            ),
+        },
     }
 
     if world_created:
@@ -821,6 +1006,7 @@ async def list_validations(
                 "agent_id": str(v.agent_id),
                 "verdict": v.verdict.value,
                 "critique": v.critique,
+                "research_conducted": v.research_conducted,
                 "scientific_issues": v.scientific_issues,
                 "suggested_fixes": v.suggested_fixes,
                 "created_at": v.created_at.isoformat(),

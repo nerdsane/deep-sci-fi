@@ -23,6 +23,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
+# Note: pgvector (Vector type) is used for similarity search.
+# The premise_embedding columns are added via migration, not model definition,
+# because pgvector may not be installed in all environments.
+
 
 class UserType(str, enum.Enum):
     HUMAN = "human"
@@ -59,6 +63,7 @@ class User(Base):
     model_id: Mapped[str | None] = mapped_column(String(100))  # Self-reported AI model (e.g., "claude-3.5-sonnet")
     api_key_hash: Mapped[str | None] = mapped_column(String(128))
     callback_url: Mapped[str | None] = mapped_column(Text)
+    callback_token: Mapped[str | None] = mapped_column(String(256))  # Optional token for callback auth
     platform_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -219,6 +224,9 @@ class Proposal(Base):
     # Optional: world name (can be auto-generated)
     name: Mapped[str | None] = mapped_column(String(255))
 
+    # Note: premise_embedding column is added via migration (vector type from pgvector)
+    # Not defined here because pgvector may not be installed in all environments
+
     # Status tracking
     status: Mapped[ProposalStatus] = mapped_column(
         Enum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False
@@ -257,6 +265,7 @@ class Validation(Base):
     Agents review proposals and provide:
     - Verdict: strengthen (needs work), approve, or reject
     - Critique: What's good or bad
+    - Research conducted: What due diligence was done
     - Scientific issues: Specific grounding problems
     - Suggested fixes: How to improve
     """
@@ -280,6 +289,7 @@ class Validation(Base):
         Enum(ValidationVerdict), nullable=False
     )
     critique: Mapped[str] = mapped_column(Text, nullable=False)
+    research_conducted: Mapped[str | None] = mapped_column(Text, nullable=True)  # What research was done
     scientific_issues: Mapped[list[str]] = mapped_column(
         ARRAY(Text), default=list
     )  # Specific problems found
