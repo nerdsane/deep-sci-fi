@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import get_db, User, World, Aspect, AspectValidation
+from db import get_db, User, World, Aspect, AspectValidation, DwellerAction, Dweller
 from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
 from utils.notifications import notify_aspect_validated
@@ -56,6 +56,10 @@ class AspectCreateRequest(BaseModel):
         ...,
         min_length=50,
         description="How does this fit with existing world canon? What justifies its existence?"
+    )
+    inspired_by_actions: list[UUID] = Field(
+        default=[],
+        description="Dweller action IDs that inspired this aspect. Use this when formalizing emergent dweller behavior into canon."
     )
 
 
@@ -123,6 +127,24 @@ async def create_aspect(
             detail="Content cannot be empty"
         )
 
+    # Validate that inspired_by_actions reference real actions in this world
+    action_ids_str = []
+    if request.inspired_by_actions:
+        for action_id in request.inspired_by_actions:
+            # Check that the action exists and belongs to a dweller in this world
+            action_query = select(DwellerAction).join(Dweller).where(
+                DwellerAction.id == action_id,
+                Dweller.world_id == world_id,
+            )
+            result = await db.execute(action_query)
+            action = result.scalar_one_or_none()
+            if not action:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Action {action_id} not found or does not belong to a dweller in this world"
+                )
+            action_ids_str.append(str(action_id))
+
     aspect = Aspect(
         world_id=world_id,
         agent_id=current_user.id,
@@ -131,13 +153,14 @@ async def create_aspect(
         premise=request.premise,
         content=request.content,
         canon_justification=request.canon_justification,
+        inspired_by_actions=action_ids_str,
         status=AspectStatus.DRAFT,
     )
     db.add(aspect)
     await db.commit()
     await db.refresh(aspect)
 
-    return {
+    response = {
         "aspect": {
             "id": str(aspect.id),
             "world_id": str(world_id),
@@ -149,6 +172,12 @@ async def create_aspect(
         },
         "message": "Aspect created. Call POST /aspects/{id}/submit to begin validation.",
     }
+
+    if action_ids_str:
+        response["aspect"]["inspired_by_actions"] = action_ids_str
+        response["message"] = f"Aspect created with {len(action_ids_str)} inspiring action(s). Call POST /aspects/{{id}}/submit to begin validation."
+
+    return response
 
 
 @router.post("/{aspect_id}/submit")
@@ -365,6 +394,10 @@ async def get_aspect(
 ) -> dict[str, Any]:
     """
     Get full details for an aspect including validations.
+
+    If the aspect was inspired by dweller actions, the inspiring_actions
+    field contains the original conversations/actions that led to this
+    formalization.
     """
     aspect = await db.get(Aspect, aspect_id)
 
@@ -378,7 +411,34 @@ async def get_aspect(
     validations_result = await db.execute(validations_query)
     validations = validations_result.scalars().all()
 
-    return {
+    # Get inspiring actions if present
+    inspiring_actions = []
+    if aspect.inspired_by_actions:
+        from sqlalchemy.orm import selectinload
+        from uuid import UUID as UUIDType
+
+        action_ids = [UUIDType(aid) for aid in aspect.inspired_by_actions]
+        actions_query = (
+            select(DwellerAction)
+            .options(selectinload(DwellerAction.dweller))
+            .where(DwellerAction.id.in_(action_ids))
+            .order_by(DwellerAction.created_at)
+        )
+        actions_result = await db.execute(actions_query)
+        actions = actions_result.scalars().all()
+
+        for action in actions:
+            inspiring_actions.append({
+                "id": str(action.id),
+                "dweller_id": str(action.dweller_id),
+                "dweller_name": action.dweller.name if action.dweller else "Unknown",
+                "action_type": action.action_type,
+                "target": action.target,
+                "content": action.content,
+                "created_at": action.created_at.isoformat(),
+            })
+
+    response = {
         "aspect": {
             "id": str(aspect.id),
             "world_id": str(aspect.world_id),
@@ -406,6 +466,13 @@ async def get_aspect(
             for v in validations
         ],
     }
+
+    # Include inspiring actions if present
+    if inspiring_actions:
+        response["inspiring_actions"] = inspiring_actions
+        response["aspect"]["inspired_by_action_count"] = len(inspiring_actions)
+
+    return response
 
 
 @router.get("/worlds/{world_id}/canon")
