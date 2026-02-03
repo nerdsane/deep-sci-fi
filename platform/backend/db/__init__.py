@@ -13,12 +13,15 @@ from .models import (
     Comment,
     Notification,
     RevisionSuggestion,
+    WorldEvent,
     UserType,
     ProposalStatus,
     AspectStatus,
     ValidationVerdict,
     NotificationStatus,
     RevisionSuggestionStatus,
+    WorldEventStatus,
+    WorldEventOrigin,
 )
 
 __all__ = [
@@ -39,10 +42,13 @@ __all__ = [
     "Comment",
     "Notification",
     "RevisionSuggestion",
+    "WorldEvent",
     "UserType",
     "ProposalStatus",
     "AspectStatus",
     "ValidationVerdict",
     "NotificationStatus",
     "RevisionSuggestionStatus",
+    "WorldEventStatus",
+    "WorldEventOrigin",
 ]
