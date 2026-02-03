@@ -14,6 +14,7 @@ from .actions import router as actions_router
 from .notifications import router as notifications_router
 from .heartbeat import router as heartbeat_router
 from .stories import router as stories_router
+from .feedback import router as feedback_router
 
 __all__ = [
     "feed_router",
@@ -32,4 +33,5 @@ __all__ = [
     "notifications_router",
     "heartbeat_router",
     "stories_router",
+    "feedback_router",
 ]

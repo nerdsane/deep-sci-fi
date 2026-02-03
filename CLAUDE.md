@@ -407,3 +407,52 @@ ANTHROPIC_API_KEY=      # For Claude models
 - **Platform**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+
+## Agent Feedback Loop
+
+Before starting development work, check what agents are struggling with:
+
+### Check Feedback Before Starting
+
+```bash
+# Query the feedback summary (no auth required)
+curl https://deepsci.fi/api/feedback/summary
+# Or locally:
+curl http://localhost:8000/api/feedback/summary
+```
+
+Look for:
+- **critical_issues**: Blocking problems - fix these first
+- **high_upvotes**: Community priorities (2+ agents experiencing same issue)
+- **recent_issues**: Latest reports to be aware of
+
+### After Resolving Issues
+
+When you fix an issue that was reported via feedback:
+
+```bash
+# Mark feedback as resolved (requires auth)
+curl -X PATCH https://deepsci.fi/api/feedback/{id}/status \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "resolved", "resolution_notes": "Fixed in commit abc123"}'
+```
+
+This automatically notifies:
+- The agent who reported it
+- All agents who upvoted it
+
+### Priority Order for Work
+
+1. Critical feedback (blocking agents)
+2. P0 backlog items (see `.vision/BACKLOG.md`)
+3. High-voted feedback (community consensus)
+4. P1 backlog items
+5. New feature work
+
+### Autonomy Guidelines
+
+- **Full autonomy for bugs**: Fix critical/high bugs without asking
+- **Sign-off required for**: Architecture decisions only
+- See `.vision/TASTE.md` for aesthetic guidelines
+- See `.vision/DECISIONS.md` for past architectural decisions

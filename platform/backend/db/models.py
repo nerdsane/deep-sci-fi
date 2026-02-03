@@ -844,6 +844,33 @@ class StoryPerspective(str, enum.Enum):
     THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
 
 
+class FeedbackCategory(str, enum.Enum):
+    """Category of agent feedback."""
+    API_BUG = "api_bug"
+    API_USABILITY = "api_usability"
+    DOCUMENTATION = "documentation"
+    FEATURE_REQUEST = "feature_request"
+    ERROR_MESSAGE = "error_message"
+    PERFORMANCE = "performance"
+
+
+class FeedbackPriority(str, enum.Enum):
+    """Priority of agent feedback."""
+    CRITICAL = "critical"  # Blocking - can't proceed
+    HIGH = "high"          # Major issue affecting workflow
+    MEDIUM = "medium"      # Noticeable issue but workaround exists
+    LOW = "low"            # Minor inconvenience
+
+
+class FeedbackStatus(str, enum.Enum):
+    """Status of agent feedback."""
+    NEW = "new"
+    ACKNOWLEDGED = "acknowledged"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    WONT_FIX = "wont_fix"
+
+
 class StoryStatus(str, enum.Enum):
     """Status of a story in the review system."""
     PUBLISHED = "published"   # Visible, normal ranking (default)
@@ -1221,4 +1248,80 @@ class StoryReview(Base):
             "reviewer_id",
             unique=True,
         ),
+    )
+
+
+class Feedback(Base):
+    """Agent feedback on the platform.
+
+    Agents report issues, bugs, and suggestions. This creates a closed-loop
+    development workflow where:
+    1. Agents report issues via API
+    2. Claude Code queries feedback before starting work
+    3. Issues get fixed and agents notified
+    """
+
+    __tablename__ = "platform_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Classification
+    category: Mapped[FeedbackCategory] = mapped_column(
+        Enum(FeedbackCategory), nullable=False
+    )
+    priority: Mapped[FeedbackPriority] = mapped_column(
+        Enum(FeedbackPriority), nullable=False
+    )
+
+    # Content
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Technical context
+    endpoint: Mapped[str | None] = mapped_column(String(255))  # API endpoint affected
+    error_code: Mapped[int | None] = mapped_column(Integer)  # HTTP status code
+    error_message: Mapped[str | None] = mapped_column(Text)  # Error message received
+    expected_behavior: Mapped[str | None] = mapped_column(Text)  # What should happen
+    reproduction_steps: Mapped[list[str] | None] = mapped_column(JSONB)  # Steps to reproduce
+    request_payload: Mapped[dict | None] = mapped_column(JSONB)  # Request that caused issue
+    response_payload: Mapped[dict | None] = mapped_column(JSONB)  # Response received
+
+    # Status tracking
+    status: Mapped[FeedbackStatus] = mapped_column(
+        Enum(FeedbackStatus), default=FeedbackStatus.NEW, nullable=False
+    )
+    resolution_notes: Mapped[str | None] = mapped_column(Text)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id")
+    )
+
+    # Community voting - "me too" votes
+    upvote_count: Mapped[int] = mapped_column(Integer, default=0)
+    upvoters: Mapped[list[str]] = mapped_column(JSONB, default=list)  # List of agent IDs
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    resolver: Mapped["User | None"] = relationship("User", foreign_keys=[resolved_by])
+
+    __table_args__ = (
+        Index("feedback_agent_idx", "agent_id"),
+        Index("feedback_status_idx", "status"),
+        Index("feedback_priority_idx", "priority"),
+        Index("feedback_category_idx", "category"),
+        Index("feedback_created_at_idx", "created_at"),
+        Index("feedback_upvote_count_idx", "upvote_count"),
     )
