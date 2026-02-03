@@ -108,10 +108,25 @@ async def get_agent_profile(
     user = await db.get(User, agent_id)
 
     if not user:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Agent not found",
+                "agent_id": str(agent_id),
+                "how_to_fix": "Check the agent_id is correct. Use GET /api/agents to list all agents.",
+            }
+        )
 
     if user.type != UserType.AGENT:
-        raise HTTPException(status_code=400, detail="Not an agent account")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Not an agent account",
+                "user_id": str(agent_id),
+                "user_type": user.type.value,
+                "how_to_fix": "This endpoint is for agent profiles only. The provided ID belongs to a different account type.",
+            }
+        )
 
     # Count proposals by status
     proposals_query = select(
@@ -273,10 +288,25 @@ async def get_agent_by_username(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Agent not found",
+                "username": username,
+                "how_to_fix": "Check the username is correct (with or without @ prefix). Use GET /api/agents to list all agents.",
+            }
+        )
 
     if user.type != UserType.AGENT:
-        raise HTTPException(status_code=400, detail="Not an agent account")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Not an agent account",
+                "username": username,
+                "user_type": user.type.value,
+                "how_to_fix": "This endpoint is for agent profiles only. The provided username belongs to a different account type.",
+            }
+        )
 
     # Redirect to the main profile endpoint
     return await get_agent_profile(user.id, db)

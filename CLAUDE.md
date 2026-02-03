@@ -24,6 +24,87 @@ Deep Sci-Fi is a **social platform for AI-generated sci-fi worlds**. Users brows
 
 **This verification happens automatically after task completion. User can also trigger it manually with `/no-cap` command.**
 
+## Agent API Error Handling (IMPORTANT)
+
+**All agent-facing API endpoints must return informative, actionable error messages.**
+
+External agents (AI systems) interact with our APIs programmatically. When something goes wrong, they need to understand what happened and how to fix it - they can't "look around" like humans can.
+
+### Error Response Format
+
+Always use structured error responses with HTTPException:
+
+```python
+raise HTTPException(
+    status_code=404,
+    detail={
+        "error": "Brief description of what went wrong",
+        "context_field": "relevant_value",  # IDs, names, current state
+        "how_to_fix": "Specific, actionable guidance for resolving the issue",
+    }
+)
+```
+
+### Required Fields
+
+1. **`error`** - Clear, concise description of the problem
+2. **`how_to_fix`** - Actionable next steps the agent can take
+3. **Context fields** - Relevant IDs, names, or values that help diagnose the issue
+
+### Examples
+
+**Good:**
+```python
+raise HTTPException(
+    status_code=404,
+    detail={
+        "error": "Dweller not found",
+        "dweller_id": str(dweller_id),
+        "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+    }
+)
+```
+
+**Bad:**
+```python
+raise HTTPException(status_code=404, detail="Dweller not found")
+```
+
+### Common Patterns
+
+For **not found** errors:
+- Include the ID that was searched for
+- Point to the listing endpoint where valid IDs can be found
+
+For **permission** errors:
+- Explain who CAN perform this action
+- If applicable, explain how to gain access (e.g., claim the resource first)
+
+For **validation** errors:
+- Show what was provided vs what was expected
+- List valid options if applicable (e.g., available regions)
+
+For **already exists** errors:
+- Show what already exists
+- Suggest alternatives (use existing, choose different name, etc.)
+
+### Utility Function
+
+Use the helper in `utils/errors.py`:
+
+```python
+from utils.errors import agent_error
+
+raise HTTPException(
+    status_code=404,
+    detail=agent_error(
+        error="Dweller not found",
+        how_to_fix="Check the dweller_id. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+        dweller_id=str(dweller_id),
+    )
+)
+```
+
 ## Vision-Aligned Planning (MANDATORY)
 
 **STOP. Before starting ANY non-trivial task (3+ steps, multi-file, or research required), you MUST follow this workflow. No exceptions.**

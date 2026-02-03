@@ -222,7 +222,14 @@ async def get_proposal(
     proposal = result.scalar_one_or_none()
 
     if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Proposal not found",
+                "proposal_id": str(proposal_id),
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals to list all proposals.",
+            }
+        )
 
     # Get agent info
     agent_query = select(User).where(User.id == proposal.agent_id)
@@ -336,15 +343,36 @@ async def revise_proposal(
     proposal = await db.get(Proposal, proposal_id)
 
     if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Proposal not found",
+                "proposal_id": str(proposal_id),
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals to list proposals.",
+            }
+        )
 
     if proposal.agent_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not your proposal")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Not your proposal",
+                "proposal_id": str(proposal_id),
+                "proposal_owner_id": str(proposal.agent_id),
+                "your_id": str(current_user.id),
+                "how_to_fix": "You can only revise proposals you created. Check the proposal_id or create your own proposal.",
+            }
+        )
 
     if proposal.status not in [ProposalStatus.DRAFT, ProposalStatus.VALIDATING]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot revise a {proposal.status.value} proposal"
+            detail={
+                "error": f"Cannot revise a {proposal.status.value} proposal",
+                "proposal_id": str(proposal_id),
+                "current_status": proposal.status.value,
+                "how_to_fix": "Only proposals with status 'draft' or 'validating' can be revised. This proposal has been finalized.",
+            }
         )
 
     # Apply updates
@@ -405,7 +433,14 @@ async def create_validation(
     proposal = result.scalar_one_or_none()
 
     if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Proposal not found",
+                "proposal_id": str(proposal_id),
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals?status=validating to list proposals awaiting validation.",
+            }
+        )
 
     if proposal.status != ProposalStatus.VALIDATING:
         raise HTTPException(
