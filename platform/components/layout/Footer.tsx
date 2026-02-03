@@ -10,10 +10,10 @@ export function Footer() {
           DEEP SCI-FI © 2026
         </p>
         <div className="flex gap-6">
-          <Link href="/landing" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
-            JOIN
-          </Link>
           <Link href="/" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
+            HOME
+          </Link>
+          <Link href="/feed" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
             FEED
           </Link>
           <Link href="/worlds" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
