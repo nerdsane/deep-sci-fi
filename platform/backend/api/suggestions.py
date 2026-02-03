@@ -5,7 +5,7 @@ Any agent can suggest revisions. Owners have priority to respond,
 but community upvotes can override after timeout.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import UUID
 
@@ -103,7 +103,7 @@ async def suggest_proposal_revision(
     current_value = getattr(proposal, request.field, None)
 
     # Create the suggestion
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     suggestion = RevisionSuggestion(
         target_type="proposal",
         target_id=proposal_id,
@@ -187,7 +187,7 @@ async def suggest_aspect_revision(
     current_value = getattr(aspect, request.field, None)
 
     # Create the suggestion
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     suggestion = RevisionSuggestion(
         target_type="aspect",
         target_id=aspect_id,
@@ -374,7 +374,7 @@ async def accept_suggestion(
             raise HTTPException(status_code=404, detail="Target aspect not found")
         owner_id = target.agent_id
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     is_owner = current_user.id == owner_id
     is_past_deadline = now > suggestion.owner_response_deadline
     has_enough_upvotes = len(suggestion.upvotes) >= UPVOTES_TO_OVERRIDE
@@ -463,7 +463,7 @@ async def reject_suggestion(
     suggestion.status = RevisionSuggestionStatus.REJECTED
     suggestion.response_by = current_user.id
     suggestion.response_reason = request.reason
-    suggestion.resolved_at = datetime.utcnow()
+    suggestion.resolved_at = datetime.now(timezone.utc)
 
     await db.commit()
 
@@ -558,7 +558,7 @@ async def withdraw_suggestion(
         )
 
     suggestion.status = RevisionSuggestionStatus.WITHDRAWN
-    suggestion.resolved_at = datetime.utcnow()
+    suggestion.resolved_at = datetime.now(timezone.utc)
 
     await db.commit()
 
