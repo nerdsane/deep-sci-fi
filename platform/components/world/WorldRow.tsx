@@ -9,9 +9,16 @@ import { getWorlds, type World as ApiWorld } from '@/lib/api'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
-// Generate unique gradient colors based on world ID
-function getWorldGradient(id: string): { from: string; to: string } {
-  // Simple hash function to get consistent colors per world
+// Color palette for world gradients (actual CSS values)
+const GRADIENT_COLORS = {
+  cyan: 'rgba(0, 255, 229, 0.25)',
+  purple: 'rgba(191, 90, 242, 0.25)',
+  pink: 'rgba(255, 55, 95, 0.25)',
+  green: 'rgba(48, 209, 88, 0.25)',
+}
+
+// Generate unique gradient style based on world ID
+function getWorldGradientStyle(id: string): React.CSSProperties {
   let hash = 0
   for (let i = 0; i < id.length; i++) {
     hash = ((hash << 5) - hash) + id.charCodeAt(i)
@@ -19,17 +26,39 @@ function getWorldGradient(id: string): { from: string; to: string } {
   }
 
   const gradients = [
-    { from: 'from-neon-cyan/20', to: 'to-neon-purple/20' },
-    { from: 'from-neon-purple/20', to: 'to-neon-pink/20' },
-    { from: 'from-neon-cyan/20', to: 'to-neon-green/20' },
-    { from: 'from-neon-pink/20', to: 'to-neon-cyan/20' },
-    { from: 'from-neon-green/20', to: 'to-neon-purple/20' },
-    { from: 'from-neon-purple/20', to: 'to-neon-cyan/20' },
-    { from: 'from-neon-cyan/15', to: 'to-neon-pink/15' },
-    { from: 'from-neon-green/15', to: 'to-neon-cyan/15' },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.green },
+    { from: GRADIENT_COLORS.pink, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.cyan },
   ]
 
-  return gradients[Math.abs(hash) % gradients.length]
+  const gradient = gradients[Math.abs(hash) % gradients.length]
+
+  return {
+    background: `linear-gradient(135deg, ${gradient.from} 0%, transparent 50%, ${gradient.to} 100%)`,
+  }
+}
+
+// Get letter color based on world ID
+function getLetterColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const colors = [
+    'rgba(0, 255, 229, 0.15)',   // cyan
+    'rgba(191, 90, 242, 0.15)',  // purple
+    'rgba(255, 55, 95, 0.12)',   // pink
+    'rgba(48, 209, 88, 0.15)',   // green
+  ]
+
+  return colors[Math.abs(hash) % colors.length]
 }
 
 interface WorldRowProps {
@@ -56,8 +85,9 @@ function transformWorld(apiWorld: ApiWorld): World {
 
 function WorldMiniCard({ world }: { world: World }) {
   const [isHovering, setIsHovering] = useState(false)
-  const gradient = getWorldGradient(world.id)
-  const firstLetter = world.name.charAt(0).toUpperCase()
+  const gradientStyle = getWorldGradientStyle(world.id)
+  const letterColor = getLetterColor(world.id)
+  const firstLetter = world.name?.charAt(0)?.toUpperCase() || '?'
 
   return (
     <Link
@@ -66,28 +96,31 @@ function WorldMiniCard({ world }: { world: World }) {
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      <div className="relative aspect-video bg-bg-tertiary overflow-hidden border border-white/5 group-hover:border-neon-cyan/30 transition-all">
-        {/* Unique gradient background */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient.from} ${gradient.to}`} />
+      <div className="relative aspect-video bg-bg-secondary overflow-hidden border border-white/10 group-hover:border-neon-cyan/40 transition-all">
+        {/* Mesh gradient background */}
+        <div className="absolute inset-0" style={gradientStyle} />
 
         {/* Tech grid pattern overlay */}
-        <div className="absolute inset-0 tech-grid opacity-60" />
+        <div className="absolute inset-0 tech-grid-dense" />
 
-        {/* First letter display */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-5xl md:text-6xl font-display font-bold text-white/10 select-none">
+        {/* Large first letter */}
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+          <span
+            className="text-[80px] md:text-[100px] font-mono font-bold select-none leading-none"
+            style={{ color: letterColor }}
+          >
             {firstLetter}
           </span>
         </div>
 
         {/* Year badge */}
-        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 border border-white/10">
+        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">
           <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
         </div>
 
         {/* Hover overlay */}
         <div className={`
-          absolute inset-0 bg-black/60 flex items-center justify-center
+          absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center
           transition-opacity duration-200
           ${isHovering ? 'opacity-100' : 'opacity-0'}
         `}>
@@ -195,23 +228,27 @@ interface FeaturedWorldCardProps {
 }
 
 export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
-  const gradient = getWorldGradient(world.id)
-  const firstLetter = world.name.charAt(0).toUpperCase()
+  const gradientStyle = getWorldGradientStyle(world.id)
+  const letterColor = getLetterColor(world.id)
+  const firstLetter = world.name?.charAt(0)?.toUpperCase() || '?'
 
   return (
     <Link
       href={`/world/${world.id}`}
-      className="block relative aspect-[21/9] bg-bg-tertiary overflow-hidden border border-white/5 group hover:border-neon-cyan/30 transition-colors"
+      className="block relative aspect-[21/9] bg-bg-secondary overflow-hidden border border-white/10 group hover:border-neon-cyan/40 transition-colors"
     >
-      {/* Unique gradient background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient.from} via-transparent ${gradient.to}`} />
+      {/* Mesh gradient background */}
+      <div className="absolute inset-0" style={gradientStyle} />
 
       {/* Tech grid pattern overlay */}
-      <div className="absolute inset-0 tech-grid opacity-40" />
+      <div className="absolute inset-0 tech-grid" />
 
-      {/* First letter display */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[120px] md:text-[180px] font-display font-bold text-white/5 select-none group-hover:text-white/8 transition-colors">
+      {/* Large first letter */}
+      <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+        <span
+          className="text-[140px] md:text-[200px] font-mono font-bold select-none leading-none group-hover:opacity-80 transition-opacity"
+          style={{ color: letterColor }}
+        >
           {firstLetter}
         </span>
       </div>
