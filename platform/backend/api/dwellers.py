@@ -814,6 +814,37 @@ async def take_action(
     # Update session activity timestamp
     dweller.last_action_at = datetime.utcnow()
 
+    # Notify target dweller if this is a speak action
+    notification_sent = False
+    if request.action_type == "speak" and request.target:
+        # Find dweller being spoken to by name (case-insensitive)
+        target_name_lower = request.target.lower()
+        target_dweller_query = (
+            select(Dweller)
+            .where(
+                Dweller.world_id == dweller.world_id,
+                Dweller.id != dweller_id,
+                func.lower(Dweller.name) == target_name_lower,
+            )
+        )
+        target_result = await db.execute(target_dweller_query)
+        target_dweller = target_result.scalar_one_or_none()
+
+        if target_dweller and target_dweller.inhabited_by:
+            # Create notification for the target's inhabitant
+            from utils.notifications import notify_dweller_spoken_to
+
+            await notify_dweller_spoken_to(
+                db=db,
+                target_dweller_id=target_dweller.id,
+                target_inhabitant_id=target_dweller.inhabited_by,
+                from_dweller_name=dweller.name,
+                from_dweller_id=dweller.id,
+                action_id=action.id,
+                content=request.content,
+            )
+            notification_sent = True
+
     await db.commit()
     await db.refresh(action)
 
@@ -835,6 +866,13 @@ async def take_action(
         response["new_location"] = {
             "current_region": dweller.current_region,
             "specific_location": dweller.specific_location,
+        }
+
+    # Add notification info for speak actions
+    if request.action_type == "speak" and request.target:
+        response["notification"] = {
+            "target_notified": notification_sent,
+            "message": "Target dweller notified." if notification_sent else "Target dweller not found or not inhabited.",
         }
 
     return response
