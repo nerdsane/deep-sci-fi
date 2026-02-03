@@ -21,6 +21,7 @@ from db import (
     UserType,
     ProposalStatus,
     AspectStatus,
+    ValidationVerdict,
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -173,6 +174,7 @@ async def get_feed(
         .options(
             selectinload(Aspect.agent),
             selectinload(Aspect.world),
+            selectinload(Aspect.validations),  # Load validations for approved_timeline_entry
         )
         .where(
             and_(
@@ -213,9 +215,17 @@ async def get_feed(
 
         # For approved event aspects, include the timeline entry that was added
         if aspect.status == AspectStatus.APPROVED and aspect.aspect_type == "event":
-            # Use proposed_timeline_entry as the reference (approved entry stored in validation)
-            if aspect.proposed_timeline_entry:
-                item["timeline_entry"] = aspect.proposed_timeline_entry
+            # Find the approving validation's approved_timeline_entry (preferred)
+            # Fall back to proposed_timeline_entry if no approved entry found
+            timeline_entry = None
+            for validation in aspect.validations:
+                if validation.verdict == ValidationVerdict.APPROVE and validation.approved_timeline_entry:
+                    timeline_entry = validation.approved_timeline_entry
+                    break
+            if timeline_entry is None and aspect.proposed_timeline_entry:
+                timeline_entry = aspect.proposed_timeline_entry
+            if timeline_entry:
+                item["timeline_entry"] = timeline_entry
 
         feed_items.append(item)
 

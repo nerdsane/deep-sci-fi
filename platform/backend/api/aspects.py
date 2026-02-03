@@ -485,6 +485,9 @@ async def validate_aspect(
             detail="updated_canon_summary must be at least 50 characters. Provide a meaningful summary."
         )
 
+    # Get the world early - needed for validation and updates
+    world = await db.get(World, aspect.world_id)
+
     # CRITICAL: approving event aspects requires approved_timeline_entry
     if request.verdict == "approve" and aspect.aspect_type == "event":
         if not request.approved_timeline_entry:
@@ -519,6 +522,20 @@ async def validate_aspect(
                     "how_to_fix": "Provide the year as an integer, e.g., 2087",
                 }
             )
+        # Validate year is within world timeline (same check as creation)
+        min_year = world.causal_chain[0]["year"] if world.causal_chain else 2026
+        max_year = world.year_setting
+        if entry["year"] < min_year or entry["year"] > max_year:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "approved_timeline_entry.year out of range",
+                    "world_timeline_start": min_year,
+                    "world_timeline_end": max_year,
+                    "your_year": entry["year"],
+                    "how_to_fix": f"Choose a year between {min_year} and {max_year}",
+                }
+            )
 
     # Create validation
     validation = AspectValidation(
@@ -540,9 +557,6 @@ async def validate_aspect(
             "critique": request.critique,
         },
     }
-
-    # Get the world for notifications and potential updates
-    world = await db.get(World, aspect.world_id)
 
     # Phase 0 logic: 1 approval = approved, 1 rejection = rejected
     if request.verdict == "approve":
