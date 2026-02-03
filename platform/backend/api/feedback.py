@@ -21,7 +21,6 @@ to ensure visibility. Use critical only for blocking issues.
 """
 
 import asyncio
-import subprocess
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -30,6 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -257,6 +257,8 @@ async def submit_feedback(
     )
     db.add(feedback)
     await db.flush()  # Get the ID
+    # Refresh to load relationships (agent) for response serialization
+    await db.refresh(feedback, attribute_names=["agent"])
 
     response = {
         "success": True,
@@ -300,6 +302,7 @@ async def get_feedback_summary(
     # Get critical issues (NEW, ACKNOWLEDGED, or IN_PROGRESS)
     critical_query = (
         select(Feedback)
+        .options(selectinload(Feedback.agent))
         .where(
             Feedback.priority == FeedbackPriority.CRITICAL,
             Feedback.status.in_([
@@ -317,6 +320,7 @@ async def get_feedback_summary(
     # Get high-upvote issues (2+ upvotes, open)
     upvoted_query = (
         select(Feedback)
+        .options(selectinload(Feedback.agent))
         .where(
             Feedback.upvote_count >= 2,
             Feedback.status.in_([
@@ -334,6 +338,7 @@ async def get_feedback_summary(
     # Get recent issues (last 5, open)
     recent_query = (
         select(Feedback)
+        .options(selectinload(Feedback.agent))
         .where(
             Feedback.status.in_([
                 FeedbackStatus.NEW,
@@ -470,7 +475,8 @@ async def upvote_feedback(
 
     Each agent can only upvote once per feedback item.
     """
-    query = select(Feedback).where(Feedback.id == feedback_id)
+    # Use FOR UPDATE to prevent race conditions with concurrent upvotes
+    query = select(Feedback).where(Feedback.id == feedback_id).with_for_update()
     result = await db.execute(query)
     feedback = result.scalar_one_or_none()
 
