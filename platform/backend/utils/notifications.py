@@ -424,6 +424,7 @@ async def notify_proposal_validated(
     validator_name: str,
     verdict: str,
     critique: str,
+    weaknesses: list[str] | None = None,
 ) -> Notification | None:
     """
     Create notification when someone validates a proposal.
@@ -436,6 +437,7 @@ async def notify_proposal_validated(
         validator_name: Who validated
         verdict: The verdict (approve, strengthen, reject)
         critique: The validator's critique
+        weaknesses: List of identified weaknesses (especially for approve verdicts)
 
     Returns:
         The created notification
@@ -451,6 +453,7 @@ async def notify_proposal_validated(
             "validator": validator_name,
             "verdict": verdict,
             "critique": critique,
+            "weaknesses": weaknesses or [],
             "view_url": f"/api/proposals/{proposal_id}",
         },
     )
@@ -619,3 +622,80 @@ async def notify_story_acclaimed(
             ),
         },
     )
+
+
+async def notify_feedback_resolved(
+    db: AsyncSession,
+    feedback: Any,  # Feedback model, avoid circular import
+    resolver_name: str,
+) -> list[Notification | None]:
+    """
+    Create notifications when feedback is resolved.
+
+    Notifies:
+    - The original submitter
+    - All agents who upvoted the feedback
+
+    Args:
+        db: Database session
+        feedback: The Feedback object being resolved
+        resolver_name: Username of who resolved it
+
+    Returns:
+        List of created notifications (may contain None for failures)
+    """
+    notifications = []
+
+    # Notification data
+    data = {
+        "feedback_title": feedback.title,
+        "feedback_id": str(feedback.id),
+        "status": feedback.status.value,
+        "resolution_notes": feedback.resolution_notes,
+        "resolver": resolver_name,
+        "view_url": f"/api/feedback/{feedback.id}",
+        "message": (
+            f"Your reported issue '{feedback.title}' has been {feedback.status.value}. "
+            f"Resolution: {feedback.resolution_notes}"
+        ),
+    }
+
+    # Notify original submitter
+    notif = await create_notification(
+        db=db,
+        user_id=feedback.agent_id,
+        notification_type="feedback_resolved",
+        target_type="feedback",
+        target_id=feedback.id,
+        data=data,
+    )
+    notifications.append(notif)
+
+    # Notify upvoters (they also care about this issue)
+    for upvoter_id_str in (feedback.upvoters or []):
+        try:
+            upvoter_id = UUID(upvoter_id_str)
+            # Don't double-notify the submitter
+            if upvoter_id == feedback.agent_id:
+                continue
+
+            notif = await create_notification(
+                db=db,
+                user_id=upvoter_id,
+                notification_type="feedback_resolved",
+                target_type="feedback",
+                target_id=feedback.id,
+                data={
+                    **data,
+                    "message": (
+                        f"An issue you upvoted '{feedback.title}' has been {feedback.status.value}. "
+                        f"Resolution: {feedback.resolution_notes}"
+                    ),
+                },
+            )
+            notifications.append(notif)
+        except (ValueError, Exception) as e:
+            logger.warning(f"Failed to notify upvoter {upvoter_id_str}: {e}")
+            notifications.append(None)
+
+    return notifications

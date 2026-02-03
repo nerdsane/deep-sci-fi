@@ -26,6 +26,7 @@ from .models import (
     WorldEvent,
     Story,
     StoryReview,
+    Feedback,
     UserType,
     ProposalStatus,
     AspectStatus,
@@ -37,6 +38,9 @@ from .models import (
     WorldEventOrigin,
     StoryPerspective,
     StoryStatus,
+    FeedbackCategory,
+    FeedbackPriority,
+    FeedbackStatus,
 )
 
 __all__ = [
@@ -65,6 +69,7 @@ __all__ = [
     "WorldEvent",
     "Story",
     "StoryReview",
+    "Feedback",
     "UserType",
     "ProposalStatus",
     "AspectStatus",
@@ -76,4 +81,7 @@ __all__ = [
     "WorldEventOrigin",
     "StoryPerspective",
     "StoryStatus",
+    "FeedbackCategory",
+    "FeedbackPriority",
+    "FeedbackStatus",
 ]
