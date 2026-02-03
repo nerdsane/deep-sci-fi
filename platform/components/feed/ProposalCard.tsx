@@ -55,14 +55,14 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
         {/* Causal chain preview */}
         {proposal.causal_chain.length > 0 && (
-          <div className="border border-white/5 bg-bg-tertiary p-4 mb-4">
-            <div className="text-xs font-mono text-text-tertiary mb-3">
+          <div className="border border-neon-cyan/10 bg-neon-cyan/5 p-4 mb-4">
+            <div className="text-[10px] font-display text-neon-cyan tracking-wider mb-3">
               CAUSAL CHAIN TO {proposal.year_setting}
             </div>
             <div className="space-y-2">
               {proposal.causal_chain.slice(0, 3).map((step, index) => (
                 <div key={index} className="flex items-start gap-3">
-                  <div className="text-xs font-mono text-neon-cyan shrink-0 mt-0.5">
+                  <div className="text-xs font-mono text-neon-cyan shrink-0 mt-0.5 drop-shadow-[0_0_4px_var(--neon-cyan)]">
                     {step.year}
                   </div>
                   <div className="flex-1">
@@ -76,7 +76,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 </div>
               ))}
               {proposal.causal_chain.length > 3 && (
-                <div className="text-xs text-text-tertiary font-mono">
+                <div className="text-xs text-neon-cyan/60 font-mono">
                   + {proposal.causal_chain.length - 3} more steps
                 </div>
               )}

@@ -7,60 +7,59 @@ import { FeedSkeleton } from '@/components/ui/Skeleton'
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-bg-tertiary border border-white/5 p-4">
-      <div className="text-lg md:text-xl font-mono text-neon-cyan">{value}</div>
-      <div className="text-xs text-text-tertiary uppercase tracking-wider mt-1">{label}</div>
+    <div className="glass p-4 hover:border-neon-cyan/20 transition-all">
+      <div className="text-lg md:text-xl font-mono text-neon-cyan drop-shadow-[0_0_8px_var(--neon-cyan)]">{value}</div>
+      <div className="text-[10px] text-text-tertiary uppercase tracking-wider mt-1 font-display">{label}</div>
     </div>
   )
 }
 
 function AgentCard({ agent }: { agent: Agent }) {
-  const totalContributions = agent.stats.proposals + agent.stats.validations + agent.stats.dwellers
-
   return (
     <Link
       href={`/agent/${agent.id}`}
-      className="block bg-bg-tertiary border border-white/5 hover:border-neon-cyan/30 transition-all group"
+      className="block glass hover:border-neon-purple/30 hover:shadow-lg hover:shadow-neon-purple/5 transition-all group"
     >
-      <div className="p-4">
+      <div className="p-5">
         {/* Avatar and name */}
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
-            <span className="text-neon-cyan font-mono text-lg">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 border border-neon-purple/20 flex items-center justify-center shrink-0">
+            <span className="text-neon-purple font-mono text-xl group-hover:drop-shadow-[0_0_8px_var(--neon-purple)] transition-all">
               {agent.name.charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="min-w-0">
-            <h3 className="text-text-primary group-hover:text-neon-cyan transition-colors truncate">
+            <h3 className="text-text-primary group-hover:text-neon-purple transition-colors truncate font-medium">
               {agent.name}
             </h3>
-            <p className="text-text-tertiary text-sm truncate">{agent.username}</p>
+            <p className="text-neon-cyan/70 text-xs font-mono truncate">{agent.username}</p>
           </div>
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-          <div className="flex justify-between">
-            <span className="text-text-tertiary">PROPOSALS</span>
-            <span className="text-text-secondary">{agent.stats.proposals}</span>
+        <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+          <div className="flex justify-between items-center p-2 bg-white/[0.02] border border-white/5">
+            <span className="text-text-tertiary text-[10px]">PROPOSALS</span>
+            <span className="text-neon-cyan">{agent.stats.proposals}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-text-tertiary">WORLDS</span>
-            <span className="text-text-secondary">{agent.stats.worlds_created}</span>
+          <div className="flex justify-between items-center p-2 bg-white/[0.02] border border-white/5">
+            <span className="text-text-tertiary text-[10px]">WORLDS</span>
+            <span className="text-neon-green">{agent.stats.worlds_created}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-text-tertiary">VALIDATIONS</span>
-            <span className="text-text-secondary">{agent.stats.validations}</span>
+          <div className="flex justify-between items-center p-2 bg-white/[0.02] border border-white/5">
+            <span className="text-text-tertiary text-[10px]">VALIDATIONS</span>
+            <span className="text-neon-purple">{agent.stats.validations}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-text-tertiary">DWELLERS</span>
-            <span className="text-text-secondary">{agent.stats.dwellers}</span>
+          <div className="flex justify-between items-center p-2 bg-white/[0.02] border border-white/5">
+            <span className="text-text-tertiary text-[10px]">DWELLERS</span>
+            <span className="text-neon-amber">{agent.stats.dwellers}</span>
           </div>
         </div>
 
         {/* Last active */}
         {agent.last_active_at && (
-          <div className="mt-3 pt-3 border-t border-white/5 text-xs text-text-tertiary">
+          <div className="mt-4 pt-3 border-t border-white/5 text-[10px] text-text-tertiary font-mono flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
             Active {formatRelativeTime(agent.last_active_at)}
           </div>
         )}
@@ -115,11 +114,13 @@ export default function AgentsPage() {
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
       {/* Header */}
-      <div className="mb-6 md:mb-8 animate-fade-in">
-        <h1 className="text-base md:text-lg text-neon-cyan mb-2">AGENTS</h1>
-        <p className="text-text-secondary text-xs md:text-sm">
-          AI agents building and exploring sci-fi worlds
-        </p>
+      <div className="glass-purple mb-8 animate-fade-in">
+        <div className="p-6">
+          <h1 className="font-display text-sm md:text-base text-neon-purple tracking-wider mb-2">AGENTS</h1>
+          <p className="text-text-secondary text-xs md:text-sm">
+            AI agents building and exploring sci-fi worlds
+          </p>
+        </div>
       </div>
 
       {/* Platform stats banner */}
