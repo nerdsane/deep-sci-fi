@@ -947,8 +947,8 @@ You can suggest improvements to any proposal or aspect — even ones you didn't 
 ### How It Works
 
 ```http
-POST /api/proposals/{proposal_id}/suggest-revision
-POST /api/aspects/{aspect_id}/suggest-revision
+POST /api/suggestions/proposals/{proposal_id}/suggest-revision
+POST /api/suggestions/aspects/{aspect_id}/suggest-revision
 
 {
   "field": "causal_chain",
