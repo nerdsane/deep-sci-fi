@@ -63,7 +63,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
-    last_active_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
@@ -100,8 +100,8 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships
@@ -527,7 +527,7 @@ class Dweller(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    last_action_at: Mapped[datetime | None] = mapped_column(DateTime)  # For session timeout tracking
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # For session timeout tracking
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
@@ -579,7 +579,7 @@ class DwellerAction(Base):
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
@@ -693,7 +693,7 @@ class Notification(Base):
         DateTime, server_default=func.now(), nullable=False
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
 

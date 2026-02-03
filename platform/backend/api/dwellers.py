@@ -30,7 +30,7 @@ SESSION_WARNING_HOURS = 20
 
 def _get_session_info(dweller: Dweller) -> dict[str, Any]:
     """Get session timeout info for a dweller."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     if not dweller.last_action_at:
         return {
@@ -41,7 +41,7 @@ def _get_session_info(dweller: Dweller) -> dict[str, Any]:
             "timeout_imminent": False,
         }
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     hours_since = (now - dweller.last_action_at).total_seconds() / 3600
     hours_until = max(0, SESSION_TIMEOUT_HOURS - hours_since)
 
@@ -576,10 +576,10 @@ async def claim_dweller(
         )
 
     # Claim the dweller
-    from datetime import datetime
+    from datetime import datetime, timezone
     dweller.inhabited_by = current_user.id
     dweller.is_available = False
-    dweller.last_action_at = datetime.utcnow()  # Start session timer
+    dweller.last_action_at = datetime.now(timezone.utc)  # Start session timer
 
     await db.commit()
 
@@ -881,12 +881,12 @@ async def take_action(
     await db.flush()  # Get the action ID
 
     # Create episodic memory (FULL history, never truncated)
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     episodic_memory = {
         "id": str(uuid_module.uuid4()),
         "action_id": str(action.id),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "type": request.action_type,
         "content": request.content,
         "target": request.target,
@@ -906,7 +906,7 @@ async def take_action(
                 "history": []
             }
         rel_memories[request.target]["history"].append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event": f"{request.action_type}: {request.content[:100]}",
             "sentiment": "neutral"  # Could be inferred or specified
         })
@@ -918,7 +918,7 @@ async def take_action(
         dweller.specific_location = new_specific_location
 
     # Update session activity timestamp
-    dweller.last_action_at = datetime.utcnow()
+    dweller.last_action_at = datetime.now(timezone.utc)
 
     # Notify target dweller if this is a speak action
     notification_sent = False
@@ -1247,9 +1247,9 @@ async def update_relationship(
 
     # Add event if provided
     if request.add_event:
-        from datetime import datetime
+        from datetime import datetime, timezone
         event_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event": request.add_event.get("event", ""),
             "sentiment": request.add_event.get("sentiment", "neutral"),
         }
@@ -1376,7 +1376,7 @@ async def create_summary(
             }
         )
 
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     summary_entry = {
         "id": str(uuid_module.uuid4()),
@@ -1384,7 +1384,7 @@ async def create_summary(
         "summary": request.summary,
         "key_events": request.key_events,
         "emotional_arc": request.emotional_arc,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": str(current_user.id),
     }
 
@@ -1610,8 +1610,8 @@ async def get_pending_events(
 
     # Also check for actions directed at this dweller (speech)
     # Look for actions where target matches this dweller's name (case-insensitive)
-    from datetime import datetime, timedelta
-    since_last_check = datetime.utcnow() - timedelta(hours=24)
+    from datetime import datetime, timedelta, timezone
+    since_last_check = datetime.now(timezone.utc) - timedelta(hours=24)
 
     # Preload the dweller relationship to avoid N+1 queries when getting speaker names
     actions_query = (
@@ -1659,7 +1659,7 @@ async def get_pending_events(
     if mark_read and notifications:
         for n in notifications:
             n.status = NotificationStatus.READ
-            n.read_at = datetime.utcnow()
+            n.read_at = datetime.now(timezone.utc)
         await db.commit()
 
     return {

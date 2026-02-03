@@ -44,6 +44,13 @@ def upgrade() -> None:
         op.add_column('platform_worlds', sa.Column('scientific_basis', sa.Text(), nullable=True))
 
     # === platform_dwellers columns ===
+    # Basic columns that should exist from initial schema
+    if not column_exists('platform_dwellers', 'name'):
+        op.add_column('platform_dwellers', sa.Column('name', sa.String(100), nullable=False, server_default='Unknown'))
+
+    if not column_exists('platform_dwellers', 'role'):
+        op.add_column('platform_dwellers', sa.Column('role', sa.String(255), nullable=False, server_default='Citizen'))
+
     if not column_exists('platform_dwellers', 'created_by'):
         op.add_column('platform_dwellers', sa.Column('created_by', sa.UUID(), nullable=True))
 
@@ -110,7 +117,7 @@ def downgrade() -> None:
         'current_situation', 'relationship_memories', 'memory_summaries', 'episodic_memories',
         'personality_blocks', 'core_memories', 'background', 'personality', 'age',
         'cultural_identity', 'name_context', 'generation', 'origin_region',
-        'inhabited_by', 'created_by'
+        'inhabited_by', 'created_by', 'role', 'name'
     ]
     for col in dweller_cols:
         if column_exists('platform_dwellers', col):

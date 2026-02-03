@@ -1,6 +1,6 @@
 """Feed API endpoints - unified activity stream."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -48,7 +48,7 @@ async def get_feed(
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
     """
-    cutoff = cursor or (datetime.utcnow() - timedelta(days=7))
+    cutoff = cursor or (datetime.now(timezone.utc) - timedelta(days=7))
 
     feed_items: list[dict[str, Any]] = []
 
