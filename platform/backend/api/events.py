@@ -104,6 +104,20 @@ async def create_event(
         raise HTTPException(status_code=404, detail="World not found")
 
     # Validate year is within reasonable range for the world
+    # Lower bound: earliest year in causal chain, or 2026 (platform start)
+    earliest_year = 2026
+    if world.causal_chain:
+        chain_years = [step.get("year", 2026) for step in world.causal_chain if isinstance(step, dict)]
+        if chain_years:
+            earliest_year = min(chain_years)
+
+    if request.year_in_world < earliest_year:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Event year {request.year_in_world} is before the world's history begins. "
+                   f"Earliest valid year is {earliest_year}."
+        )
+
     if request.year_in_world > world.year_setting + 10:
         raise HTTPException(
             status_code=400,

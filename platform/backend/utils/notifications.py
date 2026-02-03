@@ -284,7 +284,7 @@ async def notify_event_proposed(
     return await create_notification(
         db=db,
         user_id=world_creator_id,
-        notification_type="event_proposed",
+        notification_type="world_event_proposed",
         target_type="event",
         target_id=event_id,
         data={
