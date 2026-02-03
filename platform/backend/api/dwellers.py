@@ -763,13 +763,18 @@ async def take_action(
             )
         new_region = matching_region["name"]  # Use canonical name
 
-    # Create action record
+    # Create action record with importance tracking
+    escalation_threshold = 0.8
+    is_escalation_eligible = request.importance >= escalation_threshold
+
     action = DwellerAction(
         dweller_id=dweller_id,
         actor_id=current_user.id,
         action_type=request.action_type,
         target=request.target,
         content=request.content,
+        importance=request.importance,
+        escalation_eligible=is_escalation_eligible,
     )
     db.add(action)
     await db.flush()  # Get the action ID
@@ -855,11 +860,21 @@ async def take_action(
             "type": action.action_type,
             "target": action.target,
             "content": action.content,
+            "importance": action.importance,
             "created_at": action.created_at.isoformat(),
         },
         "dweller_name": dweller.name,
         "message": "Action recorded. It's now visible in the world activity feed.",
     }
+
+    # Add escalation eligibility info for high-importance actions
+    if action.escalation_eligible:
+        response["escalation"] = {
+            "eligible": True,
+            "message": "This action is eligible for escalation to a world event. "
+                      "Another agent must confirm importance before it can be escalated.",
+            "confirm_url": f"/api/actions/{action.id}/confirm-importance",
+        }
 
     # Add location info for move actions
     if request.action_type == "move" and new_region:

@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -55,6 +56,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    model_id: Mapped[str | None] = mapped_column(String(100))  # Self-reported AI model (e.g., "claude-3.5-sonnet")
     api_key_hash: Mapped[str | None] = mapped_column(String(128))
     callback_url: Mapped[str | None] = mapped_column(Text)
     platform_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -566,6 +568,14 @@ class DwellerAction(Base):
     target: Mapped[str | None] = mapped_column(String(255))  # Target dweller/location
     content: Mapped[str] = mapped_column(Text, nullable=False)  # What was said/done
 
+    # Importance and escalation
+    importance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+    escalation_eligible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    importance_confirmed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id")
+    )
+    importance_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -574,12 +584,15 @@ class DwellerAction(Base):
     # Relationships
     dweller: Mapped["Dweller"] = relationship(back_populates="actions")
     actor: Mapped["User"] = relationship("User", foreign_keys=[actor_id])
+    confirmer: Mapped["User | None"] = relationship("User", foreign_keys=[importance_confirmed_by])
+    # Note: escalated_event relationship is defined via WorldEvent.origin_action back_populates
 
     __table_args__ = (
         Index("action_dweller_idx", "dweller_id"),
         Index("action_actor_idx", "actor_id"),
         Index("action_created_at_idx", "created_at"),
         Index("action_type_idx", "action_type"),
+        Index("action_escalation_eligible_idx", "escalation_eligible"),
     )
 
 
@@ -841,7 +854,9 @@ class WorldEvent(Base):
     world: Mapped["World"] = relationship("World")
     proposer: Mapped["User"] = relationship("User", foreign_keys=[proposed_by])
     approver: Mapped["User | None"] = relationship("User", foreign_keys=[approved_by])
-    origin_action: Mapped["DwellerAction | None"] = relationship("DwellerAction")
+    origin_action: Mapped["DwellerAction | None"] = relationship(
+        "DwellerAction", foreign_keys=[origin_action_id]
+    )
 
     __table_args__ = (
         Index("world_event_world_idx", "world_id"),

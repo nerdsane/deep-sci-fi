@@ -50,7 +50,100 @@ Deep Sci-Fi is a **social platform for AI-generated sci-fi worlds**. Users brows
 - `/planning-with-files` - Full workflow details
 - `/no-cap` - Verify implementation quality (no hacks, placeholders, or silent failures)
 
+## Database Migrations (CRITICAL)
+
+**This project uses Alembic for database schema management. When you modify database models, you MUST create a migration.**
+
+### When to Create Migrations
+
+You MUST create a migration when you:
+- Add a new column to any model
+- Remove a column from any model
+- Change a column's type, constraints, or default value
+- Add a new table/model
+- Add or remove indexes
+- Modify relationships or foreign keys
+
+### How to Create Migrations
+
+```bash
+cd platform/backend
+source .venv/bin/activate
+
+# Generate migration automatically from model changes
+alembic revision --autogenerate -m "description of changes"
+
+# Review the generated migration in alembic/versions/
+# ALWAYS review before committing - autogenerate isn't perfect
+
+# Test the migration locally
+alembic upgrade head
+```
+
+### Migration Best Practices
+
+1. **Always create idempotent migrations** - Use `column_exists()` checks for safety:
+   ```python
+   def column_exists(table_name: str, column_name: str) -> bool:
+       conn = op.get_bind()
+       result = conn.execute(sa.text(
+           "SELECT 1 FROM information_schema.columns "
+           "WHERE table_name = :table AND column_name = :column"
+       ), {"table": table_name, "column": column_name})
+       return result.fetchone() is not None
+
+   def upgrade():
+       if not column_exists('my_table', 'new_column'):
+           op.add_column('my_table', sa.Column('new_column', sa.String(100)))
+   ```
+
+2. **Provide server_default for new NOT NULL columns** on existing tables:
+   ```python
+   op.add_column('users', sa.Column('status', sa.String(50), nullable=False, server_default='active'))
+   ```
+
+3. **Commit model changes AND migration together** - Never commit model changes without the corresponding migration.
+
+4. **Test migrations locally** before pushing - Run `alembic upgrade head` and verify the API works.
+
+### Common Mistakes to Avoid
+
+❌ **DON'T** modify `models.py` without creating a migration
+❌ **DON'T** assume local development auto-creates tables in production
+❌ **DON'T** delete migration files that have been deployed
+❌ **DON'T** manually edit the `alembic_version` table
+
+✅ **DO** create a migration for every schema change
+✅ **DO** make migrations idempotent with existence checks
+✅ **DO** test migrations locally before pushing
+✅ **DO** include both model and migration in the same commit
+
+### Fixing Migration Issues
+
+If the database is out of sync with models:
+```bash
+# Check current migration status
+alembic current
+
+# See what migrations would run
+alembic upgrade head --sql
+
+# If needed, create a new migration to add missing columns
+alembic revision --autogenerate -m "sync missing columns"
+```
+
 ## Git Workflow (IMPORTANT)
+
+### Setup Git Hooks (First Time)
+
+Run this once after cloning to enable pre-commit checks:
+```bash
+./scripts/setup-hooks.sh
+```
+
+This installs a pre-commit hook that blocks commits if you modify `models.py` without creating a migration.
+
+### Committing Changes
 
 **After implementing any fix, change, or feature that has been discussed and completed:**
 
@@ -62,6 +155,8 @@ Deep Sci-Fi is a **social platform for AI-generated sci-fi worlds**. Users brows
    - `chore:` for maintenance tasks
 
 2. **Always push to the current branch**
+
+3. **If modifying database models**, ensure you have a migration (the pre-commit hook will check this)
 
 ## Local Development Setup
 
@@ -100,7 +195,7 @@ bun install
 bun run dev
 ```
 
-Tables are created automatically on backend startup - no migrations needed.
+Tables are managed via Alembic migrations. Run `alembic upgrade head` to apply pending migrations.
 
 ## Development Commands
 
