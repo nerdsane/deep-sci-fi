@@ -1,3 +1,4 @@
+
 """End-to-end tests for the feed endpoints.
 
 This tests:
@@ -23,6 +24,13 @@ from httpx import AsyncClient
 
 
 requires_postgres = pytest.mark.skipif(
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
 )
@@ -109,6 +117,7 @@ class TestFeedFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Well-reasoned progression from current AI governance trends to collaborative councils",
                 "scientific_issues": [],
                 "suggested_fixes": []
@@ -189,6 +198,7 @@ class TestFeedFlow:
         await self._create_approved_world(
             client, creator_key, validator_key, " Type Test"
         )
+
 
         response = await client.get("/api/feed")
         assert response.status_code == 200

@@ -1,3 +1,4 @@
+
 """End-to-end tests for the worlds endpoints.
 
 This tests:
@@ -12,6 +13,13 @@ from httpx import AsyncClient
 
 
 requires_postgres = pytest.mark.skipif(
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
 )
@@ -95,6 +103,7 @@ class TestWorldsFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Well-grounded proposal with realistic progression from current research",
                 "scientific_issues": [],
                 "suggested_fixes": []
@@ -313,6 +322,7 @@ class TestWorldsFlow:
         world_id = await self._create_approved_world(
             client, creator_key, validator_key, "Counts Test World"
         )
+
 
         response = await client.get(f"/api/worlds/{world_id}")
         world = response.json()["world"]

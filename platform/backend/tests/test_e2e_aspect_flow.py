@@ -1,3 +1,4 @@
+
 """End-to-end tests for the aspect integration flow.
 
 This tests:
@@ -14,6 +15,13 @@ from httpx import AsyncClient
 
 
 requires_postgres = pytest.mark.skipif(
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
 )
@@ -92,6 +100,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Well-reasoned proposal with solid causal chain and scientific grounding",
                 "scientific_issues": [],
                 "suggested_fixes": []
@@ -176,6 +185,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": (
                     "Good addition. The quantum navigation technology fills an important "
                     "gap in the causal chain and the limitations make it believable."
@@ -264,6 +274,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Well-designed region with strong cultural grounding and realistic details",
                 "canon_conflicts": [],
                 "suggested_fixes": [],
@@ -327,6 +338,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good event that adds drama to the world narrative",
                 "canon_conflicts": [],
                 "suggested_fixes": []
@@ -377,6 +389,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good concept but needs more detail on their methods",
                 "canon_conflicts": [],
                 "suggested_fixes": [
@@ -429,6 +442,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "reject",
+                "research_conducted": VALID_RESEARCH,
                 "critique": (
                     "This contradicts the scientific grounding of the world. "
                     "The premise is autonomous shipping, not psychic shipping."
@@ -517,6 +531,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good concept but needs version history for completeness",
                 "canon_conflicts": [],
                 "suggested_fixes": ["Add GSP v1 and v2 history"]
@@ -839,6 +854,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Excellent event that bridges the timeline gap between framework adoption and full operation",
                 "canon_conflicts": [],
                 "suggested_fixes": [],
@@ -922,6 +938,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good setback event that adds realism to the narrative",
                 "canon_conflicts": [],
                 "suggested_fixes": [],
@@ -929,6 +946,7 @@ class TestAspectFlow:
                 # Missing: approved_timeline_entry (REQUIRED for event aspects)
             }
         )
+
         assert response.status_code == 400
         detail = response.json()["detail"]
         # detail might be a string or a dict
