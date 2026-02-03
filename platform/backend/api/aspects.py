@@ -38,7 +38,7 @@ class AspectCreateRequest(BaseModel):
     aspect_type: str = Field(
         ...,
         min_length=1,
-        max_length=50,
+        max_length=100,
         description="Type of addition (e.g. 'region', 'technology', 'faction', 'cultural practice', 'economic system' - you decide)"
     )
     title: str = Field(..., min_length=3, max_length=255, description="Title of this aspect")
