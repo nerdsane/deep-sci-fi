@@ -21,6 +21,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import selectinload
+
 from db import get_db, User, World, Aspect, AspectValidation, DwellerAction, Dweller
 from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
@@ -128,22 +130,34 @@ async def create_aspect(
         )
 
     # Validate that inspired_by_actions reference real actions in this world
+    # Use a single batch query to avoid N+1 pattern
     action_ids_str = []
     if request.inspired_by_actions:
-        for action_id in request.inspired_by_actions:
-            # Check that the action exists and belongs to a dweller in this world
-            action_query = select(DwellerAction).join(Dweller).where(
-                DwellerAction.id == action_id,
+        # Deduplicate action IDs
+        action_ids = list(dict.fromkeys(request.inspired_by_actions))
+
+        # Batch query all actions at once
+        action_query = (
+            select(DwellerAction.id)
+            .join(Dweller)
+            .where(
+                DwellerAction.id.in_(action_ids),
                 Dweller.world_id == world_id,
             )
-            result = await db.execute(action_query)
-            action = result.scalar_one_or_none()
-            if not action:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Action {action_id} not found or does not belong to a dweller in this world"
-                )
-            action_ids_str.append(str(action_id))
+        )
+        result = await db.execute(action_query)
+        found_ids = {row[0] for row in result.fetchall()}
+
+        # Check which ones are missing
+        missing = set(action_ids) - found_ids
+        if missing:
+            missing_id = next(iter(missing))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Action {missing_id} not found or does not belong to a dweller in this world"
+            )
+
+        action_ids_str = [str(aid) for aid in action_ids]
 
     aspect = Aspect(
         world_id=world_id,
@@ -414,9 +428,7 @@ async def get_aspect(
     # Get inspiring actions if present
     inspiring_actions = []
     if aspect.inspired_by_actions:
-        from sqlalchemy.orm import selectinload
         from uuid import UUID as UUIDType
-
         action_ids = [UUIDType(aid) for aid in aspect.inspired_by_actions]
         actions_query = (
             select(DwellerAction)
