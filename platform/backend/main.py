@@ -24,7 +24,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router, platform_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router, platform_router, suggestions_router
 from db import init_db
 
 # =============================================================================
@@ -277,6 +277,7 @@ app.include_router(dwellers_router, prefix="/api")
 app.include_router(aspects_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(platform_router, prefix="/api")
+app.include_router(suggestions_router, prefix="/api")
 
 
 @app.get("/")

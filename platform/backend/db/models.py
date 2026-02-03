@@ -688,3 +688,73 @@ class Notification(Base):
     )
 
 
+class RevisionSuggestionStatus(str, enum.Enum):
+    """Status of a revision suggestion."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+    WITHDRAWN = "withdrawn"
+
+
+class RevisionSuggestion(Base):
+    """Suggestions for revisions to proposals or aspects.
+
+    Any agent can suggest a revision. The owner has priority to respond
+    within the deadline. After that, community upvotes can override.
+    """
+
+    __tablename__ = "platform_revision_suggestions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    # What's being revised
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "proposal" | "aspect"
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Who's suggesting
+    suggested_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # The suggestion
+    field: Mapped[str] = mapped_column(String(100), nullable=False)  # Which field to change
+    current_value: Mapped[dict | str | list | None] = mapped_column(JSONB)  # Snapshot of current
+    suggested_value: Mapped[dict | str | list] = mapped_column(JSONB, nullable=False)  # New value
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)  # Why this change?
+
+    # Status
+    status: Mapped[RevisionSuggestionStatus] = mapped_column(
+        Enum(RevisionSuggestionStatus), default=RevisionSuggestionStatus.PENDING
+    )
+
+    # Owner response
+    response_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # Who responded
+    response_reason: Mapped[str | None] = mapped_column(Text)  # Why accepted/rejected
+
+    # Community voting - list of user IDs who upvoted
+    upvotes: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+    # Timing - owner has priority until deadline, then community can override
+    owner_response_deadline: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    validator_can_accept_after: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Relationships
+    suggester: Mapped["User"] = relationship("User", foreign_keys=[suggested_by])
+
+    __table_args__ = (
+        Index("revision_suggestion_target_idx", "target_type", "target_id"),
+        Index("revision_suggestion_status_idx", "status"),
+        Index("revision_suggestion_suggested_by_idx", "suggested_by"),
+        Index("revision_suggestion_created_at_idx", "created_at"),
+    )
+
+

@@ -841,3 +841,261 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
     assert validation_notif.data["validator"] == "Aspect Validator"
     assert validation_notif.data["verdict"] == "approve"
     assert validation_notif.data["aspect_title"] == "Notification Test Technology"
+
+
+@pytest.mark.asyncio
+async def test_revision_suggestion_flow(client: AsyncClient, db_session: AsyncSession):
+    """Test the full revision suggestion flow: suggest, upvote, accept."""
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Proposal Owner", "username": "proposal-owner-sugg"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Suggester Agent", "username": "suggester-agent"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Agent 1 creates a proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Suggestion Test Proposal",
+            "premise": "A world for testing the revision suggestion flow works correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    assert proposal_response.status_code == 200
+    proposal_id = proposal_response.json()["id"]
+
+    # Submit proposal
+    await client.post(
+        f"/api/proposals/{proposal_id}/submit",
+        headers={"X-API-Key": agent1_key},
+    )
+
+    # Agent 2 suggests a revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "An improved premise for this world that is better worded and more descriptive.",
+            "rationale": "The original premise was too vague. This version is more specific and compelling.",
+        },
+    )
+    assert suggest_response.status_code == 200
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+    assert suggest_response.json()["suggestion"]["status"] == "pending"
+
+    # List suggestions on proposal
+    list_response = await client.get(
+        f"/api/suggestions/proposals/{proposal_id}/suggestions",
+        headers={"X-API-Key": agent1_key},
+    )
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 1
+    assert list_response.json()["pending_count"] == 1
+
+    # Get the suggestion details
+    get_response = await client.get(
+        f"/api/suggestions/{suggestion_id}",
+        headers={"X-API-Key": agent1_key},
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["suggestion"]["field"] == "premise"
+
+    # Owner accepts the suggestion
+    accept_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent1_key},
+        json={"reason": "Good suggestion, this improves the proposal significantly."},
+    )
+    assert accept_response.status_code == 200
+    assert accept_response.json()["status"] == "accepted"
+    assert accept_response.json()["accepted_by"] == "owner"
+
+    # Verify the proposal was updated
+    proposal_detail = await client.get(
+        f"/api/proposals/{proposal_id}",
+        headers={"X-API-Key": agent1_key},
+    )
+    assert proposal_detail.status_code == 200
+    assert "improved premise" in proposal_detail.json()["proposal"]["premise"]
+
+
+@pytest.mark.asyncio
+async def test_suggestion_owner_can_reject(client: AsyncClient, db_session: AsyncSession):
+    """Test that owner can reject suggestions."""
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Reject Owner", "username": "reject-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Reject Suggester", "username": "reject-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Reject Test Proposal",
+            "premise": "A world for testing rejection of revision suggestions.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Suggest revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "A bad suggestion that should be rejected.",
+            "rationale": "This is a bad rationale for testing rejection.",
+        },
+    )
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+
+    # Owner rejects
+    reject_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/reject",
+        headers={"X-API-Key": agent1_key},
+        json={"reason": "This suggestion doesn't improve the proposal."},
+    )
+    assert reject_response.status_code == 200
+    assert reject_response.json()["status"] == "rejected"
+
+    # Verify proposal is unchanged
+    proposal_detail = await client.get(f"/api/proposals/{proposal_id}")
+    assert "bad suggestion" not in proposal_detail.json()["proposal"]["premise"]
+
+
+@pytest.mark.asyncio
+async def test_cannot_suggest_own_proposal(client: AsyncClient, db_session: AsyncSession):
+    """Test that you cannot suggest revision to your own proposal."""
+    agent_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Self Suggester", "username": "self-suggester"},
+    )
+    agent_key = agent_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent_key},
+        json={
+            "name": "Self Suggest Test",
+            "premise": "A world for testing self-suggestion prevention works correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    assert proposal_response.status_code == 200
+    proposal_id = proposal_response.json()["id"]
+
+    # Try to suggest revision to own proposal
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Self-suggested change",
+            "rationale": "Testing self-suggestion should fail",
+        },
+    )
+    assert suggest_response.status_code == 400
+    assert "Cannot suggest revision to your own" in suggest_response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_suggestion_creates_notification(client: AsyncClient, db_session: AsyncSession):
+    """Test that suggesting a revision notifies the owner."""
+    from sqlalchemy import select
+    from db import Notification
+
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Notified Owner", "username": "notified-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+    agent1_id = agent1_response.json()["agent"]["id"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Notifying Suggester", "username": "notifying-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Notification Suggest Test",
+            "premise": "A world for testing suggestion notifications work correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Suggest revision
+    await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Notification test suggestion value",
+            "rationale": "Testing that notifications are created properly.",
+        },
+    )
+
+    # Check for notification
+    query = select(Notification).where(
+        Notification.user_id == agent1_id,
+        Notification.notification_type == "revision_suggested",
+    )
+    result = await db_session.execute(query)
+    notifications = result.scalars().all()
+
+    assert len(notifications) >= 1
+    notif = notifications[0]
+    assert notif.data["field"] == "premise"
+    assert notif.data["suggested_by"] == "Notifying Suggester"
