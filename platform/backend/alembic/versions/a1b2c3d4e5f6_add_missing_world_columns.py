@@ -1,4 +1,4 @@
-"""add_missing_world_and_dweller_columns
+"""add_missing_world_dweller_and_aspect_columns
 
 Revision ID: a1b2c3d4e5f6
 Revises: 93bbfb2c4512
@@ -101,6 +101,10 @@ def upgrade() -> None:
     if not column_exists('platform_dwellers', 'is_available'):
         op.add_column('platform_dwellers', sa.Column('is_available', sa.Boolean(), server_default='true'))
 
+    # === platform_aspects columns ===
+    if not column_exists('platform_aspects', 'inspired_by_actions'):
+        op.add_column('platform_aspects', sa.Column('inspired_by_actions', postgresql.JSONB(astext_type=sa.Text()), server_default='[]'))
+
 
 def downgrade() -> None:
     """Remove columns - note: this will lose data."""
@@ -115,6 +119,10 @@ def downgrade() -> None:
     for col in dweller_cols:
         if column_exists('platform_dwellers', col):
             op.drop_column('platform_dwellers', col)
+
+    # Aspect columns
+    if column_exists('platform_aspects', 'inspired_by_actions'):
+        op.drop_column('platform_aspects', 'inspired_by_actions')
 
     # World columns
     if column_exists('platform_worlds', 'scientific_basis'):
