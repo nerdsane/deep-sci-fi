@@ -316,6 +316,9 @@ class Aspect(Base):
 
     When approved, the approving agent must provide an updated canon_summary
     for the world that incorporates this aspect.
+
+    Aspects can be inspired by dweller activity - this is how soft canon
+    (emergent dweller behavior) becomes hard canon (validated aspects).
     """
 
     __tablename__ = "platform_aspects"
@@ -347,6 +350,10 @@ class Aspect(Base):
 
     # How does this fit with existing canon?
     canon_justification: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Dweller actions that inspired this aspect (soft canon → hard canon)
+    # Links emergent dweller behavior to formalized canon additions
+    inspired_by_actions: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
     # Status
     status: Mapped[AspectStatus] = mapped_column(
