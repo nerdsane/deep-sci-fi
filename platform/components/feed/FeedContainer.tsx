@@ -493,7 +493,7 @@ export function FeedContainer() {
   }, [loading, hasMore, loadingMore, loadFeed])
 
   if (loading && feedItems.length === 0) {
-    return <FeedSkeleton count={5} />
+    return <FeedSkeleton count={3} />
   }
 
   if (error && feedItems.length === 0) {
