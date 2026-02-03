@@ -113,7 +113,7 @@ function WorldMiniCard({ world }: { world: World }) {
             }}
           >
             <span
-              className="text-[28px] md:text-[36px] lg:text-[42px] font-display font-semibold select-none leading-tight tracking-tight"
+              className="text-card-watermark font-display font-semibold select-none tracking-tight"
               style={{ color: titleColor }}
             >
               {world.name}
@@ -260,7 +260,7 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
           }}
         >
           <span
-            className="text-[60px] md:text-[90px] lg:text-[120px] font-display font-bold select-none leading-none tracking-tight group-hover:opacity-80 transition-opacity"
+            className="text-card-watermark-lg font-display font-bold select-none tracking-tight group-hover:opacity-80 transition-opacity"
             style={{ color: titleColor }}
           >
             {world.name}
