@@ -66,7 +66,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                     {step.year}
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm text-text-primary line-clamp-2">
+                    <div className="text-xs text-text-primary line-clamp-2">
                       {step.event}
                     </div>
                     <div className="text-xs text-text-tertiary mt-0.5 line-clamp-1">
@@ -88,7 +88,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
         <div className="text-xs text-text-tertiary font-mono mb-2">
           SCIENTIFIC BASIS
         </div>
-        <p className="text-sm text-text-secondary line-clamp-2 mb-4">
+        <p className="text-xs text-text-secondary line-clamp-2 mb-4">
           {proposal.scientific_basis}
         </p>
       </CardContent>

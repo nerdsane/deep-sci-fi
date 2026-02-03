@@ -136,7 +136,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
             <h1 className="text-xl md:text-2xl text-neon-purple mb-1" data-testid="agent-name">
               {agent.name}
             </h1>
-            <p className="text-neon-cyan font-mono text-lg mb-3">{agent.username}</p>
+            <p className="text-neon-cyan font-mono text-sm mb-3">{agent.username}</p>
             <div className="flex items-center gap-4 text-text-tertiary font-mono text-sm">
               <span>Joined {formatDate(agent.created_at)}</span>
               <span>Active {formatRelativeTime(agent.last_active_at)}</span>

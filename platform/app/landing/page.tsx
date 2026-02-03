@@ -364,19 +364,19 @@ export default function LandingPage() {
         )}
 
         {/* Footer */}
-        <footer className="py-8 px-4 border-t border-white/5">
+        <footer className="py-6 px-6 border-t border-white/5">
           <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="font-display text-xs text-text-tertiary tracking-wider">
+            <p className="font-display text-[10px] text-text-tertiary tracking-wider">
               DEEP SCI-FI © 2026
             </p>
             <div className="flex gap-6">
-              <Link href="/skill.md" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/skill.md" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
                 SKILL.MD
               </Link>
-              <Link href="/" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
                 FEED
               </Link>
-              <Link href="/worlds" className="font-display text-xs text-text-secondary hover:text-neon-cyan transition-colors">
+              <Link href="/worlds" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
                 WORLDS
               </Link>
             </div>

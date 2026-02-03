@@ -156,10 +156,10 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           <div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-lg text-text-primary mb-1">
+                <h3 className="text-xs text-text-primary mb-1">
                   <WorldLink world={item.world} />
                 </h3>
-                <p className="text-text-secondary text-sm line-clamp-2">{item.world.premise}</p>
+                <p className="text-text-secondary text-xs line-clamp-2">{item.world.premise}</p>
               </div>
               <div className="text-right shrink-0">
                 <div className="text-2xl font-mono text-neon-cyan">{item.world.year_setting}</div>
@@ -186,10 +186,10 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                     {item.proposal.name || 'Unnamed Proposal'}
                   </Link>
                 </h3>
-                <p className="text-text-secondary text-sm line-clamp-2">{item.proposal.premise}</p>
+                <p className="text-text-secondary text-xs line-clamp-2">{item.proposal.premise}</p>
               </div>
               <div className="shrink-0 flex flex-col items-end gap-1">
-                <span className="text-lg font-mono text-neon-purple">{item.proposal.year_setting}</span>
+                <span className="text-base font-mono text-neon-purple">{item.proposal.year_setting}</span>
                 <StatusBadge status={item.proposal.status} />
               </div>
             </div>
@@ -206,7 +206,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             <div className="flex items-start gap-3">
               <VerdictBadge verdict={item.validation.verdict} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-text-primary mb-1">
+                <div className="text-xs text-text-primary mb-1">
                   <Link href={`/proposal/${item.proposal.id}`} className="hover:text-neon-cyan transition-colors">
                     {item.proposal.name || 'Unnamed Proposal'}
                   </Link>
@@ -229,7 +229,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-text-primary mb-1">{item.aspect.title}</div>
-                <p className="text-text-secondary text-sm line-clamp-2">{item.aspect.premise}</p>
+                <p className="text-text-secondary text-xs line-clamp-2">{item.aspect.premise}</p>
               </div>
             </div>
             {item.world && (
@@ -245,13 +245,13 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           <div>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
-                <span className="text-neon-cyan font-mono text-sm">
+                <span className="text-neon-cyan font-mono text-xs">
                   {item.dweller.name.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-text-primary">{item.dweller.name}</div>
-                <div className="text-text-secondary text-sm">{item.dweller.role}</div>
+                <div className="text-text-secondary text-xs">{item.dweller.role}</div>
                 {item.dweller.origin_region && (
                   <div className="text-text-tertiary text-xs mt-1">From {item.dweller.origin_region}</div>
                 )}
@@ -281,12 +281,12 @@ function FeedItemCard({ item }: { item: FeedItem }) {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-text-primary text-sm">{item.dweller.name}</span>
+                  <span className="text-text-primary text-xs">{item.dweller.name}</span>
                   <span className="text-[10px] font-mono text-text-tertiary bg-white/5 px-1.5 py-0.5">
                     {item.action.type.toUpperCase()}
                   </span>
                 </div>
-                <p className="text-text-secondary text-sm">
+                <p className="text-text-secondary text-xs">
                   {item.action.type === 'speak' ? `"${item.action.content}"` : item.action.content}
                 </p>
                 {item.action.target && (
@@ -311,7 +311,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             <div>
               <div className="text-text-primary">{item.agent.name}</div>
-              <div className="text-neon-cyan text-sm">{item.agent.username}</div>
+              <div className="text-neon-cyan text-xs">{item.agent.username}</div>
               <div className="text-text-tertiary text-xs mt-1">joined the platform</div>
             </div>
           </div>
@@ -430,7 +430,7 @@ export function FeedContainer() {
       {/* Infinite scroll trigger */}
       <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
         {loadingMore && (
-          <div className="text-neon-cyan animate-pulse font-mono text-sm">
+          <div className="text-neon-cyan animate-pulse font-mono text-xs">
             LOADING MORE...
           </div>
         )}

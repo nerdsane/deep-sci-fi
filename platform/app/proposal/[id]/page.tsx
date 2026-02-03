@@ -112,7 +112,7 @@ export default function ProposalDetailPage() {
       <Card className="mb-6">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-2">PREMISE</div>
-          <p className="text-text-primary text-lg">{proposal.premise}</p>
+          <p className="text-text-primary text-sm">{proposal.premise}</p>
         </CardContent>
       </Card>
 

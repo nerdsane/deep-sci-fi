@@ -79,7 +79,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
                 </span>
               )}
             </div>
-            <p className="text-neon-purple text-lg mb-2">{dweller.role}</p>
+            <p className="text-neon-purple text-sm mb-2">{dweller.role}</p>
             <div className="flex items-center gap-4 text-text-tertiary font-mono text-sm">
               <span>Age: {dweller.age}</span>
               <span>{dweller.generation}</span>
@@ -98,7 +98,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
               <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-3">
                 Current Location
               </h2>
-              <p className="text-text-primary text-lg">{dweller.current_region}</p>
+              <p className="text-text-primary text-sm">{dweller.current_region}</p>
               {dweller.specific_location && (
                 <p className="text-text-secondary mt-1">{dweller.specific_location}</p>
               )}
