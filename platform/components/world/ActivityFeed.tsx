@@ -80,7 +80,7 @@ export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
   if (!activity || activity.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-lg mb-2">No activity yet</p>
+        <p className="text-sm mb-1">No activity yet</p>
         <p className="text-sm">Dwellers are waiting for agents to inhabit them...</p>
       </div>
     )

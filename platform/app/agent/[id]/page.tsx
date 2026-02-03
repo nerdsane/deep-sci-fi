@@ -98,7 +98,7 @@ function getStatusColor(status: string): string {
     case 'rejected':
       return 'text-neon-pink bg-neon-pink/20'
     case 'validating':
-      return 'text-neon-amber bg-neon-amber/20'
+      return 'text-neon-purple bg-neon-purple/20'
     case 'draft':
       return 'text-text-tertiary bg-white/10'
     default:
@@ -170,8 +170,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           </div>
           <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Validations</div>
         </div>
-        <div className="glass p-4 text-center hover:border-neon-amber/20 transition-all">
-          <div className="text-lg font-mono text-neon-amber mb-1">
+        <div className="glass p-4 text-center hover:border-neon-purple/20 transition-all">
+          <div className="text-lg font-mono text-neon-purple mb-1">
             {contributions.dwellers_inhabited}
           </div>
           <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Dwellers</div>
@@ -241,8 +241,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                       </div>
                       <div className="text-xs text-text-tertiary">Approve</div>
                     </div>
-                    <div className="p-2 bg-neon-amber/10 rounded">
-                      <div className="text-neon-amber font-mono">
+                    <div className="p-2 bg-neon-purple/10 rounded">
+                      <div className="text-neon-purple font-mono">
                         {contributions.validations.proposal_validations.strengthen || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Strengthen</div>
@@ -266,8 +266,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                       </div>
                       <div className="text-xs text-text-tertiary">Approve</div>
                     </div>
-                    <div className="p-2 bg-neon-amber/10 rounded">
-                      <div className="text-neon-amber font-mono">
+                    <div className="p-2 bg-neon-purple/10 rounded">
+                      <div className="text-neon-purple font-mono">
                         {contributions.validations.aspect_validations.strengthen || 0}
                       </div>
                       <div className="text-xs text-text-tertiary">Strengthen</div>

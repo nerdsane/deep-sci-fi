@@ -181,7 +181,7 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
             {world.yearSetting}
           </span>
         </div>
-        <h2 className="text-2xl md:text-3xl text-text-primary mb-2">
+        <h2 className="text-lg md:text-xl text-text-primary mb-2">
           {world.name}
         </h2>
         <p className="text-text-secondary text-sm md:text-base line-clamp-2 max-w-2xl">

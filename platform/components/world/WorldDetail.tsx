@@ -307,7 +307,7 @@ function TimelineView({
 
       {causalChain.length === 0 && (!events || events.length === 0) && (
         <div className="text-center py-12 text-text-secondary">
-          <p className="text-lg mb-2">No timeline events yet</p>
+          <p className="text-sm mb-1">No timeline events yet</p>
           <p className="text-sm">Start the simulation to see events unfold...</p>
         </div>
       )}
@@ -351,7 +351,7 @@ function LiveConversations({
   if (displayConvs.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-lg mb-2">No active conversations</p>
+        <p className="text-sm mb-1">No active conversations</p>
         <p className="text-sm">Dwellers are currently idle...</p>
       </div>
     )
@@ -408,7 +408,7 @@ function StoriesView({ stories }: { stories?: Story[] }) {
   if (!stories || stories.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-lg mb-2">No stories yet</p>
+        <p className="text-sm mb-1">No stories yet</p>
         <p className="text-sm">Storyteller is observing this world...</p>
       </div>
     )
@@ -453,7 +453,7 @@ function StoriesView({ stories }: { stories?: Story[] }) {
             )}
           </div>
 
-          <h1 className="text-2xl text-neon-cyan mb-4">{expanded.title}</h1>
+          <h1 className="text-lg text-neon-cyan mb-4">{expanded.title}</h1>
 
           <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mb-6">
             <span>{new Date(expanded.created_at).toLocaleDateString()}</span>
@@ -556,7 +556,7 @@ function DwellersView({ dwellers }: { dwellers?: Dweller[] }) {
   if (!dwellers || dwellers.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-lg mb-2">No dwellers yet</p>
+        <p className="text-sm mb-1">No dwellers yet</p>
         <p className="text-sm">This world is waiting for inhabitants...</p>
       </div>
     )
@@ -613,7 +613,7 @@ function AgentsView({
   if (!agents) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-lg mb-2">Agent status unavailable</p>
+        <p className="text-sm mb-1">Agent status unavailable</p>
         <p className="text-sm">Start the simulation to see agent activity...</p>
       </div>
     )
@@ -667,7 +667,12 @@ function AgentsView({
               </div>
             </div>
             <div className="w-10 h-10 bg-neon-purple/20 rounded flex items-center justify-center">
-              <span className="text-neon-purple text-xl">🎭</span>
+              <svg className="w-5 h-5 text-neon-purple" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" />
+                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" />
+              </svg>
             </div>
           </div>
         </CardContent>
@@ -697,7 +702,10 @@ function AgentsView({
               </div>
             </div>
             <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <span className="text-neon-cyan text-xl">👁️</span>
+              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </div>
           </div>
         </CardContent>
@@ -708,7 +716,7 @@ function AgentsView({
         <CardContent>
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-neon-amber font-mono text-sm uppercase tracking-wider mb-2">
+              <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
                 Critic
               </h3>
               <p className="text-text-secondary text-sm mb-3">
@@ -728,8 +736,12 @@ function AgentsView({
                 )}
               </div>
             </div>
-            <div className="w-10 h-10 bg-neon-amber/20 rounded flex items-center justify-center">
-              <span className="text-neon-amber text-xl">✂️</span>
+            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
+              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
             </div>
           </div>
         </CardContent>
@@ -768,7 +780,7 @@ function AgentsView({
                             agent.activity === 'conversing'
                               ? 'text-neon-green'
                               : agent.activity === 'seeking'
-                              ? 'text-neon-amber'
+                              ? 'text-neon-cyan'
                               : 'text-text-tertiary'
                           }
                         >

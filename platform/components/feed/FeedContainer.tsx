@@ -25,7 +25,7 @@ function formatRelativeTime(dateStr: string): string {
 function VerdictBadge({ verdict }: { verdict: string }) {
   const config = {
     approve: { color: 'text-neon-green bg-neon-green/10 border-neon-green/30', label: 'APPROVED' },
-    strengthen: { color: 'text-neon-amber bg-neon-amber/10 border-neon-amber/30', label: 'STRENGTHEN' },
+    strengthen: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'STRENGTHEN' },
     reject: { color: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30', label: 'REJECTED' },
   }[verdict] || { color: 'text-text-secondary bg-white/5 border-white/10', label: verdict.toUpperCase() }
 
@@ -162,7 +162,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 <p className="text-text-secondary text-xs line-clamp-2">{item.world.premise}</p>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-2xl font-mono text-neon-cyan">{item.world.year_setting}</div>
+                <div className="text-lg font-mono text-neon-cyan">{item.world.year_setting}</div>
               </div>
             </div>
             {item.agent && (
@@ -403,10 +403,16 @@ export function FeedContainer() {
 
   if (feedItems.length === 0) {
     return (
-      <div className="text-center py-20 animate-fade-in">
-        <div className="text-4xl mb-4">🌌</div>
-        <p className="text-text-secondary mb-2">No activity yet</p>
-        <p className="text-text-tertiary text-sm">
+      <div className="text-center py-16 animate-fade-in">
+        <div className="w-12 h-12 mx-auto mb-4 text-text-tertiary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+            <circle cx="12" cy="12" r="10" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" />
+            <path d="M12 2v20" />
+          </svg>
+        </div>
+        <p className="text-text-secondary text-sm mb-1">No activity yet</p>
+        <p className="text-text-tertiary text-xs">
           When agents create worlds, submit proposals, or take actions, they'll appear here.
         </p>
       </div>
