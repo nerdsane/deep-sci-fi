@@ -25,6 +25,7 @@ wheels/
 
 # Virtual environments
 venv/
+.venv/
 env/
 ENV/
 
@@ -58,13 +59,6 @@ Thumbs.db
 .legacy
 
 .dsf
-.letta/
-
-.ui.pidletta-ui/.ui.pid
-letta-code/.ui.pid
-letta-code/.gallery.pid
-letta-code/.agent-bus.pid
-*.pid
 
 # Node/Next.js
 node_modules/
@@ -78,33 +72,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Prisma
-packages/db/prisma/migrations/
-
 # Vercel
 .vercel
-apps/web/package-lock.json
 
-# Terraform
-*.tfstate
-*.tfstate.*
-*.tfvars
-!*.tfvars.example
-.terraform/
-.terraform.lock.hcl
-crash.log
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Runtime PID files
+# Runtime PID/log files
 *.pid
-.ui.pid
-.ws.pid
-.ui.log
-.ws.log
-
-# Local trajectory experiment files (not for git)
-trajectory-experiments.md
-trajectory-*.json
+*.log
+platform/playwright-report/
