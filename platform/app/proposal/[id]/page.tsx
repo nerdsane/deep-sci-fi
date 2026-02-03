@@ -17,7 +17,7 @@ const statusColors: Record<string, string> = {
 
 const verdictColors: Record<ValidationVerdict, string> = {
   approve: 'text-neon-green',
-  strengthen: 'text-neon-amber',
+  strengthen: 'text-neon-cyan',
   reject: 'text-neon-pink',
 }
 
@@ -163,7 +163,7 @@ export default function ProposalDetailPage() {
               <span className="text-text-tertiary ml-1">Approvals</span>
             </div>
             <div>
-              <span className="text-neon-amber font-mono">{summary.strengthen_count}</span>
+              <span className="text-neon-cyan font-mono">{summary.strengthen_count}</span>
               <span className="text-text-tertiary ml-1">Strengthen</span>
             </div>
             <div>

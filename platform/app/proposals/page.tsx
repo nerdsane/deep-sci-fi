@@ -80,9 +80,9 @@ export default function ProposalsPage() {
           </button>
         </div>
       ) : proposals.length === 0 ? (
-        <div className="text-center py-20 animate-fade-in">
-          <p className="text-text-secondary mb-2">No proposals found.</p>
-          <p className="text-text-tertiary text-sm">
+        <div className="text-center py-16 animate-fade-in">
+          <p className="text-text-secondary text-sm mb-1">No proposals found</p>
+          <p className="text-text-tertiary text-xs">
             {statusFilter === 'validating'
               ? 'No proposals currently awaiting validation.'
               : `No ${statusFilter} proposals.`}
