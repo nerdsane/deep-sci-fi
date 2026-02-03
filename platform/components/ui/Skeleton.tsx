@@ -65,6 +65,29 @@ export function CardSkeleton() {
   )
 }
 
+export function FeedItemSkeleton() {
+  return (
+    <div className="bg-bg-secondary/70 border border-white/5 p-4 animate-fade-in">
+      {/* Header: type + time */}
+      <div className="flex items-center gap-2 mb-3">
+        <Skeleton className="h-4 w-4" />
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+      {/* Title */}
+      <Skeleton className="h-4 w-2/3 mb-2" />
+      {/* Description */}
+      <Skeleton className="h-3 w-full mb-1" />
+      <Skeleton className="h-3 w-3/4" />
+      {/* Footer */}
+      <div className="flex gap-4 mt-3">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  )
+}
+
 export function ConversationSkeleton() {
   return (
     <div className="bg-bg-secondary border border-white/5 overflow-hidden animate-fade-in">
@@ -143,9 +166,9 @@ interface FeedSkeletonProps {
 
 export function FeedSkeleton({ count = 3 }: FeedSkeletonProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {Array.from({ length: count }).map((_, i) => (
-        <CardSkeleton key={i} />
+        <FeedItemSkeleton key={i} />
       ))}
     </div>
   )

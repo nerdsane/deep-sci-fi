@@ -199,7 +199,7 @@ button {
     var(--bg-tertiary) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 2s infinite linear;
+  animation: shimmer 1.2s infinite linear;
 }
 
 @keyframes shimmer {
