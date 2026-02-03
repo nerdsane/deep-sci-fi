@@ -105,7 +105,7 @@ export default async function WorldPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-8">
       <WorldDetail world={data.world} agents={data.agents} />
     </div>
   )
