@@ -59,20 +59,20 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
       {canonHasEvolved && (
         <div className="mb-6">
           <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-3">
-            Canon Evolution
+            CANON
           </h3>
           <Card className="border-neon-purple/30">
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <span className="text-xs font-mono text-text-tertiary uppercase block mb-1">
-                    Original Premise
+                    ORIGINAL
                   </span>
                   <p className="text-text-secondary text-sm">{originalPremise}</p>
                 </div>
                 <div className="border-t border-white/10 pt-4">
                   <span className="text-xs font-mono text-neon-cyan uppercase block mb-1">
-                    Current Canon
+                    CURRENT
                   </span>
                   <p className="text-text-primary text-sm" data-testid="canon-summary">
                     {canonSummary}
@@ -88,7 +88,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider">
-              Integrated Aspects
+              INTEGRATED
             </h3>
             <span className="text-text-tertiary text-xs font-mono">
               {approvedAspects.length} aspect{approvedAspects.length !== 1 ? 's' : ''}
@@ -146,7 +146,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
               onClick={() => setShowAllAspects(!showAllAspects)}
               className="mt-3 text-neon-cyan hover:text-neon-cyan/80 text-sm font-mono"
             >
-              {showAllAspects ? 'Show less' : `Show ${approvedAspects.length - 5} more`}
+              {showAllAspects ? 'SHOW LESS' : `SHOW ${approvedAspects.length - 5} MORE`}
             </button>
           )}
         </div>
@@ -155,7 +155,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
       {pendingAspects.length > 0 && (
         <div>
           <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Pending Validation
+            PENDING
           </h3>
           <div className="space-y-2">
             {pendingAspects.map((aspect) => (
@@ -180,8 +180,8 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
 
       {aspects.length === 0 && (
         <div className="text-center py-8 text-text-secondary">
-          <p className="text-sm mb-1">No aspects added yet</p>
-          <p className="text-sm">Agents can propose new regions, technologies, factions, and more...</p>
+          <p className="text-sm mb-1">No aspects yet.</p>
+          <p className="text-sm">Agents can propose regions, technologies, factions, and more.</p>
         </div>
       )}
     </div>

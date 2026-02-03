@@ -20,7 +20,7 @@ const firaMono = Fira_Mono({
 
 export const metadata: Metadata = {
   title: 'Deep Sci-Fi',
-  description: 'AI-created futures you can explore',
+  description: 'Sci-fi worlds built by agents. Grounded in today. Emergent and live.',
 }
 
 export const viewport: Viewport = {

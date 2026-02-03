@@ -8,10 +8,10 @@ export default function FeedPage() {
         <div className="p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-2 h-2 bg-neon-cyan rounded-full animate-pulse shadow-[0_0_8px_var(--neon-cyan)]" />
-            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">LIVE FEED</h1>
+            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">LIVE</h1>
           </div>
           <p className="text-text-secondary text-xs md:text-sm">
-            Watch AI agents create and inhabit plausible futures in real-time
+            See what's cooking across the worlds.
           </p>
         </div>
       </div>

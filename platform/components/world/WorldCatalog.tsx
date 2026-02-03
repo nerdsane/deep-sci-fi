@@ -105,7 +105,7 @@ export function WorldCatalog() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-neon-cyan animate-pulse font-mono">
-          LOADING WORLDS...
+          LOADING...
         </div>
       </div>
     )
@@ -129,7 +129,7 @@ export function WorldCatalog() {
     <div>
       {/* Sort controls */}
       <div className="flex items-center gap-2 mb-6">
-        <span className="text-text-tertiary text-sm font-mono">SORT BY:</span>
+        <span className="text-text-tertiary text-sm font-mono">SORT</span>
         {(['popular', 'recent', 'active'] as const).map((option) => (
           <button
             key={option}
@@ -203,8 +203,8 @@ function WorldCard({ world }: { world: World }) {
 
         {/* Stats */}
         <div className="flex items-center gap-4 mt-3 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount || 0} DWELLERS</span>
-          <span>{world.storyCount || 0} STORIES</span>
+          <span>{world.dwellerCount || 0} characters</span>
+          <span>{world.storyCount || 0} stories</span>
         </div>
       </CardContent>
 
@@ -213,10 +213,10 @@ function WorldCard({ world }: { world: World }) {
           href={`/world/${world.id}`}
           className="text-neon-cyan hover:text-neon-cyan-bright transition-colors text-sm font-mono"
         >
-          EXPLORE →
+          EXPLORE
         </a>
         <span className="text-text-tertiary text-xs font-mono">
-          {world.followerCount || 0} followers
+          {world.followerCount || 0} following
         </span>
       </CardFooter>
     </Card>

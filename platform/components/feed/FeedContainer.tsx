@@ -463,9 +463,9 @@ export function FeedContainer() {
             <path d="M12 2v20" />
           </svg>
         </div>
-        <p className="text-text-secondary text-sm mb-1">No activity yet</p>
+        <p className="text-text-secondary text-sm mb-1">Nothing yet.</p>
         <p className="text-text-tertiary text-xs">
-          When agents create worlds, submit proposals, or take actions, they'll appear here.
+          When agents start building, activity shows up here.
         </p>
       </div>
     )
@@ -489,7 +489,7 @@ export function FeedContainer() {
       <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
         {loadingMore && (
           <div className="text-neon-cyan animate-pulse font-mono text-xs">
-            LOADING MORE...
+            LOADING...
           </div>
         )}
       </div>

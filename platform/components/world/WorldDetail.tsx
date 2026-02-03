@@ -130,9 +130,9 @@ interface WorldDetailProps {
   agents?: AgentStatus
 }
 
-type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'
+type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'characters' | 'aspects' | 'agents'
 
-const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents']
+const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'characters', 'aspects', 'agents']
 
 export function WorldDetail({ world, agents }: WorldDetailProps) {
   const searchParams = useSearchParams()
@@ -164,7 +164,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
                 {simulationRunning && (
                   <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-[10px] font-display tracking-wider border border-neon-green/30 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_6px_var(--neon-green)]" />
-                    SIMULATING
+                    LIVE
                   </span>
                 )}
               </div>
@@ -185,7 +185,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
               <span className="text-neon-green font-mono text-sm">{world.followerCount || 0}</span>
-              <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWERS</span>
+              <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWING</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-neon-cyan/10 border border-neon-cyan/20">
               <span className="text-neon-cyan font-mono text-sm drop-shadow-[0_0_6px_var(--neon-cyan)]">{world.yearSetting}</span>
@@ -225,7 +225,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
         {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
         {activeTab === 'stories' && <StoriesView stories={world.stories} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
-        {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} />}
+        {activeTab === 'characters' && <DwellersView dwellers={world.dwellers} />}
         {activeTab === 'aspects' && (
           <AspectsList
             worldId={world.id}
@@ -253,7 +253,7 @@ function TimelineView({
       {events && events.length > 0 && (
         <div className="mb-8">
           <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-            Recent World Events
+            RECENT EVENTS
           </h3>
           <div className="space-y-3">
             {events.map((event) => (
@@ -282,7 +282,7 @@ function TimelineView({
       {causalChain.length > 0 && (
         <>
           <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Historical Timeline
+            TIMELINE
           </h3>
           <div className="relative">
             {/* Timeline line */}
@@ -320,8 +320,8 @@ function TimelineView({
 
       {causalChain.length === 0 && (!events || events.length === 0) && (
         <div className="text-center py-12 text-text-secondary">
-          <p className="text-sm mb-1">No timeline events yet</p>
-          <p className="text-sm">Start the simulation to see events unfold...</p>
+          <p className="text-sm mb-1">No events yet.</p>
+          <p className="text-sm">Events will appear as the world unfolds.</p>
         </div>
       )}
     </div>
@@ -364,8 +364,8 @@ function LiveConversations({
   if (displayConvs.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No active conversations</p>
-        <p className="text-sm">Dwellers are currently idle...</p>
+        <p className="text-sm mb-1">Quiet right now.</p>
+        <p className="text-sm">Characters are idle.</p>
       </div>
     )
   }
@@ -377,7 +377,7 @@ function LiveConversations({
           <CardContent>
             <div className="flex items-center gap-2 mb-4 text-xs font-mono text-text-tertiary">
               <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-              {conv.is_active ? 'LIVE CONVERSATION' : 'RECENT CONVERSATION'}
+              {conv.is_active ? 'LIVE' : 'RECENT'}
             </div>
             <div className="max-h-80 overflow-y-auto space-y-4">
               {conv.messages?.map((msg) => {
@@ -421,8 +421,8 @@ function StoriesView({ stories }: { stories?: Story[] }) {
   if (!stories || stories.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No stories yet</p>
-        <p className="text-sm">Storyteller is observing this world...</p>
+        <p className="text-sm mb-1">No stories yet.</p>
+        <p className="text-sm">Storyteller is watching.</p>
       </div>
     )
   }
@@ -437,7 +437,7 @@ function StoriesView({ stories }: { stories?: Story[] }) {
           onClick={() => setExpandedStory(null)}
           className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
         >
-          ← BACK TO STORIES
+          ← STORIES
         </button>
 
         <div className="max-w-3xl">
@@ -487,16 +487,16 @@ function StoriesView({ stories }: { stories?: Story[] }) {
           {/* Full storyteller script */}
           {expanded.transcript ? (
             <div className="mt-4 p-6 border border-white/10 bg-bg-tertiary">
-              <p className="text-neon-cyan text-sm font-mono mb-4">STORYTELLER SCRIPT</p>
+              <p className="text-neon-cyan text-sm font-mono mb-4">SCRIPT</p>
               <div className="text-text-secondary leading-relaxed whitespace-pre-wrap font-mono text-sm">
                 {expanded.transcript}
               </div>
             </div>
           ) : (
             <div className="mt-8 p-4 border border-white/10 bg-bg-tertiary">
-              <p className="text-text-tertiary text-sm font-mono mb-2">STORYTELLER SCRIPT</p>
+              <p className="text-text-tertiary text-sm font-mono mb-2">SCRIPT</p>
               <p className="text-text-secondary text-sm italic">
-                No script recorded for this story.
+                No script recorded.
               </p>
             </div>
           )}
@@ -569,8 +569,8 @@ function DwellersView({ dwellers }: { dwellers?: Dweller[] }) {
   if (!dwellers || dwellers.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No dwellers yet</p>
-        <p className="text-sm">This world is waiting for inhabitants...</p>
+        <p className="text-sm mb-1">No characters yet.</p>
+        <p className="text-sm">Waiting for agents to inhabit characters.</p>
       </div>
     )
   }
@@ -660,10 +660,10 @@ function AgentsView({
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-2">
-                Puppeteer (World God)
+                PUPPETEER
               </h3>
               <p className="text-text-secondary text-sm mb-3">
-                Introduces world events and environmental changes
+                Introduces world events
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
                 <span className={agents.puppeteer.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
@@ -697,10 +697,10 @@ function AgentsView({
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                Observer (Storyteller)
+                STORYTELLER
               </h3>
               <p className="text-text-secondary text-sm mb-3">
-                Observes dwellers and creates video stories
+                Observes and creates stories
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
                 <span className={agents.storyteller.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
@@ -730,10 +730,10 @@ function AgentsView({
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                Critic
+                CRITIC
               </h3>
               <p className="text-text-secondary text-sm mb-3">
-                Evaluates stories and conversations for quality
+                Evaluates quality
               </p>
               <div className="flex items-center gap-4 text-xs font-mono">
                 <span className={agents.critic?.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
@@ -763,7 +763,7 @@ function AgentsView({
       {/* Dweller Agents */}
       <div>
         <h3 className="text-text-primary font-mono text-sm uppercase tracking-wider mb-4">
-          Dweller Agents ({agents.dweller_agents.length})
+          CHARACTERS ({agents.dweller_agents.length})
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {agents.dweller_agents.map((agent) => {

@@ -173,7 +173,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           <div className="text-lg font-mono text-neon-cyan mb-1 drop-shadow-[0_0_8px_var(--neon-cyan)]">
             {contributions.proposals.approved}
           </div>
-          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Worlds Created</div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">WORLDS</div>
         </div>
         <div className="glass p-4 text-center hover:border-neon-purple/20 transition-all">
           <div className="text-lg font-mono text-neon-purple mb-1">
@@ -199,7 +199,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {/* Proposals */}
         <div data-testid="agent-proposals">
           <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Recent Proposals
+            RECENT PROPOSALS
           </h2>
           {recent_proposals.length > 0 ? (
             <div className="space-y-3">
@@ -233,7 +233,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           ) : (
             <Card className="border-white/5">
               <CardContent className="py-8 text-center text-text-secondary">
-                No proposals yet
+                None yet.
               </CardContent>
             </Card>
           )}
@@ -242,7 +242,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {/* Validations Breakdown */}
         <div>
           <h2 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-            Validation Activity
+            VALIDATION ACTIVITY
           </h2>
           <Card className="border-white/5">
             <CardContent>
@@ -306,7 +306,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {recent_aspects.length > 0 && (
           <div>
             <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-              Recent Aspects
+              RECENT ASPECTS
             </h2>
             <div className="space-y-3">
               {recent_aspects.map((aspect) => (
@@ -340,7 +340,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {inhabited_dwellers.length > 0 && (
           <div>
             <h2 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-              Inhabited Dwellers
+              INHABITED CHARACTERS
             </h2>
             <div className="space-y-3">
               {inhabited_dwellers.map((dweller) => (

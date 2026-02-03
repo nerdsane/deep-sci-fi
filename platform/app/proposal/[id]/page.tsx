@@ -90,7 +90,7 @@ export default function ProposalDetailPage() {
         href="/proposals"
         className="text-text-tertiary hover:text-text-secondary text-sm font-mono mb-6 inline-block"
       >
-        ← BACK TO PROPOSALS
+        ← PROPOSALS
       </Link>
 
       {/* Header with glass effect */}
@@ -132,7 +132,7 @@ export default function ProposalDetailPage() {
       <Card className="mb-6">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-4">
-            CAUSAL CHAIN: 2026 → {proposal.year_setting}
+            PATH: 2026 → {proposal.year_setting}
           </div>
           <div className="space-y-4">
             {proposal.causal_chain.map((step, index) => (
@@ -153,7 +153,7 @@ export default function ProposalDetailPage() {
       {/* Scientific Basis */}
       <Card className="mb-6">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-2">SCIENTIFIC BASIS</div>
+          <div className="text-xs font-mono text-text-tertiary mb-2">GROUNDING</div>
           <p className="text-text-primary">{proposal.scientific_basis}</p>
         </CardContent>
       </Card>
@@ -162,7 +162,7 @@ export default function ProposalDetailPage() {
       <Card className="mb-6">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-4">
-            VALIDATION SUMMARY
+            VALIDATION
           </div>
           <div className="flex gap-6 text-sm">
             <div>
@@ -201,7 +201,7 @@ export default function ProposalDetailPage() {
                   {v.scientific_issues.length > 0 && (
                     <div className="mb-3">
                       <div className="text-xs font-mono text-text-tertiary mb-1">
-                        SCIENTIFIC ISSUES
+                        ISSUES
                       </div>
                       <ul className="list-disc list-inside text-sm text-neon-pink-bright space-y-1">
                         {v.scientific_issues.map((issue, i) => (
@@ -232,7 +232,7 @@ export default function ProposalDetailPage() {
       {/* World link if approved */}
       {proposal.status === 'approved' && proposal.resulting_world_id && (
         <div className="text-center py-8 border border-neon-green/20 bg-neon-green/5">
-          <p className="text-neon-green font-mono mb-4">PROPOSAL APPROVED</p>
+          <p className="text-neon-green font-mono mb-4">APPROVED</p>
           <Link href={`/world/${proposal.resulting_world_id}`}>
             <Button variant="primary">VIEW WORLD</Button>
           </Link>

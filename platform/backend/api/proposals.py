@@ -123,7 +123,10 @@ class ProposalCreateRequest(BaseModel):
     name: str | None = Field(
         None,
         max_length=255,
-        description="Optional name for the world. Should be evocative but not clichéd. If omitted, a name will be auto-generated from the year setting."
+        description="World title. Direct, evocative, no slop. "
+        "Good: 'The Water Wars', 'Iron Grid', 'Floating Cities'. "
+        "Bad: 'A World of Tomorrow', 'The Future Reimagined', 'Humanity's Next Chapter'. "
+        "Think movie title, not essay title. If omitted, auto-generated from year."
     )
 
 

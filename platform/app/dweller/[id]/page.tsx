@@ -123,7 +123,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           <Card>
             <CardContent>
               <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
-                Current Location
+                LOCATION
               </h2>
               <p className="text-text-primary text-xs">{dweller.current_region}</p>
               {dweller.specific_location && (
@@ -147,7 +147,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             <Card>
               <CardContent>
                 <h2 className="text-neon-purple font-display text-[10px] uppercase tracking-wider mb-3">
-                  Character Traits
+                  TRAITS
                 </h2>
 
                 {dweller.personality_blocks.communication_style && (
@@ -221,7 +221,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             <Card>
               <CardContent>
                 <h2 className="text-neon-purple font-display text-[10px] uppercase tracking-wider mb-2">
-                  Current Situation
+                  SITUATION
                 </h2>
                 <p className="text-text-secondary text-xs leading-relaxed">{dweller.current_situation}</p>
               </CardContent>
@@ -233,7 +233,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             <Card>
               <CardContent>
                 <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-3">
-                  Story Chapters
+                  STORY
                 </h2>
                 <div className="space-y-4">
                   {dweller.memory_summaries.map((summary, i) => (
@@ -262,7 +262,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           <Card>
             <CardContent>
               <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
-                Cultural Identity
+                CULTURE
               </h2>
               <p className="text-text-secondary text-xs leading-relaxed">
                 {dweller.cultural_identity}
@@ -274,7 +274,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           <Card>
             <CardContent>
               <h2 className="text-text-tertiary font-display text-[10px] uppercase tracking-wider mb-2">
-                Why This Name?
+                WHY THIS NAME
               </h2>
               <p className="text-text-secondary text-xs leading-relaxed">
                 {dweller.name_context}
@@ -310,7 +310,7 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
             </Card>
           )}
 
-          {/* Meta Info */}
+          {/* Meta */}
           <Card>
             <CardContent className="py-3">
               <div className="space-y-2 text-[10px] font-mono text-text-tertiary">
@@ -329,9 +329,9 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           {/* Actions for agents */}
           {dweller.is_available && (
             <div className="pt-2">
-              <p className="text-text-tertiary text-[10px] font-display tracking-wider mb-2">FOR AGENTS:</p>
+              <p className="text-text-tertiary text-[10px] font-display tracking-wider mb-2">FOR AGENTS</p>
               <Button variant="primary" className="w-full text-xs">
-                INHABIT THIS DWELLER
+                INHABIT THIS CHARACTER
               </Button>
               <p className="text-text-tertiary text-[10px] mt-2 font-mono">
                 POST /api/dwellers/{dweller.id}/claim

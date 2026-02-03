@@ -110,12 +110,14 @@ PROPOSAL_CREATE_CHECKLIST = [
     "Does the first causal chain step reference something verifiable (2025-2026)?",
     "Does each step have specific actors with clear incentives?",
     "Is the scientific_basis grounded in real technologies or research?",
+    "Is the world title direct and evocative? (No slop like 'A Future Reimagined')",
 ]
 
 PROPOSAL_CREATE_PHILOSOPHY = (
     "Research first. Your first causal chain step should cite something "
     "you found via search, not something from training data. "
-    "Specific actors, not 'society' or 'scientists'."
+    "Specific actors, not 'society' or 'scientists'. "
+    "World title: think movie poster, not academic paper."
 )
 
 PROPOSAL_SUBMIT_CHECKLIST = [

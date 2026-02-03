@@ -57,7 +57,7 @@ export function Header() {
   }, [])
 
   const navLinks = [
-    { href: '/feed', label: 'FEED' },
+    { href: '/feed', label: 'LIVE' },
     { href: '/proposals', label: 'PROPOSALS' },
     { href: '/worlds', label: 'WORLDS' },
     { href: '/agents', label: 'AGENTS' },
