@@ -205,15 +205,39 @@ async def add_region(
     world = await db.get(World, world_id)
 
     if not world:
-        raise HTTPException(status_code=404, detail="World not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
+            }
+        )
 
     if world.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the world creator can add regions")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Only the world creator can add regions",
+                "world_id": str(world_id),
+                "world_creator_id": str(world.created_by),
+                "your_id": str(current_user.id),
+                "how_to_fix": "You must be the creator of this world to add regions. Create your own world via POST /api/proposals.",
+            }
+        )
 
     # Check for duplicate region name
     existing_names = [r["name"].lower() for r in world.regions]
     if request.name.lower() in existing_names:
-        raise HTTPException(status_code=400, detail=f"Region '{request.name}' already exists")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": f"Region '{request.name}' already exists",
+                "world_id": str(world_id),
+                "existing_regions": [r["name"] for r in world.regions],
+                "how_to_fix": "Choose a different name for your region, or use the existing region.",
+            }
+        )
 
     # Add region
     new_region = {
@@ -247,7 +271,14 @@ async def list_regions(
     world = await db.get(World, world_id)
 
     if not world:
-        raise HTTPException(status_code=404, detail="World not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
+            }
+        )
 
     return {
         "world_id": str(world_id),
@@ -281,12 +312,28 @@ async def create_dweller(
     world = await db.get(World, world_id)
 
     if not world:
-        raise HTTPException(status_code=404, detail="World not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
+            }
+        )
 
     # For now, only world creator can add dwellers
     # Later: open to high-rep agents
     if world.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the world creator can add dwellers")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Only the world creator can add dwellers",
+                "world_id": str(world_id),
+                "world_creator_id": str(world.created_by),
+                "your_id": str(current_user.id),
+                "how_to_fix": "You must be the creator of this world to add dwellers. Create your own world via POST /api/proposals, or claim an existing dweller in this world.",
+            }
+        )
 
     # Validate origin_region exists
     region_names = [r["name"].lower() for r in world.regions]
@@ -375,7 +422,14 @@ async def list_dwellers(
     world = await db.get(World, world_id)
 
     if not world:
-        raise HTTPException(status_code=404, detail="World not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
+            }
+        )
 
     query = select(Dweller).where(Dweller.world_id == world_id)
 
@@ -423,7 +477,14 @@ async def get_dweller(
     dweller = result.scalar_one_or_none()
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
+            }
+        )
 
     return {
         "dweller": {
@@ -475,7 +536,14 @@ async def claim_dweller(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
+            }
+        )
 
     if not dweller.is_available:
         raise HTTPException(
@@ -535,12 +603,25 @@ async def release_dweller(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "is_available": dweller.is_available,
+                "how_to_fix": "You can only release dwellers you are currently inhabiting. Check your claimed dwellers or claim this one first.",
+            }
         )
 
     # Release
@@ -577,7 +658,14 @@ async def get_dweller_state(
     dweller = result.scalar_one_or_none()
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
@@ -587,7 +675,7 @@ async def get_dweller_state(
                 "dweller_id": str(dweller_id),
                 "dweller_name": dweller.name,
                 "is_available": dweller.is_available,
-                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller.",
+                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller with GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true",
             }
         )
 
@@ -724,12 +812,25 @@ async def take_action(
     dweller = result.scalar_one_or_none()
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "is_available": dweller.is_available,
+                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller with GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true",
+            }
         )
 
     # Validate and handle MOVE actions
@@ -907,7 +1008,14 @@ async def get_world_activity(
     world = await db.get(World, world_id)
 
     if not world:
-        raise HTTPException(status_code=404, detail="World not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "World not found",
+                "world_id": str(world_id),
+                "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
+            }
+        )
 
     # Get recent actions from dwellers in this world
     query = (
@@ -969,12 +1077,24 @@ async def get_full_memory(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only access memory for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     episodes = []
@@ -1033,12 +1153,24 @@ async def update_core_memories(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only update memory for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     # Update core memories
@@ -1080,12 +1212,24 @@ async def update_relationship(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only update relationships for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     rel_memories = dweller.relationship_memories or {}
@@ -1140,12 +1284,24 @@ async def update_situation(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only update the situation for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     dweller.current_situation = request.situation
@@ -1200,12 +1356,24 @@ async def create_summary(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only create summaries for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     from datetime import datetime
@@ -1251,7 +1419,14 @@ async def update_personality(
     dweller = result.scalar_one_or_none()
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     # Allow world creator OR inhabiting agent to update
     is_creator = dweller.world.created_by == current_user.id
@@ -1260,7 +1435,14 @@ async def update_personality(
     if not is_creator and not is_inhabitant:
         raise HTTPException(
             status_code=403,
-            detail="Only the world creator or inhabiting agent can update personality"
+            detail={
+                "error": "Only the world creator or inhabiting agent can update personality",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "world_creator_id": str(dweller.world.created_by),
+                "inhabited_by": str(dweller.inhabited_by) if dweller.inhabited_by else None,
+                "how_to_fix": "You must either be the world creator or be inhabiting this dweller to update personality. Claim the dweller with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     # Merge updates into existing personality blocks
@@ -1308,12 +1490,24 @@ async def search_memory(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You are not inhabiting this dweller"
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
+                "how_to_fix": "You can only search memories for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+            }
         )
 
     # Simple text search through episodic memories
@@ -1379,7 +1573,14 @@ async def get_pending_events(
     dweller = await db.get(Dweller, dweller_id)
 
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "dweller_id": str(dweller_id),
+                "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+            }
+        )
 
     if dweller.inhabited_by != current_user.id:
         raise HTTPException(
@@ -1387,8 +1588,9 @@ async def get_pending_events(
             detail={
                 "error": "You are not inhabiting this dweller",
                 "dweller_id": str(dweller_id),
+                "dweller_name": dweller.name,
                 "is_available": dweller.is_available,
-                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+                "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller with GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true",
             }
         )
 

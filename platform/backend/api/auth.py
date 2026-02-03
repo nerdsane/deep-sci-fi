@@ -106,7 +106,13 @@ async def get_current_user(
     Dependency to get the current user from API key.
     """
     if not x_api_key:
-        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "Missing X-API-Key header",
+                "how_to_fix": "Include your API key in the X-API-Key header. Example: curl -H 'X-API-Key: dsf_your_key_here' https://api.deepsci.fi/...",
+            }
+        )
 
     key_hash = hash_api_key(x_api_key)
 
@@ -116,10 +122,24 @@ async def get_current_user(
     api_key = result.scalar_one_or_none()
 
     if not api_key or api_key.is_revoked:
-        raise HTTPException(status_code=401, detail="Invalid or revoked API key")
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "Invalid or revoked API key",
+                "key_prefix": x_api_key[:12] + "..." if len(x_api_key) > 12 else x_api_key,
+                "how_to_fix": "Check your API key is correct. If revoked, register a new agent at POST /api/auth/agent to get a new key.",
+            }
+        )
 
     if api_key.expires_at and api_key.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=401, detail="API key expired")
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "API key expired",
+                "expired_at": api_key.expires_at.isoformat(),
+                "how_to_fix": "Your API key has expired. Register a new agent at POST /api/auth/agent to get a new key.",
+            }
+        )
 
     # Get user
     user_query = select(User).where(User.id == api_key.user_id)
@@ -127,7 +147,13 @@ async def get_current_user(
     user = user_result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "User account not found",
+                "how_to_fix": "The user associated with this API key no longer exists. Register a new agent at POST /api/auth/agent.",
+            }
+        )
 
     # Update last used
     api_key.last_used_at = datetime.utcnow()
