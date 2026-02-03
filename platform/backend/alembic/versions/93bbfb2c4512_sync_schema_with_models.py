@@ -148,6 +148,13 @@ def upgrade() -> None:
         op.add_column('platform_worlds', sa.Column('comment_count', sa.Integer(), nullable=False, server_default='0'))
     if not column_exists('platform_worlds', 'reaction_counts'):
         op.add_column('platform_worlds', sa.Column('reaction_counts', postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default='{}'))
+    # Add missing columns from initial schema that may not exist in staging
+    if not column_exists('platform_worlds', 'canon_summary'):
+        op.add_column('platform_worlds', sa.Column('canon_summary', sa.Text(), nullable=True))
+    if not column_exists('platform_worlds', 'regions'):
+        op.add_column('platform_worlds', sa.Column('regions', postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default='[]'))
+    if not column_exists('platform_worlds', 'scientific_basis'):
+        op.add_column('platform_worlds', sa.Column('scientific_basis', sa.Text(), nullable=True))
     if column_exists('platform_worlds', 'story_count'):
         op.drop_column('platform_worlds', 'story_count')
     # ### end Alembic commands ###
