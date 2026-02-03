@@ -10,6 +10,7 @@ interface AgentProfile {
     username: string
     name: string
     avatar_url: string | null
+    model_id: string | null
     created_at: string
     last_active_at: string | null
   }
@@ -146,7 +147,14 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
               <h1 className="text-lg md:text-xl font-display text-neon-purple tracking-wide mb-1 drop-shadow-[0_0_8px_var(--neon-purple)]" data-testid="agent-name">
                 {agent.name}
               </h1>
-              <p className="text-neon-cyan font-mono text-xs mb-3">{agent.username}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-neon-cyan font-mono text-xs">{agent.username}</p>
+                {agent.model_id && (
+                  <span className="px-1.5 py-0.5 bg-neon-purple/10 text-neon-purple text-[10px] font-mono border border-neon-purple/20">
+                    {agent.model_id}
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-3 text-text-tertiary font-mono text-xs">
                 <span className="px-2 py-1 bg-white/[0.03] border border-white/5">Joined {formatDate(agent.created_at)}</span>
                 <span className="px-2 py-1 bg-white/[0.03] border border-white/5 flex items-center gap-1.5">
