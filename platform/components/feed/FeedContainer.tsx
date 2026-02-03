@@ -137,10 +137,63 @@ function ActivityIcon({ type }: { type: string }) {
   return <span className="text-text-tertiary">{icons[type] || icons.proposal_submitted}</span>
 }
 
+// Get the primary link URL for a feed item
+function getFeedItemLink(item: FeedItem): string | null {
+  switch (item.type) {
+    case 'world_created':
+      return item.world ? `/world/${item.world.id}` : null
+    case 'proposal_submitted':
+    case 'proposal_validated':
+      return item.proposal ? `/proposal/${item.proposal.id}` : null
+    case 'aspect_proposed':
+    case 'aspect_approved':
+      // Link to world's aspects tab
+      return item.world ? `/world/${item.world.id}?tab=aspects` : null
+    case 'dweller_created':
+    case 'dweller_action':
+      return item.dweller ? `/dweller/${item.dweller.id}` : null
+    case 'agent_registered':
+      return item.agent ? `/agent/${item.agent.id}` : null
+    default:
+      return null
+  }
+}
+
+// Dweller link
+function DwellerLink({ dweller }: { dweller: { id: string; name: string } }) {
+  return (
+    <Link
+      href={`/dweller/${dweller.id}`}
+      className="text-text-primary hover:text-neon-cyan transition-colors"
+    >
+      {dweller.name}
+    </Link>
+  )
+}
+
 // Individual feed item card
 function FeedItemCard({ item }: { item: FeedItem }) {
+  const link = getFeedItemLink(item)
+
+  const CardWrapper = ({ children }: { children: React.ReactNode }) => {
+    if (link) {
+      return (
+        <Link href={link} className="block">
+          <div className="glass hover:border-neon-cyan/30 transition-all hover:shadow-lg hover:shadow-neon-cyan/5 cursor-pointer">
+            {children}
+          </div>
+        </Link>
+      )
+    }
+    return (
+      <div className="glass hover:border-white/10 transition-all">
+        {children}
+      </div>
+    )
+  }
+
   return (
-    <div className="glass hover:border-white/10 transition-all hover:shadow-lg hover:shadow-neon-cyan/5">
+    <CardWrapper>
       <div className="p-4">
         {/* Header: icon + type + time */}
         <div className="flex items-center gap-2 mb-3">
@@ -160,7 +213,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-xs text-text-primary mb-1">
-                  <WorldLink world={item.world} />
+                  {item.world.name}
                 </h3>
                 <p className="text-text-secondary text-xs line-clamp-2">{item.world.premise}</p>
               </div>
@@ -170,7 +223,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.agent && (
               <div className="mt-3 text-xs text-text-tertiary">
-                Created by <AgentLink agent={item.agent} />
+                Created by <span className="text-neon-cyan">{item.agent.username}</span>
               </div>
             )}
             <div className="mt-2 flex gap-4 text-xs font-mono text-text-tertiary">
@@ -185,9 +238,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-text-primary mb-1">
-                  <Link href={`/proposal/${item.proposal.id}`} className="hover:text-neon-cyan transition-colors">
-                    {item.proposal.name || 'Unnamed Proposal'}
-                  </Link>
+                  {item.proposal.name || 'Unnamed Proposal'}
                 </h3>
                 <p className="text-text-secondary text-xs line-clamp-2">{item.proposal.premise}</p>
               </div>
@@ -198,7 +249,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.agent && (
               <div className="mt-3 text-xs text-text-tertiary">
-                Proposed by <AgentLink agent={item.agent} />
+                Proposed by <span className="text-neon-cyan">{item.agent.username}</span>
               </div>
             )}
           </div>
@@ -210,16 +261,14 @@ function FeedItemCard({ item }: { item: FeedItem }) {
               <VerdictBadge verdict={item.validation.verdict} />
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-text-primary mb-1">
-                  <Link href={`/proposal/${item.proposal.id}`} className="hover:text-neon-cyan transition-colors">
-                    {item.proposal.name || 'Unnamed Proposal'}
-                  </Link>
+                  {item.proposal.name || 'Unnamed Proposal'}
                 </div>
                 <p className="text-text-secondary text-xs line-clamp-2">"{item.validation.critique}"</p>
               </div>
             </div>
             <div className="mt-3 text-xs text-text-tertiary">
-              {item.agent && <><AgentLink agent={item.agent} /> validated</>}
-              {item.proposer && <> proposal by <AgentLink agent={item.proposer} /></>}
+              {item.agent && <><span className="text-neon-cyan">{item.agent.username}</span> validated</>}
+              {item.proposer && <> proposal by <span className="text-neon-cyan">{item.proposer.username}</span></>}
             </div>
           </div>
         )}
@@ -237,8 +286,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.world && (
               <div className="mt-3 text-xs text-text-tertiary">
-                For world <WorldLink world={item.world} />
-                {item.agent && <> by <AgentLink agent={item.agent} /></>}
+                For world <span className="text-text-primary">{item.world.name}</span>
+                {item.agent && <> by <span className="text-neon-cyan">{item.agent.username}</span></>}
               </div>
             )}
           </div>
@@ -267,8 +316,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.world && (
               <div className="mt-3 text-xs text-text-tertiary">
-                In <WorldLink world={item.world} />
-                {item.agent && <> created by <AgentLink agent={item.agent} /></>}
+                In <span className="text-text-primary">{item.world.name}</span>
+                {item.agent && <> created by <span className="text-neon-cyan">{item.agent.username}</span></>}
               </div>
             )}
           </div>
@@ -299,7 +348,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.world && (
               <div className="mt-2 text-xs text-text-tertiary">
-                In <WorldLink world={item.world} />
+                In <span className="text-text-primary">{item.world.name}</span>
               </div>
             )}
           </div>
@@ -320,7 +369,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           </div>
         )}
       </div>
-    </div>
+    </CardWrapper>
   )
 }
 

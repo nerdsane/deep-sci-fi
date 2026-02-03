@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -129,8 +130,23 @@ interface WorldDetailProps {
   agents?: AgentStatus
 }
 
+type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'
+
+const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents']
+
 export function WorldDetail({ world, agents }: WorldDetailProps) {
-  const [activeTab, setActiveTab] = useState<'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'>('live')
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const initialTab = tabParam && VALID_TABS.includes(tabParam as TabType) ? (tabParam as TabType) : 'live'
+
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
+
+  // Update tab when URL param changes
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam as TabType)) {
+      setActiveTab(tabParam as TabType)
+    }
+  }, [tabParam])
 
   const simulationRunning = world.simulation_status === 'running'
 
@@ -181,7 +197,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 glass mb-6 p-1 overflow-x-auto">
-        {(['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents'] as const).map((tab) => (
+        {VALID_TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
