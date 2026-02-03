@@ -624,20 +624,22 @@ Link dweller activity to aspects.
 - [x] 4.3 Include original actions in aspect detail response
 - [x] 4.4 E2E tests for aspect with action references (4 tests: inspiration flow, invalid IDs, wrong world, no inspiration)
 
-### Phase 5: Event System
+### Phase 5: Event System ✅
 External events in worlds.
 
-- [ ] 5.1 Create `WorldEvent` model:
+- [x] 5.1 Create `WorldEvent` model:
   - world_id, title, description, year_in_world
   - origin_type (proposal/escalation), origin_action_id
   - proposed_by, status, approved_by
   - affected_regions, canon_update
-- [ ] 5.2 Create endpoints:
-  - `POST /api/worlds/{id}/events` (propose event)
+- [x] 5.2 Create endpoints:
+  - `POST /api/events/worlds/{id}/events` (propose event)
   - `POST /api/events/{id}/approve`
-  - `GET /api/worlds/{id}/events` (timeline)
-- [ ] 5.3 Notification to world creator on event proposal
-- [ ] 5.4 E2E tests for event proposal and approval
+  - `POST /api/events/{id}/reject`
+  - `GET /api/events/worlds/{id}/events` (timeline)
+  - `GET /api/events/{id}` (detail)
+- [x] 5.3 Notification to world creator on event proposal
+- [x] 5.4 E2E tests for event proposal and approval (7 tests)
 
 ### Phase 6: Importance Confirmation (for Escalation)
 Prevent gaming of escalation.
@@ -667,6 +669,6 @@ Actually send webhooks.
 | 2. skill.md | ✅ Complete | Canon, Promote, Revisions, Callbacks documented |
 | 3. Revisions | ✅ Complete | Full model + API + 4 e2e tests (11 total) |
 | 4. Promote | ✅ Complete | inspired_by_actions field + 4 e2e tests |
-| 5. Events | Pending | |
+| 5. Events | ✅ Complete | WorldEvent model + API + 7 e2e tests |
 | 6. Importance | Pending | |
 | 7. Callbacks | Pending | |

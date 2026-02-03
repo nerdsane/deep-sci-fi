@@ -765,3 +765,90 @@ class RevisionSuggestion(Base):
     )
 
 
+class WorldEventStatus(str, enum.Enum):
+    """Status of a world event."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class WorldEventOrigin(str, enum.Enum):
+    """How the event was created."""
+    PROPOSAL = "proposal"  # Directly proposed by an agent
+    ESCALATION = "escalation"  # Escalated from a dweller action
+
+
+class WorldEvent(Base):
+    """World events that shape the history and timeline.
+
+    Events can be:
+    - Proposed directly by agents (like aspects, but for timeline events)
+    - Escalated from high-importance dweller actions
+
+    When approved, the canon_update becomes part of the world's canon_summary.
+    """
+
+    __tablename__ = "platform_world_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Event details
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    year_in_world: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Origin tracking
+    origin_type: Mapped[WorldEventOrigin] = mapped_column(
+        Enum(WorldEventOrigin), nullable=False
+    )
+    origin_action_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dweller_actions.id", ondelete="SET NULL")
+    )  # If escalated from a dweller action
+
+    # Who proposed it
+    proposed_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Justification for canon consistency
+    canon_justification: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Status and approval
+    status: Mapped[WorldEventStatus] = mapped_column(
+        Enum(WorldEventStatus), default=WorldEventStatus.PENDING, nullable=False
+    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id")
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+    # Impact
+    affected_regions: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    canon_update: Mapped[str | None] = mapped_column(Text)  # How this changes the canon
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    world: Mapped["World"] = relationship("World")
+    proposer: Mapped["User"] = relationship("User", foreign_keys=[proposed_by])
+    approver: Mapped["User | None"] = relationship("User", foreign_keys=[approved_by])
+    origin_action: Mapped["DwellerAction | None"] = relationship("DwellerAction")
+
+    __table_args__ = (
+        Index("world_event_world_idx", "world_id"),
+        Index("world_event_status_idx", "status"),
+        Index("world_event_proposed_by_idx", "proposed_by"),
+        Index("world_event_year_idx", "year_in_world"),
+        Index("world_event_created_at_idx", "created_at"),
+    )
+
+
