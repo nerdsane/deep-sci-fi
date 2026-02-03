@@ -1099,3 +1099,293 @@ async def test_suggestion_creates_notification(client: AsyncClient, db_session: 
     notif = notifications[0]
     assert notif.data["field"] == "premise"
     assert notif.data["suggested_by"] == "Notifying Suggester"
+
+
+@pytest.mark.asyncio
+async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSession):
+    """Test revision suggestions on aspects (not just proposals)."""
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Aspect Sugg Owner", "username": "aspect-sugg-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Aspect Suggester", "username": "aspect-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Create world via proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Aspect Suggestion Test World",
+            "premise": "A world for testing aspect revision suggestions work correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+    validate_response = await client.post(
+        f"/api/proposals/{proposal_id}/validate?test_mode=true",
+        headers={"X-API-Key": agent1_key},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "scientific_issues": [], "suggested_fixes": []},
+    )
+    world_id = validate_response.json()["world_created"]["id"]
+
+    # Create an aspect
+    aspect_response = await client.post(
+        f"/api/aspects/worlds/{world_id}/aspects",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "aspect_type": "technology",
+            "title": "Aspect Suggestion Test Tech",
+            "premise": "A technology for testing aspect suggestions.",
+            "content": {"name": "Test Tech", "description": "Test technology description."},
+            "canon_justification": "This technology fits the world's scientific basis and timeline perfectly.",
+        },
+    )
+    assert aspect_response.status_code == 200
+    aspect_id = aspect_response.json()["aspect"]["id"]
+
+    # Submit aspect
+    await client.post(f"/api/aspects/{aspect_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Agent 2 suggests a revision to the aspect
+    suggest_response = await client.post(
+        f"/api/suggestions/aspects/{aspect_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "An improved premise for this technology that is more descriptive.",
+            "rationale": "The original premise was too vague for this aspect.",
+        },
+    )
+    assert suggest_response.status_code == 200
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+    assert suggest_response.json()["suggestion"]["target_type"] == "aspect"
+
+    # List suggestions on aspect
+    list_response = await client.get(
+        f"/api/suggestions/aspects/{aspect_id}/suggestions",
+        headers={"X-API-Key": agent1_key},
+    )
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 1
+
+    # Owner accepts
+    accept_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent1_key},
+        json={"reason": "Good improvement to the aspect premise."},
+    )
+    assert accept_response.status_code == 200
+    assert accept_response.json()["status"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_upvote_and_withdraw(client: AsyncClient, db_session: AsyncSession):
+    """Test upvoting suggestions and withdrawing own suggestions."""
+    # Create three agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Upvote Owner", "username": "upvote-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Upvote Suggester", "username": "upvote-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    agent3_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Upvote Voter", "username": "upvote-voter"},
+    )
+    agent3_key = agent3_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Upvote Test Proposal",
+            "premise": "A world for testing upvote and withdraw functionality works.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Agent 2 suggests revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Upvote test suggested value",
+            "rationale": "Testing upvote functionality works correctly.",
+        },
+    )
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+
+    # Agent 3 upvotes
+    upvote_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/upvote",
+        headers={"X-API-Key": agent3_key},
+    )
+    assert upvote_response.status_code == 200
+    assert upvote_response.json()["upvotes_count"] == 1
+
+    # Agent 3 cannot upvote again
+    double_upvote = await client.post(
+        f"/api/suggestions/{suggestion_id}/upvote",
+        headers={"X-API-Key": agent3_key},
+    )
+    assert double_upvote.status_code == 400
+    assert "already upvoted" in double_upvote.json()["detail"]
+
+    # Agent 2 cannot upvote own suggestion
+    self_upvote = await client.post(
+        f"/api/suggestions/{suggestion_id}/upvote",
+        headers={"X-API-Key": agent2_key},
+    )
+    assert self_upvote.status_code == 400
+    assert "Cannot upvote your own" in self_upvote.json()["detail"]
+
+    # Agent 2 withdraws their suggestion
+    withdraw_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/withdraw",
+        headers={"X-API-Key": agent2_key},
+    )
+    assert withdraw_response.status_code == 200
+    assert withdraw_response.json()["status"] == "withdrawn"
+
+    # Cannot upvote withdrawn suggestion
+    upvote_withdrawn = await client.post(
+        f"/api/suggestions/{suggestion_id}/upvote",
+        headers={"X-API-Key": agent1_key},
+    )
+    assert upvote_withdrawn.status_code == 400
+    assert "withdrawn" in upvote_withdrawn.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_community_override_after_timeout(client: AsyncClient, db_session: AsyncSession):
+    """Test that community can override with enough upvotes after owner timeout."""
+    from db import RevisionSuggestion
+    from datetime import datetime, timedelta, timezone
+
+    # Create four agents (owner, suggester, 3 voters for override)
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Override Owner", "username": "override-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Override Suggester", "username": "override-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    voters = []
+    for i in range(3):
+        voter_response = await client.post(
+            "/api/auth/agent",
+            json={"name": f"Voter {i+1}", "username": f"voter-{i+1}-override"},
+        )
+        voters.append(voter_response.json()["api_key"]["key"])
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Override Test Proposal",
+            "premise": "A world for testing community override functionality works correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Agent 2 suggests revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Community override test - improved premise value here.",
+            "rationale": "Testing community override after timeout works.",
+        },
+    )
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+
+    # Non-owner cannot accept before timeout (even with upvotes)
+    accept_before = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent2_key},
+        json={"reason": "Trying to accept before timeout"},
+    )
+    assert accept_before.status_code == 403
+    assert "Only the owner can accept before the deadline" in accept_before.json()["detail"]
+
+    # Simulate timeout by directly updating the database
+    suggestion = await db_session.get(RevisionSuggestion, suggestion_id)
+    suggestion.owner_response_deadline = datetime.now(timezone.utc) - timedelta(hours=1)
+    suggestion.validator_can_accept_after = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.commit()
+
+    # Non-owner still cannot accept without enough upvotes
+    accept_no_upvotes = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent2_key},
+        json={"reason": "Trying to accept after timeout but no upvotes"},
+    )
+    assert accept_no_upvotes.status_code == 403
+    assert "Need 3 upvotes" in accept_no_upvotes.json()["detail"]
+
+    # Add 3 upvotes
+    for voter_key in voters:
+        upvote_resp = await client.post(
+            f"/api/suggestions/{suggestion_id}/upvote",
+            headers={"X-API-Key": voter_key},
+        )
+        assert upvote_resp.status_code == 200
+
+    # Now non-owner CAN accept (community override)
+    accept_override = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent2_key},
+        json={"reason": "Community override - accepted with 3 upvotes after timeout"},
+    )
+    assert accept_override.status_code == 200
+    assert accept_override.json()["status"] == "accepted"
+    assert accept_override.json()["accepted_by"] == "community"
+
+    # Verify the proposal was updated
+    proposal_detail = await client.get(f"/api/proposals/{proposal_id}")
+    assert "Community override test" in proposal_detail.json()["proposal"]["premise"]

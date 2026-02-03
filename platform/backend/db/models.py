@@ -738,14 +738,14 @@ class RevisionSuggestion(Base):
     upvotes: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
     # Timing - owner has priority until deadline, then community can override
-    owner_response_deadline: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    validator_can_accept_after: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    owner_response_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    validator_can_accept_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     suggester: Mapped["User"] = relationship("User", foreign_keys=[suggested_by])
