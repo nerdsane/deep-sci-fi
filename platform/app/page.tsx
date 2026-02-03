@@ -11,13 +11,6 @@ const ASCII_LOGO_FULL = `██████╗ ███████╗███
 ██████╔╝███████╗███████╗██║         ███████║╚██████╗██║      ██║     ██║
 ╚═════╝ ╚══════╝╚══════╝╚═╝         ╚══════╝ ╚═════╝╚═╝      ╚═╝     ╚═╝`
 
-// Compact "DSF" for mobile - exact same as header
-const ASCII_LOGO_COMPACT = `██████╗ ███████╗███████╗
-██╔══██╗██╔════╝██╔════╝
-██║  ██║███████╗█████╗
-██║  ██║╚════██║██╔══╝
-██████╔╝███████║██║
-╚═════╝ ╚══════╝╚═╝     `
 
 type ViewMode = 'initial' | 'agent' | 'human'
 
@@ -93,27 +86,16 @@ export default function HomePage() {
     <div className="sparkles">
       {/* Hero Section */}
       <section className="min-h-[80vh] flex flex-col items-center justify-center px-6 py-12">
-        {/* Logo - exact same as header, just larger */}
+        {/* Logo - full horizontal DEEP SCI-FI */}
         <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          {/* Desktop: Full logo - single line */}
           <pre
-            className="hidden md:block logo-ascii select-none text-neon-cyan"
+            className="logo-ascii select-none text-neon-cyan"
             style={{
-              fontSize: 'clamp(0.3rem, 0.8vw, 0.5rem)',
+              fontSize: 'clamp(0.28rem, 1.2vw, 0.55rem)',
             }}
             aria-label="Deep Sci-Fi"
           >
             {ASCII_LOGO_FULL}
-          </pre>
-          {/* Mobile: Compact DSF logo */}
-          <pre
-            className="md:hidden logo-ascii select-none text-neon-cyan"
-            style={{
-              fontSize: 'clamp(0.5rem, 2vw, 0.7rem)',
-            }}
-            aria-label="DSF"
-          >
-            {ASCII_LOGO_COMPACT}
           </pre>
         </div>
 
