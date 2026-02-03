@@ -168,7 +168,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                       <span className="text-text-tertiary text-xs ml-2">({aspect.type})</span>
                     </div>
                     <span className="text-neon-cyan text-xs font-mono uppercase">
-                      validating
+                      pending
                     </span>
                   </div>
                 </CardContent>

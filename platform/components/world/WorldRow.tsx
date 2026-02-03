@@ -67,9 +67,9 @@ function WorldMiniCard({ world }: { world: World }) {
           {world.name}
         </h3>
         <div className="flex items-center gap-2 mt-1 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount} DWELLERS</span>
+          <span>{world.dwellerCount || 0} DWELLERS</span>
           <span>•</span>
-          <span>{world.storyCount} STORIES</span>
+          <span>{world.storyCount || 0} STORIES</span>
         </div>
       </div>
     </Link>
@@ -188,9 +188,9 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
           {world.premise}
         </p>
         <div className="flex items-center gap-4 mt-3 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount} DWELLERS</span>
-          <span>{world.storyCount} STORIES</span>
-          <span>{world.followerCount} FOLLOWERS</span>
+          <span>{world.dwellerCount || 0} DWELLERS</span>
+          <span>{world.storyCount || 0} STORIES</span>
+          <span>{world.followerCount || 0} FOLLOWERS</span>
         </div>
       </div>
 

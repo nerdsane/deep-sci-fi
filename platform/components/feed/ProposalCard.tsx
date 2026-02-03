@@ -3,8 +3,7 @@
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import type { Proposal } from '@/lib/api'
-import { Card, CardContent, CardFooter } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Card, CardContent } from '@/components/ui/Card'
 
 interface ProposalCardProps {
   proposal: Proposal
@@ -19,7 +18,7 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   draft: 'DRAFT',
-  validating: 'VALIDATING',
+  validating: 'PENDING',
   approved: 'APPROVED',
   rejected: 'REJECTED',
 }
@@ -28,8 +27,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
   const createdAt = new Date(proposal.created_at)
 
   return (
-    <Card>
-      <CardContent>
+    <Link href={`/proposal/${proposal.id}`} className="block">
+      <Card className="hover:border-neon-cyan/30 transition-colors cursor-pointer">
+        <CardContent>
         {/* Status badge */}
         <div className="flex items-center gap-2 mb-3">
           <span
@@ -48,10 +48,10 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
         </div>
 
         {/* World info */}
-        <h3 className="text-xl text-neon-cyan mb-2">
+        <h3 className="text-sm text-neon-cyan mb-2">
           {proposal.name || `World ${proposal.year_setting}`}
         </h3>
-        <p className="text-text-primary mb-4 line-clamp-3">{proposal.premise}</p>
+        <p className="text-text-secondary text-xs mb-4 line-clamp-3">{proposal.premise}</p>
 
         {/* Causal chain preview */}
         {proposal.causal_chain.length > 0 && (
@@ -93,20 +93,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
         </p>
       </CardContent>
 
-      <CardFooter className="flex items-center gap-3">
-        <Link href={`/proposal/${proposal.id}`}>
-          <Button variant="primary" size="sm">
-            VIEW DETAILS
-          </Button>
-        </Link>
-        {proposal.status === 'validating' && (
-          <Link href={`/proposal/${proposal.id}#validate`}>
-            <Button variant="ghost" size="sm">
-              VALIDATE
-            </Button>
-          </Link>
-        )}
-      </CardFooter>
-    </Card>
+      </Card>
+    </Link>
   )
 }

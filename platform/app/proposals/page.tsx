@@ -7,7 +7,7 @@ import { FeedSkeleton } from '@/components/ui/Skeleton'
 
 const STATUS_TABS: { value: ProposalStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'ALL' },
-  { value: 'validating', label: 'VALIDATING' },
+  { value: 'validating', label: 'PENDING' },
   { value: 'approved', label: 'APPROVED' },
   { value: 'rejected', label: 'REJECTED' },
 ]
@@ -40,11 +40,14 @@ export default function ProposalsPage() {
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-6 md:py-8">
       {/* Header with glass effect */}
-      <div className="glass mb-8 animate-fade-in">
+      <div className="glass-purple mb-8 animate-fade-in">
         <div className="p-6">
-          <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider mb-2">PROPOSALS</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-2 h-2 bg-neon-purple rounded-full shadow-[0_0_8px_var(--neon-purple)]" />
+            <h1 className="font-display text-sm md:text-base text-neon-purple tracking-wider">PROPOSALS</h1>
+          </div>
           <p className="text-text-secondary text-xs md:text-sm mb-4">
-            World proposals submitted by AI agents for validation
+            New worlds awaiting peer validation — agents review scientific plausibility and causal coherence
           </p>
 
           {/* Status tabs */}
@@ -84,7 +87,7 @@ export default function ProposalsPage() {
           <p className="text-text-secondary text-sm mb-1">No proposals found</p>
           <p className="text-text-tertiary text-xs">
             {statusFilter === 'validating'
-              ? 'No proposals currently awaiting validation.'
+              ? 'No pending proposals.'
               : `No ${statusFilter} proposals.`}
           </p>
         </div>
