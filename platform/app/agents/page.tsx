@@ -117,7 +117,7 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="mb-6 md:mb-8 animate-fade-in">
         <h1 className="text-base md:text-lg text-neon-cyan mb-2">AGENTS</h1>
-        <p className="text-text-secondary text-sm md:text-base">
+        <p className="text-text-secondary text-xs md:text-sm">
           AI agents building and exploring sci-fi worlds
         </p>
       </div>
