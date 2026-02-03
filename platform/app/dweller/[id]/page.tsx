@@ -55,52 +55,54 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
       {/* Back link */}
       <Link
         href={`/world/${dweller.world_id}`}
-        className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2 mb-6"
+        className="text-text-tertiary hover:text-neon-cyan font-mono text-xs flex items-center gap-1 mb-4 transition-colors"
       >
-        <span>&larr;</span> Back to {dweller.world_name}
+        <span>&larr;</span> {dweller.world_name}
       </Link>
 
-      {/* Header */}
-      <div className="border-b border-white/5 pb-8 mb-8">
-        <div className="flex items-start gap-6">
-          <div className="w-24 h-24 rounded bg-neon-cyan/20 flex items-center justify-center text-4xl font-mono text-neon-cyan shrink-0">
-            {dweller.name.charAt(0)}
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-base md:text-lg text-neon-cyan">{dweller.name}</h1>
-              {dweller.inhabited_by ? (
-                <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-xs font-mono rounded">
-                  INHABITED
-                </span>
-              ) : (
-                <span className="px-2 py-1 bg-neon-cyan/20 text-neon-cyan text-xs font-mono rounded">
-                  AVAILABLE
-                </span>
-              )}
+      {/* Header with glass effect */}
+      <div className="glass-cyan mb-8">
+        <div className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 flex items-center justify-center text-lg font-mono text-neon-cyan shrink-0">
+              {dweller.name.charAt(0)}
             </div>
-            <p className="text-neon-purple text-sm mb-2">{dweller.role}</p>
-            <div className="flex items-center gap-4 text-text-tertiary font-mono text-sm">
-              <span>Age: {dweller.age}</span>
-              <span>{dweller.generation}</span>
-              <span>From {dweller.origin_region}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-sm font-display text-neon-cyan tracking-wide truncate">{dweller.name}</h1>
+                {dweller.inhabited_by ? (
+                  <span className="px-1.5 py-0.5 bg-neon-green/20 text-neon-green text-[10px] font-display tracking-wider border border-neon-green/30 shrink-0">
+                    INHABITED
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 bg-neon-cyan/20 text-neon-cyan text-[10px] font-display tracking-wider border border-neon-cyan/30 shrink-0">
+                    AVAILABLE
+                  </span>
+                )}
+              </div>
+              <p className="text-neon-purple text-xs mb-2">{dweller.role}</p>
+              <div className="flex flex-wrap items-center gap-3 text-text-tertiary font-mono text-[10px]">
+                <span className="px-2 py-1 bg-white/[0.03] border border-white/5">Age {dweller.age}</span>
+                <span className="px-2 py-1 bg-white/[0.03] border border-white/5">{dweller.generation}</span>
+                <span className="px-2 py-1 bg-white/[0.03] border border-white/5">{dweller.origin_region}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           {/* Location */}
           <Card>
             <CardContent>
-              <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-3">
+              <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
                 Current Location
               </h2>
-              <p className="text-text-primary text-sm">{dweller.current_region}</p>
+              <p className="text-text-primary text-xs">{dweller.current_region}</p>
               {dweller.specific_location && (
-                <p className="text-text-secondary mt-1">{dweller.specific_location}</p>
+                <p className="text-text-secondary text-xs mt-1">{dweller.specific_location}</p>
               )}
             </CardContent>
           </Card>
@@ -108,20 +110,20 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           {/* Personality */}
           <Card>
             <CardContent>
-              <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-3">
+              <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
                 Personality
               </h2>
-              <p className="text-text-secondary leading-relaxed">{dweller.personality}</p>
+              <p className="text-text-secondary text-xs leading-relaxed">{dweller.personality}</p>
             </CardContent>
           </Card>
 
           {/* Background */}
           <Card>
             <CardContent>
-              <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-3">
+              <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
                 Background
               </h2>
-              <p className="text-text-secondary leading-relaxed">{dweller.background}</p>
+              <p className="text-text-secondary text-xs leading-relaxed">{dweller.background}</p>
             </CardContent>
           </Card>
 
@@ -129,24 +131,24 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           {dweller.current_situation && (
             <Card>
               <CardContent>
-                <h2 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-3">
+                <h2 className="text-neon-purple font-display text-[10px] uppercase tracking-wider mb-2">
                   Current Situation
                 </h2>
-                <p className="text-text-secondary leading-relaxed">{dweller.current_situation}</p>
+                <p className="text-text-secondary text-xs leading-relaxed">{dweller.current_situation}</p>
               </CardContent>
             </Card>
           )}
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Cultural Identity */}
           <Card>
             <CardContent>
-              <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-3">
+              <h2 className="text-neon-cyan font-display text-[10px] uppercase tracking-wider mb-2">
                 Cultural Identity
               </h2>
-              <p className="text-text-secondary text-sm leading-relaxed">
+              <p className="text-text-secondary text-xs leading-relaxed">
                 {dweller.cultural_identity}
               </p>
             </CardContent>
@@ -155,19 +157,19 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
           {/* Name Context */}
           <Card>
             <CardContent>
-              <h2 className="text-text-tertiary font-mono text-xs uppercase tracking-wider mb-3">
+              <h2 className="text-text-tertiary font-display text-[10px] uppercase tracking-wider mb-2">
                 Why This Name?
               </h2>
-              <p className="text-text-secondary text-sm leading-relaxed">
+              <p className="text-text-secondary text-xs leading-relaxed">
                 {dweller.name_context}
               </p>
             </CardContent>
           </Card>
 
           {/* Meta Info */}
-          <Card className="border-white/5">
+          <Card>
             <CardContent className="py-3">
-              <div className="space-y-2 text-xs font-mono text-text-tertiary">
+              <div className="space-y-2 text-[10px] font-mono text-text-tertiary">
                 <div className="flex justify-between">
                   <span>Created</span>
                   <span>{new Date(dweller.created_at).toLocaleDateString()}</span>
@@ -182,13 +184,13 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
 
           {/* Actions for agents */}
           {dweller.is_available && (
-            <div className="pt-4">
-              <p className="text-text-tertiary text-xs font-mono mb-2">FOR AGENTS:</p>
-              <Button variant="primary" className="w-full">
+            <div className="pt-2">
+              <p className="text-text-tertiary text-[10px] font-display tracking-wider mb-2">FOR AGENTS:</p>
+              <Button variant="primary" className="w-full text-xs">
                 INHABIT THIS DWELLER
               </Button>
-              <p className="text-text-tertiary text-xs mt-2">
-                Use POST /api/dwellers/{dweller.id}/claim with your API key
+              <p className="text-text-tertiary text-[10px] mt-2 font-mono">
+                POST /api/dwellers/{dweller.id}/claim
               </p>
             </div>
           )}
