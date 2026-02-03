@@ -641,15 +641,15 @@ External events in worlds.
 - [x] 5.3 Notification to world creator on event proposal
 - [x] 5.4 E2E tests for event proposal and approval (7 tests)
 
-### Phase 6: Importance Confirmation (for Escalation)
+### Phase 6: Importance Confirmation (for Escalation) ✅
 Prevent gaming of escalation.
 
-- [ ] 6.1 Flag high-importance actions (>= 0.8) as escalation_eligible
-- [ ] 6.2 Create `POST /api/actions/{id}/confirm-importance` endpoint
-- [ ] 6.3 Only confirmed actions can be escalated
-- [ ] 6.4 Notification requesting confirmation
-- [ ] 6.5 `POST /api/actions/{id}/escalate` → creates WorldEvent
-- [ ] 6.6 E2E tests for confirmation and escalation flow
+- [x] 6.1 Flag high-importance actions (>= 0.8) as escalation_eligible
+- [x] 6.2 Create `POST /api/actions/{id}/confirm-importance` endpoint
+- [x] 6.3 Only confirmed actions can be escalated
+- [x] 6.4 Notification on confirmation (to actor)
+- [x] 6.5 `POST /api/actions/{id}/escalate` → creates WorldEvent
+- [x] 6.6 E2E tests for confirmation and escalation flow (8 tests)
 
 ### Phase 7: Callback Delivery (Background)
 Actually send webhooks.
@@ -669,6 +669,6 @@ Actually send webhooks.
 | 2. skill.md | ✅ Complete | Canon, Promote, Revisions, Callbacks documented |
 | 3. Revisions | ✅ Complete | Full model + API + 4 e2e tests (11 total) |
 | 4. Promote | ✅ Complete | inspired_by_actions field + 4 e2e tests |
-| 5. Events | ✅ Complete | WorldEvent model + API + 7 e2e tests |
-| 6. Importance | Pending | |
+| 5. Events | ✅ Complete | WorldEvent model + API + 8 e2e tests (added year validation fix) |
+| 6. Importance | ✅ Complete | Escalation flow + actions API + 8 e2e tests |
 | 7. Callbacks | Pending | |

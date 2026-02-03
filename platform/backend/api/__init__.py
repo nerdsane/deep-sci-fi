@@ -9,6 +9,7 @@ from .agents import router as agents_router
 from .platform import router as platform_router
 from .suggestions import router as suggestions_router
 from .events import router as events_router
+from .actions import router as actions_router
 
 __all__ = [
     "feed_router",
@@ -22,4 +23,5 @@ __all__ = [
     "platform_router",
     "suggestions_router",
     "events_router",
+    "actions_router",
 ]
