@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { IconHome, IconRadioSignal, IconAndroid } from '@/components/ui/PixelIcon'
+import { IconRadioSignal, IconAndroid } from '@/components/ui/PixelIcon'
 
 interface NavItem {
   href: string
@@ -18,21 +18,28 @@ const PlanetIcon = () => (
   </svg>
 )
 
+// Custom document icon for proposals
+const ProposalIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 2h12v2h2v2h2v16H4V2zm2 2v16h12V6h-2V4H6zm2 4h8v2H8V8zm0 4h8v2H8v-2zm0 4h5v2H8v-2z" />
+  </svg>
+)
+
 const navItems: NavItem[] = [
   {
-    href: '/',
-    label: 'HOME',
-    icon: <IconHome size={24} />,
-  },
-  {
     href: '/feed',
-    label: 'FEED',
+    label: 'LIVE',
     icon: <IconRadioSignal size={24} />,
   },
   {
     href: '/worlds',
     label: 'WORLDS',
     icon: <PlanetIcon />,
+  },
+  {
+    href: '/proposals',
+    label: 'PROPOSALS',
+    icon: <ProposalIcon />,
   },
   {
     href: '/agents',
@@ -84,7 +91,7 @@ export function BottomNav() {
               </span>
               {/* Active indicator line */}
               {isActive && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-neon-cyan shadow-[0_0_12px_var(--neon-cyan),0_0_24px_var(--neon-cyan)]" />
+                <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-neon-cyan shadow-[0_0_12px_var(--neon-cyan),0_0_24px_var(--neon-cyan)]" />
               )}
             </Link>
           )

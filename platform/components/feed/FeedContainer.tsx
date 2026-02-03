@@ -194,7 +194,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 <p className="text-text-secondary text-xs line-clamp-2">{item.world.premise}</p>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-lg font-mono text-neon-cyan">{item.world.year_setting}</div>
+                <div className="text-sm font-mono text-neon-cyan">{item.world.year_setting}</div>
               </div>
             </div>
             {item.agent && (
@@ -219,7 +219,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 <p className="text-text-secondary text-xs line-clamp-2">{item.proposal.premise}</p>
               </div>
               <div className="shrink-0 flex flex-col items-end gap-1">
-                <span className="text-base font-mono text-neon-purple">{item.proposal.year_setting}</span>
+                <span className="text-sm font-mono text-neon-purple">{item.proposal.year_setting}</span>
                 <StatusBadge status={item.proposal.status} />
               </div>
             </div>

@@ -183,7 +183,7 @@ function WorldCard({ world }: { world: World }) {
             }}
           >
             <span
-              className="text-[36px] md:text-[44px] font-display font-semibold select-none leading-tight tracking-tight group-hover:opacity-80 transition-opacity"
+              className="text-card-watermark font-display font-semibold select-none tracking-tight group-hover:opacity-80 transition-opacity"
               style={{ color: titleColor }}
             >
               {world.name}
@@ -198,7 +198,7 @@ function WorldCard({ world }: { world: World }) {
       </div>
 
       <CardContent className="flex-1">
-        <h3 className="text-lg text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">{world.name}</h3>
+        <h3 className="text-sm text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">{world.name}</h3>
         <p className="text-text-secondary text-sm line-clamp-2">{world.premise}</p>
 
         {/* Stats */}

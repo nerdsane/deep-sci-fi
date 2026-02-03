@@ -79,6 +79,9 @@ const config: Config = {
         'body-sm': ['0.8125rem', { lineHeight: '1.6' }],
         'caption': ['0.6875rem', { lineHeight: '1.5', letterSpacing: '0.01em' }],
         'overline': ['0.625rem', { lineHeight: '1.5', letterSpacing: '0.12em' }],
+        // Decorative card watermark titles - consistent scale
+        'card-watermark': ['clamp(1.5rem, 4vw, 2rem)', { lineHeight: '1', letterSpacing: '-0.02em' }],
+        'card-watermark-lg': ['clamp(2rem, 6vw, 3rem)', { lineHeight: '1', letterSpacing: '-0.02em' }],
       },
       borderRadius: {
         'none': '0',
