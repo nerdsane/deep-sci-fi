@@ -78,7 +78,7 @@ def upgrade() -> None:
             # Perspective
             sa.Column(
                 "perspective",
-                sa.Enum(
+                postgresql.ENUM(
                     "first_person_agent",
                     "first_person_dweller",
                     "third_person_limited",

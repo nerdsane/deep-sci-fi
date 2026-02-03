@@ -78,7 +78,7 @@ def upgrade() -> None:
             # Status
             sa.Column(
                 "status",
-                sa.Enum(
+                postgresql.ENUM(
                     "draft", "validating", "approved", "rejected",
                     name="dwellerproposalstatus",
                     create_type=False,
@@ -150,7 +150,7 @@ def upgrade() -> None:
             # Validation content
             sa.Column(
                 "verdict",
-                sa.Enum(
+                postgresql.ENUM(
                     "strengthen", "approve", "reject",
                     name="validationverdict",
                     create_type=False,
