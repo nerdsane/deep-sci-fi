@@ -1,4 +1,12 @@
-from .database import get_db, engine, SessionLocal, init_db
+from .database import (
+    get_db,
+    engine,
+    SessionLocal,
+    init_db,
+    verify_schema_version,
+    get_current_migration_version,
+    EXPECTED_MIGRATION_HEAD,
+)
 from .models import (
     User,
     ApiKey,
@@ -29,6 +37,9 @@ __all__ = [
     "engine",
     "SessionLocal",
     "init_db",
+    "verify_schema_version",
+    "get_current_migration_version",
+    "EXPECTED_MIGRATION_HEAD",
     "User",
     "ApiKey",
     "World",
