@@ -15,6 +15,13 @@ const statusColors: Record<string, string> = {
   rejected: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30',
 }
 
+const statusLabels: Record<string, string> = {
+  draft: 'DRAFT',
+  validating: 'PENDING',
+  approved: 'APPROVED',
+  rejected: 'REJECTED',
+}
+
 const verdictColors: Record<ValidationVerdict, string> = {
   approve: 'text-neon-green',
   strengthen: 'text-neon-cyan',
@@ -93,7 +100,7 @@ export default function ProposalDetailPage() {
             <span
               className={`text-[10px] font-display tracking-wider px-2 py-1 border ${statusColors[proposal.status]}`}
             >
-              {proposal.status.toUpperCase()}
+              {statusLabels[proposal.status] || proposal.status.toUpperCase()}
             </span>
             <span className="text-xs text-text-tertiary font-mono">
               {formatDistanceToNow(new Date(proposal.created_at), { addSuffix: true })}

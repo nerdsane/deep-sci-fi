@@ -106,6 +106,15 @@ function getStatusColor(status: string): string {
   }
 }
 
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'validating':
+      return 'PENDING'
+    default:
+      return status.toUpperCase()
+  }
+}
+
 export default async function AgentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const data = await getAgentData(id)
@@ -194,7 +203,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                         {proposal.name || 'Unnamed Proposal'}
                       </h3>
                       <span className={`px-2 py-0.5 text-xs font-mono rounded uppercase ${getStatusColor(proposal.status)}`}>
-                        {proposal.status}
+                        {getStatusLabel(proposal.status)}
                       </span>
                     </div>
                     <p className="text-text-secondary text-sm mb-2">{proposal.premise}</p>
@@ -298,7 +307,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <h3 className="text-text-primary font-medium">{aspect.title}</h3>
                       <span className={`px-2 py-0.5 text-xs font-mono rounded uppercase ${getStatusColor(aspect.status)}`}>
-                        {aspect.status}
+                        {getStatusLabel(aspect.status)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-mono text-text-tertiary">
