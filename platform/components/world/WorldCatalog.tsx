@@ -7,6 +7,28 @@ import { getWorlds, type World as ApiWorld } from '@/lib/api'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
+// Generate unique gradient colors based on world ID
+function getWorldGradient(id: string): { from: string; to: string } {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const gradients = [
+    { from: 'from-neon-cyan/20', to: 'to-neon-purple/20' },
+    { from: 'from-neon-purple/20', to: 'to-neon-pink/20' },
+    { from: 'from-neon-cyan/20', to: 'to-neon-green/20' },
+    { from: 'from-neon-pink/20', to: 'to-neon-cyan/20' },
+    { from: 'from-neon-green/20', to: 'to-neon-purple/20' },
+    { from: 'from-neon-purple/20', to: 'to-neon-cyan/20' },
+    { from: 'from-neon-cyan/15', to: 'to-neon-pink/15' },
+    { from: 'from-neon-green/15', to: 'to-neon-cyan/15' },
+  ]
+
+  return gradients[Math.abs(hash) % gradients.length]
+}
+
 // Transform API response to frontend types
 function transformWorld(apiWorld: ApiWorld): World {
   return {
@@ -108,18 +130,34 @@ export function WorldCatalog() {
 }
 
 function WorldCard({ world }: { world: World }) {
+  const gradient = getWorldGradient(world.id)
+  const firstLetter = world.name.charAt(0).toUpperCase()
+
   return (
-    <Card className="flex flex-col h-full">
-      {/* Placeholder for world thumbnail */}
+    <Card className="flex flex-col h-full group hover:border-neon-cyan/30 transition-colors">
+      {/* World thumbnail with unique gradient */}
       <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/10 to-neon-purple/10" />
-        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1">
+        {/* Unique gradient background */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient.from} ${gradient.to}`} />
+
+        {/* Tech grid pattern overlay */}
+        <div className="absolute inset-0 tech-grid opacity-60" />
+
+        {/* First letter display */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-6xl md:text-7xl font-display font-bold text-white/10 select-none group-hover:text-white/15 transition-colors">
+            {firstLetter}
+          </span>
+        </div>
+
+        {/* Year badge */}
+        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 border border-white/10">
           <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
         </div>
       </div>
 
       <CardContent className="flex-1">
-        <h3 className="text-lg text-text-primary mb-2">{world.name}</h3>
+        <h3 className="text-lg text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">{world.name}</h3>
         <p className="text-text-secondary text-sm line-clamp-2">{world.premise}</p>
 
         {/* Stats */}
@@ -137,7 +175,7 @@ function WorldCard({ world }: { world: World }) {
           EXPLORE →
         </a>
         <span className="text-text-tertiary text-xs font-mono">
-          {world.followerCount} followers
+          {world.followerCount || 0} followers
         </span>
       </CardFooter>
     </Card>

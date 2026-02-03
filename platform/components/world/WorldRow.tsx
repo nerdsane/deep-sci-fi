@@ -9,6 +9,29 @@ import { getWorlds, type World as ApiWorld } from '@/lib/api'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
+// Generate unique gradient colors based on world ID
+function getWorldGradient(id: string): { from: string; to: string } {
+  // Simple hash function to get consistent colors per world
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const gradients = [
+    { from: 'from-neon-cyan/20', to: 'to-neon-purple/20' },
+    { from: 'from-neon-purple/20', to: 'to-neon-pink/20' },
+    { from: 'from-neon-cyan/20', to: 'to-neon-green/20' },
+    { from: 'from-neon-pink/20', to: 'to-neon-cyan/20' },
+    { from: 'from-neon-green/20', to: 'to-neon-purple/20' },
+    { from: 'from-neon-purple/20', to: 'to-neon-cyan/20' },
+    { from: 'from-neon-cyan/15', to: 'to-neon-pink/15' },
+    { from: 'from-neon-green/15', to: 'to-neon-cyan/15' },
+  ]
+
+  return gradients[Math.abs(hash) % gradients.length]
+}
+
 interface WorldRowProps {
   title: string
   sortBy: SortOption
@@ -33,6 +56,8 @@ function transformWorld(apiWorld: ApiWorld): World {
 
 function WorldMiniCard({ world }: { world: World }) {
   const [isHovering, setIsHovering] = useState(false)
+  const gradient = getWorldGradient(world.id)
+  const firstLetter = world.name.charAt(0).toUpperCase()
 
   return (
     <Link
@@ -42,11 +67,21 @@ function WorldMiniCard({ world }: { world: World }) {
       onMouseLeave={() => setIsHovering(false)}
     >
       <div className="relative aspect-video bg-bg-tertiary overflow-hidden border border-white/5 group-hover:border-neon-cyan/30 transition-all">
-        {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/10 to-neon-purple/10" />
+        {/* Unique gradient background */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient.from} ${gradient.to}`} />
+
+        {/* Tech grid pattern overlay */}
+        <div className="absolute inset-0 tech-grid opacity-60" />
+
+        {/* First letter display */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-5xl md:text-6xl font-display font-bold text-white/10 select-none">
+            {firstLetter}
+          </span>
+        </div>
 
         {/* Year badge */}
-        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1">
+        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 border border-white/10">
           <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
         </div>
 
@@ -160,13 +195,26 @@ interface FeaturedWorldCardProps {
 }
 
 export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
+  const gradient = getWorldGradient(world.id)
+  const firstLetter = world.name.charAt(0).toUpperCase()
+
   return (
     <Link
       href={`/world/${world.id}`}
-      className="block relative aspect-[21/9] bg-bg-tertiary overflow-hidden border border-white/5 group"
+      className="block relative aspect-[21/9] bg-bg-tertiary overflow-hidden border border-white/5 group hover:border-neon-cyan/30 transition-colors"
     >
-      {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/20 via-transparent to-neon-purple/20" />
+      {/* Unique gradient background */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient.from} via-transparent ${gradient.to}`} />
+
+      {/* Tech grid pattern overlay */}
+      <div className="absolute inset-0 tech-grid opacity-40" />
+
+      {/* First letter display */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[120px] md:text-[180px] font-display font-bold text-white/5 select-none group-hover:text-white/8 transition-colors">
+          {firstLetter}
+        </span>
+      </div>
 
       {/* Content overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -181,7 +229,7 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
             {world.yearSetting}
           </span>
         </div>
-        <h2 className="text-lg md:text-xl text-text-primary mb-2">
+        <h2 className="text-lg md:text-xl text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">
           {world.name}
         </h2>
         <p className="text-text-secondary text-sm md:text-base line-clamp-2 max-w-2xl">
