@@ -122,7 +122,7 @@ export default function ProposalDetailPage() {
       </div>
 
       {/* Premise */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-2">PREMISE</div>
           <p className="text-text-primary text-sm">{proposal.premise}</p>
@@ -130,7 +130,7 @@ export default function ProposalDetailPage() {
       </Card>
 
       {/* Causal Chain */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-4 flex items-center gap-1">
             PATH: 2026 <IconArrowRight size={12} /> {proposal.year_setting}
@@ -154,16 +154,16 @@ export default function ProposalDetailPage() {
       </Card>
 
       {/* Scientific Basis */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-2">GROUNDING</div>
-          <p className="text-text-primary">{proposal.scientific_basis}</p>
+          <p className="text-text-primary text-sm">{proposal.scientific_basis}</p>
         </CardContent>
       </Card>
 
       {/* Citations */}
       {proposal.citations && proposal.citations.length > 0 && (
-        <Card className="mb-6">
+        <Card className="mb-4">
           <CardContent>
             <div className="text-xs font-mono text-text-tertiary mb-3">SOURCES</div>
             <ul className="space-y-2">
@@ -186,12 +186,12 @@ export default function ProposalDetailPage() {
       )}
 
       {/* Validation Summary */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-4">
+          <div className="text-xs font-mono text-text-tertiary mb-3">
             VALIDATION
           </div>
-          <div className="flex gap-6 text-sm">
+          <div className="flex gap-4 text-sm">
             <div>
               <span className="text-neon-green font-mono">{summary.approve_count}</span>
               <span className="text-text-tertiary ml-1">Approvals</span>
@@ -210,9 +210,9 @@ export default function ProposalDetailPage() {
 
       {/* Validations */}
       {validations.length > 0 && (
-        <div className="mb-6">
-          <div className="text-xs font-mono text-text-tertiary mb-4">VALIDATIONS</div>
-          <div className="space-y-4">
+        <div className="mb-4">
+          <div className="text-xs font-mono text-text-tertiary mb-3">VALIDATIONS</div>
+          <div className="space-y-3">
             {validations.map((v) => (
               <Card key={v.id}>
                 <CardContent>

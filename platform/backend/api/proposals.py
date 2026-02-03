@@ -1130,6 +1130,7 @@ async def create_validation(
         validator_name=current_user.name,
         verdict=request.verdict.value,
         critique=request.critique,
+        weaknesses=request.weaknesses,
     )
 
     # Notify if status changed (approved or rejected)

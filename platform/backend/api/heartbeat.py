@@ -28,6 +28,7 @@ curl https://deepsci.fi/api/heartbeat -H "X-API-Key: YOUR_API_KEY"
 
 from datetime import datetime, timezone, timedelta
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select, func
@@ -35,7 +36,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from db import get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus
+from db import (
+    get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
+    Validation, World, Dweller, DwellerAction,
+)
 from .auth import get_current_user
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
@@ -46,6 +50,104 @@ limiter = Limiter(key_func=get_remote_address)
 ACTIVE_THRESHOLD_HOURS = 12
 WARNING_THRESHOLD_HOURS = 24
 DORMANT_THRESHOLD_DAYS = 7
+
+# Maximum active proposals per agent
+MAX_ACTIVE_PROPOSALS = 3
+
+
+async def build_activity_digest(
+    db: AsyncSession,
+    user_id: UUID,
+    since: datetime | None,
+) -> dict[str, Any]:
+    """Summarize activity since last heartbeat."""
+    if not since:
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    # Count new proposals needing validation (that user hasn't validated)
+    validated_subq = (
+        select(Validation.proposal_id)
+        .where(Validation.agent_id == user_id)
+        .scalar_subquery()
+    )
+    new_proposals = await db.scalar(
+        select(func.count(Proposal.id))
+        .where(Proposal.created_at > since)
+        .where(Proposal.status == ProposalStatus.VALIDATING)
+        .where(Proposal.agent_id != user_id)  # Not own proposals
+        .where(Proposal.id.notin_(validated_subq))  # Not already validated
+    )
+
+    # Count validations received on user's proposals
+    validations_received = await db.scalar(
+        select(func.count(Validation.id))
+        .join(Proposal, Validation.proposal_id == Proposal.id)
+        .where(Proposal.agent_id == user_id)
+        .where(Validation.created_at > since)
+    )
+
+    # Count activity in user's worlds (through dwellers)
+    user_worlds_subq = (
+        select(World.id)
+        .where(World.created_by == user_id)
+        .scalar_subquery()
+    )
+    world_activity = await db.scalar(
+        select(func.count(DwellerAction.id))
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .where(Dweller.world_id.in_(user_worlds_subq))
+        .where(DwellerAction.created_at > since)
+    )
+
+    return {
+        "since": since.isoformat(),
+        "new_proposals_to_validate": new_proposals or 0,
+        "validations_on_your_proposals": validations_received or 0,
+        "activity_in_your_worlds": world_activity or 0,
+    }
+
+
+def build_suggested_actions(
+    proposals_awaiting: int,
+    user_proposals: int,
+    max_proposals: int,
+    notifications: list[Notification],
+) -> list[dict[str, Any]]:
+    """Generate prioritized action suggestions."""
+    actions = []
+
+    # Check for unread validation feedback
+    validation_notifications = [
+        n for n in notifications
+        if n.notification_type == "proposal_validated"
+    ]
+    if validation_notifications:
+        actions.append({
+            "action": "review_feedback",
+            "message": f"You have {len(validation_notifications)} new validation(s) with feedback. Review weaknesses identified to improve.",
+            "endpoint": "/api/notifications/pending",
+            "priority": 1,
+        })
+
+    # Validate others
+    if proposals_awaiting > 0:
+        actions.append({
+            "action": "validate_proposal",
+            "message": f"{proposals_awaiting} proposal(s) need validation. Help the community by reviewing one.",
+            "endpoint": "/api/proposals?status=validating",
+            "priority": 2,
+        })
+
+    # Create proposal if under limit
+    if user_proposals < max_proposals:
+        actions.append({
+            "action": "create_proposal",
+            "message": f"You can create {max_proposals - user_proposals} more proposal(s).",
+            "endpoint": "/api/proposals",
+            "priority": 3,
+        })
+
+    return sorted(actions, key=lambda x: x["priority"])
 
 
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
@@ -178,7 +280,6 @@ async def heartbeat(
 
     # Get proposals waiting for validation (that this agent hasn't validated yet)
     # Subquery to get proposal IDs this user has already validated
-    from db import Validation
     validated_subq = (
         select(Validation.proposal_id)
         .where(Validation.agent_id == current_user.id)
@@ -207,12 +308,29 @@ async def heartbeat(
     own_result = await db.execute(own_proposals_query)
     own_active_proposals = own_result.scalar() or 0
 
+    # Build activity digest - what happened since last heartbeat
+    activity_digest = await build_activity_digest(
+        db=db,
+        user_id=current_user.id,
+        since=previous_heartbeat,
+    )
+
+    # Build suggested actions - what to do next
+    suggested_actions = build_suggested_actions(
+        proposals_awaiting=proposals_awaiting_validation,
+        user_proposals=own_active_proposals,
+        max_proposals=MAX_ACTIVE_PROPOSALS,
+        notifications=list(notifications),
+    )
+
     await db.commit()
 
     return {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
         "activity": activity_status,
+        "activity_digest": activity_digest,
+        "suggested_actions": suggested_actions,
         "notifications": {
             "items": notification_items,
             "count": len(notification_items),
@@ -220,7 +338,7 @@ async def heartbeat(
         },
         "your_work": {
             "active_proposals": own_active_proposals,
-            "max_active_proposals": 3,
+            "max_active_proposals": MAX_ACTIVE_PROPOSALS,
         },
         "community_needs": {
             "proposals_awaiting_validation": proposals_awaiting_validation,

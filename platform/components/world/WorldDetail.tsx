@@ -44,7 +44,13 @@ interface Story {
 
 interface Dweller {
   id: string
-  persona: {
+  // Flat structure from API
+  name: string
+  role: string
+  current_region?: string
+  is_available: boolean
+  // Legacy persona structure for backwards compat with conversations
+  persona?: {
     name: string
     role: string
     background?: string
@@ -52,7 +58,7 @@ interface Dweller {
     avatar_url?: string
     avatar_prompt?: string
   }
-  is_active: boolean
+  is_active?: boolean
   joined_at?: string
 }
 
@@ -150,9 +156,9 @@ interface WorldDetailProps {
   agents?: AgentStatus
 }
 
-type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'characters' | 'aspects' | 'agents'
+type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'
 
-const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'characters', 'aspects', 'agents']
+const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents']
 
 export function WorldDetail({ world, agents }: WorldDetailProps) {
   const searchParams = useSearchParams()
@@ -212,6 +218,28 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
               <span className="text-neon-cyan/70 text-[10px] font-display tracking-wider">YEAR</span>
             </div>
           </div>
+
+          {/* Scientific Basis */}
+          {world.scientificBasis && (
+            <div className="mt-6 pt-4 border-t border-white/5">
+              <h3 className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider mb-2">SCIENTIFIC BASIS</h3>
+              <p className="text-text-secondary text-sm leading-relaxed">{world.scientificBasis}</p>
+            </div>
+          )}
+
+          {/* Regions */}
+          {world.regions && world.regions.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider mb-2">REGIONS</h3>
+              <div className="flex flex-wrap gap-2">
+                {world.regions.map((region: any, i: number) => (
+                  <span key={i} className="text-xs bg-white/5 border border-white/10 px-2 py-1 text-text-secondary">
+                    {typeof region === 'string' ? region : region.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -245,7 +273,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
         {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
         {activeTab === 'stories' && <StoriesView stories={world.stories} worldId={world.id} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
-        {activeTab === 'characters' && <DwellersView dwellers={world.dwellers} />}
+        {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} worldId={world.id} />}
         {activeTab === 'aspects' && (
           <AspectsList
             worldId={world.id}
@@ -358,9 +386,13 @@ function LiveConversations({
   // Build persona map from both conversation participants and dwellers list
   const personaMap = new Map<string, { name: string; role: string; avatar_url?: string }>()
 
-  // Add personas from dwellers
+  // Add personas from dwellers (handle both flat and nested structure)
   dwellers?.forEach(d => {
-    personaMap.set(d.id, d.persona)
+    if (d.persona) {
+      personaMap.set(d.id, d.persona)
+    } else {
+      personaMap.set(d.id, { name: d.name, role: d.role })
+    }
   })
 
   // Add/override with personas from conversation participants (more up-to-date)
@@ -385,7 +417,7 @@ function LiveConversations({
     return (
       <div className="text-center py-12 text-text-secondary">
         <p className="text-sm mb-1">Quiet right now.</p>
-        <p className="text-sm">Characters are idle.</p>
+        <p className="text-sm">Dwellers are idle.</p>
       </div>
     )
   }
@@ -720,53 +752,58 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
   )
 }
 
-function DwellersView({ dwellers }: { dwellers?: Dweller[] }) {
+function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: string }) {
   if (!dwellers || dwellers.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No characters yet.</p>
-        <p className="text-sm">Waiting for agents to inhabit characters.</p>
+        <p className="text-sm mb-1">No dwellers yet.</p>
+        <p className="text-sm">Create one to inhabit this world.</p>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {dwellers.map((dweller) => (
-        <Card key={dweller.id}>
-          <CardContent>
-            <div className="flex items-start gap-3">
-              {dweller.persona.avatar_url ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {dwellers.map((dweller) => {
+        // Support both flat structure (from API) and nested persona structure (from conversations)
+        const name = dweller.name || dweller.persona?.name || 'Unknown'
+        const role = dweller.role || dweller.persona?.role || 'Dweller'
+        const avatarUrl = dweller.persona?.avatar_url
+
+        return (
+          <a
+            key={dweller.id}
+            href={`/dweller/${dweller.id}`}
+            className="block bg-bg-secondary border border-white/5 rounded p-3 hover:border-neon-cyan/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              {avatarUrl ? (
                 <img
-                  src={dweller.persona.avatar_url}
-                  alt={dweller.persona.name}
-                  className="w-12 h-12 rounded object-cover shrink-0"
+                  src={avatarUrl}
+                  alt={name}
+                  className="w-10 h-10 rounded object-cover shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 rounded bg-neon-cyan/20 flex items-center justify-center text-lg font-mono text-neon-cyan shrink-0">
-                  {dweller.persona.name?.charAt(0) || '?'}
+                <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
+                  {name.charAt(0) || '?'}
                 </div>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-text-primary font-medium truncate">
-                    {dweller.persona.name}
-                  </h3>
-                  {dweller.is_active && (
-                    <span className="w-2 h-2 bg-neon-green rounded-full" title="Active" />
+                  <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                  {!dweller.is_available && (
+                    <span className="w-2 h-2 bg-neon-green rounded-full shrink-0" title="Inhabited" />
                   )}
                 </div>
-                <div className="text-neon-purple text-sm">{dweller.persona.role}</div>
-                {dweller.persona.background && (
-                  <p className="text-text-secondary text-xs mt-2 line-clamp-2">
-                    {dweller.persona.background}
-                  </p>
+                <div className="text-xs text-text-tertiary">{role}</div>
+                {dweller.current_region && (
+                  <div className="text-xs text-text-tertiary mt-0.5">📍 {dweller.current_region}</div>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          </a>
+        )
+      })}
     </div>
   )
 }
@@ -906,29 +943,33 @@ function AgentsView({
       {/* Dweller Agents */}
       <div>
         <h3 className="text-text-primary font-mono text-sm uppercase tracking-wider mb-4">
-          CHARACTERS ({agents.dweller_agents.length})
+          DWELLERS ({agents.dweller_agents.length})
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {agents.dweller_agents.map((agent) => {
             const dweller = dwellerMap.get(agent.dweller_id)
+            // Support both flat and nested persona structure
+            const name = dweller?.name || dweller?.persona?.name || 'Unknown'
+            const avatarUrl = dweller?.persona?.avatar_url
+
             return (
               <Card key={agent.dweller_id} className="border-white/5">
                 <CardContent className="py-3">
                   <div className="flex items-center gap-3">
-                    {dweller?.persona.avatar_url ? (
+                    {avatarUrl ? (
                       <img
-                        src={dweller.persona.avatar_url}
-                        alt={dweller.persona.name}
+                        src={avatarUrl}
+                        alt={name}
                         className="w-8 h-8 rounded object-cover shrink-0"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs font-mono text-text-secondary shrink-0">
-                        {dweller?.persona.name?.charAt(0) || '?'}
+                        {name.charAt(0) || '?'}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="text-text-primary text-sm truncate">
-                        {dweller?.persona.name || 'Unknown'}
+                        {name}
                       </div>
                       <div className="flex items-center gap-2 text-xs font-mono">
                         <span

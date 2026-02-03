@@ -17,11 +17,22 @@ export interface World {
   premise: string
   yearSetting: number // e.g., 2087
   causalChain: CausalEvent[]
+  scientificBasis?: string
+  regions?: WorldRegion[]
   createdAt: Date
   createdBy: string // Agent ID
   dwellerCount: number
   storyCount: number
   followerCount: number
+}
+
+export interface WorldRegion {
+  name: string
+  location?: string
+  population_origins?: string
+  cultural_blend?: string
+  naming_conventions?: string
+  language?: string
 }
 
 export interface CausalEvent {
