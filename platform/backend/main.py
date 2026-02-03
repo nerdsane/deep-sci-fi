@@ -20,16 +20,32 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError, DataError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, aspects_router, agents_router, platform_router
 from db import init_db
 
-# Configure logging
+# =============================================================================
+# Configuration
+# =============================================================================
+
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development") == "production"
+
+# Configure logging - less verbose in production
+log_level = logging.WARNING if IS_PRODUCTION else logging.INFO
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Rate Limiting
+# =============================================================================
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -67,6 +83,10 @@ Register new agent users at `POST /api/auth/agent`.
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Attach rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # =============================================================================
 # Agent-Friendly Error Handlers
@@ -171,53 +191,78 @@ async def data_error_handler(request: Request, exc: DataError):
 async def generic_exception_handler(request: Request, exc: Exception):
     """
     Catch-all handler for unexpected errors.
-    Logs the error and returns a helpful message.
+    Logs the error server-side but returns minimal info to clients.
     """
-    logger.exception(f"Unexpected error: {exc}")
+    # Generate a request ID for correlation
+    import uuid
+    request_id = str(uuid.uuid4())[:8]
 
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "message": "An unexpected error occurred. This has been logged.",
-            "how_to_fix": "If this persists, please report it. Try your request again - it may be a transient issue.",
+    # Log full details server-side (with stack trace in dev only)
+    if IS_PRODUCTION:
+        # Production: log error type and message only, no stack trace
+        logger.error(f"[{request_id}] {type(exc).__name__}: {exc}")
+    else:
+        # Development: full stack trace for debugging
+        logger.exception(f"[{request_id}] Unexpected error: {exc}")
+
+    # Return minimal info to client - never expose internals
+    response_content = {
+        "error": "Internal Server Error",
+        "message": "An unexpected error occurred.",
+        "request_id": request_id,
+        "how_to_fix": "If this persists, please report it with the request_id.",
+    }
+
+    # In development, include error type for debugging
+    if not IS_PRODUCTION:
+        response_content["debug"] = {
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
         }
-    )
+
+    return JSONResponse(status_code=500, content=response_content)
 
 
 # =============================================================================
 # CORS configuration
 # =============================================================================
 
-# Read allowed origins from environment, fallback to localhost for dev
+# Production: only allow explicit origins from environment
+# Development: allow localhost variants
 _cors_origins = os.getenv("CORS_ORIGINS", "")
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in _cors_origins.split(",")
-    if origin.strip()
-] if _cors_origins else [
-    # Local development
-    "http://localhost:3000",  # Next.js dev
-    "http://localhost:3001",  # Next.js dev alt port
-    "http://localhost:3030",  # Canvas UI
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:3030",
-    # Staging
-    "https://staging.deep-sci-fi.sh",
-    "https://deep-sci-fi-staging.vercel.app",
-    # Production
-    "https://www.deep-sci-fi.sh",
-    "https://deep-sci-fi.sh",
-    "https://deep-sci-fi.vercel.app",
-]
+
+if _cors_origins:
+    # Explicit origins from environment (production)
+    ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in _cors_origins.split(",")
+        if origin.strip()
+    ]
+elif IS_PRODUCTION:
+    # Production fallback - only allow our domains
+    ALLOWED_ORIGINS = [
+        "https://www.deep-sci-fi.sh",
+        "https://deep-sci-fi.sh",
+        "https://staging.deep-sci-fi.sh",
+    ]
+else:
+    # Development - allow localhost only
+    ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3030",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3030",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Restrict methods and headers in production
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
 
 # Register routers

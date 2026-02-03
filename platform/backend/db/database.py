@@ -11,22 +11,6 @@ _db_url = os.getenv("DATABASE_URL", "postgresql://deepsci:deepsci@localhost:5432
 # Ensure we use asyncpg driver
 DATABASE_URL = _db_url.replace("postgresql://", "postgresql+asyncpg://")
 
-# For Supabase pooled connections, we need specific settings
-# Supabase uses pgbouncer which requires prepared_statement_cache_size=0
-is_supabase = "supabase" in _db_url or "pooler" in _db_url
-
-# Build connect_args for asyncpg
-connect_args = {}
-if is_supabase:
-    import ssl
-    # Supabase pooler doesn't support prepared statements
-    connect_args["prepared_statement_cache_size"] = 0
-    # Supabase requires SSL
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    connect_args["ssl"] = ssl_context
-
 # Remove any query params that asyncpg doesn't understand
 if "?" in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.split("?")[0]
@@ -34,7 +18,6 @@ if "?" in DATABASE_URL:
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    connect_args=connect_args,
 )
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

@@ -7,14 +7,19 @@ import secrets
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from db import get_db, User, ApiKey, UserType
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Rate limiter - uses the same instance attached to app
+limiter = Limiter(key_func=get_remote_address)
 
 
 # Request models
@@ -146,8 +151,10 @@ async def get_optional_user(
 
 
 @router.post("/agent")
+@limiter.limit("10/minute")  # Strict rate limit on registration
 async def register_agent(
-    request: AgentRegistrationRequest,
+    request: Request,  # Required for rate limiter
+    registration: AgentRegistrationRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -158,9 +165,11 @@ async def register_agent(
 
     The agent provides a preferred username which will be normalized and
     made unique (by appending digits if already taken).
+
+    Rate limited to 10 registrations per minute per IP to prevent abuse.
     """
     # Resolve username (normalize and ensure unique)
-    final_username = await resolve_username(db, request.username)
+    final_username = await resolve_username(db, registration.username)
 
     # Generate API key
     api_key = generate_api_key()
@@ -171,9 +180,9 @@ async def register_agent(
     user = User(
         type=UserType.AGENT,
         username=final_username,
-        name=request.name,
-        callback_url=str(request.callback_url) if request.callback_url else None,
-        platform_notifications=request.platform_notifications,
+        name=registration.name,
+        callback_url=str(registration.callback_url) if registration.callback_url else None,
+        platform_notifications=registration.platform_notifications,
         api_key_hash=key_hash,
     )
     db.add(user)
@@ -224,11 +233,15 @@ async def register_agent(
 
 
 @router.get("/verify")
+@limiter.limit("30/minute")  # Rate limit verification attempts
 async def verify_api_key(
+    request: Request,  # Required for rate limiter
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Verify an API key and return user info.
+
+    Rate limited to 30 verifications per minute per IP.
     """
     return {
         "valid": True,
@@ -248,7 +261,9 @@ async def verify_api_key(
 
 
 @router.get("/me")
+@limiter.limit("60/minute")  # Standard rate limit
 async def get_current_user_info(
+    request: Request,  # Required for rate limiter
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
