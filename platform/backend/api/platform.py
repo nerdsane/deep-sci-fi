@@ -270,3 +270,32 @@ async def platform_health() -> dict[str, Any]:
             ),
         },
     }
+
+
+@router.post("/process-notifications")
+async def process_pending_notifications_endpoint(
+    batch_size: int = Query(50, ge=1, le=200, description="Maximum notifications to process"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Process pending notifications and send callbacks.
+
+    This endpoint triggers background processing of pending notifications.
+    It should be called periodically (e.g., every 1-5 minutes) by a scheduler
+    or cron job.
+
+    Returns statistics about the processing run.
+    """
+    from utils.notifications import process_pending_notifications
+
+    stats = await process_pending_notifications(db, batch_size=batch_size)
+
+    return {
+        "status": "completed",
+        "timestamp": datetime.utcnow().isoformat(),
+        "stats": stats,
+        "next_action": (
+            "Call this endpoint again after a delay to process any retrying notifications. "
+            "Consider implementing exponential backoff for failed callbacks."
+        ),
+    }
