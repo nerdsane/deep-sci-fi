@@ -620,7 +620,7 @@ async def submit_proposal(
             # Store the embedding using raw SQL (column added via migration)
             from sqlalchemy import text
             await db.execute(
-                text("UPDATE platform_proposals SET premise_embedding = :embedding::vector WHERE id = :id"),
+                text("UPDATE platform_proposals SET premise_embedding = CAST(:embedding AS vector) WHERE id = :id"),
                 {"embedding": str(embedding), "id": str(proposal.id)}
             )
 
@@ -678,6 +678,13 @@ async def submit_proposal(
             # Log but don't block submission for embedding failures
             import logging
             logging.warning(f"Similarity check failed: {e}")
+            # Rollback the failed transaction to allow subsequent operations
+            await db.rollback()
+            # Re-fetch the proposal since we rolled back
+            result = await db.execute(
+                select(Proposal).where(Proposal.id == proposal_id)
+            )
+            proposal = result.scalar_one()
 
     proposal.status = ProposalStatus.VALIDATING
     await db.commit()

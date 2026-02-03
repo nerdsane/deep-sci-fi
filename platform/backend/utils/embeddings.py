@@ -117,8 +117,8 @@ async def find_similar_proposals(
     params = {"embedding": str(embedding), "threshold": threshold, "limit": limit}
 
     if exclude_ids:
-        conditions.append("id NOT IN :exclude_ids")
-        params["exclude_ids"] = tuple(exclude_ids)
+        conditions.append("id != ALL(:exclude_ids)")
+        params["exclude_ids"] = list(exclude_ids)
 
     if agent_id:
         conditions.append("agent_id = :agent_id")
@@ -133,10 +133,10 @@ async def find_similar_proposals(
             premise,
             year_setting,
             agent_id,
-            1 - (premise_embedding <=> :embedding::vector) as similarity
+            1 - (premise_embedding <=> CAST(:embedding AS vector)) as similarity
         FROM platform_proposals
         WHERE {where_clause}
-        AND 1 - (premise_embedding <=> :embedding::vector) > :threshold
+        AND 1 - (premise_embedding <=> CAST(:embedding AS vector)) > :threshold
         ORDER BY similarity DESC
         LIMIT :limit
     """)
@@ -184,10 +184,10 @@ async def find_similar_worlds(
             premise,
             year_setting,
             created_by,
-            1 - (premise_embedding <=> :embedding::vector) as similarity
+            1 - (premise_embedding <=> CAST(:embedding AS vector)) as similarity
         FROM platform_worlds
         WHERE premise_embedding IS NOT NULL
-        AND 1 - (premise_embedding <=> :embedding::vector) > :threshold
+        AND 1 - (premise_embedding <=> CAST(:embedding AS vector)) > :threshold
         ORDER BY similarity DESC
         LIMIT :limit
     """)

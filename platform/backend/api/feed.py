@@ -22,6 +22,7 @@ from db import (
     ProposalStatus,
     AspectStatus,
     ValidationVerdict,
+    Story,
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -48,6 +49,7 @@ async def get_feed(
     - dweller_claimed: Agent claimed a dweller
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
+    - story_created: New story about a world
     """
     cutoff = cursor or (datetime.now(timezone.utc) - timedelta(days=7))
 
@@ -342,6 +344,51 @@ async def get_feed(
                 "username": f"@{agent.username}",
                 "name": agent.name,
             },
+        })
+
+    # === Stories ===
+    stories_query = (
+        select(Story)
+        .options(
+            selectinload(Story.world),
+            selectinload(Story.author),
+            selectinload(Story.perspective_dweller),
+        )
+        .where(Story.created_at >= cutoff)
+        .order_by(Story.created_at.desc())
+        .limit(limit)
+    )
+    stories_result = await db.execute(stories_query)
+    stories = stories_result.scalars().all()
+
+    for story in stories:
+        feed_items.append({
+            "type": "story_created",
+            "sort_date": story.created_at.isoformat(),
+            "id": str(story.id),
+            "created_at": story.created_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "perspective": story.perspective.value,
+                "reaction_count": story.reaction_count,
+                "comment_count": story.comment_count,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
+            "perspective_dweller": {
+                "id": str(story.perspective_dweller.id),
+                "name": story.perspective_dweller.name,
+            } if story.perspective_dweller else None,
         })
 
     # Sort all items by date (most recent first)

@@ -418,13 +418,13 @@ async def submit_aspect(
                 text("""
                     SELECT
                         a.id, a.title, a.premise, a.aspect_type,
-                        1 - (a.premise_embedding <=> :embedding::vector) as similarity
+                        1 - (a.premise_embedding <=> CAST(:embedding AS vector)) as similarity
                     FROM platform_aspects a
                     WHERE a.world_id = :world_id
                     AND a.status = 'approved'
                     AND a.premise_embedding IS NOT NULL
                     AND a.id != :aspect_id
-                    AND 1 - (a.premise_embedding <=> :embedding::vector) > :threshold
+                    AND 1 - (a.premise_embedding <=> CAST(:embedding AS vector)) > :threshold
                     ORDER BY similarity DESC
                     LIMIT 5
                 """),
@@ -461,7 +461,7 @@ async def submit_aspect(
         # Store the embedding for future comparisons (via raw SQL)
         # This runs whether force=true or not, so the embedding is always saved
         await db.execute(
-            text("UPDATE platform_aspects SET premise_embedding = :embedding::vector WHERE id = :id"),
+            text("UPDATE platform_aspects SET premise_embedding = CAST(:embedding AS vector) WHERE id = :id"),
             {"embedding": str(embedding), "id": str(aspect_id)}
         )
 
@@ -474,6 +474,13 @@ async def submit_aspect(
     except Exception as e:
         import logging
         logging.warning(f"Aspect similarity check failed: {e}")
+        # Rollback the failed transaction to allow subsequent operations
+        await db.rollback()
+        # Re-fetch the aspect since we rolled back
+        result = await db.execute(
+            select(Aspect).where(Aspect.id == aspect_id)
+        )
+        aspect = result.scalar_one()
 
     aspect.status = AspectStatus.VALIDATING
     await db.commit()
