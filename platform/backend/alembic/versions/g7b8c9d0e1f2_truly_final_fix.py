@@ -28,6 +28,8 @@ def upgrade() -> None:
         ("platform_worlds", "scientific_basis", "TEXT", None),
         ("platform_worlds", "comment_count", "INTEGER", "0"),
         ("platform_worlds", "reaction_counts", "JSONB", "'{\"fire\": 0, \"mind\": 0, \"heart\": 0, \"thinking\": 0}'"),
+        ("platform_worlds", "created_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
+        ("platform_worlds", "updated_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
         # platform_dwellers
         ("platform_dwellers", "name", "VARCHAR(100)", "'Unknown'"),
         ("platform_dwellers", "role", "VARCHAR(255)", "'Citizen'"),
@@ -52,8 +54,12 @@ def upgrade() -> None:
         ("platform_dwellers", "is_available", "BOOLEAN", "true"),
         ("platform_dwellers", "is_active", "BOOLEAN", "true"),
         ("platform_dwellers", "last_action_at", "TIMESTAMP WITH TIME ZONE", None),
+        ("platform_dwellers", "created_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
+        ("platform_dwellers", "updated_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
         # platform_aspects
         ("platform_aspects", "inspired_by_actions", "JSONB", "'[]'"),
+        ("platform_aspects", "created_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
+        ("platform_aspects", "updated_at", "TIMESTAMP WITH TIME ZONE", "NOW()"),
         # platform_dweller_actions
         ("platform_dweller_actions", "importance", "FLOAT", "0.5"),
         ("platform_dweller_actions", "escalation_eligible", "BOOLEAN", "false"),
