@@ -1396,9 +1396,11 @@ async def get_pending_events(
     from datetime import datetime, timedelta
     since_last_check = datetime.utcnow() - timedelta(hours=24)
 
+    # Preload the dweller relationship to avoid N+1 queries when getting speaker names
     actions_query = (
         select(DwellerAction)
         .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .options(selectinload(DwellerAction.dweller))
         .where(
             Dweller.world_id == dweller.world_id,
             DwellerAction.dweller_id != dweller_id,  # Not from this dweller
@@ -1415,11 +1417,8 @@ async def get_pending_events(
     dweller_name_lower = dweller.name.lower()
     for action in recent_actions:
         if action.target and dweller_name_lower in action.target.lower():
-            # Get the speaker's name
-            speaker_query = select(Dweller).where(Dweller.id == action.dweller_id)
-            speaker_result = await db.execute(speaker_query)
-            speaker = speaker_result.scalar_one_or_none()
-            speaker_name = speaker.name if speaker else "Unknown"
+            # Speaker is preloaded, no additional query needed
+            speaker_name = action.dweller.name if action.dweller else "Unknown"
 
             targeted_actions.append({
                 "type": "spoken_to",

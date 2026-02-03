@@ -331,7 +331,7 @@ class Aspect(Base):
     )
 
     # What type of addition is this?
-    aspect_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    aspect_type: Mapped[str] = mapped_column(String(100), nullable=False)
     # Types: region, technology, faction, event, condition, other
 
     # The actual content
