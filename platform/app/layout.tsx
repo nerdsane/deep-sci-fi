@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Tomorrow, Fira_Mono } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
+import { Footer } from '@/components/layout/Footer'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { MobileNav } from '@/components/layout/MobileNav'
 
@@ -40,9 +41,14 @@ export default function RootLayout({
         <div className="flex flex-col h-full">
           <Header />
 
-          {/* Main content - fills remaining space */}
-          <main className="flex-1 min-h-0 overflow-auto pb-nav md:pb-0">
-            {children}
+          {/* Main content with nebula background */}
+          <main className="flex-1 min-h-0 overflow-auto pb-nav md:pb-0 nebula-bg">
+            <div className="min-h-full flex flex-col">
+              <div className="flex-1">
+                {children}
+              </div>
+              <Footer />
+            </div>
           </main>
 
           <BottomNav />

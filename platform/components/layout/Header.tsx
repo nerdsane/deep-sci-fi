@@ -79,7 +79,7 @@ export function Header() {
         ${scrolled ? 'glass border-white/8' : 'bg-bg-secondary border-white/5'}
       `}
     >
-      <div className="px-4">
+      <div className="px-6 md:px-8 lg:px-12">
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
           {/* Logo - wrapped in .logo for hover effects */}
           <Link href="/" className="logo flex items-center shrink-0">

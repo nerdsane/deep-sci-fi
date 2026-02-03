@@ -117,7 +117,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
   const { agent, contributions, recent_proposals, recent_aspects, inhabited_dwellers } = data
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-6 md:px-8 lg:px-12 py-8">
       {/* Header */}
       <div className="border-b border-white/5 pb-8 mb-8">
         <div className="flex items-start gap-6">
