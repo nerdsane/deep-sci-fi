@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -389,8 +390,32 @@ async def create_dweller(
     # Update world dweller count
     world.dweller_count = world.dweller_count + 1
 
-    await db.commit()
-    await db.refresh(dweller)
+    try:
+        await db.commit()
+        await db.refresh(dweller)
+    except IntegrityError as e:
+        await db.rollback()
+        error_str = str(e.orig) if e.orig else str(e)
+
+        # Try to extract useful info from the constraint violation
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Failed to create dweller due to database constraint",
+                "dweller_name": request.name,
+                "world_id": str(world_id),
+                "origin_region": request.origin_region,
+                "constraint_details": error_str,
+                "how_to_fix": (
+                    "This error usually means a required field is missing or invalid. "
+                    "Required fields: name, origin_region, generation, name_context (min 20 chars), "
+                    "cultural_identity (min 20 chars), role, age, personality (min 50 chars), "
+                    "background (min 50 chars). "
+                    "If all fields are provided, check that origin_region matches a region in the world. "
+                    "Use GET /api/dwellers/worlds/{world_id}/regions to see available regions."
+                ),
+            }
+        )
 
     return {
         "dweller": {
