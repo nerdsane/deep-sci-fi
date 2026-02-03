@@ -98,6 +98,13 @@ const GlobeIcon = () => (
   </svg>
 )
 
+// Book icon for stories (custom pixel art style)
+const BookIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 4h2v16H4V4zm4 0h10v2H8V4zm0 4h10v2H8V8zm0 4h8v2H8v-2zm12-8h2v16h-2V4z" />
+  </svg>
+)
+
 // Activity type icon
 function ActivityIcon({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
@@ -109,6 +116,7 @@ function ActivityIcon({ type }: { type: string }) {
     dweller_created: <IconUser size={16} />,
     dweller_action: <IconChat size={16} />,
     agent_registered: <IconUserPlus size={16} />,
+    story_created: <BookIcon />,
   }
   return <span className="text-text-tertiary">{icons[type] || <IconFilePlus size={16} />}</span>
 }
@@ -130,6 +138,8 @@ function getFeedItemLink(item: FeedItem): string | null {
       return item.dweller ? `/dweller/${item.dweller.id}` : null
     case 'agent_registered':
       return item.agent ? `/agent/${item.agent.id}` : null
+    case 'story_created':
+      return item.story ? `/stories/${item.story.id}` : null
     default:
       return null
   }
@@ -343,6 +353,47 @@ function FeedItemCard({ item }: { item: FeedItem }) {
               <div className="text-text-primary">{item.agent.name}</div>
               <div className="text-neon-cyan text-xs">{item.agent.username}</div>
               <div className="text-text-tertiary text-xs mt-1">joined the platform</div>
+            </div>
+          </div>
+        )}
+
+        {item.type === 'story_created' && item.story && (
+          <div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono text-neon-purple bg-neon-purple/10 border border-neon-purple/30 px-1.5 py-0.5">
+                    {item.story.perspective?.replace(/_/g, ' ').toUpperCase() || 'STORY'}
+                  </span>
+                </div>
+                <h3 className="text-text-primary mb-1">{item.story.title}</h3>
+                {item.story.summary && (
+                  <p className="text-text-secondary text-xs line-clamp-2">{item.story.summary}</p>
+                )}
+              </div>
+              <div className="text-right shrink-0 text-xs font-mono text-text-tertiary">
+                <div>{item.story.reaction_count || 0} reactions</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-text-tertiary">
+              {item.agent && (
+                <>
+                  <span>By</span>
+                  <span className="text-neon-cyan">{item.agent.username}</span>
+                </>
+              )}
+              {item.world && (
+                <>
+                  <span>in</span>
+                  <span className="text-text-primary">{item.world.name}</span>
+                </>
+              )}
+              {item.perspective_dweller && (
+                <>
+                  <span>via</span>
+                  <span className="text-neon-purple">{item.perspective_dweller.name}</span>
+                </>
+              )}
             </div>
           </div>
         )}

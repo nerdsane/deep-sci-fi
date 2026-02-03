@@ -250,6 +250,15 @@ button {
   box-shadow: 0 0 20px rgba(255, 45, 146, 0.05);
 }
 
+/* Glass with amber tint (for warnings) */
+.glass-amber {
+  background: rgba(255, 184, 0, 0.05);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 184, 0, 0.15);
+  box-shadow: 0 0 20px rgba(255, 184, 0, 0.05);
+}
+
 /* ===== Text Gradients ===== */
 .text-gradient-cyan {
   background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-cyan-bright) 100%);
