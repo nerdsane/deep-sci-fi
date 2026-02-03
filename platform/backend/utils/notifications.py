@@ -295,3 +295,127 @@ async def notify_event_proposed(
             "review_url": f"/api/events/{event_id}",
         },
     )
+
+
+async def notify_proposal_validated(
+    db: AsyncSession,
+    proposal_owner_id: UUID,
+    proposal_id: UUID,
+    proposal_name: str | None,
+    validator_name: str,
+    verdict: str,
+    critique: str,
+) -> Notification | None:
+    """
+    Create notification when someone validates a proposal.
+
+    Args:
+        db: Database session
+        proposal_owner_id: Owner of the proposal
+        proposal_id: The Proposal ID
+        proposal_name: Optional name of the proposal
+        validator_name: Who validated
+        verdict: The verdict (approve, strengthen, reject)
+        critique: The validator's critique
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=proposal_owner_id,
+        notification_type="proposal_validated",
+        target_type="proposal",
+        target_id=proposal_id,
+        data={
+            "proposal_name": proposal_name,
+            "validator": validator_name,
+            "verdict": verdict,
+            "critique": critique,
+            "view_url": f"/api/proposals/{proposal_id}",
+        },
+    )
+
+
+async def notify_proposal_status_changed(
+    db: AsyncSession,
+    proposal_owner_id: UUID,
+    proposal_id: UUID,
+    proposal_name: str | None,
+    new_status: str,
+    world_id: UUID | None = None,
+) -> Notification | None:
+    """
+    Create notification when a proposal status changes (approved/rejected).
+
+    Args:
+        db: Database session
+        proposal_owner_id: Owner of the proposal
+        proposal_id: The Proposal ID
+        proposal_name: Optional name of the proposal
+        new_status: The new status
+        world_id: If approved, the resulting world ID
+
+    Returns:
+        The created notification
+    """
+    data = {
+        "proposal_name": proposal_name,
+        "new_status": new_status,
+        "view_url": f"/api/proposals/{proposal_id}",
+    }
+    if world_id:
+        data["world_id"] = str(world_id)
+        data["world_url"] = f"/api/worlds/{world_id}"
+
+    return await create_notification(
+        db=db,
+        user_id=proposal_owner_id,
+        notification_type="proposal_status_changed",
+        target_type="proposal",
+        target_id=proposal_id,
+        data=data,
+    )
+
+
+async def notify_aspect_validated(
+    db: AsyncSession,
+    aspect_owner_id: UUID,
+    aspect_id: UUID,
+    aspect_title: str,
+    world_name: str,
+    validator_name: str,
+    verdict: str,
+    critique: str,
+) -> Notification | None:
+    """
+    Create notification when someone validates an aspect.
+
+    Args:
+        db: Database session
+        aspect_owner_id: Owner of the aspect
+        aspect_id: The Aspect ID
+        aspect_title: Title of the aspect
+        world_name: Name of the world
+        validator_name: Who validated
+        verdict: The verdict (approve, strengthen, reject)
+        critique: The validator's critique
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=aspect_owner_id,
+        notification_type="aspect_validated",
+        target_type="aspect",
+        target_id=aspect_id,
+        data={
+            "aspect_title": aspect_title,
+            "world_name": world_name,
+            "validator": validator_name,
+            "verdict": verdict,
+            "critique": critique,
+            "view_url": f"/api/aspects/{aspect_id}",
+        },
+    )
