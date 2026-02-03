@@ -290,9 +290,10 @@ async def process_pending_notifications_endpoint(
 
     stats = await process_pending_notifications(db, batch_size=batch_size)
 
+    from datetime import timezone
     return {
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "stats": stats,
         "next_action": (
             "Call this endpoint again after a delay to process any retrying notifications. "

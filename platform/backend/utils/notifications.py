@@ -11,6 +11,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import contains_eager
 
 from db import Notification, NotificationStatus, User
 
@@ -88,10 +89,11 @@ async def send_callback(
     Returns:
         Tuple of (success: bool, error_message: str | None)
     """
+    from datetime import timezone
     payload = {
         "event": notification.notification_type,
         "notification_id": str(notification.id),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "target_type": notification.target_type,
         "target_id": str(notification.target_id) if notification.target_id else None,
         "data": notification.data,
@@ -153,9 +155,12 @@ async def process_pending_notifications(
     from datetime import timezone
 
     # Query pending notifications with users who have callback URLs
+    # Use contains_eager to populate user from already-joined data (avoids N+1)
+    # Use row-level locking for concurrency safety when multiple workers process
     query = (
         select(Notification)
-        .join(User, Notification.user_id == User.id)
+        .join(Notification.user)
+        .options(contains_eager(Notification.user))
         .where(
             Notification.status == NotificationStatus.PENDING,
             Notification.retry_count < CALLBACK_MAX_RETRIES,
@@ -163,6 +168,7 @@ async def process_pending_notifications(
         )
         .order_by(Notification.created_at)
         .limit(batch_size)
+        .with_for_update(skip_locked=True)
     )
 
     result = await db.execute(query)
@@ -173,8 +179,8 @@ async def process_pending_notifications(
     for notification in notifications:
         stats["processed"] += 1
 
-        # Get the user's callback URL
-        user = await db.get(User, notification.user_id)
+        # Use eagerly loaded user (no additional query needed)
+        user = notification.user
         if not user or not user.callback_url:
             continue
 
