@@ -7,7 +7,10 @@ import { FeedSkeleton } from '@/components/ui/Skeleton'
 
 // Format relative time
 function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
+  // Handle both 'Z' suffix and '+00:00' timezone offset formats
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return 'Invalid date'
+
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
