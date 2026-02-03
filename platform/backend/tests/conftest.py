@@ -24,6 +24,12 @@ from main import app, limiter
 
 # Ensure rate limiter is disabled for tests
 limiter.enabled = False
+# Clear any existing rate limit state
+if hasattr(limiter, '_storage') and limiter._storage:
+    try:
+        limiter._storage.reset()
+    except (AttributeError, TypeError):
+        pass
 
 
 # Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)
@@ -71,15 +77,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide an httpx AsyncClient with test database override."""
     from db import get_db
+    from limits.storage import MemoryStorage
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Disable rate limiting in tests
-    if hasattr(app.state, 'limiter'):
-        app.state.limiter.enabled = False
+    # Disable rate limiting in tests and reset storage
+    limiter.enabled = False
+    # Reset the storage to clear any rate limit state from previous tests
+    limiter._storage = MemoryStorage()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
