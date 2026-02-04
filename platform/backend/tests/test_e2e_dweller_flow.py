@@ -14,6 +14,7 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
@@ -108,13 +109,6 @@ class TestDwellerFlow:
         creator = response.json()
         creator_key = creator["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Validator", "username": "dweller-flow-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create and approve proposal - premise must be 50+ chars
         response = await client.post(
             "/api/proposals",
@@ -134,28 +128,9 @@ class TestDwellerFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Well-grounded proposal with clear progression and solid science",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        # Get world ID from validation response or proposal detail
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit + 2 validations to meet APPROVAL_THRESHOLD=2
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
         assert world_id is not None, "World was not created from approved proposal"
 
         return {
