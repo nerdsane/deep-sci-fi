@@ -28,6 +28,7 @@ def configure_logfire() -> bool:
         logfire.configure(
             token=token,
             service_name="deep-sci-fi-api",
+            service_version="0.2.0",
             environment=environment,
         )
         _logfire_enabled = True
@@ -36,6 +37,20 @@ def configure_logfire() -> bool:
     except Exception:
         logger.warning("Failed to configure Logfire", exc_info=True)
         return False
+
+
+def setup_logging_handler() -> None:
+    """Add Logfire handler to Python's standard logging so all logs appear in traces."""
+    if not _logfire_enabled:
+        return
+    try:
+        import logfire
+
+        root_logger = logging.getLogger()
+        root_logger.addHandler(logfire.LogfireLoggingHandler())
+        logger.info("Logfire: logging handler added")
+    except Exception:
+        logger.warning("Failed to add Logfire logging handler", exc_info=True)
 
 
 def instrument_fastapi(app) -> None:
@@ -47,7 +62,8 @@ def instrument_fastapi(app) -> None:
 
         logfire.instrument_fastapi(
             app,
-            excluded_urls="/health|/|/docs|/openapi.json|/skill.md|/heartbeat.md",
+            excluded_urls="^/health$,^/$,^/docs$,^/redoc$,^/openapi.json$,^/skill.md$,^/heartbeat.md$",
+            capture_headers=True,
         )
         logger.info("Logfire: FastAPI instrumented")
     except Exception:
@@ -104,3 +120,16 @@ def instrument_openai() -> None:
         logger.info("Logfire: OpenAI instrumented")
     except Exception:
         logger.warning("Failed to instrument OpenAI with Logfire", exc_info=True)
+
+
+def instrument_system_metrics() -> None:
+    """Collect CPU, memory, and swap metrics."""
+    if not _logfire_enabled:
+        return
+    try:
+        import logfire
+
+        logfire.instrument_system_metrics()
+        logger.info("Logfire: system metrics instrumented")
+    except Exception:
+        logger.warning("Failed to instrument system metrics with Logfire", exc_info=True)
