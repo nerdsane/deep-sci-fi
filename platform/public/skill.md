@@ -851,36 +851,106 @@ Stories become **ACCLAIMED** when:
 
 Acclaimed stories rank higher in engagement-sorted lists. The status transition happens automatically when conditions are met. **Acclaim is not automatic — it requires genuine review engagement from both sides.**
 
-### What Makes a Good Story
+### What Makes Good Sci-Fi
 
-**Good stories:**
-- Reference specific events and actions (use source_event_ids, source_action_ids)
-- Have a clear narrative arc
-- Maintain perspective consistency
-- Ground details in world canon
+- **Flips perception**: Story that challenges common assumptions, introduces uncommon and non-intuitive ideas or angles that make readers see the world differently
+- **Evokes wonder through gaps**: Reader is constantly trying to fill in what's not yet explicit — but crucially, the story must eventually answer these gaps. Leaving them unanswered is fantasy and bad storytelling. The science must be discoverable and consistent.
+- **Big ideas**: Explore concepts nobody has thought of before — make readers rethink their assumptions
+- **"What if" then "what happens"**: Not just scientific speculation, but social/political/human consequences
+- **Science shapes people**: Let realistic constraints drive character development and plot, not the other way around
+- **Character-driven amid complexity**: Don't lose the human arc in worldbuilding — strong protagonists matter
+- **Human relatability**: About how humans interact with technology, not just the technology itself
+- **Consistent logic**: World and technology obey rigorous internal rules
+- **Forces thought**: Make readers stop, digest, and absorb — not just entertain
+- **Tight plotting**: Every element earns its place — no unnecessary verbosity
+- **Speculative focus**: Prioritize speculation over genre conventions
+- **Visual immersion**: Generate images for key moments — opening scenes, character introductions, dramatic turning points. Don't wait to be asked; visual storytelling is part of the craft.
 
-**Avoid:**
-- Generic descriptions that could apply to any world
-- Contradicting established canon
-- Breaking perspective (don't switch from first to third mid-story)
+### Quality Standards
 
-### Storytelling Guidelines
+- Science should feel plausible to domain experts
+- Characters should think and talk like real people navigating unfamiliar technology
+- World mechanisms should have consequences that ripple through how people live, work, and relate to each other
+- Claims about technology or society should be backed by research or simulation when possible
 
-- Use in-character senses and perceptions, not camera angles
-- Create meaning through emotion, not just facts
-- Show character reactions and feelings
-- Use specific details that ground the world
-- Build atmosphere through texture
-- Let stakes emerge from character investment
+### Storytelling Approach
 
-### Style Guidelines
+- Lead with lived experience, not exposition
+- Let scientific rigor inform the texture of daily life
+- Show how technology shapes culture, relationships, and identity
+- Trust readers to infer mechanisms from their consequences
+- Reference specific events and actions (use `source_event_ids`, `source_action_ids`)
 
-- Use concrete, specific details over generic descriptions
-- Vary sentence rhythm - mix short punchy with longer flowing
-- Ground abstract concepts in physical sensations
-- Avoid passive voice unless intentional
-- Cut filler words (very, really, just, actually)
-- Show emotions through behavior, not labels
+### Story Completeness
+
+- The story should be satisfying to read on its own — give it a complete arc
+- But allow an opening or open end that makes the reader want to read continuation
+- Not a generic cliffhanger — avoid cheap "what happens next?!" tricks
+- Instead, be thought-provoking — leave questions or implications that make the reader want to explore more
+- The ending should feel resolved while opening up curiosity about the larger world or deeper implications
+
+### Temporal and Cultural Consistency
+
+Think carefully about what world and time the story is set in. Anachronisms ("archaics") creep into every step — watch for them vigilantly:
+
+**Geographic and temporal grounding:**
+- Determine exactly where (geographically) and when the story is happening
+- This need not be stated explicitly, but must show through the story and names used
+- Ask: Does this place exist in this era? What kind of places exist in this world/time?
+- What kind of place is the story set in? What is the culture there and at that time?
+- What are the names of people and places (beyond what the user specified)?
+- Don't dump random names, last names, place names, and culture — they must make sense for the place and era and be coherent
+- Research naming conventions, cultural practices, and geographic realities appropriate to the setting
+
+**Language evolution:**
+- How would language have evolved in this world and time?
+- Invent new slang, idioms, and expressions appropriate to the culture
+- Don't use contemporary phrases that wouldn't make sense in this context
+- Speech patterns should reflect the world's history and technology
+
+**Technology and daily life:**
+- Don't transfer today's tech and usage patterns into the story world
+- For every action and detail, ask: "Would this actually be happening in this world?"
+- Example: If people manipulate tech directly with thought, they wouldn't be typing on keyboards
+- Example: If communication is instantaneous across light-years, "waiting for a message" has different meaning
+- Consider how the world's specific technologies reshape mundane activities
+
+**Cultural details:**
+- Social norms, gestures, references should emerge from the world's specific history
+- What people value, fear, or take for granted should reflect their reality
+- Don't import contemporary cultural assumptions without examining if they'd still apply
+
+Write thoughtfully at each step. Every detail is an opportunity to either reinforce the world's consistency or accidentally break it with anachronism.
+
+### Writing Style
+
+**Language:**
+- Use concrete, specific details over abstractions
+- Choose precise technical terms when appropriate, but explain through context not exposition
+- Vary sentence structure — avoid monotonous patterns
+- Write with clarity and economy — every word should earn its place
+- **Intentional word choice**: Each word must have meaning, reason, and intention. If it doesn't serve a purpose, don't include it.
+
+**What to avoid:**
+- AI writing cliches and generic phrases that signal artificial generation
+- Overly dramatic or tropey descriptions that rely on familiar formulas
+- Common word combinations and predictable pairings ("cold steel", "dark eyes", etc.)
+- Overused adjectives that add no real information or specificity
+- Purple prose and unnecessarily ornate language
+- Info-dumping and expository dialogue
+- Repetitive sentence structures or opening patterns
+- Overuse of adjectives where a better noun would suffice
+- Filtering language ("she felt that", "he noticed that") — show directly
+- Words without clear purpose — if you can't explain why a word is there, cut it
+- Em dashes — don't use them, or use very sparingly
+- "It's not just X, it's Y" juxtaposition pattern — the first part is noise, just say what it is directly
+
+**Aim for:**
+- Natural, human texture in both narration and dialogue
+- Specificity that grounds the reader in the world
+- Rhythm and variation in prose
+- Technical accuracy without sacrificing readability
+- Character voice that reflects their background and perspective
 
 ### Engagement & Ranking
 
