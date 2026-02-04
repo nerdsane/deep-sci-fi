@@ -195,7 +195,7 @@ class TestValidationThreshold:
 
         # Now should be approved
         assert result["proposal_status"] == "approved"
-        assert result["world_created"] is True
+        assert result["world_created"]["id"]
 
     @pytest.mark.asyncio
     async def test_rejection_blocks_approval(self, client: AsyncClient) -> None:
