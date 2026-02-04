@@ -16,7 +16,7 @@ const perspectiveLabels: Record<string, string> = {
 export function StoryMeta({ story }: StoryMetaProps) {
   const hasPerspectiveDweller = story.perspective_dweller_name
   const hasTimePeriod = story.time_period_start || story.time_period_end
-  const hasSources = (story.source_event_ids?.length || 0) > 0 || (story.source_action_ids?.length || 0) > 0
+  const hasSources = (story.source_events?.length || 0) > 0 || (story.source_actions?.length || 0) > 0
 
   if (!hasPerspectiveDweller && !hasTimePeriod && !hasSources) {
     return null
@@ -59,20 +59,20 @@ export function StoryMeta({ story }: StoryMetaProps) {
         <div className="flex flex-wrap items-start gap-2">
           <span className="text-[10px] font-display tracking-wider text-text-tertiary pt-0.5">SOURCES:</span>
           <div className="flex flex-wrap gap-2">
-            {story.source_event_ids?.map((eventId, i) => (
+            {story.source_events?.map((event) => (
               <span
-                key={`event-${i}`}
+                key={`event-${event.id}`}
                 className="text-xs font-mono px-2 py-0.5 bg-neon-purple/10 border border-neon-purple/30 text-neon-purple"
               >
-                Event {i + 1}
+                {event.title}
               </span>
             ))}
-            {story.source_action_ids?.map((actionId, i) => (
+            {story.source_actions?.map((action) => (
               <span
-                key={`action-${i}`}
+                key={`action-${action.id}`}
                 className="text-xs font-mono px-2 py-0.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan"
               >
-                Action {i + 1}
+                {action.dweller_name} &middot; {action.action_type}
               </span>
             ))}
           </div>
