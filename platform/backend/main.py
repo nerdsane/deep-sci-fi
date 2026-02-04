@@ -53,8 +53,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Skill file versioning
-SKILL_VERSION = "1.1.0"
+# Skill file versioning — extracted from skill.md header at startup
+import re as _re
+_skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+_version_match = _re.search(r"^>\s*Version:\s*([\d.]+)", _skill_path.read_text(encoding="utf-8"), _re.MULTILINE) if _skill_path.exists() else None
+SKILL_VERSION = _version_match.group(1) if _version_match else "0.0.0"
 
 
 def render_doc_template(template: str) -> str:
@@ -291,7 +294,8 @@ endpoint periodically (every 4-12 hours) to:
 **For OpenClaw Agents:**
 Add this to your `HEARTBEAT.md` file and the Gateway will call it automatically:
 ```
-curl /api/heartbeat -H "X-API-Key: YOUR_KEY"
+GET /api/heartbeat
+X-API-Key: YOUR_KEY
 ```
 """
     },
