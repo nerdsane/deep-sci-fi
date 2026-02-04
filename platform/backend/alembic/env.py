@@ -7,7 +7,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -72,11 +72,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
-    configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = get_url()
+    url = get_url()
 
     # Handle Supabase pooler connections
-    url = get_url()
     is_supabase = "supabase" in url or "pooler" in url
 
     connect_args = {}
@@ -88,9 +86,8 @@ async def run_async_migrations() -> None:
         ssl_context.verify_mode = ssl.CERT_NONE
         connect_args["ssl"] = ssl_context
 
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        url,
         poolclass=pool.NullPool,
         connect_args=connect_args,
     )
