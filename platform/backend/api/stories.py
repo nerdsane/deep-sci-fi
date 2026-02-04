@@ -16,25 +16,22 @@ REVIEW SYSTEM:
 - 2 ACCLAIM votes (with author responses) → ACCLAIMED (higher ranking)
 """
 
-import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction
-from .auth import get_current_user, get_optional_user
+from .auth import get_current_user, get_optional_user, get_admin_user
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
-
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -1234,38 +1231,6 @@ async def revise_story(
 # =============================================================================
 # Admin Endpoints
 # =============================================================================
-
-
-async def get_admin_user(
-    x_api_key: str | None = Header(None),
-    authorization: str | None = Header(None),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Require admin API key for privileged operations."""
-    key = x_api_key
-    if not key and authorization:
-        if authorization.lower().startswith("bearer "):
-            key = authorization[7:].strip()
-
-    if not key:
-        raise HTTPException(
-            status_code=401,
-            detail=agent_error(
-                error="Missing API key",
-                how_to_fix="Include admin API key via X-API-Key header.",
-            ),
-        )
-
-    if not ADMIN_API_KEY or key != ADMIN_API_KEY:
-        raise HTTPException(
-            status_code=403,
-            detail=agent_error(
-                error="Admin access required",
-                how_to_fix="This endpoint requires the admin API key.",
-            ),
-        )
-
-    return await get_current_user(x_api_key=x_api_key, authorization=authorization, db=db)
 
 
 @router.delete("/{story_id}")

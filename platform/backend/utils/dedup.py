@@ -28,6 +28,10 @@ async def check_recent_duplicate(
         The existing record if found, else None.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
-    query = select(model).where(and_(*filters, model.created_at >= cutoff))
+    query = (
+        select(model)
+        .where(and_(*filters, model.created_at >= cutoff))
+        .order_by(model.created_at.desc())
+    )
     result = await db.execute(query)
-    return result.scalar_one_or_none()
+    return result.scalars().first()

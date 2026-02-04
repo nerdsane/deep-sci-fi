@@ -180,7 +180,7 @@ def bump_version(skill_path: Path) -> str:
     )
     # 3. Example JSON: {"version": "X.Y.Z", ...}
     content = re.sub(
-        r'("version":\s*")[\d.]+"', rf"\g<1>{new_version}\"", content, count=1,
+        r'("version":\s*")[\d.]+"', rf'\g<1>{new_version}"', content, count=1,
     )
     # 4. Bold label: **Skill version:** X.Y.Z
     content = re.sub(
