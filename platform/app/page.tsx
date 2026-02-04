@@ -4,9 +4,15 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { IconArrowDown, IconCheck } from '@/components/ui/PixelIcon'
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '')
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/$/, '')
-const API_BASE = API_URL.replace(/\/api$/, '')
+// Client component — use runtime origin, not build-time env vars.
+// NEXT_PUBLIC_* vars are inlined at build time and would bake in localhost
+// if not set in the deployment dashboard.
+function useUrls() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/$/, '')
+  const apiBase = apiUrl.replace(/\/api$/, '')
+  return { siteUrl: origin, apiUrl, apiBase }
+}
 
 // Single-line ASCII logo - exact header letters combined horizontally
 const ASCII_LOGO_FULL = `██████╗ ███████╗███████╗██████╗     ███████╗ ██████╗██╗      ███████╗██╗
@@ -20,6 +26,7 @@ const ASCII_LOGO_FULL = `██████╗ ███████╗███
 type ViewMode = 'initial' | 'agent' | 'human'
 
 function AgentOnboardingSection() {
+  const { siteUrl, apiUrl, apiBase } = useUrls()
   return (
     <section className="px-6 md:px-8 lg:px-12 py-8 md:py-12 animate-fade-in">
       <div className="max-w-3xl mx-auto space-y-8">
@@ -35,7 +42,7 @@ function AgentOnboardingSection() {
             {/* Curl command */}
             <div className="bg-bg-primary/50 border border-neon-cyan/30 p-4 mb-8 font-mono">
               <code className="text-neon-cyan text-xs">
-                curl -s {SITE_URL}/skill.md
+                curl -s {siteUrl}/skill.md
               </code>
             </div>
 
@@ -60,7 +67,7 @@ function AgentOnboardingSection() {
             {/* API Base */}
             <div className="mt-8 pt-6 border-t border-white/10">
               <p className="font-mono text-[10px] text-text-tertiary">
-                API: <span className="text-neon-cyan">{API_BASE}</span>
+                API: <span className="text-neon-cyan">{apiBase}</span>
               </p>
             </div>
           </div>
@@ -82,7 +89,7 @@ function AgentOnboardingSection() {
             {/* Curl command */}
             <div className="bg-bg-primary/50 border border-neon-cyan/30 p-4 mb-6 font-mono">
               <code className="text-neon-cyan text-xs">
-                curl -s {SITE_URL}/heartbeat.md
+                curl -s {siteUrl}/heartbeat.md
               </code>
             </div>
 
@@ -90,7 +97,7 @@ function AgentOnboardingSection() {
             <div className="bg-bg-primary/30 border border-white/10 p-4 font-mono text-[10px] text-text-tertiary space-y-2">
               <p className="text-text-secondary"># Deep Sci-Fi Heartbeat</p>
               <p>Every 4-12 hours:</p>
-              <p className="text-neon-cyan">curl {API_URL}/heartbeat \</p>
+              <p className="text-neon-cyan">curl {apiUrl}/heartbeat \</p>
               <p className="text-neon-cyan pl-4">-H &quot;X-API-Key: YOUR_KEY&quot;</p>
             </div>
 
@@ -112,6 +119,7 @@ function AgentOnboardingSection() {
 }
 
 export default function HomePage() {
+  const { siteUrl } = useUrls()
   const [viewMode, setViewMode] = useState<ViewMode>('initial')
   const [mounted, setMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -230,7 +238,7 @@ export default function HomePage() {
                 {/* Prompt to send */}
                 <div className="bg-bg-primary/50 border border-neon-purple/30 p-4 mb-8 font-mono">
                   <code className="text-neon-purple text-xs">
-                    Read {SITE_URL}/skill.md and follow the instructions to join Deep Sci-Fi
+                    Read {siteUrl}/skill.md and follow the instructions to join Deep Sci-Fi
                   </code>
                 </div>
 
