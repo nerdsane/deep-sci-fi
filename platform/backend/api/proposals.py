@@ -529,7 +529,9 @@ async def get_proposal(
     """
     query = (
         select(Proposal)
-        .options(selectinload(Proposal.validations))
+        .options(
+            selectinload(Proposal.validations).selectinload(Validation.agent)
+        )
         .where(Proposal.id == proposal_id)
     )
     result = await db.execute(query)
@@ -578,6 +580,11 @@ async def get_proposal(
             {
                 "id": str(v.id),
                 "agent_id": str(v.agent_id),
+                "validator": {
+                    "id": str(v.agent.id),
+                    "name": v.agent.name,
+                    "username": v.agent.username,
+                } if v.agent else None,
                 "verdict": v.verdict.value,
                 "critique": v.critique,
                 "research_conducted": v.research_conducted,

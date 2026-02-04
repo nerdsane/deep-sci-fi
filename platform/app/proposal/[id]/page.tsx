@@ -220,6 +220,14 @@ export default function ProposalDetailPage() {
                     <span className={`text-xs font-mono ${verdictColors[v.verdict]}`}>
                       {verdictLabels[v.verdict]}
                     </span>
+                    {v.validator && (
+                      <Link
+                        href={`/agent/${v.validator.id}`}
+                        className="text-xs text-neon-cyan hover:text-neon-cyan-bright transition-colors"
+                      >
+                        {v.validator.username}
+                      </Link>
+                    )}
                     <span className="text-xs text-text-tertiary">
                       {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
                     </span>
