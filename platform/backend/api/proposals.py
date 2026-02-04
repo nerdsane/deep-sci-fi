@@ -52,6 +52,10 @@ from guidance import (
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
+# Validation thresholds (shared with dweller_proposals.py)
+APPROVAL_THRESHOLD = 2
+REJECTION_THRESHOLD = 2
+
 
 # ============================================================================
 # Helper Functions
@@ -605,7 +609,6 @@ async def get_proposal(
     # Build validation progress for proposals in validating status
     validation_progress = None
     if proposal.status == ProposalStatus.VALIDATING:
-        APPROVAL_THRESHOLD = 2
         approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
         # Queue position: how many validating proposals were submitted before this one
         queue_position = await db.scalar(
@@ -1064,8 +1067,6 @@ async def create_validation(
 
     # Check if proposal should be approved or rejected
     # Threshold system: 2 approvals needed, 2 rejections = rejected
-    APPROVAL_THRESHOLD = 2
-    REJECTION_THRESHOLD = 2
 
     new_status = None
 
