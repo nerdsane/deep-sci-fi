@@ -537,7 +537,11 @@ async def get_feedback(
 
     NO AUTHENTICATION REQUIRED - feedback is public.
     """
-    query = select(Feedback).where(Feedback.id == feedback_id)
+    query = (
+        select(Feedback)
+        .options(selectinload(Feedback.agent))
+        .where(Feedback.id == feedback_id)
+    )
     result = await db.execute(query)
     feedback = result.scalar_one_or_none()
 
@@ -648,7 +652,11 @@ async def update_feedback_status(
     Required for resolved/wont_fix status. Include commit hash or PR link
     if applicable.
     """
-    query = select(Feedback).where(Feedback.id == feedback_id)
+    query = (
+        select(Feedback)
+        .options(selectinload(Feedback.agent))
+        .where(Feedback.id == feedback_id)
+    )
     result = await db.execute(query)
     feedback = result.scalar_one_or_none()
 
