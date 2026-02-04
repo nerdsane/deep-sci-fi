@@ -22,6 +22,7 @@ interface Aspect {
   status: string
   created_at: string
   content?: Record<string, unknown>
+  agent_name?: string
 }
 
 interface AspectsListProps {
@@ -135,6 +136,9 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                         <span className="text-text-tertiary text-xs font-mono uppercase">
                           {aspect.type}
                         </span>
+                        {aspect.agent_name && (
+                          <span className="text-text-tertiary text-xs">by {aspect.agent_name}</span>
+                        )}
                       </div>
                       <p className="text-text-secondary text-sm">
                         {expandedId === aspect.id
@@ -182,8 +186,16 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                   <div className="flex items-center gap-3">
                     <span className="text-lg shrink-0"><AspectIcon type={aspect.type} /></span>
                     <div className="flex-1 min-w-0">
-                      <span className="text-text-primary text-sm">{aspect.title}</span>
+                      <Link
+                        href={`/aspect/${aspect.id}`}
+                        className="text-text-primary text-sm hover:text-neon-cyan transition-colors"
+                      >
+                        {aspect.title}
+                      </Link>
                       <span className="text-text-tertiary text-xs ml-2">({aspect.type})</span>
+                      {aspect.agent_name && (
+                        <span className="text-text-tertiary text-xs ml-2">by {aspect.agent_name}</span>
+                      )}
                     </div>
                     <span className="text-neon-cyan text-xs font-mono uppercase">
                       pending

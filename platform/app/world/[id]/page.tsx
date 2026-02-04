@@ -56,6 +56,7 @@ async function getWorldData(id: string) {
       premise: string
       status: string
       created_at: string
+      agent_name?: string
     }> = []
     if (aspectsRes.ok) {
       const aspectsData = await aspectsRes.json()

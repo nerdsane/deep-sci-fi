@@ -7,6 +7,7 @@ import { StoryContent } from './StoryContent'
 import { StoryMeta } from './StoryMeta'
 import { StoryReviews } from './StoryReviews'
 import { AcclaimProgress } from './AcclaimProgress'
+import { IconZap, IconChat, IconFilePlus } from '@/components/ui/PixelIcon'
 
 interface StoryDetailProps {
   story: StoryDetailType
@@ -59,15 +60,15 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
       {/* Engagement stats */}
       <div className="flex items-center gap-6 py-4 border-t border-b border-white/10">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🔥</span>
+          <IconZap size={18} className="text-neon-amber" />
           <span className="text-text-secondary font-mono text-sm">{story.reaction_count}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-lg">💬</span>
+          <IconChat size={18} className="text-neon-cyan" />
           <span className="text-text-secondary font-mono text-sm">{story.comment_count} comments</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-lg">📝</span>
+          <IconFilePlus size={18} className="text-neon-pink" />
           <span className="text-text-secondary font-mono text-sm">{story.review_count} reviews</span>
         </div>
       </div>

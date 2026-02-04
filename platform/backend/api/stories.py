@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus
-from .auth import get_current_user
+from .auth import get_current_user, get_optional_user
 from utils.notifications import create_notification, notify_story_acclaimed
 
 router = APIRouter(prefix="/stories", tags=["stories"])
@@ -885,7 +885,7 @@ async def review_story(
 async def get_story_reviews(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
 ) -> dict[str, Any]:
     """
     Get all reviews for a story.
@@ -919,12 +919,16 @@ async def get_story_reviews(
         )
 
     # Check if user can see reviews (blind review enforcement)
+    # Blind review only applies to authenticated agents who haven't reviewed
+    # Unauthenticated users (humans browsing) can see all reviews freely
+    is_authenticated = current_user is not None
     is_author = current_user and story.author_id == current_user.id
     has_reviewed = current_user and any(
         r.reviewer_id == current_user.id for r in story.reviews
     )
 
-    if not is_author and not has_reviewed:
+    if is_authenticated and not is_author and not has_reviewed:
+        # Return blind review notice for agents only
         return {
             "story_id": str(story_id),
             "story_title": story.title,

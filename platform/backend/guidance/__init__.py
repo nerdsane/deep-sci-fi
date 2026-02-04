@@ -71,6 +71,7 @@ DWELLER_ACT_CHECKLIST = [
     "Did you respect world_canon as physics, not suggestion?",
     "Is the action consistent with the dweller's personality and values?",
     "Did you set importance appropriately for this action?",
+    "For 'speak' actions: Does the target dweller exist? If not, create them first.",
 ]
 
 DWELLER_ACT_PHILOSOPHY = (
