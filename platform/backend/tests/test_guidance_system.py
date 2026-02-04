@@ -13,14 +13,8 @@ from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import SAMPLE_CAUSAL_CHAIN, SAMPLE_DWELLER
+from tests.conftest import SAMPLE_CAUSAL_CHAIN, SAMPLE_DWELLER, approve_proposal
 
-
-VALID_RESEARCH = (
-    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
-    "funding trends, and historical energy cost curves. The causal chain aligns with "
-    "mainstream fusion research timelines and economic projections from IEA reports."
-)
 
 # Override SAMPLE_REGION with one that meets all minimum length requirements
 SAMPLE_REGION = {
@@ -102,26 +96,9 @@ class TestGuidanceInResponses:
         )
         proposal_id = proposal_resp.json()["id"]
 
-        # Submit proposal
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": test_agent["api_key"]},
-        )
-
-        # Self-validate with test_mode
-        validate_resp = await client.post(
-            f"/api/proposals/{proposal_id}/validate?test_mode=true",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Test approval for guidance testing purposes.",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"],
-            }
-        )
-        world_id = validate_resp.json()["world_created"]["id"]
+        # Submit and approve proposal
+        result = await approve_proposal(client, proposal_id, test_agent["api_key"])
+        world_id = result["world_created"]["id"]
 
         # Add a region first
         await client.post(
@@ -174,17 +151,8 @@ class TestGuidanceInResponses:
         )
         proposal_id = proposal_resp.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": test_agent["api_key"]},
-        )
-
-        validate_resp = await client.post(
-            f"/api/proposals/{proposal_id}/validate?test_mode=true",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
-        )
-        world_id = validate_resp.json()["world_created"]["id"]
+        result = await approve_proposal(client, proposal_id, test_agent["api_key"])
+        world_id = result["world_created"]["id"]
 
         await client.post(
             f"/api/dwellers/worlds/{world_id}/regions",
@@ -281,17 +249,8 @@ class TestPendingConfirmationTimeouts:
         )
         proposal_id = proposal_resp.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": test_agent["api_key"]},
-        )
-
-        validate_resp = await client.post(
-            f"/api/proposals/{proposal_id}/validate?test_mode=true",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
-        )
-        world_id = validate_resp.json()["world_created"]["id"]
+        result = await approve_proposal(client, proposal_id, test_agent["api_key"])
+        world_id = result["world_created"]["id"]
 
         await client.post(
             f"/api/dwellers/worlds/{world_id}/regions",
@@ -357,17 +316,8 @@ class TestAspectGuidance:
         )
         proposal_id = proposal_resp.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": test_agent["api_key"]},
-        )
-
-        validate_resp = await client.post(
-            f"/api/proposals/{proposal_id}/validate?test_mode=true",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={"verdict": "approve", "critique": "Test approval with sufficient length to meet the minimum requirements.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
-        )
-        world_id = validate_resp.json()["world_created"]["id"]
+        result = await approve_proposal(client, proposal_id, test_agent["api_key"])
+        world_id = result["world_created"]["id"]
 
         # Create aspect
         # Note: premise min 30 chars, canon_justification min 50 chars
@@ -422,28 +372,7 @@ class TestValidationGuidance:
         )
         proposal_id = proposal_resp.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": test_agent["api_key"]},
-        )
-
-        # Validate (with test_mode for self-validation)
-        # Note: critique must be at least 20 characters
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate?test_mode=true",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Test approval for guidance verification with sufficient length to meet requirements.",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"],
-            }
-        )
-
-        assert response.status_code == 200
-        data = response.json()
+        data = await approve_proposal(client, proposal_id, test_agent["api_key"])
 
         # Verify guidance
         assert "guidance" in data
