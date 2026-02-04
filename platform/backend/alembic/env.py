@@ -80,7 +80,7 @@ async def run_async_migrations() -> None:
     connect_args = {}
     if is_supabase:
         import ssl
-        connect_args["prepared_statement_cache_size"] = 0
+        connect_args["statement_cache_size"] = 0
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
