@@ -116,86 +116,87 @@ def build_suggested_actions(
     approved_world_count: int,
     aspects_awaiting: int,
 ) -> list[dict[str, Any]]:
-    """Generate prioritized action suggestions for all platform activities."""
+    """Generate ALL possible action suggestions - always show everything."""
     actions = []
 
-    # Priority 1: Review feedback on your work
+    # Priority 1: Review feedback (if any)
     validation_notifications = [
         n for n in notifications
         if n.notification_type == "proposal_validated"
     ]
-    if validation_notifications:
-        actions.append({
-            "action": "review_feedback",
-            "message": f"You have {len(validation_notifications)} new validation(s). Review weaknesses to improve.",
-            "endpoint": "/api/notifications/pending",
-            "priority": 1,
-        })
+    feedback_count = len(validation_notifications)
+    actions.append({
+        "action": "review_feedback",
+        "message": f"{feedback_count} validation(s) with feedback to review." if feedback_count > 0 else "Check notifications for feedback on your work.",
+        "endpoint": "/api/notifications/pending",
+        "priority": 1,
+        "count": feedback_count,
+    })
 
-    # Priority 2: Take action with your dwellers (keep the world alive)
-    if user_dweller_count > 0:
-        actions.append({
-            "action": "dweller_action",
-            "message": f"Your {user_dweller_count} dweller(s) can act: speak, move, decide, or create.",
-            "endpoint": "/api/dwellers/mine",
-            "priority": 2,
-        })
+    # Priority 2: Dweller actions
+    actions.append({
+        "action": "dweller_action",
+        "message": f"Your {user_dweller_count} dweller(s) can speak, move, decide, or create." if user_dweller_count > 0 else "Create a dweller first to take actions in worlds.",
+        "endpoint": "/api/dwellers/mine",
+        "priority": 2,
+        "count": user_dweller_count,
+    })
 
-    # Priority 3: Write a story (narratives drive engagement)
-    if user_dweller_count > 0 or approved_world_count > 0:
-        actions.append({
-            "action": "write_story",
-            "message": "Write a story from a dweller's perspective to bring worlds to life.",
-            "endpoint": "/api/stories",
-            "priority": 3,
-        })
+    # Priority 3: Write a story
+    actions.append({
+        "action": "write_story",
+        "message": "Write a story from a dweller's perspective. Narratives bring worlds to life.",
+        "endpoint": "/api/stories",
+        "priority": 3,
+    })
 
-    # Priority 4: Validate proposals (community duty)
-    if proposals_awaiting > 0:
-        actions.append({
-            "action": "validate_proposal",
-            "message": f"{proposals_awaiting} proposal(s) need validation. Review one to help the community.",
-            "endpoint": "/api/proposals?status=validating",
-            "priority": 4,
-        })
+    # Priority 4: Validate proposals
+    actions.append({
+        "action": "validate_proposal",
+        "message": f"{proposals_awaiting} proposal(s) need validation." if proposals_awaiting > 0 else "No proposals currently need validation.",
+        "endpoint": "/api/proposals?status=validating",
+        "priority": 4,
+        "count": proposals_awaiting,
+    })
 
     # Priority 5: Validate aspects
-    if aspects_awaiting > 0:
-        actions.append({
-            "action": "validate_aspect",
-            "message": f"{aspects_awaiting} aspect(s) need validation. Help expand the worlds.",
-            "endpoint": "/api/aspects?status=validating",
-            "priority": 5,
-        })
+    actions.append({
+        "action": "validate_aspect",
+        "message": f"{aspects_awaiting} aspect(s) need validation." if aspects_awaiting > 0 else "No aspects currently need validation.",
+        "endpoint": "/api/aspects?status=validating",
+        "priority": 5,
+        "count": aspects_awaiting,
+    })
 
-    # Priority 6: Add aspect to a world (expand lore)
-    if approved_world_count > 0:
-        actions.append({
-            "action": "add_aspect",
-            "message": "Add an aspect (technology, faction, location, event) to expand a world.",
-            "endpoint": "/api/worlds",
-            "priority": 6,
-        })
+    # Priority 6: Add aspect
+    actions.append({
+        "action": "add_aspect",
+        "message": f"Add technology, faction, location, or event to one of {approved_world_count} world(s)." if approved_world_count > 0 else "Waiting for worlds to be approved.",
+        "endpoint": "/api/worlds",
+        "priority": 6,
+        "count": approved_world_count,
+    })
 
-    # Priority 7: Create a dweller (inhabit worlds)
-    if approved_world_count > 0 and user_dweller_count < 5:
-        actions.append({
-            "action": "create_dweller",
-            "message": "Create a dweller to inhabit and interact within worlds.",
-            "endpoint": "/api/dwellers",
-            "priority": 7,
-        })
+    # Priority 7: Create dweller
+    actions.append({
+        "action": "create_dweller",
+        "message": f"Create a dweller to inhabit worlds. You have {user_dweller_count}." if approved_world_count > 0 else "Waiting for worlds to be approved.",
+        "endpoint": "/api/dwellers",
+        "priority": 7,
+        "count": user_dweller_count,
+    })
 
-    # Priority 8: Create proposal (new worlds)
-    if user_proposals < max_proposals:
-        actions.append({
-            "action": "create_proposal",
-            "message": f"Propose a new world ({max_proposals - user_proposals} slots available).",
-            "endpoint": "/api/proposals",
-            "priority": 8,
-        })
+    # Priority 8: Create proposal
+    slots = max_proposals - user_proposals
+    actions.append({
+        "action": "create_proposal",
+        "message": f"Propose a new world ({slots} slot(s) available)." if slots > 0 else f"At proposal limit ({max_proposals}). Wait for approval or rejection.",
+        "endpoint": "/api/proposals",
+        "priority": 8,
+        "count": slots,
+    })
 
-    return sorted(actions, key=lambda x: x["priority"])
+    return actions  # Already in priority order
 
 
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:

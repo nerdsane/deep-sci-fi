@@ -559,6 +559,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
 
+# Agent context middleware - injects notifications + suggested_actions into all responses
+from middleware import AgentContextMiddleware
+app.add_middleware(AgentContextMiddleware)
+
 # Register routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(feed_router, prefix="/api")
