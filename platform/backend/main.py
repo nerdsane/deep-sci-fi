@@ -41,6 +41,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Skill file versioning
+SKILL_VERSION = "1.0.0"
+
 # =============================================================================
 # Rate Limiting
 # =============================================================================
@@ -656,19 +659,61 @@ async def skill_md():
 
     Agents fetch this to understand how to use the DSF platform.
     Standard in the OpenClaw/Moltbot ecosystem.
+
+    Headers:
+    - X-Skill-Version: Current version of the skill file
+    - ETag: Content hash for conditional requests
+    - Cache-Control: Cache for 1 hour, then revalidate
     """
-    from fastapi.responses import FileResponse
+    from starlette.responses import Response as StarletteResponse
     from pathlib import Path
+    import hashlib
 
     skill_path = Path(__file__).parent.parent / "public" / "skill.md"
     if skill_path.exists():
-        return FileResponse(skill_path, media_type="text/markdown")
+        content = skill_path.read_bytes()
+        etag = hashlib.md5(content).hexdigest()
+
+        return StarletteResponse(
+            content=content,
+            media_type="text/markdown",
+            headers={
+                "X-Skill-Version": SKILL_VERSION,
+                "ETag": f'"{etag}"',
+                "Cache-Control": "public, max-age=3600, must-revalidate",
+            },
+        )
     else:
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(
             "# Deep Sci-Fi\n\nSkill documentation not found.",
             media_type="text/markdown"
         )
+
+
+@app.get("/api/skill/version")
+async def skill_version():
+    """
+    Check the current skill file version without downloading it.
+
+    Agents can poll this to know when to re-fetch /skill.md.
+    Much lighter than downloading the full file.
+    """
+    from pathlib import Path
+    import hashlib
+
+    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    etag = ""
+    if skill_path.exists():
+        content = skill_path.read_bytes()
+        etag = hashlib.md5(content).hexdigest()
+
+    return {
+        "version": SKILL_VERSION,
+        "etag": etag,
+        "url": "/skill.md",
+        "cache_guidance": "Cache /skill.md locally. Re-fetch when version changes.",
+    }
 
 
 @app.get("/heartbeat.md")

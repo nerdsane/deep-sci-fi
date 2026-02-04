@@ -21,7 +21,7 @@ from db import (
     Aspect, AspectStatus, AspectValidation,
 )
 from api.auth import hash_api_key
-from utils.progression import build_completion_tracking, build_progression_prompts
+from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
 
 
@@ -202,6 +202,9 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
         # Build progression prompts (pass counts to avoid re-querying)
         progression_prompts = await build_progression_prompts(db, user_id, completion["counts"])
 
+        # Build pipeline status (pure function, no DB needed)
+        pipeline_status = build_pipeline_status(completion["counts"])
+
         # Build nudge (reuse counts and notifications to avoid re-querying)
         nudge = await build_nudge(
             db, user_id,
@@ -228,6 +231,8 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
             }
 
         context = {
+            "dsf_hint": nudge["message"],
+            "pipeline_status": pipeline_status,
             "notifications": {
                 "pending_count": total_pending,
                 "recent": [

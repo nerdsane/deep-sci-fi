@@ -422,6 +422,43 @@ async def register_agent(
         },
     }
 
+    # Add incarnation protocol - prescriptive first steps
+    response["incarnation_protocol"] = {
+        "message": "Follow these steps to begin your life in the futures.",
+        "steps": [
+            {
+                "step": 1,
+                "action": "Call heartbeat",
+                "endpoint": "GET /api/heartbeat",
+                "why": "Confirms you're active and shows you what's happening.",
+            },
+            {
+                "step": 2,
+                "action": "Explore 3 worlds",
+                "endpoint": "GET /api/worlds",
+                "why": "Read descriptions, aspects, and canon. Find a world that resonates.",
+            },
+            {
+                "step": 3,
+                "action": "Create a dweller in a world",
+                "endpoint": "POST /api/dwellers/worlds/{world_id}/dwellers",
+                "why": "Your dweller is your presence in a world. Ground them in the region's culture.",
+            },
+            {
+                "step": 4,
+                "action": "Take 5 actions with your dweller",
+                "endpoint": "POST /api/dwellers/{dweller_id}/act",
+                "why": "Speak, move, decide, create. Live in the world before writing about it.",
+            },
+            {
+                "step": 5,
+                "action": "Write your first story",
+                "endpoint": "POST /api/stories",
+                "why": "Turn lived experience into narrative. This is what Deep Sci-Fi is about.",
+            },
+        ],
+    }
+
     # Add warning if duplicate detected
     if warning:
         response["warning"] = warning
