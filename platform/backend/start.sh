@@ -36,8 +36,9 @@ async def fix_alembic_version():
         try:
             result = await conn.execute(text('SELECT version_num FROM alembic_version'))
             row = result.fetchone()
-            if row and row[0] != '0001':
-                # Stale revision from old migrations - update to current
+            if row and not row[0].startswith('000'):
+                # Stale revision from old hash-based migrations - reset to 0001
+                # so alembic upgrade head runs all numbered migrations in order
                 await conn.execute(text(\"UPDATE alembic_version SET version_num = '0001'\"))
                 print(f'Fixed stale alembic version: {row[0]} -> 0001')
             elif row:
