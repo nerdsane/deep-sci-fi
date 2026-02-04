@@ -11,9 +11,6 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconPlay,
-  IconMoodHappy,
-  IconEye,
-  IconCardStack,
 } from '@/components/ui/PixelIcon'
 
 interface Story {
@@ -80,34 +77,6 @@ interface WorldEvent {
   timestamp: string
 }
 
-interface AgentStatus {
-  puppeteer: {
-    status: string
-    events_count: number
-    last_event: string | null
-  }
-  storyteller: {
-    status: string
-    observations_count: number
-    stories_created: number
-    last_activity: string | null
-  }
-  critic: {
-    status: string
-    evaluations_count: number
-    last_evaluation: string | null
-    average_score: number | null
-  }
-  dweller_agents: Array<{
-    dweller_id: string
-    activity: string
-    conversation_id: string | null
-    last_active: string
-  }>
-  tick_count: number
-  simulation_status: string
-}
-
 interface Conversation {
   id: string
   participants: ConversationParticipant[]
@@ -153,14 +122,13 @@ interface WorldDetailProps {
     aspects?: Aspect[]
     canonSummary?: string | null
   }
-  agents?: AgentStatus
 }
 
 type TabType = 'live' | 'stories' | 'timeline' | 'dwellers' | 'aspects'
 
 const VALID_TABS: TabType[] = ['live', 'stories', 'timeline', 'dwellers', 'aspects']
 
-export function WorldDetail({ world, agents }: WorldDetailProps) {
+export function WorldDetail({ world }: WorldDetailProps) {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
   const initialTab = tabParam && VALID_TABS.includes(tabParam as TabType) ? (tabParam as TabType) : 'live'
@@ -811,195 +779,3 @@ function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: st
   )
 }
 
-function AgentsView({
-  agents,
-  dwellers,
-}: {
-  agents?: AgentStatus
-  dwellers?: Dweller[]
-}) {
-  if (!agents) {
-    return (
-      <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">Agent status unavailable</p>
-        <p className="text-sm">Start the simulation to see agent activity...</p>
-      </div>
-    )
-  }
-
-  const dwellerMap = new Map<string, Dweller>()
-  dwellers?.forEach(d => dwellerMap.set(d.id, d))
-
-  return (
-    <div className="space-y-8">
-      {/* Simulation Status */}
-      <div className="flex items-center gap-4 p-4 border border-white/10 rounded">
-        <div className="flex items-center gap-2">
-          <span
-            className={`w-3 h-3 rounded-full ${
-              agents.simulation_status === 'running' ? 'bg-neon-green animate-pulse' : 'bg-text-muted'
-            }`}
-          />
-          <span className="font-mono text-sm uppercase">
-            Simulation {agents.simulation_status}
-          </span>
-        </div>
-        <span className="text-text-tertiary text-xs font-mono">
-          Tick #{agents.tick_count}
-        </span>
-      </div>
-
-      {/* Puppeteer Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-2">
-                PUPPETEER
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Introduces world events
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.puppeteer.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {agents.puppeteer.status.toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.puppeteer.events_count} events
-                </span>
-                {agents.puppeteer.last_event && (
-                  <span className="text-text-tertiary">
-                    Last: {new Date(agents.puppeteer.last_event).toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-purple/20 rounded flex items-center justify-center text-neon-purple">
-              <IconMoodHappy size={24} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Storyteller Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                STORYTELLER
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Observes and creates stories
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.storyteller.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {agents.storyteller.status.toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.storyteller.observations_count} observations
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.storyteller.stories_created} stories created
-                </span>
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center text-neon-cyan">
-              <IconEye size={24} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Critic Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                CRITIC
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Evaluates quality
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.critic?.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {(agents.critic?.status || 'idle').toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.critic?.evaluations_count || 0} evaluations
-                </span>
-                {agents.critic?.average_score && (
-                  <span className="text-text-tertiary">
-                    avg: {agents.critic.average_score}/10
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center text-neon-cyan">
-              <IconCardStack size={24} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dweller Agents */}
-      <div>
-        <h3 className="text-text-primary font-mono text-sm uppercase tracking-wider mb-4">
-          DWELLERS ({agents.dweller_agents.length})
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {agents.dweller_agents.map((agent) => {
-            const dweller = dwellerMap.get(agent.dweller_id)
-            // Support both flat and nested persona structure
-            const name = dweller?.name || dweller?.persona?.name || 'Unknown'
-            const avatarUrl = dweller?.persona?.avatar_url
-
-            return (
-              <Card key={agent.dweller_id} className="border-white/5">
-                <CardContent className="py-3">
-                  <div className="flex items-center gap-3">
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={name}
-                        className="w-8 h-8 rounded object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs font-mono text-text-secondary shrink-0">
-                        {name.charAt(0) || '?'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-text-primary text-sm truncate">
-                        {name}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs font-mono">
-                        <span
-                          className={
-                            agent.activity === 'conversing'
-                              ? 'text-neon-green'
-                              : agent.activity === 'seeking'
-                              ? 'text-neon-cyan'
-                              : 'text-text-tertiary'
-                          }
-                        >
-                          {agent.activity}
-                        </span>
-                        {agent.conversation_id && (
-                          <span className="text-text-tertiary">
-                            in conversation
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
