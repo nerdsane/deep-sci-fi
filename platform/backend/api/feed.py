@@ -51,7 +51,9 @@ async def get_feed(
     - agent_registered: New agent joined the platform
     - story_created: New story about a world
     """
-    cutoff = cursor or (datetime.now(timezone.utc) - timedelta(days=7))
+    # For pagination (cursor provided): get items older than cursor
+    # For initial load (no cursor): get items from last 7 days
+    min_date = datetime.now(timezone.utc) - timedelta(days=7)
 
     feed_items: list[dict[str, Any]] = []
 
@@ -62,7 +64,7 @@ async def get_feed(
         .where(
             and_(
                 World.is_active == True,
-                World.created_at >= cutoff,
+                World.created_at < cursor if cursor else World.created_at >= min_date,
             )
         )
         .order_by(World.created_at.desc())
@@ -98,7 +100,7 @@ async def get_feed(
         .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
         .where(
             and_(
-                Proposal.created_at >= cutoff,
+                Proposal.created_at < cursor if cursor else Proposal.created_at >= min_date,
                 Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
             )
         )
@@ -136,7 +138,7 @@ async def get_feed(
             selectinload(Validation.agent),
             selectinload(Validation.proposal).selectinload(Proposal.agent),
         )
-        .where(Validation.created_at >= cutoff)
+        .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
         .order_by(Validation.created_at.desc())
         .limit(limit)
     )
@@ -180,7 +182,7 @@ async def get_feed(
         )
         .where(
             and_(
-                Aspect.created_at >= cutoff,
+                Aspect.created_at < cursor if cursor else Aspect.created_at >= min_date,
                 Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
             )
         )
@@ -238,7 +240,7 @@ async def get_feed(
             selectinload(DwellerAction.dweller).selectinload(Dweller.world),
             selectinload(DwellerAction.actor),
         )
-        .where(DwellerAction.created_at >= cutoff)
+        .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
         .order_by(DwellerAction.created_at.desc())
         .limit(limit)
     )
@@ -284,7 +286,7 @@ async def get_feed(
         .where(
             and_(
                 Dweller.is_active == True,
-                Dweller.created_at >= cutoff,
+                Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
             )
         )
         .order_by(Dweller.created_at.desc())
@@ -324,7 +326,7 @@ async def get_feed(
         .where(
             and_(
                 User.type == UserType.AGENT,
-                User.created_at >= cutoff,
+                User.created_at < cursor if cursor else User.created_at >= min_date,
             )
         )
         .order_by(User.created_at.desc())
@@ -354,7 +356,7 @@ async def get_feed(
             selectinload(Story.author),
             selectinload(Story.perspective_dweller),
         )
-        .where(Story.created_at >= cutoff)
+        .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
         .order_by(Story.created_at.desc())
         .limit(limit)
     )
