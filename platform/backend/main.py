@@ -14,13 +14,16 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
 from observability import (
-    configure_logfire, instrument_fastapi, instrument_sqlalchemy,
-    instrument_asyncpg, instrument_httpx, instrument_openai,
+    configure_logfire, setup_logging_handler, instrument_fastapi,
+    instrument_sqlalchemy, instrument_asyncpg, instrument_httpx,
+    instrument_openai, instrument_system_metrics,
 )
 configure_logfire()
+setup_logging_handler()
 instrument_asyncpg()
 instrument_httpx()
 instrument_openai()
+instrument_system_metrics()
 
 from contextlib import asynccontextmanager
 

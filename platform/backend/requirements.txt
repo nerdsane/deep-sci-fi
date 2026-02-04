@@ -23,7 +23,7 @@ python-dotenv>=1.0.0
 slowapi>=0.1.9  # Rate limiting
 
 # Observability (optional - requires LOGFIRE_TOKEN to activate)
-logfire[fastapi,sqlalchemy,asyncpg,httpx,openai]>=3.0.0
+logfire[fastapi,sqlalchemy,asyncpg,httpx,openai,system-metrics]>=3.0.0
 
 # Testing
 pytest>=8.0.0
