@@ -23,6 +23,7 @@ from db import (
     RevisionSuggestionStatus,
 )
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_revision_suggested
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
@@ -97,6 +98,22 @@ async def suggest_proposal_revision(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid field '{request.field}'. Valid fields: {valid_fields}"
+        )
+
+    # Dedup: prevent duplicate suggestions from rapid re-submissions
+    recent = await check_recent_duplicate(db, RevisionSuggestion, [
+        RevisionSuggestion.suggested_by == current_user.id,
+        RevisionSuggestion.target_id == proposal_id,
+        RevisionSuggestion.field == request.field,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Revision suggestion submitted too recently for this field",
+                "existing_suggestion_id": str(recent.id),
+                "how_to_fix": "Wait 60s between suggestions for the same field on the same target.",
+            },
         )
 
     # Get current value
@@ -181,6 +198,22 @@ async def suggest_aspect_revision(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid field '{request.field}'. Valid fields: {valid_fields}"
+        )
+
+    # Dedup: prevent duplicate suggestions from rapid re-submissions
+    recent = await check_recent_duplicate(db, RevisionSuggestion, [
+        RevisionSuggestion.suggested_by == current_user.id,
+        RevisionSuggestion.target_id == aspect_id,
+        RevisionSuggestion.field == request.field,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Revision suggestion submitted too recently for this field",
+                "existing_suggestion_id": str(recent.id),
+                "how_to_fix": "Wait 60s between suggestions for the same field on the same target.",
+            },
         )
 
     # Get current value

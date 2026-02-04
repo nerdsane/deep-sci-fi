@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Sync endpoint tables in skill.md from the FastAPI OpenAPI schema.
+"""Sync endpoint tables and auto-bump version in skill.md.
 
 Reads the OpenAPI spec from the FastAPI app, groups endpoints by tag,
-and replaces content between AUTO markers in skill.md.
+replaces content between AUTO markers in skill.md, and auto-bumps the
+patch version whenever content changes (endpoints or prose).
 
 Usage:
     cd platform/backend
-    python scripts/sync_skill_endpoints.py           # Update skill.md in place
+    python scripts/sync_skill_endpoints.py           # Sync endpoints + auto-bump version
     python scripts/sync_skill_endpoints.py --check   # Exit non-zero if stale (CI mode)
 """
+import datetime
+import hashlib
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -94,6 +98,100 @@ def sync_skill_md(skill_path: Path, tag_map: dict[str, list[dict]], *, check_onl
     return False
 
 
+def _strip_version_lines(content: str) -> str:
+    """Remove version/date lines so we can compare raw content changes."""
+    lines = content.splitlines()
+    filtered = []
+    for line in lines:
+        # Skip the 4 version-bearing lines
+        if re.match(r"^version:\s*[\d.]+", line):
+            continue
+        if re.match(r"^>\s*Version:\s*[\d.]+", line):
+            continue
+        if re.match(r"\*\*Skill version:\*\*\s*[\d.]+", line):
+            continue
+        if re.search(r'"version":\s*"[\d.]+"', line):
+            continue
+        filtered.append(line)
+    return "\n".join(filtered)
+
+
+def _content_fingerprint(content: str) -> str:
+    """MD5 of content with version/date lines stripped."""
+    return hashlib.md5(_strip_version_lines(content).encode()).hexdigest()
+
+
+def _get_head_content(skill_path: Path) -> str | None:
+    """Read skill.md from git HEAD (returns None if unavailable)."""
+    try:
+        repo_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True, stderr=subprocess.DEVNULL,
+        ).strip()
+        rel_path = skill_path.relative_to(repo_root)
+        return subprocess.check_output(
+            ["git", "show", f"HEAD:{rel_path}"], text=True, stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, ValueError):
+        return None
+
+
+def _extract_version(content: str) -> str:
+    """Extract version string from YAML frontmatter."""
+    m = re.search(r"^version:\s*([\d.]+)", content, re.MULTILINE)
+    return m.group(1) if m else "0.0.0"
+
+
+def needs_version_bump(skill_path: Path) -> bool:
+    """True when content changed from HEAD but version was not bumped."""
+    current = skill_path.read_text(encoding="utf-8")
+    head = _get_head_content(skill_path)
+    if head is None:
+        return False  # New file or not in git — nothing to compare
+
+    # Content (excluding version lines) unchanged → no bump needed
+    if _content_fingerprint(current) == _content_fingerprint(head):
+        return False
+
+    # Content changed — check whether version was already bumped
+    if _extract_version(current) != _extract_version(head):
+        return False  # Already bumped
+
+    return True
+
+
+def bump_version(skill_path: Path) -> str:
+    """Increment patch version and update date in all 4 locations. Returns new version."""
+    content = skill_path.read_text(encoding="utf-8")
+
+    current_version = _extract_version(content)
+    major, minor, patch = current_version.split(".")
+    new_version = f"{major}.{minor}.{int(patch) + 1}"
+    today = datetime.date.today().isoformat()
+
+    # 1. YAML frontmatter: version: X.Y.Z
+    content = re.sub(
+        r"^(version:\s*)[\d.]+", rf"\g<1>{new_version}", content, count=1, flags=re.MULTILINE,
+    )
+    # 2. Markdown header: > Version: X.Y.Z | Last updated: YYYY-MM-DD
+    content = re.sub(
+        r"^(>\s*Version:\s*)[\d.]+ \| Last updated: \S+",
+        rf"\g<1>{new_version} | Last updated: {today}",
+        content, count=1, flags=re.MULTILINE,
+    )
+    # 3. Example JSON: {"version": "X.Y.Z", ...}
+    content = re.sub(
+        r'("version":\s*")[\d.]+"', rf"\g<1>{new_version}\"", content, count=1,
+    )
+    # 4. Bold label: **Skill version:** X.Y.Z
+    content = re.sub(
+        r"(\*\*Skill version:\*\*\s*)[\d.]+", rf"\g<1>{new_version}", content, count=1,
+    )
+
+    skill_path.write_text(content, encoding="utf-8")
+    print(f"  Version bumped: {current_version} → {new_version} (date: {today})")
+    return new_version
+
+
 def main() -> None:
     check_only = "--check" in sys.argv
 
@@ -106,19 +204,28 @@ def main() -> None:
     tag_map = get_endpoints_by_tag()
     print(f"Found {len(tag_map)} tags, {sum(len(v) for v in tag_map.values())} total endpoints\n")
 
+    # --- Phase 1: endpoint table sync ---
     mode = "Checking" if check_only else "Syncing"
     print(f"{mode} skill.md endpoint tables:")
-    changed = sync_skill_md(skill_path, tag_map, check_only=check_only)
+    tables_changed = sync_skill_md(skill_path, tag_map, check_only=check_only)
+
+    # --- Phase 2: version freshness ---
+    version_stale = needs_version_bump(skill_path)
 
     if check_only:
-        if changed:
-            print("\nERROR: skill.md endpoint tables are out of date!")
+        errors = []
+        if tables_changed:
+            errors.append("Endpoint tables are out of date.")
+        if version_stale:
+            errors.append("Content changed but version was not bumped.")
+        if errors:
+            print(f"\nERROR: {' '.join(errors)}")
             print("Run: cd platform/backend && python scripts/sync_skill_endpoints.py")
             sys.exit(1)
-        else:
-            print("\nskill.md endpoint tables are up to date.")
+        print("\nskill.md endpoint tables and version are up to date.")
     else:
-        if changed:
+        if tables_changed or version_stale:
+            bump_version(skill_path)
             print("\nskill.md updated successfully.")
         else:
             print("\nskill.md is already up to date.")
