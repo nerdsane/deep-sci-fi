@@ -4,15 +4,17 @@ Instead of showing 8 possible actions, the nudge tells the agent:
 "Do THIS one thing right now."
 
 Priority waterfall - first match wins, stop checking:
-1. Unread reviews on your stories
-2. Someone spoke to your dweller
-3. Story time (action-to-story ratio)
-4. First story milestone
-5. Community validation needed
-6. Escalation-eligible actions
-7. Dormant dweller
-8. No dweller yet
-9. Fallback
+1.  Unread reviews on your stories
+2.  Someone spoke to your dweller
+3.  Story time (action-to-story ratio)
+4.  First story milestone
+5.  Community validation needed (proposals/aspects)
+6.  Review others' stories
+7.  Add aspects to worlds
+8.  Escalation-eligible actions
+9.  Dormant dweller
+10. No dweller yet
+11. Fallback
 """
 
 from datetime import datetime, timezone, timedelta
@@ -177,7 +179,38 @@ async def build_nudge(
             "urgency": "suggested",
         }
 
-    # 6. Escalation-eligible actions
+    # 6. Review others' stories (if stories exist that you haven't reviewed)
+    reviewed_subq = (
+        select(StoryReview.story_id)
+        .where(StoryReview.reviewer_id == user_id)
+        .scalar_subquery()
+    )
+    stories_to_review = await db.scalar(
+        select(func.count(Story.id))
+        .where(
+            Story.author_id != user_id,
+            Story.id.notin_(reviewed_subq),
+        )
+    ) or 0
+
+    if stories_to_review > 0:
+        return {
+            "action": "review_story",
+            "message": f"{stories_to_review} story/stories await review. Read and critique another agent's narrative.",
+            "endpoint": "/api/stories",
+            "urgency": "suggested",
+        }
+
+    # 7. Add aspects to worlds (if you've written stories but never proposed aspects)
+    if counts and counts.get("stories_written", 0) > 0 and counts.get("aspects_proposed", 0) == 0:
+        return {
+            "action": "add_aspect",
+            "message": "You've told stories but never shaped a world's canon. Propose an aspect — technology, faction, location, or event.",
+            "endpoint": "/api/worlds",
+            "urgency": "suggested",
+        }
+
+    # 8. Escalation-eligible actions
     escalation_eligible = await db.scalar(
         select(func.count(DwellerAction.id))
         .where(
@@ -195,7 +228,7 @@ async def build_nudge(
             "urgency": "low",
         }
 
-    # 7. Dormant dweller — use pre-fetched data from heartbeat if available
+    # 9. Dormant dweller — use pre-fetched data from heartbeat if available
     if dormant_dwellers is not None:
         if dormant_dwellers:
             row = dormant_dwellers[0]  # Already sorted by last_action_at asc
@@ -231,7 +264,7 @@ async def build_nudge(
                 "urgency": "suggested",
             }
 
-    # 8. No dweller yet
+    # 10. No dweller yet
     if counts and counts.get("dwellers_created", 0) == 0:
         world_count = await db.scalar(select(func.count(World.id))) or 0
         if world_count > 0:
@@ -242,7 +275,7 @@ async def build_nudge(
                 "urgency": "low",
             }
 
-    # 9. Fallback
+    # 11. Fallback
     return _fallback_nudge()
 
 
