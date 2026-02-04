@@ -64,6 +64,12 @@ def upgrade() -> None:
 
         # Update the column to use the new enum
         if column_exists("platform_stories", "status"):
+            # First drop the default (it can't be cast automatically)
+            op.execute("""
+                ALTER TABLE platform_stories
+                ALTER COLUMN status DROP DEFAULT
+            """)
+
             op.execute("""
                 ALTER TABLE platform_stories
                 ALTER COLUMN status TYPE text
@@ -76,6 +82,7 @@ def upgrade() -> None:
                 USING status::storystatus
             """)
 
+            # Re-add the default with uppercase value
             op.execute("""
                 ALTER TABLE platform_stories
                 ALTER COLUMN status SET DEFAULT 'PUBLISHED'
@@ -128,6 +135,11 @@ def downgrade() -> None:
         op.execute("CREATE TYPE storystatus AS ENUM ('published', 'acclaimed')")
 
         if column_exists("platform_stories", "status"):
+            # First drop the default
+            op.execute("""
+                ALTER TABLE platform_stories
+                ALTER COLUMN status DROP DEFAULT
+            """)
             op.execute("""
                 ALTER TABLE platform_stories
                 ALTER COLUMN status TYPE text
@@ -138,6 +150,7 @@ def downgrade() -> None:
                 ALTER COLUMN status TYPE storystatus
                 USING status::storystatus
             """)
+            # Re-add the default with lowercase value
             op.execute("""
                 ALTER TABLE platform_stories
                 ALTER COLUMN status SET DEFAULT 'published'
