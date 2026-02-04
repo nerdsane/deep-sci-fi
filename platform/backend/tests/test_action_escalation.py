@@ -11,6 +11,7 @@ Tests the flow:
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from conftest import approve_proposal
 
 
 VALID_RESEARCH = (
@@ -43,27 +44,8 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> tupl
     assert proposal_response.status_code == 200, f"Proposal failed: {proposal_response.json()}"
     proposal_id = proposal_response.json()["id"]
 
-    # Submit proposal
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    # Self-validate (test mode)
-    validation_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    assert validation_response.status_code == 200
-    world_id = validation_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent_key)
+    world_id = result["world_created"]["id"]
 
     # Add a region
     region_response = await client.post(
@@ -110,7 +92,7 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> tupl
 
 
 @pytest.mark.asyncio
-async def test_high_importance_action_is_escalation_eligible(client: AsyncClient, db_session: AsyncSession):
+async def test_high_importance_action_is_escalation_eligible(client: AsyncClient):
     """Test that actions with importance >= 0.8 are flagged as escalation eligible."""
     # Create agent and world
     agent_response = await client.post(
@@ -141,7 +123,7 @@ async def test_high_importance_action_is_escalation_eligible(client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_low_importance_action_not_escalation_eligible(client: AsyncClient, db_session: AsyncSession):
+async def test_low_importance_action_not_escalation_eligible(client: AsyncClient):
     """Test that actions with importance < 0.8 are NOT flagged as escalation eligible."""
     # Create agent and world
     agent_response = await client.post(
@@ -170,7 +152,7 @@ async def test_low_importance_action_not_escalation_eligible(client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_confirm_importance_by_different_agent(client: AsyncClient, db_session: AsyncSession):
+async def test_confirm_importance_by_different_agent(client: AsyncClient):
     """Test that another agent can confirm importance of a high-importance action."""
     # Create first agent and world
     agent1_response = await client.post(
@@ -216,7 +198,7 @@ async def test_confirm_importance_by_different_agent(client: AsyncClient, db_ses
 
 
 @pytest.mark.asyncio
-async def test_cannot_confirm_own_action(client: AsyncClient, db_session: AsyncSession):
+async def test_cannot_confirm_own_action(client: AsyncClient):
     """Test that agents cannot confirm importance of their own actions."""
     # Create agent and world
     agent_response = await client.post(
@@ -252,7 +234,7 @@ async def test_cannot_confirm_own_action(client: AsyncClient, db_session: AsyncS
 
 
 @pytest.mark.asyncio
-async def test_escalate_confirmed_action_to_world_event(client: AsyncClient, db_session: AsyncSession):
+async def test_escalate_confirmed_action_to_world_event(client: AsyncClient):
     """Test full escalation flow: action -> confirm -> escalate -> world event."""
     # Create two agents
     agent1_response = await client.post(
@@ -317,7 +299,7 @@ async def test_escalate_confirmed_action_to_world_event(client: AsyncClient, db_
 
 
 @pytest.mark.asyncio
-async def test_cannot_escalate_unconfirmed_action(client: AsyncClient, db_session: AsyncSession):
+async def test_cannot_escalate_unconfirmed_action(client: AsyncClient):
     """Test that unconfirmed actions cannot be escalated."""
     # Create agent and world
     agent_response = await client.post(
@@ -355,7 +337,7 @@ async def test_cannot_escalate_unconfirmed_action(client: AsyncClient, db_sessio
 
 
 @pytest.mark.asyncio
-async def test_list_escalation_eligible_actions(client: AsyncClient, db_session: AsyncSession):
+async def test_list_escalation_eligible_actions(client: AsyncClient):
     """Test listing actions eligible for escalation in a world."""
     # Create two agents
     agent1_response = await client.post(
@@ -459,7 +441,7 @@ async def test_importance_confirmation_creates_notification(client: AsyncClient,
 
 
 @pytest.mark.asyncio
-async def test_cannot_escalate_same_action_twice(client: AsyncClient, db_session: AsyncSession):
+async def test_cannot_escalate_same_action_twice(client: AsyncClient):
     """Test that an action cannot be escalated to a world event more than once."""
     # Create two agents
     agent1_response = await client.post(
@@ -524,7 +506,7 @@ async def test_cannot_escalate_same_action_twice(client: AsyncClient, db_session
 
 
 @pytest.mark.asyncio
-async def test_confirmation_rationale_is_stored(client: AsyncClient, db_session: AsyncSession):
+async def test_confirmation_rationale_is_stored(client: AsyncClient):
     """Test that the confirmation rationale is stored and retrievable."""
     # Create two agents
     agent1_response = await client.post(
