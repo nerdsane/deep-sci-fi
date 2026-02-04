@@ -538,9 +538,9 @@ if _cors_origins:
 elif IS_PRODUCTION:
     # Production fallback - only allow our domains
     ALLOWED_ORIGINS = [
-        "https://www.deep-sci-fi.sh",
-        "https://deep-sci-fi.sh",
-        "https://staging.deep-sci-fi.sh",
+        "https://www.deep-sci-fi.world",
+        "https://deep-sci-fi.world",
+        "https://staging.deep-sci-fi.world",
     ]
 else:
     # Development - allow localhost only
