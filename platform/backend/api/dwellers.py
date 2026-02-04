@@ -1102,6 +1102,43 @@ async def take_action(
             )
         new_region = matching_region["name"]  # Use canonical name
 
+    # Validate speak target exists BEFORE creating the action
+    target_dweller = None
+    if request.action_type == "speak" and request.target:
+        target_name_lower = request.target.lower()
+        target_dweller_query = (
+            select(Dweller)
+            .where(
+                Dweller.world_id == dweller.world_id,
+                Dweller.id != dweller_id,
+                func.lower(Dweller.name) == target_name_lower,
+            )
+        )
+        target_result = await db.execute(target_dweller_query)
+        target_dweller = target_result.scalar_one_or_none()
+
+        if not target_dweller:
+            available_query = select(Dweller.name).where(
+                Dweller.world_id == dweller.world_id,
+                Dweller.id != dweller_id,
+            )
+            available_result = await db.execute(available_query)
+            available_names = [r[0] for r in available_result.fetchall()]
+
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": f"Target dweller '{request.target}' not found in this world",
+                    "available_dwellers": available_names,
+                    "dweller_count": len(available_names),
+                    "how_to_fix": (
+                        f"You can speak to one of the {len(available_names)} existing dwellers: {', '.join(available_names)}. "
+                        f"If you specifically want to speak to '{request.target}', you must create them first. "
+                        f"Use POST /api/dwellers/worlds/{dweller.world_id} to create a new dweller, then speak to them."
+                    ),
+                }
+            )
+
     # Create action record with importance tracking
     escalation_threshold = 0.8
     is_escalation_eligible = request.importance >= escalation_threshold
@@ -1160,58 +1197,20 @@ async def take_action(
 
     # Notify target dweller if this is a speak action
     notification_sent = False
-    if request.action_type == "speak" and request.target:
-        # Find dweller being spoken to by name (case-insensitive)
-        target_name_lower = request.target.lower()
-        target_dweller_query = (
-            select(Dweller)
-            .where(
-                Dweller.world_id == dweller.world_id,
-                Dweller.id != dweller_id,
-                func.lower(Dweller.name) == target_name_lower,
-            )
+    if target_dweller and target_dweller.inhabited_by:
+        # Create notification for the target's inhabitant
+        from utils.notifications import notify_dweller_spoken_to
+
+        await notify_dweller_spoken_to(
+            db=db,
+            target_dweller_id=target_dweller.id,
+            target_inhabitant_id=target_dweller.inhabited_by,
+            from_dweller_name=dweller.name,
+            from_dweller_id=dweller.id,
+            action_id=action.id,
+            content=request.content,
         )
-        target_result = await db.execute(target_dweller_query)
-        target_dweller = target_result.scalar_one_or_none()
-
-        # Validate target exists for speak actions
-        if not target_dweller:
-            # Get list of available dwellers for helpful error
-            available_query = select(Dweller.name).where(
-                Dweller.world_id == dweller.world_id,
-                Dweller.id != dweller_id,
-            )
-            available_result = await db.execute(available_query)
-            available_names = [r[0] for r in available_result.fetchall()]
-
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": f"Target dweller '{request.target}' not found in this world",
-                    "available_dwellers": available_names,
-                    "dweller_count": len(available_names),
-                    "how_to_fix": (
-                        f"You can speak to one of the {len(available_names)} existing dwellers: {', '.join(available_names)}. "
-                        f"If you specifically want to speak to '{request.target}', you must create them first. "
-                        "Use POST /api/dwellers/worlds/{world_id} to create a new dweller, then speak to them."
-                    ),
-                }
-            )
-
-        if target_dweller and target_dweller.inhabited_by:
-            # Create notification for the target's inhabitant
-            from utils.notifications import notify_dweller_spoken_to
-
-            await notify_dweller_spoken_to(
-                db=db,
-                target_dweller_id=target_dweller.id,
-                target_inhabitant_id=target_dweller.inhabited_by,
-                from_dweller_name=dweller.name,
-                from_dweller_id=dweller.id,
-                action_id=action.id,
-                content=request.content,
-            )
-            notification_sent = True
+        notification_sent = True
 
     await db.commit()
     await db.refresh(action)

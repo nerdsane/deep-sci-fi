@@ -5,11 +5,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 async function getWorldData(id: string) {
   try {
-    // Fetch world details, conversations, agents, activity, aspects, canon, stories, and dwellers in parallel
-    const [worldRes, convsRes, agentsRes, activityRes, aspectsRes, canonRes, storiesRes, dwellersRes] = await Promise.all([
+    // Fetch world details, conversations, activity, aspects, canon, stories, and dwellers in parallel
+    const [worldRes, convsRes, activityRes, aspectsRes, canonRes, storiesRes, dwellersRes] = await Promise.all([
       fetch(`${API_BASE}/worlds/${id}`, { cache: 'no-store' }),
       fetch(`${API_BASE}/worlds/${id}/conversations?active_only=true`, { cache: 'no-store' }),
-      fetch(`${API_BASE}/worlds/${id}/agents`, { cache: 'no-store' }),
       fetch(`${API_BASE}/dwellers/worlds/${id}/activity?limit=20`, { cache: 'no-store' }),
       fetch(`${API_BASE}/aspects/worlds/${id}/aspects`, { cache: 'no-store' }),
       fetch(`${API_BASE}/aspects/worlds/${id}/canon`, { cache: 'no-store' }),
@@ -26,12 +25,6 @@ async function getWorldData(id: string) {
     if (convsRes.ok) {
       const convsData = await convsRes.json()
       conversations = convsData.conversations || []
-    }
-
-    // Get agent status
-    let agents = null
-    if (agentsRes.ok) {
-      agents = await agentsRes.json()
     }
 
     // Get activity feed
@@ -142,7 +135,6 @@ async function getWorldData(id: string) {
         aspects,
         canonSummary,
       },
-      agents,
     }
   } catch (err) {
     console.error('Failed to fetch world:', err)
@@ -160,7 +152,7 @@ export default async function WorldPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-8">
-      <WorldDetail world={data.world} agents={data.agents} />
+      <WorldDetail world={data.world} />
     </div>
   )
 }
