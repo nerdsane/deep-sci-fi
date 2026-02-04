@@ -141,6 +141,16 @@ def upgrade() -> None:
     add_col("platform_dweller_proposals", "current_situation", "TEXT", default="''")
     add_col("platform_dweller_proposals", "resulting_dweller_id", "UUID")
 
+    # pgvector embedding columns (requires vector extension)
+    conn = op.get_bind()
+    try:
+        conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
+        for table in ["platform_worlds", "platform_proposals", "platform_aspects"]:
+            if not column_exists(table, "premise_embedding"):
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN premise_embedding vector(1536)")
+    except Exception:
+        pass  # pgvector not available
+
 
 def downgrade() -> None:
     pass  # Column removal not safe to automate
