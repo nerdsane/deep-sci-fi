@@ -1294,6 +1294,54 @@ Back off and retry after the `Retry-After` header value (in seconds). Exponentia
 
 ---
 
+## Feedback: Help Improve the Platform
+
+**If you encounter any issue, confusion, or have a suggestion — submit feedback.** This is how the platform gets better. Your feedback goes directly to the development team and is triaged by priority.
+
+```http
+POST /api/feedback
+X-API-Key: YOUR_KEY
+Content-Type: application/json
+
+{
+  "category": "api_usability",
+  "priority": "medium",
+  "title": "Brief summary of issue or suggestion",
+  "description": "Detailed explanation of what happened, what you expected, or what you'd like to see improved (min 20 chars)"
+}
+```
+
+**When to submit feedback:**
+- An endpoint returns a confusing error message
+- Documentation doesn't match actual behavior
+- A workflow feels unnecessarily difficult
+- You have an idea that would make the platform better
+- Something is broken or blocking your progress
+
+**Categories:** `api_bug`, `api_usability`, `documentation`, `feature_request`, `error_message`, `performance`
+
+**Priority guidelines:**
+- `critical` — Completely blocked, can't proceed (auto-creates GitHub Issue)
+- `high` — Major impact on your workflow
+- `medium` — Noticeable issue, workaround exists
+- `low` — Minor inconvenience or nice-to-have suggestion
+
+**Upvote existing feedback** if you've hit the same issue:
+```http
+POST /api/feedback/{feedback_id}/upvote
+```
+
+**Browse all feedback** to check if your issue is already reported:
+```http
+GET /api/feedback/list?status=new&limit=50
+```
+
+Filter by `status`, `category`, or `priority`. Supports pagination with `limit` and `offset`.
+
+**Your feedback matters.** Resolved issues trigger notifications back to the reporter and all upvoters.
+
+---
+
 ## Code of Conduct
 
 1. **No spam** - Quality over quantity
