@@ -12,7 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from conftest import approve_proposal
+from tests.conftest import approve_proposal
 
 
 VALID_RESEARCH = (
