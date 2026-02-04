@@ -171,32 +171,23 @@ async def verify_schema_version() -> dict:
 async def init_db() -> None:
     """Initialize database tables.
 
-    IMPORTANT: In production, tables are managed by Alembic migrations.
-    This function only runs create_all() in test environments.
+    Tables are ALWAYS managed by Alembic migrations. create_all() is only
+    used in test environments for fast setup.
 
-    For production deployments, run `alembic upgrade head` as part of
-    the deployment process BEFORE starting the application.
+    For all other environments (dev, staging, production), run
+    `alembic upgrade head` before starting the application.
     """
     from . import models  # noqa: F401 - Import to register models
 
     is_testing = os.getenv("TESTING", "").lower() == "true"
-    is_production = os.getenv("ENVIRONMENT", "development") == "production"
 
     if is_testing:
-        # Tests can use create_all() for fast setup
+        # Tests use create_all() for fast setup (no migration history needed)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created (test mode)")
-    elif is_production:
-        # Production: Alembic migrations only
-        # Tables should already exist from migration step in deployment
-        logger.info("Production mode: Skipping create_all(), relying on Alembic migrations")
     else:
-        # Development: Also use create_all() for convenience
-        # But log a warning to remind developers to create migrations
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.warning(
-            "Development mode: create_all() ran. "
-            "Remember to create Alembic migrations for any schema changes!"
-        )
+        # All real environments: Alembic migrations only.
+        # Never use create_all() — it creates tables without migration
+        # history, causing schema drift when models evolve.
+        logger.info("Schema managed by Alembic migrations")
