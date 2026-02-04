@@ -1,24 +1,17 @@
 #!/bin/bash
 # Railway startup script
-# Handles initial alembic setup when database was created with create_all()
+# Ensures database schema is in sync with models via idempotent migrations.
+#
+# Strategy: Stamp to the last non-idempotent migration (93bbfb2c4512),
+# then run upgrade head. All migrations after that point use column_exists()
+# checks so they safely skip existing columns and add missing ones.
 
 set -e
 
-# Check if alembic_version table exists
-ALEMBIC_STATUS=$(alembic current 2>&1 || true)
-
-if echo "$ALEMBIC_STATUS" | grep -q "(head)"; then
-    echo "Alembic is at head. Running upgrade (no-op)..."
-    alembic upgrade head
-elif echo "$ALEMBIC_STATUS" | grep -q "revision"; then
-    echo "Alembic version found. Running upgrade..."
-    alembic upgrade head
-else
-    echo "No alembic version found. Database was likely created with create_all()."
-    echo "Stamping current state as head..."
-    alembic stamp head
-    echo "Stamped. Future deployments will run migrations normally."
-fi
+echo "Ensuring database schema is up to date..."
+alembic stamp 93bbfb2c4512
+alembic upgrade head
+echo "Schema sync complete."
 
 echo "Starting uvicorn..."
 exec uvicorn main:app --host 0.0.0.0 --port $PORT
