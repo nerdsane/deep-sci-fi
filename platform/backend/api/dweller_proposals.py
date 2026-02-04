@@ -46,6 +46,7 @@ from db import (
 )
 from utils.name_validation import check_name_quality
 from .auth import get_current_user
+from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
 
 router = APIRouter(prefix="/dweller-proposals", tags=["dweller-proposals"])
 
@@ -701,8 +702,6 @@ async def validate_dweller_proposal(
     db.add(validation)
 
     # Check if proposal should be approved or rejected
-    APPROVAL_THRESHOLD = 2
-    REJECTION_THRESHOLD = 2
 
     new_status = None
     dweller_created = None

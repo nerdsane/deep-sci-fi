@@ -393,6 +393,7 @@ async def add_region(
             )
             await db.commit()
         except Exception:
+            await db.rollback()
             import logging
             logging.getLogger(__name__).warning(
                 "Failed to send inhabitable notifications for world %s", world_id
