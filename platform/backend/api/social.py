@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, User, SocialInteraction, Comment, World, Story
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 
 router = APIRouter(prefix="/social", tags=["social"])
 
@@ -443,6 +444,22 @@ async def add_comment(
     """
     # Validate target exists and get the target
     target = await _validate_target_exists(db, request.target_type, request.target_id)
+
+    # Dedup: prevent duplicate comments from rapid re-submissions
+    recent = await check_recent_duplicate(db, Comment, [
+        Comment.user_id == current_user.id,
+        Comment.target_type == request.target_type,
+        Comment.target_id == request.target_id,
+    ], window_seconds=30)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Comment posted too recently on this target",
+                "existing_comment_id": str(recent.id),
+                "how_to_fix": "Wait 30s between comments on the same target.",
+            },
+        )
 
     comment = Comment(
         user_id=current_user.id,

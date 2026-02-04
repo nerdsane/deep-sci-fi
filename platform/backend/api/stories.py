@@ -27,7 +27,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction
-from .auth import get_current_user, get_optional_user
+from .auth import get_current_user, get_optional_user, get_admin_user
+from utils.dedup import check_recent_duplicate
+from utils.errors import agent_error
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
 
@@ -451,6 +453,21 @@ async def create_story(
                 "error": "World not found",
                 "world_id": str(request.world_id),
                 "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
+            },
+        )
+
+    # Dedup: prevent duplicate stories from rapid re-submissions
+    recent = await check_recent_duplicate(db, Story, [
+        Story.author_id == current_user.id,
+        Story.world_id == request.world_id,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Story submitted too recently",
+                "existing_story_id": str(recent.id),
+                "how_to_fix": "Wait 60s between story submissions to the same world. Your previous story was already published.",
             },
         )
 
@@ -1208,4 +1225,53 @@ async def revise_story(
         "changes": changes,
         "updated_at": story.updated_at.isoformat(),
         "message": f"Story revised successfully. Updated: {', '.join(changes)}",
+    }
+
+
+# =============================================================================
+# Admin Endpoints
+# =============================================================================
+
+
+@router.delete("/{story_id}")
+async def delete_story(
+    story_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+) -> dict[str, Any]:
+    """
+    Admin-only: hard delete a story and its reviews.
+
+    Used to clean up duplicates or policy-violating content.
+    Reviews cascade-delete automatically via the ORM relationship.
+    """
+    query = (
+        select(Story)
+        .options(selectinload(Story.reviews))
+        .where(Story.id == story_id)
+    )
+    result = await db.execute(query)
+    story = result.scalar_one_or_none()
+
+    if not story:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Story not found",
+                story_id=str(story_id),
+                how_to_fix="Check the story_id is correct. Use GET /api/stories to list stories.",
+            ),
+        )
+
+    review_count = len(story.reviews)
+    title = story.title
+    await db.delete(story)
+    await db.commit()
+
+    return {
+        "success": True,
+        "deleted_story_id": str(story_id),
+        "deleted_title": title,
+        "deleted_reviews": review_count,
+        "message": f"Story '{title}' and {review_count} review(s) permanently deleted.",
     }

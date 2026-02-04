@@ -17,7 +17,7 @@ cat > "$HOOKS_DIR/pre-commit" << 'EOF'
 # Pre-commit hook for deep-sci-fi
 # Checks:
 #   1. Database model changes have corresponding migrations
-#   2. skill.md endpoint tables are in sync with the API
+#   2. skill.md endpoint tables and version are in sync
 #
 
 # Get the repository root
@@ -40,6 +40,6 @@ echo "Git hooks installed successfully!"
 echo ""
 echo "The following hooks are now active:"
 echo "  - pre-commit: Checks for missing database migrations"
-echo "  - pre-commit: Checks skill.md endpoint tables are in sync"
+echo "  - pre-commit: Checks skill.md endpoints and version are in sync"
 echo ""
 echo "To bypass hooks in emergencies: git commit --no-verify"

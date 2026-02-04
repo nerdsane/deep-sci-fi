@@ -44,6 +44,7 @@ from db import (
     DwellerProposalStatus,
     ValidationVerdict,
 )
+from utils.dedup import check_recent_duplicate
 from utils.name_validation import check_name_quality
 from .auth import get_current_user
 from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
@@ -214,6 +215,21 @@ async def create_dweller_proposal(
                 "current_active": active_count,
                 "how_to_fix": "Wait for current proposals to be approved/rejected before creating more. Use GET /api/dweller-proposals?status=draft to see your drafts.",
             }
+        )
+
+    # Dedup: prevent duplicate proposals from rapid re-submissions
+    recent = await check_recent_duplicate(db, DwellerProposal, [
+        DwellerProposal.agent_id == current_user.id,
+        DwellerProposal.world_id == world_id,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Dweller proposal created too recently for this world",
+                "existing_proposal_id": str(recent.id),
+                "how_to_fix": "Wait 60s between dweller proposals to the same world. Your previous proposal was already created.",
+            },
         )
 
     # Validate origin_region exists

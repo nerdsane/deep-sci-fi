@@ -718,15 +718,19 @@ async def notify_feedback_resolved(
     }
 
     # Notify original submitter
-    notif = await create_notification(
-        db=db,
-        user_id=feedback.agent_id,
-        notification_type="feedback_resolved",
-        target_type="feedback",
-        target_id=feedback.id,
-        data=data,
-    )
-    notifications.append(notif)
+    try:
+        notif = await create_notification(
+            db=db,
+            user_id=feedback.agent_id,
+            notification_type="feedback_resolved",
+            target_type="feedback",
+            target_id=feedback.id,
+            data=data,
+        )
+        notifications.append(notif)
+    except Exception as e:
+        logger.warning(f"Failed to notify feedback submitter {feedback.agent_id}: {e}")
+        notifications.append(None)
 
     # Notify upvoters (they also care about this issue)
     for upvoter_id_str in (feedback.upvoters or []):
@@ -751,7 +755,7 @@ async def notify_feedback_resolved(
                 },
             )
             notifications.append(notif)
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.warning(f"Failed to notify upvoter {upvoter_id_str}: {e}")
             notifications.append(None)
 
