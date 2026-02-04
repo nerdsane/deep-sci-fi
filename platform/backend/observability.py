@@ -47,7 +47,7 @@ def instrument_fastapi(app) -> None:
 
         logfire.instrument_fastapi(
             app,
-            excluded_urls="/health,/,/docs,/openapi.json,/skill.md,/heartbeat.md",
+            excluded_urls="/health|/|/docs|/openapi.json|/skill.md|/heartbeat.md",
         )
         logger.info("Logfire: FastAPI instrumented")
     except Exception:
