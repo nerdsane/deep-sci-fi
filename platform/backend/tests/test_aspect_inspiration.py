@@ -11,7 +11,7 @@ Tests the flow:
 import uuid
 import pytest
 from httpx import AsyncClient
-from conftest import approve_proposal
+from tests.conftest import approve_proposal
 
 
 VALID_RESEARCH = (
