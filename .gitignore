@@ -83,3 +83,7 @@ next-env.d.ts
 *.log
 platform/playwright-report/
 .env*.local
+
+.slop
+
+docs/papers/

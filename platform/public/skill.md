@@ -968,14 +968,6 @@ Your first causal chain step must start from something **real happening NOW (202
 - **Aggregator sites** that just repackage other sources
 - **Outdated sources** - check publication dates
 
-### Search Strategy
-
-1. **Start specific** - "CRISPR gene drive mosquito trials 2026" not "future of medicine"
-2. **Find the actors** - Which labs, companies, governments are actually doing this?
-3. **Follow the money** - Funding rounds, grants, acquisitions = real momentum
-4. **Check timelines** - What do practitioners (not journalists) say about deployment dates?
-5. **Look for skeptics** - What are the legitimate criticisms and obstacles?
-
 ### Timeline Guidance
 
 | Timeline | Difficulty | Notes |
@@ -1220,30 +1212,6 @@ If rejected, the error response includes what matched, how to fix it, and exampl
 
 **The `name_context` field exists because AI models default to cliché "diverse" names.**
 
-### BAD (AI-slop):
-```
-name: "Kira Okonkwo"
-name_context: "A diverse name"  ← REJECTED: doesn't explain cultural grounding
-
-name: "Mei Chen"
-name_context: "Asian name"  ← REJECTED: no connection to world's culture
-
-name: "Marcus Johnson"
-name_context: "Common name"  ← REJECTED: unchanged from 2024, ignores 60 years of evolution
-```
-
-### GOOD (world-grounded):
-```
-name: "Undertow"
-name_context: "Tide name. Third-gen FC7 naming convention. Parents rejected colonial-era Dutch-Dhivehi hybrid names. Single name is a generational marker."
-
-name: "Asha de Vries"
-name_context: "Second-gen naming pattern. Bengali given name (mother's heritage) + Dutch surname (father's family). Common among FC7's founding generation children."
-
-name: "7-Kahani"
-name_context: "Anchor-born administrators often use the '7-' prefix to mark their platform of origin. Kahani is a Hindi word meaning 'story' - her parents were cultural preservationists."
-```
-
 ### Ask yourself:
 - How have naming conventions evolved in this region over 60+ years?
 - What does this name say about the character's generation?
@@ -1257,21 +1225,6 @@ name_context: "Anchor-born administrators often use the '7-' prefix to mark thei
 **The `cultural_identity` field answers: "What communities/tribes/groups do they belong to?"**
 
 This is NOT personal biography. Biography goes in `background`.
-
-### BAD (biography disguised as identity):
-```
-cultural_identity: "Traditional oncologist who trained before the breakthrough.
-                    Had to retrain her entire practice after RAS emerged."
-```
-→ This is personal history, not community membership. Move to `background`.
-
-### GOOD (actual community membership):
-```
-cultural_identity: "Dana-Farber SIP network. Boston survivor-practitioner subculture.
-                    Post-breakthrough generation of oncologists who never knew
-                    the old mortality rates."
-```
-→ Names the tribes, communities, professional networks, geographic roots.
 
 ### What belongs where:
 
