@@ -9,19 +9,24 @@
 
 set -e
 
-echo "Step 1: Creating any missing tables..."
+echo "Step 1: Ensuring extensions and tables exist..."
 python3 -c "
 import asyncio
+import sqlalchemy as sa
 from db.database import engine, Base
 from db import models  # register all models
 
 async def create_tables():
     async with engine.begin() as conn:
+        # Enable required extensions
+        await conn.execute(sa.text('CREATE EXTENSION IF NOT EXISTS vector'))
+        await conn.execute(sa.text('CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"'))
+        # Create any missing tables (idempotent - skips existing)
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
 
 asyncio.run(create_tables())
-print('Tables synced.')
+print('Tables and extensions synced.')
 "
 
 echo "Step 2: Running migrations for column-level changes..."
