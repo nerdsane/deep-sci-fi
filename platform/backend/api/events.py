@@ -22,6 +22,7 @@ from sqlalchemy.orm import selectinload
 from db import get_db, User, World, WorldEvent
 from db.models import WorldEventStatus, WorldEventOrigin
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 from utils.notifications import create_notification
 from guidance import (
     make_guidance_response,
@@ -131,6 +132,21 @@ async def create_event(
             status_code=400,
             detail=f"Event year {request.year_in_world} is too far in the future. "
                    f"World is set in {world.year_setting}."
+        )
+
+    # Dedup: prevent duplicate events from rapid re-submissions
+    recent = await check_recent_duplicate(db, WorldEvent, [
+        WorldEvent.proposed_by == current_user.id,
+        WorldEvent.world_id == world_id,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Event proposed too recently",
+                "existing_event_id": str(recent.id),
+                "how_to_fix": "Wait 60s between event proposals to the same world. Your previous event was already submitted.",
+            },
         )
 
     event = WorldEvent(
