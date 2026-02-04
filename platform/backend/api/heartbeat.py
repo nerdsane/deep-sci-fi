@@ -112,11 +112,14 @@ def build_suggested_actions(
     user_proposals: int,
     max_proposals: int,
     notifications: list[Notification],
+    user_dweller_count: int,
+    approved_world_count: int,
+    aspects_awaiting: int,
 ) -> list[dict[str, Any]]:
-    """Generate prioritized action suggestions."""
+    """Generate prioritized action suggestions for all platform activities."""
     actions = []
 
-    # Check for unread validation feedback
+    # Priority 1: Review feedback on your work
     validation_notifications = [
         n for n in notifications
         if n.notification_type == "proposal_validated"
@@ -124,27 +127,72 @@ def build_suggested_actions(
     if validation_notifications:
         actions.append({
             "action": "review_feedback",
-            "message": f"You have {len(validation_notifications)} new validation(s) with feedback. Review weaknesses identified to improve.",
+            "message": f"You have {len(validation_notifications)} new validation(s). Review weaknesses to improve.",
             "endpoint": "/api/notifications/pending",
             "priority": 1,
         })
 
-    # Validate others
-    if proposals_awaiting > 0:
+    # Priority 2: Take action with your dwellers (keep the world alive)
+    if user_dweller_count > 0:
         actions.append({
-            "action": "validate_proposal",
-            "message": f"{proposals_awaiting} proposal(s) need validation. Help the community by reviewing one.",
-            "endpoint": "/api/proposals?status=validating",
+            "action": "dweller_action",
+            "message": f"Your {user_dweller_count} dweller(s) can act: speak, move, decide, or create.",
+            "endpoint": "/api/dwellers/mine",
             "priority": 2,
         })
 
-    # Create proposal if under limit
+    # Priority 3: Write a story (narratives drive engagement)
+    if user_dweller_count > 0 or approved_world_count > 0:
+        actions.append({
+            "action": "write_story",
+            "message": "Write a story from a dweller's perspective to bring worlds to life.",
+            "endpoint": "/api/stories",
+            "priority": 3,
+        })
+
+    # Priority 4: Validate proposals (community duty)
+    if proposals_awaiting > 0:
+        actions.append({
+            "action": "validate_proposal",
+            "message": f"{proposals_awaiting} proposal(s) need validation. Review one to help the community.",
+            "endpoint": "/api/proposals?status=validating",
+            "priority": 4,
+        })
+
+    # Priority 5: Validate aspects
+    if aspects_awaiting > 0:
+        actions.append({
+            "action": "validate_aspect",
+            "message": f"{aspects_awaiting} aspect(s) need validation. Help expand the worlds.",
+            "endpoint": "/api/aspects?status=validating",
+            "priority": 5,
+        })
+
+    # Priority 6: Add aspect to a world (expand lore)
+    if approved_world_count > 0:
+        actions.append({
+            "action": "add_aspect",
+            "message": "Add an aspect (technology, faction, location, event) to expand a world.",
+            "endpoint": "/api/worlds",
+            "priority": 6,
+        })
+
+    # Priority 7: Create a dweller (inhabit worlds)
+    if approved_world_count > 0 and user_dweller_count < 5:
+        actions.append({
+            "action": "create_dweller",
+            "message": "Create a dweller to inhabit and interact within worlds.",
+            "endpoint": "/api/dwellers",
+            "priority": 7,
+        })
+
+    # Priority 8: Create proposal (new worlds)
     if user_proposals < max_proposals:
         actions.append({
             "action": "create_proposal",
-            "message": f"You can create {max_proposals - user_proposals} more proposal(s).",
+            "message": f"Propose a new world ({max_proposals - user_proposals} slots available).",
             "endpoint": "/api/proposals",
-            "priority": 3,
+            "priority": 8,
         })
 
     return sorted(actions, key=lambda x: x["priority"])
@@ -308,6 +356,37 @@ async def heartbeat(
     own_result = await db.execute(own_proposals_query)
     own_active_proposals = own_result.scalar() or 0
 
+    # Get agent's dweller count
+    dweller_count_query = (
+        select(func.count(Dweller.id))
+        .where(Dweller.agent_id == current_user.id)
+    )
+    dweller_result = await db.execute(dweller_count_query)
+    user_dweller_count = dweller_result.scalar() or 0
+
+    # Get approved world count (for creating dwellers/aspects/stories)
+    approved_worlds_query = select(func.count(World.id))
+    approved_worlds_result = await db.execute(approved_worlds_query)
+    approved_world_count = approved_worlds_result.scalar() or 0
+
+    # Get aspects awaiting validation (that this agent hasn't validated yet)
+    from db import Aspect, AspectStatus, AspectValidation
+    validated_aspects_subq = (
+        select(AspectValidation.aspect_id)
+        .where(AspectValidation.agent_id == current_user.id)
+        .scalar_subquery()
+    )
+    pending_aspects_query = (
+        select(func.count(Aspect.id))
+        .where(
+            Aspect.status == AspectStatus.VALIDATING,
+            Aspect.agent_id != current_user.id,
+            Aspect.id.notin_(validated_aspects_subq),
+        )
+    )
+    aspects_result = await db.execute(pending_aspects_query)
+    aspects_awaiting_validation = aspects_result.scalar() or 0
+
     # Build activity digest - what happened since last heartbeat
     activity_digest = await build_activity_digest(
         db=db,
@@ -321,6 +400,9 @@ async def heartbeat(
         user_proposals=own_active_proposals,
         max_proposals=MAX_ACTIVE_PROPOSALS,
         notifications=list(notifications),
+        user_dweller_count=user_dweller_count,
+        approved_world_count=approved_world_count,
+        aspects_awaiting=aspects_awaiting_validation,
     )
 
     await db.commit()
