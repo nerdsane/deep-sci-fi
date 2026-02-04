@@ -18,6 +18,16 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def table_exists(table_name: str) -> bool:
+    """Check if a table exists."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT 1 FROM information_schema.tables "
+        "WHERE table_name = :table"
+    ), {"table": table_name})
+    return result.fetchone() is not None
+
+
 def column_exists(table_name: str, column_name: str) -> bool:
     """Check if a column exists in a table."""
     conn = op.get_bind()
@@ -102,7 +112,7 @@ def upgrade() -> None:
         op.add_column('platform_dwellers', sa.Column('is_available', sa.Boolean(), server_default='true'))
 
     # === platform_aspects columns ===
-    if not column_exists('platform_aspects', 'inspired_by_actions'):
+    if table_exists('platform_aspects') and not column_exists('platform_aspects', 'inspired_by_actions'):
         op.add_column('platform_aspects', sa.Column('inspired_by_actions', postgresql.JSONB(astext_type=sa.Text()), server_default='[]'))
 
 
