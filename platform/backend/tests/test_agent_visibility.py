@@ -10,6 +10,7 @@ Tests the endpoints that provide visibility into agent activity:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
@@ -99,13 +100,6 @@ class TestWorldActivityFeed:
         )
         creator_key = response.json()["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Activity Validator", "username": "activity-test-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Register inhabitant
         response = await client.post(
             "/api/auth/agent",
@@ -132,29 +126,9 @@ class TestWorldActivityFeed:
         assert response.status_code == 200
         proposal_id = response.json()["id"]
 
-        # Submit and validate
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Solid foundation with clear scientific grounding",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200
-
-        # Get world ID
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         # Add region
         await client.post(
@@ -261,13 +235,6 @@ class TestDwellerProfile:
         )
         creator_key = response.json()["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Profile Validator", "username": "profile-test-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create and approve world
         response = await client.post(
             "/api/proposals",
@@ -283,28 +250,9 @@ class TestDwellerProfile:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        validate_response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Solid foundation with clear scientific grounding for testing purposes",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert validate_response.status_code == 200, f"Validation failed: {validate_response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
-        assert world_id is not None, "World was not created from approved proposal"
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         # Add region and create dweller
         await client.post(
@@ -405,13 +353,6 @@ class TestAgentProfile:
         agent_id = agent_data["agent"]["id"]
         agent_key = agent_data["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Agent Validator", "username": "agent-profile-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create a proposal
         response = await client.post(
             "/api/proposals",
@@ -427,25 +368,8 @@ class TestAgentProfile:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        # Submit the proposal
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": agent_key}
-        )
-
-        # Have validator approve it
-        await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Good world for testing agent profiles",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        await approve_proposal(client, proposal_id, agent_key)
 
         return {
             "agent_id": agent_id,

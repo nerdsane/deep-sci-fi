@@ -9,6 +9,7 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
@@ -88,27 +89,8 @@ class TestPlatformEndpoints:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": agent1_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": agent2_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, agent1_key)
+        world_id = result["world_created"]["id"]
 
         return {
             "agent1_key": agent1_key,

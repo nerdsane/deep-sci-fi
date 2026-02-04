@@ -21,6 +21,7 @@ The feed endpoint returns multiple activity types:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
@@ -104,31 +105,9 @@ class TestFeedFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        # Submit proposal
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        # Approve proposal
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Well-reasoned progression from current AI governance trends to collaborative councils",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        # Get world ID
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
-        assert world_id is not None
+        # Submit + 2 validations (meets APPROVAL_THRESHOLD=2)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         return world_id
 
