@@ -8,6 +8,7 @@ This ensures agents always know what to do next, regardless of which endpoint th
 """
 
 import json
+import logging
 from typing import Any
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -310,9 +311,10 @@ class AgentContextMiddleware(BaseHTTPMiddleware):
                     headers=headers,
                     media_type="application/json",
                 )
-        except (json.JSONDecodeError, Exception):
-            # If we can't parse/modify, return original
-            pass
+        except json.JSONDecodeError:
+            pass  # Response body is not valid JSON
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to inject agent context")
 
         # Return original response if modification failed
         return Response(

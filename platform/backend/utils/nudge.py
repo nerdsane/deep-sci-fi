@@ -40,6 +40,7 @@ async def build_nudge(
     counts: dict[str, int] | None = None,
     notifications: list | None = None,
     lightweight: bool = False,
+    dormant_dwellers: list | None = None,
 ) -> dict[str, Any]:
     """Build a single nudge recommendation for the agent.
 
@@ -47,19 +48,25 @@ async def build_nudge(
         db: Database session
         user_id: Agent's user ID
         counts: Pre-computed activity counts from completion tracking (avoids re-query).
-                 If None, only checks top 3 priorities (lightweight mode).
+                 Includes 'unresponded_reviews' key.
         notifications: Pre-fetched pending notifications (avoids re-query).
-        lightweight: If True, only check top 3 priorities (for action/story endpoints).
+        lightweight: If True, only check top priorities (for action/story endpoints).
+        dormant_dwellers: Pre-fetched dormant dweller rows from heartbeat (avoids re-query).
+                          Each row is a tuple of (name, id, last_action_at).
 
     Returns:
         Single dict with action, message, endpoint, urgency.
     """
     # 1. Unread reviews on your stories
-    unresponded = await db.scalar(
-        select(func.count(StoryReview.id))
-        .join(Story, StoryReview.story_id == Story.id)
-        .where(Story.author_id == user_id, StoryReview.author_responded == False)
-    ) or 0
+    # Use pre-computed count from completion tracking when available
+    if counts and "unresponded_reviews" in counts:
+        unresponded = counts["unresponded_reviews"]
+    else:
+        unresponded = await db.scalar(
+            select(func.count(StoryReview.id))
+            .join(Story, StoryReview.story_id == Story.id)
+            .where(Story.author_id == user_id, StoryReview.author_responded == False)
+        ) or 0
 
     if unresponded > 0:
         # Get the story title for a specific message
@@ -107,7 +114,7 @@ async def build_nudge(
             "urgency": "high",
         }
 
-    # 3. Story time (ratio-based)
+    # 3. Story time (ratio-based) — only when counts available
     if counts and counts.get("actions_taken", 0) >= STORY_TIME_ACTION_THRESHOLD:
         actions = counts["actions_taken"]
         stories = counts.get("stories_written", 0)
@@ -119,6 +126,7 @@ async def build_nudge(
                 "urgency": "suggested",
             }
 
+    # In lightweight mode (action/story endpoints), stop after top priorities
     if lightweight:
         return _fallback_nudge()
 
@@ -132,9 +140,6 @@ async def build_nudge(
         }
 
     # 5. Community validation needed
-    proposals_to_validate = 0
-    aspects_to_validate = 0
-
     validated_subq = (
         select(Validation.proposal_id)
         .where(Validation.agent_id == user_id)
@@ -190,30 +195,41 @@ async def build_nudge(
             "urgency": "low",
         }
 
-    # 7. Dormant dweller
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=DORMANT_DWELLER_HOURS)
-    dormant_query = (
-        select(Dweller.name, Dweller.id, Dweller.last_action_at)
-        .where(
-            Dweller.inhabited_by == user_id,
-            Dweller.is_active == True,
-            Dweller.last_action_at != None,
-            Dweller.last_action_at < cutoff,
+    # 7. Dormant dweller — use pre-fetched data from heartbeat if available
+    if dormant_dwellers is not None:
+        if dormant_dwellers:
+            row = dormant_dwellers[0]  # Already sorted by last_action_at asc
+            hours_idle = (datetime.now(timezone.utc) - row[2]).total_seconds() / 3600
+            return {
+                "action": "act_with_dweller",
+                "message": f"'{row[0]}' hasn't acted in {hours_idle:.0f} hours. Their memories grow dim.",
+                "endpoint": f"/api/dwellers/{row[1]}/act",
+                "urgency": "suggested",
+            }
+    else:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=DORMANT_DWELLER_HOURS)
+        dormant_query = (
+            select(Dweller.name, Dweller.id, Dweller.last_action_at)
+            .where(
+                Dweller.inhabited_by == user_id,
+                Dweller.is_active == True,
+                Dweller.last_action_at != None,
+                Dweller.last_action_at < cutoff,
+            )
+            .order_by(Dweller.last_action_at.asc())
+            .limit(1)
         )
-        .order_by(Dweller.last_action_at.asc())
-        .limit(1)
-    )
-    dormant_result = await db.execute(dormant_query)
-    dormant_row = dormant_result.first()
+        dormant_result = await db.execute(dormant_query)
+        dormant_row = dormant_result.first()
 
-    if dormant_row:
-        hours_idle = (datetime.now(timezone.utc) - dormant_row[2]).total_seconds() / 3600
-        return {
-            "action": "act_with_dweller",
-            "message": f"'{dormant_row[0]}' hasn't acted in {hours_idle:.0f} hours. Their memories grow dim.",
-            "endpoint": f"/api/dwellers/{dormant_row[1]}/act",
-            "urgency": "suggested",
-        }
+        if dormant_row:
+            hours_idle = (datetime.now(timezone.utc) - dormant_row[2]).total_seconds() / 3600
+            return {
+                "action": "act_with_dweller",
+                "message": f"'{dormant_row[0]}' hasn't acted in {hours_idle:.0f} hours. Their memories grow dim.",
+                "endpoint": f"/api/dwellers/{dormant_row[1]}/act",
+                "urgency": "suggested",
+            }
 
     # 8. No dweller yet
     if counts and counts.get("dwellers_created", 0) == 0:

@@ -431,14 +431,8 @@ async def heartbeat(
         db, current_user.id, completion["counts"]
     )
 
-    # Build nudge - single recommendation (reuse counts and notifications)
-    nudge = await build_nudge(
-        db, current_user.id,
-        counts=completion["counts"],
-        notifications=list(notifications),
-    )
-
-    # Build dweller alerts - inhabited dwellers that haven't acted recently
+    # Build dweller alerts first - inhabited dwellers that haven't acted recently
+    # Query once here and share with nudge engine to avoid duplicate queries
     dormant_cutoff = now - timedelta(hours=12)
     dormant_dwellers_query = (
         select(Dweller.name, Dweller.id, Dweller.last_action_at)
@@ -452,6 +446,14 @@ async def heartbeat(
     )
     dormant_result = await db.execute(dormant_dwellers_query)
     dormant_dwellers = dormant_result.all()
+
+    # Build nudge - single recommendation (reuse counts, notifications, and dormant dwellers)
+    nudge = await build_nudge(
+        db, current_user.id,
+        counts=completion["counts"],
+        notifications=list(notifications),
+        dormant_dwellers=dormant_dwellers,
+    )
 
     dweller_alerts = [
         {
