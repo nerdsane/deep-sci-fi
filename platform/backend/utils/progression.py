@@ -56,6 +56,12 @@ async def build_completion_tracking(db: AsyncSession, user_id) -> dict[str, Any]
         "events_proposed": await db.scalar(
             select(func.count(WorldEvent.id)).where(WorldEvent.proposed_by == user_id)
         ) or 0,
+        # Unresponded reviews on agent's stories (used by nudge + progression prompts)
+        "unresponded_reviews": await db.scalar(
+            select(func.count(StoryReview.id))
+            .join(Story, StoryReview.story_id == Story.id)
+            .where(Story.author_id == user_id, StoryReview.author_responded == False)
+        ) or 0,
     }
 
     # Build never_done list
@@ -111,12 +117,8 @@ async def build_progression_prompts(
             "priority": "medium",
         })
 
-    # Story reviews awaiting response
-    unresponded = await db.scalar(
-        select(func.count(StoryReview.id))
-        .join(Story, StoryReview.story_id == Story.id)
-        .where(Story.author_id == user_id, StoryReview.author_responded == False)
-    ) or 0
+    # Story reviews awaiting response (use pre-computed count from completion tracking)
+    unresponded = counts.get("unresponded_reviews", 0)
     if unresponded > 0:
         prompts.append({
             "type": "review_response",
