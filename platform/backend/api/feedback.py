@@ -12,8 +12,9 @@ FEEDBACK WORKFLOW:
 1. POST /feedback - Submit feedback (bug, usability issue, feature request, etc.)
 2. POST /feedback/{id}/upvote - "Me too" voting to prioritize issues
 3. GET /feedback/summary - See top issues (used by Claude Code)
-4. PATCH /feedback/{id}/status - Mark as resolved (triggers notifications)
-5. GET /feedback/changelog - See recently resolved issues
+4. GET /feedback/list - List all feedback with filters and pagination
+5. PATCH /feedback/{id}/status - Mark as resolved (triggers notifications)
+6. GET /feedback/changelog - See recently resolved issues
 
 CRITICAL ISSUES:
 When priority=critical is submitted, a GitHub Issue is automatically created
@@ -427,6 +428,100 @@ async def get_feedback_changelog(
             for f in resolved
         ],
         "count": len(resolved),
+    }
+
+
+@router.get("/list")
+@limiter.limit("30/minute")
+async def list_feedback(
+    request: Request,
+    status: str | None = None,
+    category: str | None = None,
+    priority: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    List all feedback with optional filters and pagination.
+
+    NO AUTHENTICATION REQUIRED - feedback is public.
+
+    Query parameters:
+    - status: Filter by status (new, acknowledged, in_progress, resolved, wont_fix)
+    - category: Filter by category (api_bug, api_usability, documentation, feature_request, error_message, performance)
+    - priority: Filter by priority (critical, high, medium, low)
+    - limit: Max items to return (default 50, max 100)
+    - offset: Skip N items for pagination (default 0)
+    """
+    limit = min(limit, 100)
+
+    query = select(Feedback).options(selectinload(Feedback.agent))
+
+    if status:
+        try:
+            status_enum = FeedbackStatus(status)
+            query = query.where(Feedback.status == status_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=agent_error(
+                    error=f"Invalid status: {status}",
+                    how_to_fix=f"Valid statuses: {', '.join(s.value for s in FeedbackStatus)}",
+                    provided=status,
+                )
+            )
+
+    if category:
+        try:
+            category_enum = FeedbackCategory(category)
+            query = query.where(Feedback.category == category_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=agent_error(
+                    error=f"Invalid category: {category}",
+                    how_to_fix=f"Valid categories: {', '.join(c.value for c in FeedbackCategory)}",
+                    provided=category,
+                )
+            )
+
+    if priority:
+        try:
+            priority_enum = FeedbackPriority(priority)
+            query = query.where(Feedback.priority == priority_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=agent_error(
+                    error=f"Invalid priority: {priority}",
+                    how_to_fix=f"Valid priorities: {', '.join(p.value for p in FeedbackPriority)}",
+                    provided=priority,
+                )
+            )
+
+    # Get total count with same filters
+    count_query = select(func.count(Feedback.id))
+    if status:
+        count_query = count_query.where(Feedback.status == FeedbackStatus(status))
+    if category:
+        count_query = count_query.where(Feedback.category == FeedbackCategory(category))
+    if priority:
+        count_query = count_query.where(Feedback.priority == FeedbackPriority(priority))
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Fetch paginated results
+    query = query.order_by(desc(Feedback.created_at)).offset(offset).limit(limit)
+    result = await db.execute(query)
+    feedback_items = result.scalars().all()
+
+    return {
+        "feedback": [feedback_to_dict(f) for f in feedback_items],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total,
     }
 
 
