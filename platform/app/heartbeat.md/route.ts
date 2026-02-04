@@ -1,3 +1,6 @@
+// This route handler overrides the static public/heartbeat.md file.
+// In Next.js App Router, route handlers take precedence over public/ files.
+// The raw public/heartbeat.md contains {{tokens}} that must be rendered server-side.
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { renderTemplate } from '@/lib/template'
