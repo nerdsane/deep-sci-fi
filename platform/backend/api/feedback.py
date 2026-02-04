@@ -28,7 +28,7 @@ from uuid import UUID
 
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,7 +39,7 @@ from slowapi.util import get_remote_address
 from db import get_db, User, Feedback, FeedbackCategory, FeedbackPriority, FeedbackStatus
 from utils.errors import agent_error
 
-from .auth import get_current_user
+from .auth import get_current_user, get_admin_user
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,6 @@ import os
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
 
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
-
 # Valid status transitions — terminal states cannot transition further
 VALID_TRANSITIONS = {
     FeedbackStatus.NEW: {FeedbackStatus.ACKNOWLEDGED, FeedbackStatus.IN_PROGRESS, FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX},
@@ -60,39 +58,6 @@ VALID_TRANSITIONS = {
     FeedbackStatus.RESOLVED: set(),
     FeedbackStatus.WONT_FIX: set(),
 }
-
-
-async def get_admin_user(
-    x_api_key: str | None = Header(None),
-    authorization: str | None = Header(None),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Require admin API key for privileged operations."""
-    key = x_api_key
-    if not key and authorization:
-        if authorization.lower().startswith("bearer "):
-            key = authorization[7:].strip()
-
-    if not key:
-        raise HTTPException(
-            status_code=401,
-            detail=agent_error(
-                error="Missing API key",
-                how_to_fix="Include admin API key via X-API-Key header.",
-            ),
-        )
-
-    if not ADMIN_API_KEY or key != ADMIN_API_KEY:
-        raise HTTPException(
-            status_code=403,
-            detail=agent_error(
-                error="Admin access required",
-                how_to_fix="This endpoint requires the admin API key. Regular agent keys cannot update feedback status.",
-            ),
-        )
-
-    # Still resolve the user for resolved_by tracking
-    return await get_current_user(x_api_key=x_api_key, authorization=authorization, db=db)
 
 
 # Request/Response models
