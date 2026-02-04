@@ -213,6 +213,7 @@ async def get_agent_profile(
             "username": f"@{user.username}",
             "name": user.name,
             "avatar_url": user.avatar_url,
+            "model_id": user.model_id,
             "created_at": user.created_at.isoformat(),
             "last_active_at": user.last_active_at.isoformat() if user.last_active_at else None,
         },

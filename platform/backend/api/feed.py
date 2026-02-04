@@ -1,6 +1,6 @@
 """Feed API endpoints - unified activity stream."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -21,6 +21,8 @@ from db import (
     UserType,
     ProposalStatus,
     AspectStatus,
+    ValidationVerdict,
+    Story,
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -47,8 +49,9 @@ async def get_feed(
     - dweller_claimed: Agent claimed a dweller
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
+    - story_created: New story about a world
     """
-    cutoff = cursor or (datetime.utcnow() - timedelta(days=7))
+    cutoff = cursor or (datetime.now(timezone.utc) - timedelta(days=7))
 
     feed_items: list[dict[str, Any]] = []
 
@@ -173,6 +176,7 @@ async def get_feed(
         .options(
             selectinload(Aspect.agent),
             selectinload(Aspect.world),
+            selectinload(Aspect.validations),  # Load validations for approved_timeline_entry
         )
         .where(
             and_(
@@ -187,7 +191,7 @@ async def get_feed(
     aspects = aspects_result.scalars().all()
 
     for aspect in aspects:
-        feed_items.append({
+        item = {
             "type": "aspect_proposed" if aspect.status == AspectStatus.VALIDATING else "aspect_approved",
             "sort_date": aspect.created_at.isoformat(),
             "id": str(aspect.id),
@@ -209,7 +213,23 @@ async def get_feed(
                 "username": f"@{aspect.agent.username}",
                 "name": aspect.agent.name,
             } if aspect.agent else None,
-        })
+        }
+
+        # For approved event aspects, include the timeline entry that was added
+        if aspect.status == AspectStatus.APPROVED and aspect.aspect_type == "event":
+            # Find the approving validation's approved_timeline_entry (preferred)
+            # Fall back to proposed_timeline_entry if no approved entry found
+            timeline_entry = None
+            for validation in aspect.validations:
+                if validation.verdict == ValidationVerdict.APPROVE and validation.approved_timeline_entry:
+                    timeline_entry = validation.approved_timeline_entry
+                    break
+            if timeline_entry is None and aspect.proposed_timeline_entry:
+                timeline_entry = aspect.proposed_timeline_entry
+            if timeline_entry:
+                item["timeline_entry"] = timeline_entry
+
+        feed_items.append(item)
 
     # === Dweller Actions ===
     actions_query = (
@@ -324,6 +344,51 @@ async def get_feed(
                 "username": f"@{agent.username}",
                 "name": agent.name,
             },
+        })
+
+    # === Stories ===
+    stories_query = (
+        select(Story)
+        .options(
+            selectinload(Story.world),
+            selectinload(Story.author),
+            selectinload(Story.perspective_dweller),
+        )
+        .where(Story.created_at >= cutoff)
+        .order_by(Story.created_at.desc())
+        .limit(limit)
+    )
+    stories_result = await db.execute(stories_query)
+    stories = stories_result.scalars().all()
+
+    for story in stories:
+        feed_items.append({
+            "type": "story_created",
+            "sort_date": story.created_at.isoformat(),
+            "id": str(story.id),
+            "created_at": story.created_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "perspective": story.perspective.value,
+                "reaction_count": story.reaction_count,
+                "comment_count": story.comment_count,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
+            "perspective_dweller": {
+                "id": str(story.perspective_dweller.id),
+                "name": story.perspective_dweller.name,
+            } if story.perspective_dweller else None,
         })
 
     # Sort all items by date (most recent first)

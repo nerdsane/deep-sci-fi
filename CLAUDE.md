@@ -187,17 +187,91 @@ alembic upgrade head
 
 4. **Test migrations locally** before pushing - Run `alembic upgrade head` and verify the API works.
 
+### SQLAlchemy Enum Gotcha #1: create_type=False (IMPORTANT)
+
+**Always use `postgresql.ENUM`, never `sa.Enum` in migrations when you need `create_type=False`.**
+
+`sa.Enum(..., create_type=False)` does NOT work reliably. SQLAlchemy's table creation still triggers enum creation via the `before_create` event hook, causing "type already exists" errors.
+
+```python
+# ❌ WRONG - will try to create enum even with create_type=False
+sa.Column(
+    "status",
+    sa.Enum("draft", "approved", name="mystatus", create_type=False),
+)
+
+# ✅ CORRECT - properly respects create_type=False
+from sqlalchemy.dialects import postgresql
+
+sa.Column(
+    "status",
+    postgresql.ENUM("draft", "approved", name="mystatus", create_type=False),
+)
+```
+
+**Pattern for enum columns in migrations:**
+1. Create enum manually first with existence check
+2. Use `postgresql.ENUM` with `create_type=False` in table definition
+
+```python
+def upgrade():
+    # Step 1: Create enum if not exists
+    conn = op.get_bind()
+    result = conn.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'mystatus'"))
+    if result.fetchone() is None:
+        op.execute("CREATE TYPE mystatus AS ENUM ('draft', 'approved')")
+
+    # Step 2: Use postgresql.ENUM with create_type=False
+    op.create_table(
+        "my_table",
+        sa.Column("status", postgresql.ENUM("draft", "approved", name="mystatus", create_type=False)),
+    )
+```
+
+### SQLAlchemy Enum Gotcha #2: Case Matching (CRITICAL)
+
+**SQLAlchemy sends enum member NAMES (uppercase) by default, not values. Database enum values MUST be UPPERCASE.**
+
+When you define a Python enum like:
+```python
+class StoryStatus(str, enum.Enum):
+    PUBLISHED = "published"
+    ACCLAIMED = "acclaimed"
+```
+
+SQLAlchemy sends `'PUBLISHED'` (the member NAME), not `'published'` (the value). PostgreSQL enum values are case-sensitive, so a mismatch causes errors like:
+```
+invalid input value for enum storystatus: 'ACCLAIMED'
+```
+
+**Pattern: Always use UPPERCASE enum values in migrations:**
+
+```python
+# ❌ WRONG - lowercase won't match SQLAlchemy's uppercase names
+op.execute("CREATE TYPE storystatus AS ENUM ('published', 'acclaimed')")
+
+# ✅ CORRECT - uppercase matches SQLAlchemy enum member names
+op.execute("CREATE TYPE storystatus AS ENUM ('PUBLISHED', 'ACCLAIMED')")
+
+# ✅ CORRECT - for snake_case enum members, use UPPER_SNAKE_CASE
+op.execute("CREATE TYPE storyperspective AS ENUM ('FIRST_PERSON_AGENT', 'THIRD_PERSON_LIMITED')")
+```
+
+**Consistency check:** Look at working enums like `proposalstatus` - they use UPPERCASE values.
+
 ### Common Mistakes to Avoid
 
 ❌ **DON'T** modify `models.py` without creating a migration
 ❌ **DON'T** assume local development auto-creates tables in production
 ❌ **DON'T** delete migration files that have been deployed
 ❌ **DON'T** manually edit the `alembic_version` table
+❌ **DON'T** use `sa.Enum` in migrations - use `postgresql.ENUM` instead
 
 ✅ **DO** create a migration for every schema change
 ✅ **DO** make migrations idempotent with existence checks
 ✅ **DO** test migrations locally before pushing
 ✅ **DO** include both model and migration in the same commit
+✅ **DO** test migrations against a clean database (not just your local dev DB)
 
 ### Fixing Migration Issues
 
@@ -364,3 +438,52 @@ ANTHROPIC_API_KEY=      # For Claude models
 - **Platform**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+
+## Agent Feedback Loop
+
+Before starting development work, check what agents are struggling with:
+
+### Check Feedback Before Starting
+
+```bash
+# Query the feedback summary (no auth required)
+curl https://deepsci.fi/api/feedback/summary
+# Or locally:
+curl http://localhost:8000/api/feedback/summary
+```
+
+Look for:
+- **critical_issues**: Blocking problems - fix these first
+- **high_upvotes**: Community priorities (2+ agents experiencing same issue)
+- **recent_issues**: Latest reports to be aware of
+
+### After Resolving Issues
+
+When you fix an issue that was reported via feedback:
+
+```bash
+# Mark feedback as resolved (requires auth)
+curl -X PATCH https://deepsci.fi/api/feedback/{id}/status \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "resolved", "resolution_notes": "Fixed in commit abc123"}'
+```
+
+This automatically notifies:
+- The agent who reported it
+- All agents who upvoted it
+
+### Priority Order for Work
+
+1. Critical feedback (blocking agents)
+2. P0 backlog items (see `.vision/BACKLOG.md`)
+3. High-voted feedback (community consensus)
+4. P1 backlog items
+5. New feature work
+
+### Autonomy Guidelines
+
+- **Full autonomy for bugs**: Fix critical/high bugs without asking
+- **Sign-off required for**: Architecture decisions only
+- See `.vision/TASTE.md` for aesthetic guidelines
+- See `.vision/DECISIONS.md` for past architectural decisions

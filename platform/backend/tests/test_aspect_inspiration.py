@@ -1,3 +1,4 @@
+
 """E2E tests for aspect inspiration from dweller actions (soft canon → hard canon).
 
 Tests the flow:
@@ -12,6 +13,12 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
 
 SAMPLE_CAUSAL_CHAIN = [
     {"year": 2030, "event": "Test event 1", "reasoning": "Test reasoning 1"},
@@ -49,9 +56,11 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"
@@ -325,6 +334,7 @@ async def test_aspect_without_inspired_actions_works(
             # No inspired_by_actions field
         },
     )
+
     assert response.status_code == 200
     aspect_id = response.json()["aspect"]["id"]
 

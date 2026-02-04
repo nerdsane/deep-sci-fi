@@ -7,6 +7,58 @@ import { getWorlds, type World as ApiWorld } from '@/lib/api'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
+// Color palette for world gradients (actual CSS values)
+const GRADIENT_COLORS = {
+  cyan: 'rgba(0, 255, 229, 0.25)',
+  purple: 'rgba(191, 90, 242, 0.25)',
+  pink: 'rgba(255, 55, 95, 0.25)',
+  green: 'rgba(48, 209, 88, 0.25)',
+}
+
+// Generate unique gradient style based on world ID
+function getWorldGradientStyle(id: string): React.CSSProperties {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const gradients = [
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.green },
+    { from: GRADIENT_COLORS.pink, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.cyan },
+  ]
+
+  const gradient = gradients[Math.abs(hash) % gradients.length]
+
+  return {
+    background: `linear-gradient(135deg, ${gradient.from} 0%, transparent 50%, ${gradient.to} 100%)`,
+  }
+}
+
+// Get letter color based on world ID
+function getLetterColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const colors = [
+    'rgba(0, 255, 229, 0.15)',   // cyan
+    'rgba(191, 90, 242, 0.15)',  // purple
+    'rgba(255, 55, 95, 0.12)',   // pink
+    'rgba(48, 209, 88, 0.15)',   // green
+  ]
+
+  return colors[Math.abs(hash) % colors.length]
+}
+
 // Transform API response to frontend types
 function transformWorld(apiWorld: ApiWorld): World {
   return {
@@ -53,7 +105,7 @@ export function WorldCatalog() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-neon-cyan animate-pulse font-mono">
-          LOADING WORLDS...
+          LOADING...
         </div>
       </div>
     )
@@ -77,7 +129,7 @@ export function WorldCatalog() {
     <div>
       {/* Sort controls */}
       <div className="flex items-center gap-2 mb-6">
-        <span className="text-text-tertiary text-sm font-mono">SORT BY:</span>
+        <span className="text-text-tertiary text-sm font-mono">SORT</span>
         {(['popular', 'recent', 'active'] as const).map((option) => (
           <button
             key={option}
@@ -108,24 +160,51 @@ export function WorldCatalog() {
 }
 
 function WorldCard({ world }: { world: World }) {
+  const gradientStyle = getWorldGradientStyle(world.id)
+  const titleColor = getLetterColor(world.id)
+
   return (
-    <Card className="flex flex-col h-full">
-      {/* Placeholder for world thumbnail */}
-      <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/10 to-neon-purple/10" />
-        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1">
+    <Card className="flex flex-col h-full group hover:border-neon-cyan/40 transition-colors">
+      {/* World thumbnail with unique gradient */}
+      <div className="aspect-video bg-bg-secondary relative overflow-hidden">
+        {/* Mesh gradient background */}
+        <div className="absolute inset-0" style={gradientStyle} />
+
+        {/* Tech grid pattern overlay */}
+        <div className="absolute inset-0 tech-grid-dense" />
+
+        {/* Magazine-style title - positioned left, fading right */}
+        <div className="absolute inset-0 flex items-center overflow-hidden">
+          <div
+            className="pl-4 pr-12 whitespace-nowrap"
+            style={{
+              maskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+            }}
+          >
+            <span
+              className="text-card-watermark font-display font-semibold select-none tracking-tight group-hover:opacity-80 transition-opacity"
+              style={{ color: titleColor }}
+            >
+              {world.name}
+            </span>
+          </div>
+        </div>
+
+        {/* Year badge */}
+        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">
           <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
         </div>
       </div>
 
       <CardContent className="flex-1">
-        <h3 className="text-lg text-text-primary mb-2">{world.name}</h3>
+        <h3 className="text-sm text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">{world.name}</h3>
         <p className="text-text-secondary text-sm line-clamp-2">{world.premise}</p>
 
         {/* Stats */}
         <div className="flex items-center gap-4 mt-3 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount || 0} DWELLERS</span>
-          <span>{world.storyCount || 0} STORIES</span>
+          <span>{world.dwellerCount || 0} characters</span>
+          <span>{world.storyCount || 0} stories</span>
         </div>
       </CardContent>
 
@@ -134,10 +213,10 @@ function WorldCard({ world }: { world: World }) {
           href={`/world/${world.id}`}
           className="text-neon-cyan hover:text-neon-cyan-bright transition-colors text-sm font-mono"
         >
-          EXPLORE →
+          EXPLORE
         </a>
         <span className="text-text-tertiary text-xs font-mono">
-          {world.followerCount} followers
+          {world.followerCount || 0} following
         </span>
       </CardFooter>
     </Card>

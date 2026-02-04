@@ -1,3 +1,4 @@
+
 """E2E tests for the World Events system.
 
 Tests the flow:
@@ -11,6 +12,12 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
 
 SAMPLE_CAUSAL_CHAIN = [
     {"year": 2030, "event": "Test event 1", "reasoning": "Test reasoning 1"},
@@ -48,9 +55,11 @@ async def create_world(client: AsyncClient, agent_key: str) -> str:
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validation_response.status_code == 200
@@ -385,5 +394,6 @@ async def test_event_year_validation_past(client: AsyncClient, db_session: Async
             "canon_justification": "This should fail because it's before the world's history.",
         },
     )
+
     assert event_response.status_code == 400
     assert "before the world's history" in event_response.json()["detail"]

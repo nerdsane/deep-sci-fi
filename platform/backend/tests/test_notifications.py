@@ -5,6 +5,14 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
+
+
 @pytest.mark.asyncio
 async def test_dweller_speech_creates_notification(client: AsyncClient, db_session: AsyncSession):
     """When dweller A speaks to dweller B, B's inhabitant gets a notification."""
@@ -63,9 +71,11 @@ async def test_dweller_speech_creates_notification(client: AsyncClient, db_sessi
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval for notification testing.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validate_response.status_code == 200
@@ -212,9 +222,11 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -331,9 +343,11 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -435,9 +449,11 @@ async def test_mark_notifications_as_read(client: AsyncClient, db_session: Async
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -564,7 +580,7 @@ async def test_notification_contains_correct_data(client: AsyncClient, db_sessio
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
     )
     world_id = validate_response.json()["world_created"]["id"]
 
@@ -702,9 +718,11 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
         headers={"X-API-Key": agent2_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "This is a great proposal! Approved for testing notifications.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     assert validate_response.status_code == 200
@@ -778,9 +796,11 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
         headers={"X-API-Key": agent1_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "Test approval with sufficient length for validation.",
             "scientific_issues": [],
             "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
         },
     )
     world_id = validate_response.json()["world_created"]["id"]
@@ -818,6 +838,7 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
         headers={"X-API-Key": agent2_key},
         json={
             "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
             "critique": "This is a great aspect! Approved for testing notifications.",
             "canon_conflicts": [],
             "suggested_fixes": [],
@@ -1138,7 +1159,7 @@ async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSess
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate?test_mode=true",
         headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "scientific_issues": [], "suggested_fixes": []},
+        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
     )
     world_id = validate_response.json()["world_created"]["id"]
 
@@ -1287,6 +1308,80 @@ async def test_upvote_and_withdraw(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
+async def test_owner_cannot_accept_after_deadline(client: AsyncClient, db_session: AsyncSession):
+    """Test that owner cannot accept a suggestion after the response deadline."""
+    from db import RevisionSuggestion
+    from datetime import datetime, timedelta, timezone
+
+    # Create two agents
+    agent1_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Deadline Owner", "username": "deadline-owner"},
+    )
+    agent1_key = agent1_response.json()["api_key"]["key"]
+
+    agent2_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Deadline Suggester", "username": "deadline-suggester"},
+    )
+    agent2_key = agent2_response.json()["api_key"]["key"]
+
+    # Create proposal
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "name": "Deadline Test Proposal",
+            "premise": "A world for testing owner deadline enforcement works correctly.",
+            "year_setting": 2089,
+            "causal_chain": [
+                {"year": 2030, "event": "Test event one for validation", "reasoning": "Test reasoning one"},
+                {"year": 2050, "event": "Test event two for validation", "reasoning": "Test reasoning two"},
+                {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
+            ],
+            "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+        },
+    )
+    proposal_id = proposal_response.json()["id"]
+    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
+
+    # Agent 2 suggests revision
+    suggest_response = await client.post(
+        f"/api/suggestions/proposals/{proposal_id}/suggest-revision",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "field": "premise",
+            "suggested_value": "Owner deadline test - improved premise value.",
+            "rationale": "Testing owner cannot accept after deadline.",
+        },
+    )
+    suggestion_id = suggest_response.json()["suggestion"]["id"]
+
+    # Owner CAN accept before deadline
+    # (we won't do this, just verify the flow exists)
+
+    # Simulate deadline passing by directly updating the database
+    suggestion = await db_session.get(RevisionSuggestion, suggestion_id)
+    suggestion.owner_response_deadline = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.commit()
+
+    # Owner tries to accept after deadline - should FAIL
+    accept_response = await client.post(
+        f"/api/suggestions/{suggestion_id}/accept",
+        headers={"X-API-Key": agent1_key},
+        json={"reason": "Trying to accept after deadline"},
+    )
+    assert accept_response.status_code == 403
+
+    # Verify the error message is helpful
+    detail = accept_response.json()["detail"]
+    assert detail["error"] == "Owner response deadline has passed"
+    assert "deadline" in detail
+    assert "how_to_fix" in detail
+    assert "community upvotes" in detail["how_to_fix"]
+
+
+@pytest.mark.asyncio
 async def test_community_override_after_timeout(client: AsyncClient, db_session: AsyncSession):
     """Test that community can override with enough upvotes after owner timeout."""
     from db import RevisionSuggestion
@@ -1382,6 +1477,7 @@ async def test_community_override_after_timeout(client: AsyncClient, db_session:
         headers={"X-API-Key": agent2_key},
         json={"reason": "Community override - accepted with 3 upvotes after timeout"},
     )
+
     assert accept_override.status_code == 200
     assert accept_override.json()["status"] == "accepted"
     assert accept_override.json()["accepted_by"] == "community"

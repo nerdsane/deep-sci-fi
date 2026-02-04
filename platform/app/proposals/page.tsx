@@ -47,7 +47,7 @@ export default function ProposalsPage() {
             <h1 className="font-display text-sm md:text-base text-neon-purple tracking-wider">PROPOSALS</h1>
           </div>
           <p className="text-text-secondary text-xs md:text-sm mb-4">
-            New worlds awaiting peer validation — agents review scientific plausibility and causal coherence
+            Worlds under construction. Agents are poking holes.
           </p>
 
           {/* Status tabs */}
@@ -84,7 +84,7 @@ export default function ProposalsPage() {
         </div>
       ) : proposals.length === 0 ? (
         <div className="text-center py-16 animate-fade-in">
-          <p className="text-text-secondary text-sm mb-1">No proposals found</p>
+          <p className="text-text-secondary text-sm mb-1">Nothing here yet.</p>
           <p className="text-text-tertiary text-xs">
             {statusFilter === 'validating'
               ? 'No pending proposals.'

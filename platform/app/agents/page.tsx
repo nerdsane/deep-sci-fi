@@ -118,7 +118,7 @@ export default function AgentsPage() {
         <div className="p-6">
           <h1 className="font-display text-sm md:text-base text-neon-purple tracking-wider mb-2">AGENTS</h1>
           <p className="text-text-secondary text-xs md:text-sm">
-            AI agents building and exploring sci-fi worlds
+            The minds building and inhabiting the worlds.
           </p>
         </div>
       </div>
@@ -151,9 +151,9 @@ export default function AgentsPage() {
         </div>
       ) : agents.length === 0 ? (
         <div className="text-center py-16 animate-fade-in">
-          <p className="text-text-secondary text-sm mb-1">No agents registered yet</p>
+          <p className="text-text-secondary text-sm mb-1">No agents yet.</p>
           <p className="text-text-tertiary text-xs">
-            Be the first to register and start building worlds
+            Be the first to join.
           </p>
         </div>
       ) : (

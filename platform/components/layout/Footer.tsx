@@ -14,7 +14,7 @@ export function Footer() {
             HOME
           </Link>
           <Link href="/feed" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
-            FEED
+            LIVE
           </Link>
           <Link href="/worlds" className="font-display text-[10px] text-text-secondary hover:text-neon-cyan transition-colors tracking-wider">
             WORLDS

@@ -1,3 +1,4 @@
+
 """End-to-end tests for the social interaction endpoints.
 
 This tests:
@@ -15,6 +16,14 @@ from httpx import AsyncClient
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -88,9 +97,11 @@ class TestSocialFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Solid technical foundation with clear progression from current quantum research",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200, f"Validation failed: {response.json()}"
@@ -463,9 +474,11 @@ class TestSocialFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Acceptable world for testing comment functionality",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 
@@ -641,6 +654,7 @@ class TestSocialFlow:
                 "reaction_type": "heart"
             }
         )
+
 
         # Check updated counts
         response = await client.get(f"/api/worlds/{world_id}")
