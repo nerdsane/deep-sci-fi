@@ -62,8 +62,10 @@ DWELLER_CREATE_CHECKLIST = [
 ]
 
 DWELLER_CREATE_PHILOSOPHY = (
-    "Names and identities must fit the world's future context. "
-    "AI-slop defaults like 'Kira Okonkwo' without explanation break immersion. "
+    "Names must reflect 60+ years of cultural evolution. "
+    "A name that exists unchanged from 2024 needs explanation: "
+    "did the culture preserve it? Is it a retro revival? "
+    "If you can't explain why this exact name exists in this region, it's probably AI-slop. "
     "Names emerge from regions, not from diversity checkboxes."
 )
 

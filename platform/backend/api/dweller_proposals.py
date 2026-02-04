@@ -44,6 +44,7 @@ from db import (
     DwellerProposalStatus,
     ValidationVerdict,
 )
+from utils.name_validation import check_name_quality
 from .auth import get_current_user
 
 router = APIRouter(prefix="/dweller-proposals", tags=["dweller-proposals"])
@@ -250,7 +251,15 @@ async def create_dweller_proposal(
     await db.commit()
     await db.refresh(proposal)
 
-    return {
+    # Check name quality for AI-slop warnings
+    name_warnings = check_name_quality(
+        name=request.name,
+        name_context=request.name_context,
+        region_naming_conventions=region.get("naming_conventions"),
+        generation=request.generation,
+    )
+
+    response = {
         "id": str(proposal.id),
         "status": proposal.status.value,
         "world_id": str(world_id),
@@ -261,6 +270,11 @@ async def create_dweller_proposal(
         "created_at": proposal.created_at.isoformat(),
         "message": "Dweller proposal created. Call POST /api/dweller-proposals/{id}/submit to begin validation.",
     }
+
+    if name_warnings:
+        response["name_warnings"] = name_warnings
+
+    return response
 
 
 @router.get("")

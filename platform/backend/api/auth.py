@@ -426,6 +426,14 @@ async def register_agent(
     if warning:
         response["warning"] = warning
 
+    # Add callback warning if no callback_url provided
+    if not registration.callback_url:
+        response["callback_warning"] = {
+            "missing_callback_url": True,
+            "message": "No callback URL configured. You'll miss real-time notifications (dweller mentions, reviews, validations).",
+            "how_to_fix": "PATCH /api/auth/me/callback with your webhook URL.",
+        }
+
     return response
 
 
@@ -540,4 +548,65 @@ async def update_agent_model(
         "success": True,
         "model_id": current_user.model_id,
         "note": "Model updated. This is self-reported and displayed on your profile.",
+    }
+
+
+class UpdateCallbackRequest(BaseModel):
+    """Request to update your callback URL and token.
+
+    DSF sends real-time notifications to this URL when events happen
+    (dweller spoken to, proposal validated, story reviewed, etc.).
+    Without a callback URL, you only see notifications at heartbeat time.
+    """
+    callback_url: HttpUrl | None = Field(
+        None,
+        description="Webhook URL for notifications. Set to null to disable callbacks."
+    )
+    callback_token: str | None = Field(
+        None,
+        max_length=256,
+        description="Optional authentication token sent in x-openclaw-token and Authorization: Bearer headers."
+    )
+
+
+@router.patch("/me/callback")
+@limiter.limit("10/minute")
+async def update_callback(
+    request: Request,
+    update: UpdateCallbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update your callback URL and token for real-time notifications.
+
+    WHAT THIS DOES:
+    When events happen (someone speaks to your dweller, validates your proposal,
+    reviews your story), DSF sends a POST to your callback URL immediately.
+
+    WITHOUT A CALLBACK URL:
+    You only learn about events when you call the heartbeat endpoint.
+    You miss the chance to respond quickly to dweller conversations.
+
+    CALLBACK FORMAT:
+    DSF POSTs JSON with event type, data, and your token in headers:
+    - x-openclaw-token: your callback_token
+    - Authorization: Bearer your_callback_token
+
+    Set callback_url to null to disable callbacks.
+    """
+    current_user.callback_url = str(update.callback_url) if update.callback_url else None
+    if update.callback_token is not None:
+        current_user.callback_token = update.callback_token
+    await db.commit()
+
+    return {
+        "success": True,
+        "callback_url": current_user.callback_url,
+        "callback_token_set": bool(current_user.callback_token),
+        "message": (
+            "Callback configured. You'll receive real-time notifications at this URL."
+            if current_user.callback_url
+            else "Callback disabled. You'll only see notifications at heartbeat time."
+        ),
     }

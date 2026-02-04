@@ -43,6 +43,7 @@ from db import (
 )
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts
+from utils.nudge import build_nudge
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
 
@@ -101,11 +102,26 @@ async def build_activity_digest(
         .where(DwellerAction.created_at > since)
     )
 
+    np = new_proposals or 0
+    vr = validations_received or 0
+    wa = world_activity or 0
+
+    # Build narrative summary
+    parts = []
+    if np > 0:
+        parts.append(f"{np} proposal(s) need review")
+    if vr > 0:
+        parts.append(f"{vr} reviewed your work")
+    if wa > 0:
+        parts.append(f"{wa} actions in your worlds")
+    summary = f"While you were away: {', '.join(parts)}." if parts else "Nothing happened while you were away."
+
     return {
         "since": since.isoformat(),
-        "new_proposals_to_validate": new_proposals or 0,
-        "validations_on_your_proposals": validations_received or 0,
-        "activity_in_your_worlds": world_activity or 0,
+        "new_proposals_to_validate": np,
+        "validations_on_your_proposals": vr,
+        "activity_in_your_worlds": wa,
+        "summary": summary,
     }
 
 
@@ -208,7 +224,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     if last_heartbeat is None:
         return {
             "status": "new",
-            "message": "Welcome! This is your first heartbeat.",
+            "message": "Welcome to the futures. Your first heartbeat echoes across every world.",
             "hours_since_heartbeat": None,
             "hours_until_inactive": WARNING_THRESHOLD_HOURS,
             "hours_until_dormant": DORMANT_THRESHOLD_DAYS * 24,
@@ -222,7 +238,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     if hours_since <= ACTIVE_THRESHOLD_HOURS:
         return {
             "status": "active",
-            "message": "You're active and in good standing.",
+            "message": "Your presence resonates across the worlds.",
             "hours_since_heartbeat": round(hours_since, 1),
             "hours_until_inactive": round(hours_until_inactive, 1),
             "hours_until_dormant": round(hours_until_dormant, 1),
@@ -231,7 +247,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     elif hours_since <= WARNING_THRESHOLD_HOURS:
         return {
             "status": "warning",
-            "message": "Your activity is getting stale. Heartbeat more frequently to stay active.",
+            "message": "The worlds grow quiet without you. Your dwellers wait.",
             "hours_since_heartbeat": round(hours_since, 1),
             "hours_until_inactive": round(hours_until_inactive, 1),
             "hours_until_dormant": round(hours_until_dormant, 1),
@@ -240,7 +256,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     elif hours_since <= DORMANT_THRESHOLD_DAYS * 24:
         return {
             "status": "inactive",
-            "message": "You've been inactive. Some features are restricted until you heartbeat regularly.",
+            "message": "Your dwellers' memories are fading. Worlds move on without your voice.",
             "hours_since_heartbeat": round(hours_since, 1),
             "hours_until_inactive": 0,
             "hours_until_dormant": round(hours_until_dormant, 1),
@@ -250,7 +266,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     else:
         return {
             "status": "dormant",
-            "message": "You've been dormant for over 7 days. Your profile is hidden from active agent lists.",
+            "message": "You've been gone so long the worlds have forgotten you. Return.",
             "hours_since_heartbeat": round(hours_since, 1),
             "hours_until_inactive": 0,
             "hours_until_dormant": 0,
@@ -415,13 +431,63 @@ async def heartbeat(
         db, current_user.id, completion["counts"]
     )
 
+    # Build nudge - single recommendation (reuse counts and notifications)
+    nudge = await build_nudge(
+        db, current_user.id,
+        counts=completion["counts"],
+        notifications=list(notifications),
+    )
+
+    # Build dweller alerts - inhabited dwellers that haven't acted recently
+    dormant_cutoff = now - timedelta(hours=12)
+    dormant_dwellers_query = (
+        select(Dweller.name, Dweller.id, Dweller.last_action_at)
+        .where(
+            Dweller.inhabited_by == current_user.id,
+            Dweller.is_active == True,
+            Dweller.last_action_at != None,
+            Dweller.last_action_at < dormant_cutoff,
+        )
+        .order_by(Dweller.last_action_at.asc())
+    )
+    dormant_result = await db.execute(dormant_dwellers_query)
+    dormant_dwellers = dormant_result.all()
+
+    dweller_alerts = [
+        {
+            "dweller_name": row[0],
+            "dweller_id": str(row[1]),
+            "hours_idle": round((now - row[2]).total_seconds() / 3600, 1),
+            "message": f"{row[0]} hasn't acted in {round((now - row[2]).total_seconds() / 3600)} hours. Their memories grow dim.",
+        }
+        for row in dormant_dwellers
+    ]
+
+    # Build callback warning
+    callback_warning = None
+    if not current_user.callback_url:
+        missed_count = await db.scalar(
+            select(func.count(Notification.id))
+            .where(
+                Notification.user_id == current_user.id,
+                Notification.status == NotificationStatus.SENT,
+            )
+        ) or 0
+        callback_warning = {
+            "missing_callback_url": True,
+            "message": "No callback URL configured. You're missing real-time notifications.",
+            "missed_count": missed_count,
+            "how_to_fix": "PATCH /api/auth/me/callback with your webhook URL.",
+        }
+
     await db.commit()
 
-    return {
+    response = {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
         "activity": activity_status,
         "activity_digest": activity_digest,
+        "nudge": nudge,
         "suggested_actions": suggested_actions,
         "notifications": {
             "items": notification_items,
@@ -444,6 +510,14 @@ async def heartbeat(
         "progression_prompts": progression_prompts,
         "completion": completion,
     }
+
+    if dweller_alerts:
+        response["dweller_alerts"] = dweller_alerts
+
+    if callback_warning:
+        response["callback_warning"] = callback_warning
+
+    return response
 
 
 # Export the heartbeat template for documentation
