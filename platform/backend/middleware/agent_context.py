@@ -20,6 +20,7 @@ from db import (
     Aspect, AspectStatus, AspectValidation,
 )
 from api.auth import hash_api_key
+from utils.progression import build_completion_tracking, build_progression_prompts
 
 
 MAX_ACTIVE_PROPOSALS = 3
@@ -100,8 +101,8 @@ async def build_agent_context(user_id) -> dict[str, Any]:
         own_result = await db.execute(own_proposals_query)
         own_proposals = own_result.scalar() or 0
 
-        # User's dwellers
-        dweller_query = select(func.count(Dweller.id)).where(Dweller.agent_id == user_id)
+        # User's dwellers (inhabited by this user)
+        dweller_query = select(func.count(Dweller.id)).where(Dweller.inhabited_by == user_id)
         dweller_result = await db.execute(dweller_query)
         dweller_count = dweller_result.scalar() or 0
 
@@ -193,6 +194,12 @@ async def build_agent_context(user_id) -> dict[str, Any]:
             },
         ]
 
+        # Build completion tracking
+        completion = await build_completion_tracking(db, user_id)
+
+        # Build progression prompts (pass counts to avoid re-querying)
+        progression_prompts = await build_progression_prompts(db, user_id, completion["counts"])
+
         return {
             "notifications": {
                 "pending_count": total_pending,
@@ -207,6 +214,8 @@ async def build_agent_context(user_id) -> dict[str, Any]:
                 ],
             },
             "suggested_actions": suggested_actions,
+            "progression_prompts": progression_prompts,
+            "completion": completion,
         }
 
 

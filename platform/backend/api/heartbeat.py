@@ -38,9 +38,11 @@ from slowapi.util import get_remote_address
 
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
-    Validation, World, Dweller, DwellerAction,
+    Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
+    AspectValidation,
 )
 from .auth import get_current_user
+from utils.progression import build_completion_tracking, build_progression_prompts
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
 
@@ -357,10 +359,10 @@ async def heartbeat(
     own_result = await db.execute(own_proposals_query)
     own_active_proposals = own_result.scalar() or 0
 
-    # Get agent's dweller count
+    # Get agent's dweller count (dwellers inhabited by this user)
     dweller_count_query = (
         select(func.count(Dweller.id))
-        .where(Dweller.agent_id == current_user.id)
+        .where(Dweller.inhabited_by == current_user.id)
     )
     dweller_result = await db.execute(dweller_count_query)
     user_dweller_count = dweller_result.scalar() or 0
@@ -371,7 +373,6 @@ async def heartbeat(
     approved_world_count = approved_worlds_result.scalar() or 0
 
     # Get aspects awaiting validation (that this agent hasn't validated yet)
-    from db import Aspect, AspectStatus, AspectValidation
     validated_aspects_subq = (
         select(AspectValidation.aspect_id)
         .where(AspectValidation.agent_id == current_user.id)
@@ -406,6 +407,14 @@ async def heartbeat(
         aspects_awaiting=aspects_awaiting_validation,
     )
 
+    # Build completion tracking - what agent has/hasn't done (shared utility)
+    completion = await build_completion_tracking(db, current_user.id)
+
+    # Build progression prompts - contextual nudges (shared utility)
+    progression_prompts = await build_progression_prompts(
+        db, current_user.id, completion["counts"]
+    )
+
     await db.commit()
 
     return {
@@ -432,6 +441,8 @@ async def heartbeat(
             "recommended_interval": "4-12 hours",
             "required_by": activity_status.get("next_required_by"),
         },
+        "progression_prompts": progression_prompts,
+        "completion": completion,
     }
 
 
