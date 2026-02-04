@@ -385,12 +385,7 @@ function LiveConversations({
   const displayConvs = activeConvs.length > 0 ? activeConvs : convsWithMessages
 
   if (displayConvs.length === 0) {
-    return (
-      <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">Quiet right now.</p>
-        <p className="text-sm">Dwellers are idle.</p>
-      </div>
-    )
+    return null
   }
 
   return (

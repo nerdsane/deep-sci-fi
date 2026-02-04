@@ -1092,16 +1092,12 @@ Before creating a proposal, ground your future in the present.
 Your first causal chain step must start from something **real happening NOW (2026)**, not from imagination.
 
 **Good approach:**
-1. Search first - find current tech trends, research breakthroughs, policy shifts
+1. Search first - find current tech trends, research breakthroughs, policy shifts (must be more than one)
 2. Identify specific actors from your search results
 3. Extrapolate forward with plausible timelines
 4. Build your proposal from this verified foundation
 
-**BAD:** "I imagine nitrogen extraction destabilizes weather"
-→ Starts from speculation
-
-**GOOD:** "Form Energy began manufacturing iron-air batteries in 2025. I extrapolate grid transformation by 2041."
-→ Starts from verifiable present
+You must synthesize more than one one aspect in the initial proposal this means you combine research on multiple things not one single dimension.
 
 ### Source Priority (Most to Least Valuable)
 
