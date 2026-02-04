@@ -1,29 +1,53 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ActivityFeed } from './ActivityFeed'
 import { AspectsList } from './AspectsList'
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconPlay,
+} from '@/components/ui/PixelIcon'
 
 interface Story {
   id: string
   type: string
   title: string
   description?: string
-  transcript?: string  // Full storyteller script
+  transcript?: string  // Full storyteller script - deprecated, use content
+  content?: string     // Full story narrative
+  summary?: string     // Short summary
   video_url?: string
   thumbnail_url?: string
   duration_seconds?: number
   created_at: string
   view_count?: number
   reaction_counts?: Record<string, number>
+  // Review system fields
+  status?: 'published' | 'acclaimed'
+  perspective?: string
+  perspective_dweller_name?: string
+  author_name?: string
+  author_username?: string
+  review_count?: number
+  acclaim_count?: number
+  reaction_count?: number
+  comment_count?: number
 }
 
 interface Dweller {
   id: string
-  persona: {
+  // Flat structure from API
+  name: string
+  role: string
+  current_region?: string
+  is_available: boolean
+  // Legacy persona structure for backwards compat with conversations
+  persona?: {
     name: string
     role: string
     background?: string
@@ -31,7 +55,7 @@ interface Dweller {
     avatar_url?: string
     avatar_prompt?: string
   }
-  is_active: boolean
+  is_active?: boolean
   joined_at?: string
 }
 
@@ -51,34 +75,6 @@ interface WorldEvent {
   title: string
   description: string
   timestamp: string
-}
-
-interface AgentStatus {
-  puppeteer: {
-    status: string
-    events_count: number
-    last_event: string | null
-  }
-  storyteller: {
-    status: string
-    observations_count: number
-    stories_created: number
-    last_activity: string | null
-  }
-  critic: {
-    status: string
-    evaluations_count: number
-    last_evaluation: string | null
-    average_score: number | null
-  }
-  dweller_agents: Array<{
-    dweller_id: string
-    activity: string
-    conversation_id: string | null
-    last_active: string
-  }>
-  tick_count: number
-  simulation_status: string
 }
 
 interface Conversation {
@@ -126,11 +122,25 @@ interface WorldDetailProps {
     aspects?: Aspect[]
     canonSummary?: string | null
   }
-  agents?: AgentStatus
 }
 
-export function WorldDetail({ world, agents }: WorldDetailProps) {
-  const [activeTab, setActiveTab] = useState<'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'>('live')
+type TabType = 'live' | 'stories' | 'timeline' | 'dwellers' | 'aspects'
+
+const VALID_TABS: TabType[] = ['live', 'stories', 'timeline', 'dwellers', 'aspects']
+
+export function WorldDetail({ world }: WorldDetailProps) {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const initialTab = tabParam && VALID_TABS.includes(tabParam as TabType) ? (tabParam as TabType) : 'live'
+
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
+
+  // Update tab when URL param changes
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam as TabType)) {
+      setActiveTab(tabParam as TabType)
+    }
+  }, [tabParam])
 
   const simulationRunning = world.simulation_status === 'running'
 
@@ -148,7 +158,7 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
                 {simulationRunning && (
                   <span className="px-2 py-1 bg-neon-green/20 text-neon-green text-[10px] font-display tracking-wider border border-neon-green/30 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse shadow-[0_0_6px_var(--neon-green)]" />
-                    SIMULATING
+                    LIVE
                   </span>
                 )}
               </div>
@@ -169,19 +179,41 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5">
               <span className="text-neon-green font-mono text-sm">{world.followerCount || 0}</span>
-              <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWERS</span>
+              <span className="text-text-tertiary text-[10px] font-display tracking-wider">FOLLOWING</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-neon-cyan/10 border border-neon-cyan/20">
               <span className="text-neon-cyan font-mono text-sm drop-shadow-[0_0_6px_var(--neon-cyan)]">{world.yearSetting}</span>
               <span className="text-neon-cyan/70 text-[10px] font-display tracking-wider">YEAR</span>
             </div>
           </div>
+
+          {/* Scientific Basis */}
+          {world.scientificBasis && (
+            <div className="mt-6 pt-4 border-t border-white/5">
+              <h3 className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider mb-2">SCIENTIFIC BASIS</h3>
+              <p className="text-text-secondary text-sm leading-relaxed">{world.scientificBasis}</p>
+            </div>
+          )}
+
+          {/* Regions */}
+          {world.regions && world.regions.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider mb-2">REGIONS</h3>
+              <div className="flex flex-wrap gap-2">
+                {world.regions.map((region: any, i: number) => (
+                  <span key={i} className="text-xs bg-white/5 border border-white/10 px-2 py-1 text-text-secondary">
+                    {typeof region === 'string' ? region : region.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 glass mb-6 p-1 overflow-x-auto">
-        {(['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents'] as const).map((tab) => (
+        {VALID_TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -205,11 +237,15 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
 
       {/* Tab content */}
       <div data-testid="activity-feed">
-        {activeTab === 'live' && <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />}
-        {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
-        {activeTab === 'stories' && <StoriesView stories={world.stories} />}
+        {activeTab === 'live' && (
+          <div className="space-y-8">
+            <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />
+            <ActivityFeed worldId={world.id} activity={world.activity || []} />
+          </div>
+        )}
+        {activeTab === 'stories' && <StoriesView stories={world.stories} worldId={world.id} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
-        {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} />}
+        {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} worldId={world.id} />}
         {activeTab === 'aspects' && (
           <AspectsList
             worldId={world.id}
@@ -218,7 +254,6 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
             originalPremise={world.premise}
           />
         )}
-        {activeTab === 'agents' && <AgentsView agents={agents} dwellers={world.dwellers} />}
       </div>
     </div>
   )
@@ -237,7 +272,7 @@ function TimelineView({
       {events && events.length > 0 && (
         <div className="mb-8">
           <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-            Recent World Events
+            RECENT EVENTS
           </h3>
           <div className="space-y-3">
             {events.map((event) => (
@@ -266,7 +301,7 @@ function TimelineView({
       {causalChain.length > 0 && (
         <>
           <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Historical Timeline
+            TIMELINE
           </h3>
           <div className="relative">
             {/* Timeline line */}
@@ -289,8 +324,8 @@ function TimelineView({
                   <Card className="flex-1 ml-4" hover={false}>
                     <CardContent>
                       <div className="text-text-primary text-xs mb-1">{event.event}</div>
-                      <div className="text-text-tertiary text-[10px] flex items-start gap-2">
-                        <span className="text-neon-purple shrink-0">→</span>
+                      <div className="text-text-tertiary text-[10px] flex items-start gap-1">
+                        <span className="text-neon-purple shrink-0"><IconArrowRight size={12} /></span>
                         {event.consequence}
                       </div>
                     </CardContent>
@@ -304,8 +339,8 @@ function TimelineView({
 
       {causalChain.length === 0 && (!events || events.length === 0) && (
         <div className="text-center py-12 text-text-secondary">
-          <p className="text-sm mb-1">No timeline events yet</p>
-          <p className="text-sm">Start the simulation to see events unfold...</p>
+          <p className="text-sm mb-1">No events yet.</p>
+          <p className="text-sm">Events will appear as the world unfolds.</p>
         </div>
       )}
     </div>
@@ -322,9 +357,13 @@ function LiveConversations({
   // Build persona map from both conversation participants and dwellers list
   const personaMap = new Map<string, { name: string; role: string; avatar_url?: string }>()
 
-  // Add personas from dwellers
+  // Add personas from dwellers (handle both flat and nested structure)
   dwellers?.forEach(d => {
-    personaMap.set(d.id, d.persona)
+    if (d.persona) {
+      personaMap.set(d.id, d.persona)
+    } else {
+      personaMap.set(d.id, { name: d.name, role: d.role })
+    }
   })
 
   // Add/override with personas from conversation participants (more up-to-date)
@@ -348,8 +387,8 @@ function LiveConversations({
   if (displayConvs.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No active conversations</p>
-        <p className="text-sm">Dwellers are currently idle...</p>
+        <p className="text-sm mb-1">Quiet right now.</p>
+        <p className="text-sm">Dwellers are idle.</p>
       </div>
     )
   }
@@ -361,10 +400,10 @@ function LiveConversations({
           <CardContent>
             <div className="flex items-center gap-2 mb-4 text-xs font-mono text-text-tertiary">
               <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-              {conv.is_active ? 'LIVE CONVERSATION' : 'RECENT CONVERSATION'}
+              {conv.is_active ? 'LIVE' : 'RECENT'}
             </div>
-            <div className="space-y-4">
-              {conv.messages?.slice(-5).map((msg) => {
+            <div className="max-h-80 overflow-y-auto space-y-4">
+              {conv.messages?.map((msg) => {
                 const persona = personaMap.get(msg.dweller_id)
                 return (
                   <div key={msg.id} className="flex gap-3">
@@ -399,32 +438,89 @@ function LiveConversations({
   )
 }
 
-function StoriesView({ stories }: { stories?: Story[] }) {
+// Story status badge component
+function StoryStatusBadge({ status }: { status?: 'published' | 'acclaimed' }) {
+  if (status === 'acclaimed') {
+    return (
+      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30">
+        ACCLAIMED
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-text-tertiary bg-white/5 border-white/10">
+      PUBLISHED
+    </span>
+  )
+}
+
+function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string }) {
   const [expandedStory, setExpandedStory] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'acclaimed'>('all')
+  const [sortBy, setSortBy] = useState<'engagement' | 'recent'>('engagement')
 
   if (!stories || stories.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No stories yet</p>
-        <p className="text-sm">Storyteller is observing this world...</p>
+        <p className="text-sm mb-1">No stories yet.</p>
+        <p className="text-sm">Storyteller is watching.</p>
       </div>
+    )
+  }
+
+  // Filter and sort stories
+  let filteredStories = [...stories]
+  if (statusFilter !== 'all') {
+    filteredStories = filteredStories.filter(s => s.status === statusFilter)
+  }
+
+  // Sort stories
+  if (sortBy === 'engagement') {
+    // Acclaimed first, then by reaction_count
+    filteredStories.sort((a, b) => {
+      if (a.status === 'acclaimed' && b.status !== 'acclaimed') return -1
+      if (b.status === 'acclaimed' && a.status !== 'acclaimed') return 1
+      return (b.reaction_count || 0) - (a.reaction_count || 0)
+    })
+  } else {
+    filteredStories.sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
   }
 
   const expanded = expandedStory ? stories.find(s => s.id === expandedStory) : null
 
-  // Expanded story view
+  // Expanded story view - now links to dedicated story page
   if (expanded) {
     return (
       <div className="space-y-6">
-        <button
-          onClick={() => setExpandedStory(null)}
-          className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
-        >
-          ← BACK TO STORIES
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setExpandedStory(null)}
+            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
+          >
+            <IconArrowLeft size={16} /> STORIES
+          </button>
+          <a
+            href={`/stories/${expanded.id}`}
+            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
+          >
+            VIEW FULL PAGE <IconArrowRight size={16} />
+          </a>
+        </div>
 
         <div className="max-w-3xl">
+          {/* Status badge */}
+          <div className="flex items-center gap-3 mb-4">
+            <StoryStatusBadge status={expanded.status} />
+            {expanded.perspective && (
+              <span className="text-[10px] font-mono text-text-tertiary">
+                {expanded.perspective.replace(/_/g, ' ').toUpperCase()}
+                {expanded.perspective_dweller_name && ` (via ${expanded.perspective_dweller_name})`}
+              </span>
+            )}
+          </div>
+
           {/* Video/thumbnail */}
           <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-6">
             {expanded.video_url ? (
@@ -450,7 +546,13 @@ function StoriesView({ stories }: { stories?: Story[] }) {
             )}
           </div>
 
-          <h1 className="text-lg text-neon-cyan mb-4">{expanded.title}</h1>
+          <h1 className="text-lg text-neon-cyan mb-2">{expanded.title}</h1>
+
+          {expanded.author_username && (
+            <div className="text-text-secondary text-sm mb-4">
+              By <span className="text-neon-cyan">{expanded.author_username}</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mb-6">
             <span>{new Date(expanded.created_at).toLocaleDateString()}</span>
@@ -460,28 +562,48 @@ function StoriesView({ stories }: { stories?: Story[] }) {
             {expanded.view_count !== undefined && expanded.view_count > 0 && (
               <span>{expanded.view_count} views</span>
             )}
+            {expanded.review_count !== undefined && expanded.review_count > 0 && (
+              <span>{expanded.review_count} reviews</span>
+            )}
           </div>
 
-          {expanded.description && (
+          {/* Summary or description */}
+          {(expanded.summary || expanded.description) && (
             <div className="text-text-secondary leading-relaxed mb-6">
-              {expanded.description}
+              {expanded.summary || expanded.description}
             </div>
           )}
 
-          {/* Full storyteller script */}
-          {expanded.transcript ? (
+          {/* Full story content */}
+          {(expanded.content || expanded.transcript) ? (
             <div className="mt-4 p-6 border border-white/10 bg-bg-tertiary">
-              <p className="text-neon-cyan text-sm font-mono mb-4">STORYTELLER SCRIPT</p>
-              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap font-mono text-sm">
-                {expanded.transcript}
+              <p className="text-neon-cyan text-sm font-mono mb-4">STORY</p>
+              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm">
+                {expanded.content || expanded.transcript}
               </div>
             </div>
           ) : (
             <div className="mt-8 p-4 border border-white/10 bg-bg-tertiary">
-              <p className="text-text-tertiary text-sm font-mono mb-2">STORYTELLER SCRIPT</p>
+              <p className="text-text-tertiary text-sm font-mono mb-2">STORY</p>
               <p className="text-text-secondary text-sm italic">
-                No script recorded for this story.
+                No content available.
               </p>
+            </div>
+          )}
+
+          {/* Engagement stats */}
+          {(expanded.reaction_count !== undefined || expanded.comment_count !== undefined) && (
+            <div className="mt-6 flex items-center gap-6 text-xs font-mono">
+              {expanded.reaction_count !== undefined && (
+                <span className="text-text-secondary">
+                  {expanded.reaction_count} reactions
+                </span>
+              )}
+              {expanded.comment_count !== undefined && (
+                <span className="text-text-secondary">
+                  {expanded.comment_count} comments
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -489,314 +611,171 @@ function StoriesView({ stories }: { stories?: Story[] }) {
     )
   }
 
-  // Grid view
+  // Grid view with filter bar
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {stories.map((story) => (
-        <Card
-          key={story.id}
-          className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
-          onClick={() => setExpandedStory(story.id)}
+    <div className="space-y-6">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-4 glass p-3">
+        <span className="text-[10px] font-display tracking-wider text-text-tertiary">FILTER:</span>
+        <div className="flex gap-1">
+          {(['all', 'published', 'acclaimed'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
+              className={`
+                px-3 py-1 text-[10px] font-display tracking-wider uppercase transition-all
+                ${statusFilter === filter
+                  ? 'text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30'
+                  : 'text-text-tertiary border border-transparent hover:text-neon-cyan/70'
+                }
+              `}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+        <span className="text-white/20">|</span>
+        <span className="text-[10px] font-display tracking-wider text-text-tertiary">SORT:</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'engagement' | 'recent')}
+          className="bg-transparent text-text-secondary text-xs font-mono border border-white/10 px-2 py-1 focus:outline-none focus:border-neon-cyan/30"
         >
-          {/* Video/thumbnail */}
-          <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
-            {story.video_url ? (
-              <video
-                src={story.video_url}
-                className="w-full h-full object-cover"
-                poster={story.thumbnail_url}
-              />
-            ) : story.thumbnail_url ? (
-              <img
-                src={story.thumbnail_url}
-                alt={story.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
-                <span className="text-text-tertiary text-sm font-mono">
-                  {story.type?.toUpperCase() || 'STORY'}
-                </span>
+          <option value="engagement">Engagement</option>
+          <option value="recent">Recent</option>
+        </select>
+      </div>
+
+      {filteredStories.length === 0 ? (
+        <div className="text-center py-12 text-text-secondary">
+          <p className="text-sm">No {statusFilter} stories found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredStories.map((story) => (
+            <Card
+              key={story.id}
+              className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
+              onClick={() => setExpandedStory(story.id)}
+            >
+              {/* Video/thumbnail */}
+              <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
+                {story.video_url ? (
+                  <video
+                    src={story.video_url}
+                    className="w-full h-full object-cover"
+                    poster={story.thumbnail_url}
+                  />
+                ) : story.thumbnail_url ? (
+                  <img
+                    src={story.thumbnail_url}
+                    alt={story.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
+                    <span className="text-text-tertiary text-sm font-mono">
+                      {story.type?.toUpperCase() || 'STORY'}
+                    </span>
+                  </div>
+                )}
+                {/* Status badge overlay */}
+                <div className="absolute top-2 right-2">
+                  <StoryStatusBadge status={story.status} />
+                </div>
+                {/* Play overlay */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30 text-white">
+                  <IconPlay size={48} />
+                </div>
               </div>
-            )}
-            {/* Play overlay */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30">
-              <span className="text-white text-4xl">▶</span>
-            </div>
-          </div>
-          <CardContent>
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm text-text-primary flex-1">{story.title}</h3>
-              {story.duration_seconds && story.duration_seconds > 0 && (
-                <span className="text-text-tertiary text-xs font-mono">
-                  {Math.floor(story.duration_seconds / 60)}:{String(story.duration_seconds % 60).padStart(2, '0')}
-                </span>
-              )}
-            </div>
-            {story.description && (
-              <p className="text-text-secondary text-sm line-clamp-2">{story.description}</p>
-            )}
-            <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mt-2">
-              <span>{new Date(story.created_at).toLocaleDateString()}</span>
-              {story.view_count !== undefined && story.view_count > 0 && (
-                <span>{story.view_count} views</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+              <CardContent>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm text-text-primary flex-1 line-clamp-1">{story.title}</h3>
+                  {story.duration_seconds && story.duration_seconds > 0 && (
+                    <span className="text-text-tertiary text-xs font-mono">
+                      {Math.floor(story.duration_seconds / 60)}:{String(story.duration_seconds % 60).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                {story.author_username && (
+                  <p className="text-text-tertiary text-xs mb-2">
+                    by <span className="text-neon-cyan">{story.author_username}</span>
+                  </p>
+                )}
+                {(story.summary || story.description) && (
+                  <p className="text-text-secondary text-sm line-clamp-2">{story.summary || story.description}</p>
+                )}
+                <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mt-2">
+                  <span>{new Date(story.created_at).toLocaleDateString()}</span>
+                  {story.reaction_count !== undefined && story.reaction_count > 0 && (
+                    <span>{story.reaction_count} reactions</span>
+                  )}
+                  {story.review_count !== undefined && story.review_count > 0 && (
+                    <span>{story.review_count} reviews</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function DwellersView({ dwellers }: { dwellers?: Dweller[] }) {
+function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: string }) {
   if (!dwellers || dwellers.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">No dwellers yet</p>
-        <p className="text-sm">This world is waiting for inhabitants...</p>
+        <p className="text-sm mb-1">No dwellers yet.</p>
+        <p className="text-sm">Create one to inhabit this world.</p>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {dwellers.map((dweller) => (
-        <Card key={dweller.id}>
-          <CardContent>
-            <div className="flex items-start gap-3">
-              {dweller.persona.avatar_url ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {dwellers.map((dweller) => {
+        // Support both flat structure (from API) and nested persona structure (from conversations)
+        const name = dweller.name || dweller.persona?.name || 'Unknown'
+        const role = dweller.role || dweller.persona?.role || 'Dweller'
+        const avatarUrl = dweller.persona?.avatar_url
+
+        return (
+          <a
+            key={dweller.id}
+            href={`/dweller/${dweller.id}`}
+            className="block bg-bg-secondary border border-white/5 rounded p-3 hover:border-neon-cyan/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              {avatarUrl ? (
                 <img
-                  src={dweller.persona.avatar_url}
-                  alt={dweller.persona.name}
-                  className="w-12 h-12 rounded object-cover shrink-0"
+                  src={avatarUrl}
+                  alt={name}
+                  className="w-10 h-10 rounded object-cover shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 rounded bg-neon-cyan/20 flex items-center justify-center text-lg font-mono text-neon-cyan shrink-0">
-                  {dweller.persona.name?.charAt(0) || '?'}
+                <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
+                  {name.charAt(0) || '?'}
                 </div>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-text-primary font-medium truncate">
-                    {dweller.persona.name}
-                  </h3>
-                  {dweller.is_active && (
-                    <span className="w-2 h-2 bg-neon-green rounded-full" title="Active" />
+                  <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                  {!dweller.is_available && (
+                    <span className="w-2 h-2 bg-neon-green rounded-full shrink-0" title="Inhabited" />
                   )}
                 </div>
-                <div className="text-neon-purple text-sm">{dweller.persona.role}</div>
-                {dweller.persona.background && (
-                  <p className="text-text-secondary text-xs mt-2 line-clamp-2">
-                    {dweller.persona.background}
-                  </p>
+                <div className="text-xs text-text-tertiary">{role}</div>
+                {dweller.current_region && (
+                  <div className="text-xs text-text-tertiary mt-0.5">📍 {dweller.current_region}</div>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          </a>
+        )
+      })}
     </div>
   )
 }
 
-function AgentsView({
-  agents,
-  dwellers,
-}: {
-  agents?: AgentStatus
-  dwellers?: Dweller[]
-}) {
-  if (!agents) {
-    return (
-      <div className="text-center py-12 text-text-secondary">
-        <p className="text-sm mb-1">Agent status unavailable</p>
-        <p className="text-sm">Start the simulation to see agent activity...</p>
-      </div>
-    )
-  }
-
-  const dwellerMap = new Map<string, Dweller>()
-  dwellers?.forEach(d => dwellerMap.set(d.id, d))
-
-  return (
-    <div className="space-y-8">
-      {/* Simulation Status */}
-      <div className="flex items-center gap-4 p-4 border border-white/10 rounded">
-        <div className="flex items-center gap-2">
-          <span
-            className={`w-3 h-3 rounded-full ${
-              agents.simulation_status === 'running' ? 'bg-neon-green animate-pulse' : 'bg-text-muted'
-            }`}
-          />
-          <span className="font-mono text-sm uppercase">
-            Simulation {agents.simulation_status}
-          </span>
-        </div>
-        <span className="text-text-tertiary text-xs font-mono">
-          Tick #{agents.tick_count}
-        </span>
-      </div>
-
-      {/* Puppeteer Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-2">
-                Puppeteer (World God)
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Introduces world events and environmental changes
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.puppeteer.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {agents.puppeteer.status.toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.puppeteer.events_count} events
-                </span>
-                {agents.puppeteer.last_event && (
-                  <span className="text-text-tertiary">
-                    Last: {new Date(agents.puppeteer.last_event).toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-purple/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-purple" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" />
-                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" />
-              </svg>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Storyteller Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                Observer (Storyteller)
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Observes dwellers and creates video stories
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.storyteller.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {agents.storyteller.status.toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.storyteller.observations_count} observations
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.storyteller.stories_created} stories created
-                </span>
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Critic Status */}
-      <Card>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-2">
-                Critic
-              </h3>
-              <p className="text-text-secondary text-sm mb-3">
-                Evaluates stories and conversations for quality
-              </p>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className={agents.critic?.status === 'active' ? 'text-neon-green' : 'text-text-muted'}>
-                  {(agents.critic?.status || 'idle').toUpperCase()}
-                </span>
-                <span className="text-text-tertiary">
-                  {agents.critic?.evaluations_count || 0} evaluations
-                </span>
-                {agents.critic?.average_score && (
-                  <span className="text-text-tertiary">
-                    avg: {agents.critic.average_score}/10
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="w-10 h-10 bg-neon-cyan/20 rounded flex items-center justify-center">
-              <svg className="w-5 h-5 text-neon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dweller Agents */}
-      <div>
-        <h3 className="text-text-primary font-mono text-sm uppercase tracking-wider mb-4">
-          Dweller Agents ({agents.dweller_agents.length})
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {agents.dweller_agents.map((agent) => {
-            const dweller = dwellerMap.get(agent.dweller_id)
-            return (
-              <Card key={agent.dweller_id} className="border-white/5">
-                <CardContent className="py-3">
-                  <div className="flex items-center gap-3">
-                    {dweller?.persona.avatar_url ? (
-                      <img
-                        src={dweller.persona.avatar_url}
-                        alt={dweller.persona.name}
-                        className="w-8 h-8 rounded object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs font-mono text-text-secondary shrink-0">
-                        {dweller?.persona.name?.charAt(0) || '?'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-text-primary text-sm truncate">
-                        {dweller?.persona.name || 'Unknown'}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs font-mono">
-                        <span
-                          className={
-                            agent.activity === 'conversing'
-                              ? 'text-neon-green'
-                              : agent.activity === 'seeking'
-                              ? 'text-neon-cyan'
-                              : 'text-text-tertiary'
-                          }
-                        >
-                          {agent.activity}
-                        </span>
-                        {agent.conversation_id && (
-                          <span className="text-text-tertiary">
-                            in conversation
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}

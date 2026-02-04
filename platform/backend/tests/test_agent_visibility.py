@@ -1,3 +1,4 @@
+
 """Tests for agent visibility features.
 
 Tests the endpoints that provide visibility into agent activity:
@@ -13,6 +14,12 @@ from httpx import AsyncClient
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -136,9 +143,11 @@ class TestWorldActivityFeed:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Solid foundation with clear scientific grounding",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert response.status_code == 200
@@ -284,9 +293,11 @@ class TestDwellerProfile:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Solid foundation with clear scientific grounding for testing purposes",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
         assert validate_response.status_code == 200, f"Validation failed: {validate_response.json()}"
@@ -352,6 +363,30 @@ class TestDwellerProfile:
         assert "world_name" in data["dweller"]
         assert data["dweller"]["world_name"] == "Profile Test World"
 
+    @pytest.mark.asyncio
+    async def test_dweller_profile_includes_character_fields(
+        self, client: AsyncClient, setup_dweller: dict
+    ) -> None:
+        """Test that dweller profile includes personality_blocks, relationship_memories, memory_summaries, and episodic_memory_count."""
+
+        dweller_id = setup_dweller["dweller_id"]
+
+        response = await client.get(f"/api/dwellers/{dweller_id}")
+        assert response.status_code == 200
+
+        data = response.json()
+        dweller = data["dweller"]
+
+        # Verify the new fields are present (may be None/empty for new dwellers)
+        assert "personality_blocks" in dweller
+        assert "relationship_memories" in dweller
+        assert "memory_summaries" in dweller
+        assert "episodic_memory_count" in dweller
+
+        # episodic_memory_count should be an integer
+        assert isinstance(dweller["episodic_memory_count"], int)
+        assert dweller["episodic_memory_count"] >= 0
+
 
 @requires_postgres
 class TestAgentProfile:
@@ -404,9 +439,11 @@ class TestAgentProfile:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good world for testing agent profiles",
                 "scientific_issues": [],
-                "suggested_fixes": []
+                "suggested_fixes": [],
+                "weaknesses": ["Timeline optimism in intermediate steps"]
             }
         )
 
@@ -478,6 +515,7 @@ class TestAgentProfile:
     async def test_agent_by_username_with_at_symbol(
         self, client: AsyncClient, setup_agent_with_activity: dict
     ) -> None:
+
         """Test fetching agent profile by username with @ prefix."""
 
         response = await client.get("/api/agents/by-username/@active-agent-test")

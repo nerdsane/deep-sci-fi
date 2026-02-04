@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { getProposal, type ProposalDetail, type ValidationVerdict } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { IconArrowLeft, IconArrowRight } from '@/components/ui/PixelIcon'
 
 const statusColors: Record<string, string> = {
   draft: 'text-text-tertiary bg-white/5 border-white/10',
@@ -88,9 +89,9 @@ export default function ProposalDetailPage() {
       {/* Back link */}
       <Link
         href="/proposals"
-        className="text-text-tertiary hover:text-text-secondary text-sm font-mono mb-6 inline-block"
+        className="text-text-tertiary hover:text-text-secondary text-sm font-mono mb-6 inline-flex items-center gap-1"
       >
-        ← BACK TO PROPOSALS
+        <IconArrowLeft size={16} /> PROPOSALS
       </Link>
 
       {/* Header with glass effect */}
@@ -121,7 +122,7 @@ export default function ProposalDetailPage() {
       </div>
 
       {/* Premise */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
           <div className="text-xs font-mono text-text-tertiary mb-2">PREMISE</div>
           <p className="text-text-primary text-sm">{proposal.premise}</p>
@@ -129,10 +130,10 @@ export default function ProposalDetailPage() {
       </Card>
 
       {/* Causal Chain */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-4">
-            CAUSAL CHAIN: 2026 → {proposal.year_setting}
+          <div className="text-xs font-mono text-text-tertiary mb-4 flex items-center gap-1">
+            PATH: 2026 <IconArrowRight size={12} /> {proposal.year_setting}
           </div>
           <div className="space-y-4">
             {proposal.causal_chain.map((step, index) => (
@@ -142,7 +143,9 @@ export default function ProposalDetailPage() {
                 </div>
                 <div className="flex-1 border-l border-white/10 pl-4">
                   <div className="text-text-primary mb-1">{step.event}</div>
-                  <div className="text-sm text-text-tertiary">→ {step.reasoning}</div>
+                  <div className="text-sm text-text-tertiary flex items-center gap-1">
+                    <IconArrowRight size={12} /> {step.reasoning}
+                  </div>
                 </div>
               </div>
             ))}
@@ -151,20 +154,44 @@ export default function ProposalDetailPage() {
       </Card>
 
       {/* Scientific Basis */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-2">SCIENTIFIC BASIS</div>
-          <p className="text-text-primary">{proposal.scientific_basis}</p>
+          <div className="text-xs font-mono text-text-tertiary mb-2">GROUNDING</div>
+          <p className="text-text-primary text-sm">{proposal.scientific_basis}</p>
         </CardContent>
       </Card>
 
+      {/* Citations */}
+      {proposal.citations && proposal.citations.length > 0 && (
+        <Card className="mb-4">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">SOURCES</div>
+            <ul className="space-y-2">
+              {proposal.citations.map((cite, i) => (
+                <li key={i} className="text-sm">
+                  <a
+                    href={cite.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-cyan hover:text-neon-cyan/80 transition-colors"
+                  >
+                    {cite.title}
+                  </a>
+                  <span className="text-text-tertiary ml-2 text-xs">({cite.type})</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Validation Summary */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-4">
-            VALIDATION SUMMARY
+          <div className="text-xs font-mono text-text-tertiary mb-3">
+            VALIDATION
           </div>
-          <div className="flex gap-6 text-sm">
+          <div className="flex gap-4 text-sm">
             <div>
               <span className="text-neon-green font-mono">{summary.approve_count}</span>
               <span className="text-text-tertiary ml-1">Approvals</span>
@@ -183,9 +210,9 @@ export default function ProposalDetailPage() {
 
       {/* Validations */}
       {validations.length > 0 && (
-        <div className="mb-6">
-          <div className="text-xs font-mono text-text-tertiary mb-4">VALIDATIONS</div>
-          <div className="space-y-4">
+        <div className="mb-4">
+          <div className="text-xs font-mono text-text-tertiary mb-3">VALIDATIONS</div>
+          <div className="space-y-3">
             {validations.map((v) => (
               <Card key={v.id}>
                 <CardContent>
@@ -193,6 +220,14 @@ export default function ProposalDetailPage() {
                     <span className={`text-xs font-mono ${verdictColors[v.verdict]}`}>
                       {verdictLabels[v.verdict]}
                     </span>
+                    {v.validator && (
+                      <Link
+                        href={`/agent/${v.validator.id}`}
+                        className="text-xs text-neon-cyan hover:text-neon-cyan-bright transition-colors"
+                      >
+                        {v.validator.username}
+                      </Link>
+                    )}
                     <span className="text-xs text-text-tertiary">
                       {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
                     </span>
@@ -201,7 +236,7 @@ export default function ProposalDetailPage() {
                   {v.scientific_issues.length > 0 && (
                     <div className="mb-3">
                       <div className="text-xs font-mono text-text-tertiary mb-1">
-                        SCIENTIFIC ISSUES
+                        ISSUES
                       </div>
                       <ul className="list-disc list-inside text-sm text-neon-pink-bright space-y-1">
                         {v.scientific_issues.map((issue, i) => (
@@ -211,13 +246,25 @@ export default function ProposalDetailPage() {
                     </div>
                   )}
                   {v.suggested_fixes.length > 0 && (
-                    <div>
+                    <div className="mb-3">
                       <div className="text-xs font-mono text-text-tertiary mb-1">
                         SUGGESTED FIXES
                       </div>
                       <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
                         {v.suggested_fixes.map((fix, i) => (
                           <li key={i}>{fix}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {v.weaknesses && v.weaknesses.length > 0 && (
+                    <div>
+                      <div className="text-xs font-mono text-text-tertiary mb-1">
+                        IDENTIFIED WEAKNESSES
+                      </div>
+                      <ul className="list-disc list-inside text-sm text-text-secondary space-y-1">
+                        {v.weaknesses.map((weakness, i) => (
+                          <li key={i}>{weakness}</li>
                         ))}
                       </ul>
                     </div>
@@ -232,7 +279,7 @@ export default function ProposalDetailPage() {
       {/* World link if approved */}
       {proposal.status === 'approved' && proposal.resulting_world_id && (
         <div className="text-center py-8 border border-neon-green/20 bg-neon-green/5">
-          <p className="text-neon-green font-mono mb-4">PROPOSAL APPROVED</p>
+          <p className="text-neon-green font-mono mb-4">APPROVED</p>
           <Link href={`/world/${proposal.resulting_world_id}`}>
             <Button variant="primary">VIEW WORLD</Button>
           </Link>

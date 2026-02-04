@@ -21,11 +21,9 @@ describe('ReactionButtons', () => {
   it('renders all 4 reaction buttons', () => {
     render(<ReactionButtons {...defaultProps} />)
 
-    // Check emojis are present
-    expect(screen.getByText('🔥')).toBeInTheDocument()
-    expect(screen.getByText('🧠')).toBeInTheDocument()
-    expect(screen.getByText('❤️')).toBeInTheDocument()
-    expect(screen.getByText('🤔')).toBeInTheDocument()
+    // Check all buttons are present by looking for their counts
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(4)
   })
 
   it('displays correct initial counts', () => {
@@ -41,8 +39,8 @@ describe('ReactionButtons', () => {
     const user = userEvent.setup()
     render(<ReactionButtons {...defaultProps} />)
 
-    // Find the fire button (contains 🔥)
-    const fireButton = screen.getByText('🔥').closest('button')!
+    // Find the first button (fire reaction with count 10)
+    const fireButton = screen.getByText('10').closest('button')!
 
     // Initial count is 10
     expect(screen.getByText('10')).toBeInTheDocument()
@@ -58,7 +56,7 @@ describe('ReactionButtons', () => {
     const user = userEvent.setup()
     render(<ReactionButtons {...defaultProps} />)
 
-    const fireButton = screen.getByText('🔥').closest('button')!
+    const fireButton = screen.getByText('10').closest('button')!
 
     // First click: 10 -> 11
     await user.click(fireButton)
@@ -73,8 +71,8 @@ describe('ReactionButtons', () => {
     const user = userEvent.setup()
     render(<ReactionButtons {...defaultProps} />)
 
-    const fireButton = screen.getByText('🔥').closest('button')!
-    const heartButton = screen.getByText('❤️').closest('button')!
+    const fireButton = screen.getByText('10').closest('button')!
+    const heartButton = screen.getByText('20').closest('button')!
 
     // Click fire
     await user.click(fireButton)
@@ -93,7 +91,7 @@ describe('ReactionButtons', () => {
     const user = userEvent.setup()
     render(<ReactionButtons {...defaultProps} />)
 
-    const fireButton = screen.getByText('🔥').closest('button')!
+    const fireButton = screen.getByText('10').closest('button')!
 
     // Initially not active (no cyan border class)
     expect(fireButton).not.toHaveClass('border-neon-cyan/50')
@@ -109,7 +107,7 @@ describe('ReactionButtons', () => {
     const user = userEvent.setup()
     render(<ReactionButtons {...defaultProps} />)
 
-    const fireButton = screen.getByText('🔥').closest('button')!
+    const fireButton = screen.getByText('10').closest('button')!
 
     // Click to activate
     await user.click(fireButton)

@@ -47,6 +47,12 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         echo=False,
     )
 
+    # Ensure pgvector extension exists before creating tables
+    async with engine.begin() as conn:
+        await conn.execute(
+            __import__("sqlalchemy").text("CREATE EXTENSION IF NOT EXISTS vector")
+        )
+
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import type { Proposal } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
+import { IconArrowRight } from '@/components/ui/PixelIcon'
 
 interface ProposalCardProps {
   proposal: Proposal
@@ -42,7 +43,8 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           </span>
           {proposal.status === 'validating' && (
             <span className="text-xs font-mono text-text-tertiary ml-auto">
-              {proposal.approve_count}/{proposal.validation_count} APPROVALS
+              {proposal.approve_count}/2 approvals needed
+              {(proposal.reject_count ?? 0) > 0 && ` (${proposal.reject_count} rejection${(proposal.reject_count ?? 0) > 1 ? 's' : ''})`}
             </span>
           )}
         </div>
@@ -69,8 +71,8 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                     <div className="text-xs text-text-primary line-clamp-2">
                       {step.event}
                     </div>
-                    <div className="text-xs text-text-tertiary mt-0.5 line-clamp-1">
-                      → {step.reasoning}
+                    <div className="text-xs text-text-tertiary mt-0.5 line-clamp-1 flex items-center gap-1">
+                      <IconArrowRight size={12} /> {step.reasoning}
                     </div>
                   </div>
                 </div>

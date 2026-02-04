@@ -4,10 +4,23 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { getFeed, type FeedItem } from '@/lib/api'
 import { FeedSkeleton } from '@/components/ui/Skeleton'
+import {
+  IconFilePlus,
+  IconCheck,
+  IconMoonStar,
+  IconMoonStars,
+  IconUser,
+  IconChat,
+  IconUserPlus,
+  IconArrowRight,
+} from '@/components/ui/PixelIcon'
 
 // Format relative time
 function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
+  // Handle both 'Z' suffix and '+00:00' timezone offset formats
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return 'Invalid date'
+
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
@@ -77,67 +90,96 @@ function WorldLink({ world }: { world: { id: string; name: string; year_setting:
   )
 }
 
+// Custom globe icon (no pixelarticons equivalent)
+const GlobeIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M10 2h4v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4V8h2V6h2V4h2V2zm0 2v2H8v2H6v4h2v2h2v2h4v-2h2v-2h2V8h-2V6h-2V4h-4z" />
+    <path d="M11 4h2v2h-2V4zm-1 2h4v2h-4V6zm-1 2h6v2H9V8zm-1 2h8v4H8v-4zm1 4h6v2H9v-2zm1 2h4v2h-4v-2zm1 2h2v2h-2v-2z" fillOpacity="0.3" />
+  </svg>
+)
+
+// Book icon for stories (custom pixel art style)
+const BookIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 4h2v16H4V4zm4 0h10v2H8V4zm0 4h10v2H8V8zm0 4h8v2H8v-2zm12-8h2v16h-2V4z" />
+  </svg>
+)
+
 // Activity type icon
 function ActivityIcon({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
-    world_created: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="2" y1="12" x2="22" y2="12" />
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-      </svg>
-    ),
-    proposal_submitted: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="12" y1="18" x2="12" y2="12" />
-        <line x1="9" y1="15" x2="15" y2="15" />
-      </svg>
-    ),
-    proposal_validated: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 11l3 3L22 4" />
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-      </svg>
-    ),
-    aspect_proposed: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-    aspect_approved: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-    dweller_created: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
-    ),
-    dweller_action: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-    agent_registered: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="8.5" cy="7" r="4" />
-        <line x1="20" y1="8" x2="20" y2="14" />
-        <line x1="23" y1="11" x2="17" y2="11" />
-      </svg>
-    ),
+    world_created: <GlobeIcon />,
+    proposal_submitted: <IconFilePlus size={16} />,
+    proposal_validated: <IconCheck size={16} />,
+    aspect_proposed: <IconMoonStar size={16} />,
+    aspect_approved: <IconMoonStars size={16} />,
+    dweller_created: <IconUser size={16} />,
+    dweller_action: <IconChat size={16} />,
+    agent_registered: <IconUserPlus size={16} />,
+    story_created: <BookIcon />,
   }
-  return <span className="text-text-tertiary">{icons[type] || icons.proposal_submitted}</span>
+  return <span className="text-text-tertiary">{icons[type] || <IconFilePlus size={16} />}</span>
+}
+
+// Get the primary link URL for a feed item
+function getFeedItemLink(item: FeedItem): string | null {
+  switch (item.type) {
+    case 'world_created':
+      return item.world ? `/world/${item.world.id}` : null
+    case 'proposal_submitted':
+    case 'proposal_validated':
+      return item.proposal ? `/proposal/${item.proposal.id}` : null
+    case 'aspect_proposed':
+    case 'aspect_approved':
+      // Link to world's aspects tab
+      return item.world ? `/world/${item.world.id}?tab=aspects` : null
+    case 'dweller_created':
+    case 'dweller_action':
+      return item.dweller ? `/dweller/${item.dweller.id}` : null
+    case 'agent_registered':
+      return item.agent ? `/agent/${item.agent.id}` : null
+    case 'story_created':
+      return item.story ? `/stories/${item.story.id}` : null
+    default:
+      return null
+  }
+}
+
+// Dweller link
+function DwellerLink({ dweller }: { dweller: { id: string; name: string } }) {
+  return (
+    <Link
+      href={`/dweller/${dweller.id}`}
+      className="text-text-primary hover:text-neon-cyan transition-colors"
+    >
+      {dweller.name}
+    </Link>
+  )
 }
 
 // Individual feed item card
 function FeedItemCard({ item }: { item: FeedItem }) {
+  const link = getFeedItemLink(item)
+
+  const CardWrapper = ({ children }: { children: React.ReactNode }) => {
+    if (link) {
+      return (
+        <Link href={link} className="block">
+          <div className="glass hover:border-neon-cyan/30 transition-all hover:shadow-lg hover:shadow-neon-cyan/5 cursor-pointer">
+            {children}
+          </div>
+        </Link>
+      )
+    }
+    return (
+      <div className="glass hover:border-white/10 transition-all">
+        {children}
+      </div>
+    )
+  }
+
   return (
-    <div className="glass hover:border-white/10 transition-all hover:shadow-lg hover:shadow-neon-cyan/5">
+    <CardWrapper>
       <div className="p-4">
         {/* Header: icon + type + time */}
         <div className="flex items-center gap-2 mb-3">
@@ -157,17 +199,17 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-xs text-text-primary mb-1">
-                  <WorldLink world={item.world} />
+                  {item.world.name}
                 </h3>
                 <p className="text-text-secondary text-xs line-clamp-2">{item.world.premise}</p>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-lg font-mono text-neon-cyan">{item.world.year_setting}</div>
+                <div className="text-sm font-mono text-neon-cyan">{item.world.year_setting}</div>
               </div>
             </div>
             {item.agent && (
               <div className="mt-3 text-xs text-text-tertiary">
-                Created by <AgentLink agent={item.agent} />
+                Created by <span className="text-neon-cyan">{item.agent.username}</span>
               </div>
             )}
             <div className="mt-2 flex gap-4 text-xs font-mono text-text-tertiary">
@@ -182,20 +224,18 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-text-primary mb-1">
-                  <Link href={`/proposal/${item.proposal.id}`} className="hover:text-neon-cyan transition-colors">
-                    {item.proposal.name || 'Unnamed Proposal'}
-                  </Link>
+                  {item.proposal.name || 'Unnamed Proposal'}
                 </h3>
                 <p className="text-text-secondary text-xs line-clamp-2">{item.proposal.premise}</p>
               </div>
               <div className="shrink-0 flex flex-col items-end gap-1">
-                <span className="text-base font-mono text-neon-purple">{item.proposal.year_setting}</span>
+                <span className="text-sm font-mono text-neon-purple">{item.proposal.year_setting}</span>
                 <StatusBadge status={item.proposal.status} />
               </div>
             </div>
             {item.agent && (
               <div className="mt-3 text-xs text-text-tertiary">
-                Proposed by <AgentLink agent={item.agent} />
+                Proposed by <span className="text-neon-cyan">{item.agent.username}</span>
               </div>
             )}
           </div>
@@ -207,16 +247,14 @@ function FeedItemCard({ item }: { item: FeedItem }) {
               <VerdictBadge verdict={item.validation.verdict} />
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-text-primary mb-1">
-                  <Link href={`/proposal/${item.proposal.id}`} className="hover:text-neon-cyan transition-colors">
-                    {item.proposal.name || 'Unnamed Proposal'}
-                  </Link>
+                  {item.proposal.name || 'Unnamed Proposal'}
                 </div>
                 <p className="text-text-secondary text-xs line-clamp-2">"{item.validation.critique}"</p>
               </div>
             </div>
             <div className="mt-3 text-xs text-text-tertiary">
-              {item.agent && <><AgentLink agent={item.agent} /> validated</>}
-              {item.proposer && <> proposal by <AgentLink agent={item.proposer} /></>}
+              {item.agent && <><span className="text-neon-cyan">{item.agent.username}</span> validated</>}
+              {item.proposer && <> proposal by <span className="text-neon-cyan">{item.proposer.username}</span></>}
             </div>
           </div>
         )}
@@ -234,8 +272,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.world && (
               <div className="mt-3 text-xs text-text-tertiary">
-                For world <WorldLink world={item.world} />
-                {item.agent && <> by <AgentLink agent={item.agent} /></>}
+                For world <span className="text-text-primary">{item.world.name}</span>
+                {item.agent && <> by <span className="text-neon-cyan">{item.agent.username}</span></>}
               </div>
             )}
           </div>
@@ -264,8 +302,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
             {item.world && (
               <div className="mt-3 text-xs text-text-tertiary">
-                In <WorldLink world={item.world} />
-                {item.agent && <> created by <AgentLink agent={item.agent} /></>}
+                In <span className="text-text-primary">{item.world.name}</span>
+                {item.agent && <> created by <span className="text-neon-cyan">{item.agent.username}</span></>}
               </div>
             )}
           </div>
@@ -290,13 +328,15 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   {item.action.type === 'speak' ? `"${item.action.content}"` : item.action.content}
                 </p>
                 {item.action.target && (
-                  <div className="text-text-tertiary text-xs mt-1">→ {item.action.target}</div>
+                  <div className="text-text-tertiary text-xs mt-1 flex items-center gap-1">
+                    <IconArrowRight size={12} /> {item.action.target}
+                  </div>
                 )}
               </div>
             </div>
             {item.world && (
               <div className="mt-2 text-xs text-text-tertiary">
-                In <WorldLink world={item.world} />
+                In <span className="text-text-primary">{item.world.name}</span>
               </div>
             )}
           </div>
@@ -316,8 +356,49 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             </div>
           </div>
         )}
+
+        {item.type === 'story_created' && item.story && (
+          <div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono text-neon-purple bg-neon-purple/10 border border-neon-purple/30 px-1.5 py-0.5">
+                    {item.story.perspective?.replace(/_/g, ' ').toUpperCase() || 'STORY'}
+                  </span>
+                </div>
+                <h3 className="text-text-primary mb-1">{item.story.title}</h3>
+                {item.story.summary && (
+                  <p className="text-text-secondary text-xs line-clamp-2">{item.story.summary}</p>
+                )}
+              </div>
+              <div className="text-right shrink-0 text-xs font-mono text-text-tertiary">
+                <div>{item.story.reaction_count || 0} reactions</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-text-tertiary">
+              {item.agent && (
+                <>
+                  <span>By</span>
+                  <span className="text-neon-cyan">{item.agent.username}</span>
+                </>
+              )}
+              {item.world && (
+                <>
+                  <span>in</span>
+                  <span className="text-text-primary">{item.world.name}</span>
+                </>
+              )}
+              {item.perspective_dweller && (
+                <>
+                  <span>via</span>
+                  <span className="text-neon-purple">{item.perspective_dweller.name}</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </CardWrapper>
   )
 }
 
@@ -356,6 +437,34 @@ export function FeedContainer() {
     }
   }, [cursor])
 
+  // Poll for new items every 30 seconds
+  useEffect(() => {
+    if (loading) return
+
+    const pollForNewItems = async () => {
+      if (feedItems.length === 0) return
+
+      try {
+        const response = await getFeed(undefined, 20)
+        const newestTimestamp = new Date(feedItems[0].created_at).getTime()
+
+        const newItems = response.items.filter(
+          (item) => new Date(item.created_at).getTime() > newestTimestamp
+        )
+
+        if (newItems.length > 0) {
+          setFeedItems((prev) => [...newItems, ...prev])
+        }
+      } catch (err) {
+        // Silent fail on poll - don't disrupt UX
+        console.error('Feed poll failed:', err)
+      }
+    }
+
+    const interval = setInterval(pollForNewItems, 30000)
+    return () => clearInterval(interval)
+  }, [loading, feedItems])
+
   // Initial load
   useEffect(() => {
     loadFeed()
@@ -384,7 +493,7 @@ export function FeedContainer() {
   }, [loading, hasMore, loadingMore, loadFeed])
 
   if (loading && feedItems.length === 0) {
-    return <FeedSkeleton count={5} />
+    return <FeedSkeleton count={3} />
   }
 
   if (error && feedItems.length === 0) {
@@ -404,16 +513,14 @@ export function FeedContainer() {
   if (feedItems.length === 0) {
     return (
       <div className="text-center py-16 animate-fade-in">
-        <div className="w-12 h-12 mx-auto mb-4 text-text-tertiary">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-            <circle cx="12" cy="12" r="10" />
-            <ellipse cx="12" cy="12" rx="10" ry="4" />
-            <path d="M12 2v20" />
+        <div className="w-12 h-12 mx-auto mb-4 text-text-tertiary flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+            <path d="M10 2h4v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4V8h2V6h2V4h2V2zm0 2v2H8v2H6v4h2v2h2v2h4v-2h2v-2h2V8h-2V6h-2V4h-4z" />
           </svg>
         </div>
-        <p className="text-text-secondary text-sm mb-1">No activity yet</p>
+        <p className="text-text-secondary text-sm mb-1">Nothing yet.</p>
         <p className="text-text-tertiary text-xs">
-          When agents create worlds, submit proposals, or take actions, they'll appear here.
+          When agents start building, activity shows up here.
         </p>
       </div>
     )
@@ -437,7 +544,7 @@ export function FeedContainer() {
       <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
         {loadingMore && (
           <div className="text-neon-cyan animate-pulse font-mono text-xs">
-            LOADING MORE...
+            LOADING...
           </div>
         )}
       </div>

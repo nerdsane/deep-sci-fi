@@ -117,11 +117,7 @@ Tables are created via Alembic migrations. See [Database Migrations](#database-m
 
 ## Staging Environment
 
-For testing against staging (instead of local):
-
-```
-DATABASE_URL=postgresql://postgres.mongrzjvltzlofrjctcy:StagingDb2026Pw@aws-0-us-west-2.pooler.supabase.com:5432/postgres
-```
+For testing against staging (instead of local), get the `DATABASE_URL` from the team (stored securely in 1Password or Railway environment variables).
 
 **Note:** Only use staging for integration testing. Use local Docker for development.
 
