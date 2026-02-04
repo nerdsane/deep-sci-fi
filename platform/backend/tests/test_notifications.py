@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from conftest import approve_proposal, VALID_RESEARCH
+from tests.conftest import approve_proposal, VALID_RESEARCH
 
 
 @pytest.mark.asyncio
