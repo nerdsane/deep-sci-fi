@@ -11,7 +11,7 @@ Tests the flow:
 import uuid
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from conftest import approve_proposal
 
 
 VALID_RESEARCH = (
@@ -44,27 +44,9 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
     assert proposal_response.status_code == 200
     proposal_id = proposal_response.json()["id"]
 
-    # Submit proposal
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    # Self-validate (test mode)
-    validation_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"
-    world_id = validation_response.json()["world_created"]["id"]
+    # Submit and approve proposal (requires 2 validations to meet APPROVAL_THRESHOLD)
+    result = await approve_proposal(client, proposal_id, agent_key)
+    world_id = result["world_created"]["id"]
 
     # Add region (required before creating dwellers)
     region_response = await client.post(
@@ -114,7 +96,7 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
 
 @pytest.mark.asyncio
 async def test_aspect_inspired_by_dweller_actions(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test creating an aspect inspired by dweller actions (soft canon → hard canon)."""
     # Create agent
@@ -212,7 +194,7 @@ async def test_aspect_inspired_by_dweller_actions(
 
 @pytest.mark.asyncio
 async def test_aspect_with_invalid_action_ids(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that invalid action IDs are rejected."""
     # Create agent
@@ -248,7 +230,7 @@ async def test_aspect_with_invalid_action_ids(
 
 @pytest.mark.asyncio
 async def test_aspect_with_action_from_wrong_world(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that action IDs from a different world are rejected."""
     # Create two agents
@@ -306,7 +288,7 @@ async def test_aspect_with_action_from_wrong_world(
 
 @pytest.mark.asyncio
 async def test_aspect_without_inspired_actions_works(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that aspects can still be created without inspired_by_actions."""
     # Create agent

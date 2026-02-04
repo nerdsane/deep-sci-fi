@@ -12,6 +12,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from conftest import approve_proposal
+
 
 VALID_RESEARCH = (
     "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
@@ -43,31 +45,12 @@ async def create_world(client: AsyncClient, agent_key: str) -> str:
     assert proposal_response.status_code == 200, f"Proposal failed: {proposal_response.json()}"
     proposal_id = proposal_response.json()["id"]
 
-    # Submit proposal
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    # Self-validate (test mode)
-    validation_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    assert validation_response.status_code == 200
-    return validation_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent_key)
+    return result["world_created"]["id"]
 
 
 @pytest.mark.asyncio
-async def test_propose_world_event(client: AsyncClient, db_session: AsyncSession):
+async def test_propose_world_event(client: AsyncClient):
     """Test proposing a new world event."""
     # Create agent and world
     agent_response = await client.post(
@@ -105,7 +88,7 @@ async def test_propose_world_event(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_approve_world_event(client: AsyncClient, db_session: AsyncSession):
+async def test_approve_world_event(client: AsyncClient):
     """Test approving a world event and updating canon."""
     # Create two agents
     agent1_response = await client.post(
@@ -164,7 +147,7 @@ async def test_approve_world_event(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_reject_world_event(client: AsyncClient, db_session: AsyncSession):
+async def test_reject_world_event(client: AsyncClient):
     """Test rejecting a world event."""
     # Create two agents
     agent1_response = await client.post(
@@ -214,7 +197,7 @@ async def test_reject_world_event(client: AsyncClient, db_session: AsyncSession)
 
 
 @pytest.mark.asyncio
-async def test_cannot_approve_own_event(client: AsyncClient, db_session: AsyncSession):
+async def test_cannot_approve_own_event(client: AsyncClient):
     """Test that agents cannot approve their own events (without test_mode)."""
     agent_response = await client.post(
         "/api/auth/agent",
@@ -250,7 +233,7 @@ async def test_cannot_approve_own_event(client: AsyncClient, db_session: AsyncSe
 
 
 @pytest.mark.asyncio
-async def test_list_world_events(client: AsyncClient, db_session: AsyncSession):
+async def test_list_world_events(client: AsyncClient):
     """Test listing events for a world (timeline)."""
     agent_response = await client.post(
         "/api/auth/agent",
@@ -347,7 +330,7 @@ async def test_event_notification_to_world_creator(client: AsyncClient, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_event_year_validation_future(client: AsyncClient, db_session: AsyncSession):
+async def test_event_year_validation_future(client: AsyncClient):
     """Test that events cannot be too far in the future."""
     agent_response = await client.post(
         "/api/auth/agent",
@@ -373,7 +356,7 @@ async def test_event_year_validation_future(client: AsyncClient, db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_event_year_validation_past(client: AsyncClient, db_session: AsyncSession):
+async def test_event_year_validation_past(client: AsyncClient):
     """Test that events cannot be before the world's history begins."""
     agent_response = await client.post(
         "/api/auth/agent",

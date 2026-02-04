@@ -4,17 +4,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
-# Required research_conducted field content (100+ chars)
-VALID_RESEARCH = (
-    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
-    "funding trends, and historical energy cost curves. The causal chain aligns with "
-    "mainstream fusion research timelines and economic projections from IEA reports."
-)
+from conftest import approve_proposal, VALID_RESEARCH
 
 
 @pytest.mark.asyncio
-async def test_dweller_speech_creates_notification(client: AsyncClient, db_session: AsyncSession):
+async def test_dweller_speech_creates_notification(client: AsyncClient):
     """When dweller A speaks to dweller B, B's inhabitant gets a notification."""
     # Create two agents
     agent1_response = await client.post(
@@ -58,28 +52,8 @@ async def test_dweller_speech_creates_notification(client: AsyncClient, db_sessi
     assert proposal_response.status_code == 200
     proposal_id = proposal_response.json()["id"]
 
-    # Submit proposal
-    submit_response = await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent1_key},
-    )
-    assert submit_response.status_code == 200
-
-    # Self-validate to create world
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval for notification testing.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    assert validate_response.status_code == 200
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent1_key)
+    world_id = result["world_created"]["id"]
 
     # Add a region
     region_response = await client.post(
@@ -180,7 +154,7 @@ async def test_dweller_speech_creates_notification(client: AsyncClient, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient, db_session: AsyncSession):
+async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient):
     """Speaking to an uninhabited dweller should not create a notification."""
     # Create agent
     agent_response = await client.post(
@@ -212,24 +186,8 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
     assert proposal_response.status_code == 200
     proposal_id = proposal_response.json()["id"]
 
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent_key)
+    world_id = result["world_created"]["id"]
 
     # Add region
     await client.post(
@@ -302,7 +260,7 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient, db_session: AsyncSession):
+async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient):
     """Speaking to a dweller that doesn't exist should not crash."""
     # Create agent
     agent_response = await client.post(
@@ -333,24 +291,8 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
     )
     proposal_id = proposal_response.json()["id"]
 
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent_key)
+    world_id = result["world_created"]["id"]
 
     # Add region
     await client.post(
@@ -406,7 +348,7 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_mark_notifications_as_read(client: AsyncClient, db_session: AsyncSession):
+async def test_mark_notifications_as_read(client: AsyncClient):
     """Notifications can be marked as read when fetching pending."""
     # Create two agents
     agent1_response = await client.post(
@@ -439,24 +381,8 @@ async def test_mark_notifications_as_read(client: AsyncClient, db_session: Async
     )
     proposal_id = proposal_response.json()["id"]
 
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent1_key},
-    )
-
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent1_key)
+    world_id = result["world_created"]["id"]
 
     # Add region and dwellers
     await client.post(
@@ -543,7 +469,7 @@ async def test_mark_notifications_as_read(client: AsyncClient, db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_notification_contains_correct_data(client: AsyncClient, db_session: AsyncSession):
+async def test_notification_contains_correct_data(client: AsyncClient):
     """Notification data should include all required fields."""
     # Create two agents
     agent1_response = await client.post(
@@ -576,13 +502,8 @@ async def test_notification_contains_correct_data(client: AsyncClient, db_sessio
     )
     proposal_id = proposal_response.json()["id"]
 
-    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent1_key)
+    world_id = result["world_created"]["id"]
 
     # Add region and dwellers
     await client.post(
@@ -786,24 +707,8 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
     )
     proposal_id = proposal_response.json()["id"]
 
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent1_key},
-    )
-
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent1_key)
+    world_id = result["world_created"]["id"]
 
     # Agent 1 creates an aspect
     aspect_response = await client.post(
@@ -865,7 +770,7 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
 
 
 @pytest.mark.asyncio
-async def test_revision_suggestion_flow(client: AsyncClient, db_session: AsyncSession):
+async def test_revision_suggestion_flow(client: AsyncClient):
     """Test the full revision suggestion flow: suggest, upvote, accept."""
     # Create two agents
     agent1_response = await client.post(
@@ -956,7 +861,7 @@ async def test_revision_suggestion_flow(client: AsyncClient, db_session: AsyncSe
 
 
 @pytest.mark.asyncio
-async def test_suggestion_owner_can_reject(client: AsyncClient, db_session: AsyncSession):
+async def test_suggestion_owner_can_reject(client: AsyncClient):
     """Test that owner can reject suggestions."""
     # Create two agents
     agent1_response = await client.post(
@@ -1017,7 +922,7 @@ async def test_suggestion_owner_can_reject(client: AsyncClient, db_session: Asyn
 
 
 @pytest.mark.asyncio
-async def test_cannot_suggest_own_proposal(client: AsyncClient, db_session: AsyncSession):
+async def test_cannot_suggest_own_proposal(client: AsyncClient):
     """Test that you cannot suggest revision to your own proposal."""
     agent_response = await client.post(
         "/api/auth/agent",
@@ -1123,7 +1028,7 @@ async def test_suggestion_creates_notification(client: AsyncClient, db_session: 
 
 
 @pytest.mark.asyncio
-async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSession):
+async def test_aspect_suggestion_flow(client: AsyncClient):
     """Test revision suggestions on aspects (not just proposals)."""
     # Create two agents
     agent1_response = await client.post(
@@ -1155,13 +1060,8 @@ async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSess
         },
     )
     proposal_id = proposal_response.json()["id"]
-    await client.post(f"/api/proposals/{proposal_id}/submit", headers={"X-API-Key": agent1_key})
-    validate_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent1_key},
-        json={"verdict": "approve", "critique": "Test approval with sufficient length.", "research_conducted": VALID_RESEARCH, "scientific_issues": [], "suggested_fixes": [], "weaknesses": ["Timeline optimism in intermediate steps"]},
-    )
-    world_id = validate_response.json()["world_created"]["id"]
+    result = await approve_proposal(client, proposal_id, agent1_key)
+    world_id = result["world_created"]["id"]
 
     # Create an aspect
     aspect_response = await client.post(
@@ -1214,7 +1114,7 @@ async def test_aspect_suggestion_flow(client: AsyncClient, db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_upvote_and_withdraw(client: AsyncClient, db_session: AsyncSession):
+async def test_upvote_and_withdraw(client: AsyncClient):
     """Test upvoting suggestions and withdrawing own suggestions."""
     # Create three agents
     agent1_response = await client.post(
