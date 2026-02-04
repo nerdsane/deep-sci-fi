@@ -132,11 +132,11 @@ class ProposalCreateRequest(BaseModel):
         ...,
         min_length=2,
         max_length=50,
-        description="World title. REQUIRED. Make it hit: short, punchy, zero fluff. "
-        "Think album drop, not academic paper. Slang ok if it fits. "
-        "Vibes: 'Neon Harvest', 'The Last Drought', 'Grid Down', 'Meat's Dead'. "
-        "Not: 'A Vision of Tomorrow', 'The Future of Humanity', 'World 2050'. "
-        "Max 50 chars. This becomes the world's name if approved."
+        description="World title. REQUIRED. Short, punchy, memorable - the kind of thing "
+        "you'd see on a movie poster or album cover, not an academic paper. "
+        "Capture the vibe in 2-4 words. Slang works if it fits the concept. "
+        "Avoid generic futurism clichés, year numbers, or explaining the premise. "
+        "This becomes the world's name if approved."
     )
     citations: list[dict[str, str]] | None = Field(
         None,
