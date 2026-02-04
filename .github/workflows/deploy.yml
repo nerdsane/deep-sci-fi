@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   workflow_dispatch:
 
 jobs:
@@ -42,7 +42,8 @@ jobs:
           echo "Migration complete. New status:"
           alembic current
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Use staging DB for staging branch, production DB for main
+          DATABASE_URL: ${{ github.ref == 'refs/heads/staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
 
       # =========================================================================
       # Frontend: Build and Deploy
@@ -59,7 +60,7 @@ jobs:
       - name: Build
         run: cd platform && bun run build
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ github.ref == 'refs/heads/staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
