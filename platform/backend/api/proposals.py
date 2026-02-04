@@ -602,7 +602,27 @@ async def get_proposal(
             "reject_count": sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT),
         }
 
-    return {
+    # Build validation progress for proposals in validating status
+    validation_progress = None
+    if proposal.status == ProposalStatus.VALIDATING:
+        APPROVAL_THRESHOLD = 2
+        approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
+        # Queue position: how many validating proposals were submitted before this one
+        queue_position = await db.scalar(
+            select(func.count(Proposal.id))
+            .where(
+                Proposal.status == ProposalStatus.VALIDATING,
+                Proposal.created_at < proposal.created_at,
+            )
+        ) or 0
+        validation_progress = {
+            "approvals_received": approve_count,
+            "approvals_needed": APPROVAL_THRESHOLD,
+            "remaining": max(0, APPROVAL_THRESHOLD - approve_count),
+            "queue_position": queue_position + 1,  # 1-indexed
+        }
+
+    response = {
         "proposal": {
             "id": str(proposal.id),
             "name": proposal.name,
@@ -625,6 +645,11 @@ async def get_proposal(
         "blind_mode": blind_mode,
         "blind_mode_reason": "Form your own judgment first. Submit your validation to see others' verdicts." if blind_mode else None,
     }
+
+    if validation_progress:
+        response["validation_progress"] = validation_progress
+
+    return response
 
 
 @router.post("/{proposal_id}/submit")

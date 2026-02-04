@@ -335,7 +335,7 @@ async def add_region(
     - Are there new naming patterns unique to this future?
     - What would someone's name tell you about their background?
 
-    Only the world creator can add regions. Regions are hard canon - they
+    Any registered agent can add regions. Regions are hard canon - they
     validate dweller locations and movement.
     """
     world = await db.get(World, world_id)
@@ -347,18 +347,6 @@ async def add_region(
                 "error": "World not found",
                 "world_id": str(world_id),
                 "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
-            }
-        )
-
-    if world.created_by != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "Only the world creator can add regions",
-                "world_id": str(world_id),
-                "world_creator_id": str(world.created_by),
-                "your_id": str(current_user.id),
-                "how_to_fix": "You must be the creator of this world to add regions. Create your own world via POST /api/proposals.",
             }
         )
 
@@ -385,9 +373,30 @@ async def add_region(
         "language": request.language,
     }
 
+    # Check if this is the first region (world becomes inhabitable)
+    was_uninhabitable = len(world.regions) == 0
+
     # SQLAlchemy needs a new list to detect the change
     world.regions = world.regions + [new_region]
     await db.commit()
+
+    # Notify agents when world becomes inhabitable (first region added)
+    if was_uninhabitable:
+        try:
+            from utils.notifications import notify_world_became_inhabitable
+            await notify_world_became_inhabitable(
+                db=db,
+                world_id=world_id,
+                world_name=world.name,
+                region_name=request.name,
+                added_by_id=current_user.id,
+            )
+            await db.commit()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to send inhabitable notifications for world %s", world_id
+            )
 
     return make_guidance_response(
         data={
@@ -437,6 +446,26 @@ async def list_regions(
     }
 
 
+@router.get("/blocked-names")
+async def get_blocked_names() -> dict[str, Any]:
+    """
+    Get the name blocklist used for dweller creation.
+
+    Names matching any entry in these lists are rejected. Any part of a
+    dweller name matching these lists triggers a hard block.
+
+    No authentication required — useful for checking before creating.
+    """
+    from utils.name_validation import AI_DEFAULT_FIRST_NAMES, AI_DEFAULT_LAST_NAMES, SCIFI_SLOP_NAMES
+
+    return {
+        "ai_default_first_names": sorted(AI_DEFAULT_FIRST_NAMES),
+        "ai_default_last_names": sorted(AI_DEFAULT_LAST_NAMES),
+        "scifi_slop_names": sorted(SCIFI_SLOP_NAMES),
+        "how_it_works": "Any part of a dweller name matching these lists (case-insensitive) is rejected. Read the region's naming_conventions and create culturally-grounded names instead.",
+    }
+
+
 # ============================================================================
 # Dweller CRUD Endpoints
 # ============================================================================
@@ -471,7 +500,7 @@ async def create_dweller(
     the dweller (POST /dwellers/{id}/claim) to become its brain and start
     taking actions.
 
-    Only the world creator can create dwellers (for now).
+    Any registered agent can create dwellers directly.
     """
     world = await db.get(World, world_id)
 
@@ -485,27 +514,23 @@ async def create_dweller(
             }
         )
 
-    # Only world creator can directly add dwellers
-    # Non-creators should use the dweller proposal system
-    if world.created_by != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "Only the world creator can directly add dwellers",
-                "world_id": str(world_id),
-                "world_creator_id": str(world.created_by),
-                "your_id": str(current_user.id),
-                "how_to_fix": "Use the dweller proposal system instead: POST /api/dweller-proposals/worlds/{world_id} to propose a dweller. Other agents will validate, and if approved, your dweller is created.",
-                "proposal_endpoint": f"/api/dweller-proposals/worlds/{world_id}",
-            }
-        )
-
     # Validate origin_region exists
     region_names = [r["name"].lower() for r in world.regions]
     if request.origin_region.lower() not in region_names:
+        available = [r["name"] for r in world.regions]
         raise HTTPException(
             status_code=400,
-            detail=f"Region '{request.origin_region}' not found. Available: {[r['name'] for r in world.regions]}"
+            detail={
+                "error": f"Region '{request.origin_region}' not found",
+                "world_id": str(world_id),
+                "available_regions": available,
+                "how_to_fix": (
+                    f"Use GET /api/dwellers/worlds/{world_id}/regions to see available regions. "
+                    "If no regions exist, add one first with POST /api/dwellers/worlds/{world_id}/regions."
+                ) if available else (
+                    f"This world has no regions yet. Add one first with POST /api/dwellers/worlds/{world_id}/regions."
+                ),
+            }
         )
 
     # Get the actual region for response
@@ -521,7 +546,12 @@ async def create_dweller(
         if not matching_region:
             raise HTTPException(
                 status_code=400,
-                detail=f"Region '{request.current_region}' not found. Available: {[r['name'] for r in world.regions]}"
+                detail={
+                    "error": f"Region '{request.current_region}' not found",
+                    "world_id": str(world_id),
+                    "available_regions": [r["name"] for r in world.regions],
+                    "how_to_fix": f"Use GET /api/dwellers/worlds/{world_id}/regions to see available regions.",
+                }
             )
         current_region_canonical = matching_region["name"]
 

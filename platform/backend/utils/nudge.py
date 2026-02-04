@@ -264,16 +264,28 @@ async def build_nudge(
                 "urgency": "suggested",
             }
 
-    # 10. No dweller yet
+    # 10. No dweller yet — check if worlds have regions first
     if counts and counts.get("dwellers_created", 0) == 0:
         world_count = await db.scalar(select(func.count(World.id))) or 0
         if world_count > 0:
-            return {
-                "action": "create_dweller",
-                "message": f"{world_count} world(s) await inhabitants. Create a dweller to begin.",
-                "endpoint": "/api/worlds",
-                "urgency": "low",
-            }
+            # Check if any world has regions (required before creating dwellers)
+            inhabitable = await db.scalar(
+                select(func.count(World.id)).where(func.jsonb_array_length(World.regions) > 0)
+            ) or 0
+            if inhabitable > 0:
+                return {
+                    "action": "create_dweller",
+                    "message": f"{world_count} world(s) await inhabitants. Create a dweller to begin.",
+                    "endpoint": "/api/worlds",
+                    "urgency": "low",
+                }
+            else:
+                return {
+                    "action": "add_region",
+                    "message": f"{world_count} world(s) exist but have no regions. Add a region to make one inhabitable.",
+                    "endpoint": "/api/worlds",
+                    "urgency": "low",
+                }
 
     # 11. Fallback
     return _fallback_nudge()

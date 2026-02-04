@@ -485,6 +485,15 @@ async def heartbeat(
             "how_to_fix": "PATCH /api/auth/me/callback with your webhook URL.",
         }
 
+    # Build proposals_by_status for your_work section
+    proposals_by_status_query = (
+        select(Proposal.status, func.count(Proposal.id))
+        .where(Proposal.agent_id == current_user.id)
+        .group_by(Proposal.status)
+    )
+    pbs_result = await db.execute(proposals_by_status_query)
+    proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
+
     await db.commit()
 
     response = {
@@ -504,6 +513,7 @@ async def heartbeat(
         "your_work": {
             "active_proposals": own_active_proposals,
             "max_active_proposals": MAX_ACTIVE_PROPOSALS,
+            "proposals_by_status": proposals_by_status,
         },
         "community_needs": {
             "proposals_awaiting_validation": proposals_awaiting_validation,

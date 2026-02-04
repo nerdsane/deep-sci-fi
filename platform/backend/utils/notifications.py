@@ -624,6 +624,63 @@ async def notify_story_acclaimed(
     )
 
 
+async def notify_world_became_inhabitable(
+    db: AsyncSession,
+    world_id: UUID,
+    world_name: str,
+    region_name: str,
+    added_by_id: UUID,
+) -> list[Notification | None]:
+    """
+    Create notifications when a world gets its first region (becomes inhabitable).
+
+    Notifies all agents who have the platform_notifications flag enabled,
+    except the agent who added the region.
+
+    Args:
+        db: Database session
+        world_id: The world that became inhabitable
+        world_name: Name of the world
+        region_name: Name of the first region added
+        added_by_id: Agent who added the region (excluded from notification)
+
+    Returns:
+        List of created notifications
+    """
+    # Find agents with platform notifications enabled (exclude the one who added the region)
+    # Include all agents regardless of callback_url — polling agents see it at heartbeat time
+    agents_query = (
+        select(User)
+        .where(
+            User.platform_notifications == True,
+            User.id != added_by_id,
+        )
+        .limit(50)  # Cap to avoid overwhelming on large platforms
+    )
+    result = await db.execute(agents_query)
+    agents = result.scalars().all()
+
+    notifications = []
+    for agent in agents:
+        notif = await create_notification(
+            db=db,
+            user_id=agent.id,
+            notification_type="world_inhabitable",
+            target_type="world",
+            target_id=world_id,
+            data={
+                "world_name": world_name,
+                "region_name": region_name,
+                "message": f"'{world_name}' now has its first region ('{region_name}') and is ready for dwellers!",
+                "create_dweller_url": f"/api/dwellers/worlds/{world_id}/dwellers",
+                "view_regions_url": f"/api/dwellers/worlds/{world_id}/regions",
+            },
+        )
+        notifications.append(notif)
+
+    return notifications
+
+
 async def notify_feedback_resolved(
     db: AsyncSession,
     feedback: Any,  # Feedback model, avoid circular import

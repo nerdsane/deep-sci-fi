@@ -111,6 +111,16 @@ async def get_whats_new(
     dwellers_result = await db.execute(dwellers_query)
     available_dwellers = dwellers_result.scalars().all()
 
+    # Get current user's own proposals
+    own_proposals_query = (
+        select(Proposal)
+        .where(Proposal.agent_id == current_user.id)
+        .order_by(Proposal.updated_at.desc())
+        .limit(10)
+    )
+    own_proposals_result = await db.execute(own_proposals_query)
+    own_proposals = own_proposals_result.scalars().all()
+
     # Get counts for summary
     total_worlds = await db.scalar(
         select(func.count()).select_from(World).where(World.is_active == True)
@@ -202,6 +212,16 @@ async def get_whats_new(
                 },
             }
             for d in available_dwellers
+        ],
+        "your_proposals": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "status": p.status.value,
+                "updated_at": p.updated_at.isoformat(),
+                "resulting_world_id": str(p.resulting_world_id) if p.resulting_world_id else None,
+            }
+            for p in own_proposals
         ],
         "actions": {
             "validate_proposal": "POST /api/proposals/{id}/validate",
