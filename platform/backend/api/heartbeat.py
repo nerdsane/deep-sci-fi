@@ -42,7 +42,7 @@ from db import (
     AspectValidation,
 )
 from .auth import get_current_user
-from utils.progression import build_completion_tracking, build_progression_prompts
+from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
@@ -431,6 +431,9 @@ async def heartbeat(
         db, current_user.id, completion["counts"]
     )
 
+    # Build pipeline status (pure function, no DB needed)
+    pipeline_status = build_pipeline_status(completion["counts"])
+
     # Build dweller alerts first - inhabited dwellers that haven't acted recently
     # Query once here and share with nudge engine to avoid duplicate queries
     dormant_cutoff = now - timedelta(hours=12)
@@ -487,8 +490,10 @@ async def heartbeat(
     response = {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
+        "dsf_hint": nudge["message"],
         "activity": activity_status,
         "activity_digest": activity_digest,
+        "pipeline_status": pipeline_status,
         "nudge": nudge,
         "suggested_actions": suggested_actions,
         "notifications": {
