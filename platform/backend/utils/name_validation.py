@@ -1,13 +1,16 @@
 """AI-slop name detection for dweller creation.
 
-Education not enforcement. Returns warnings, never errors.
+Rejects names that match curated lists of AI-default and sci-fi-slop patterns.
+Any match is a hard block with a clear explanation and guidance.
 
 Approach: Curated lists of names that AI models default to when trying to be
-"diverse" or "creative." If a submitted name matches, we warn and educate
-about how naming works in this world's future.
+"diverse" or "creative." If a submitted name matches any list, creation is
+blocked with actionable feedback.
 """
 
 from typing import Any
+
+from fastapi import HTTPException
 
 
 # Common first names AI models reach for when being "diverse"
@@ -86,10 +89,11 @@ def check_name_quality(
     name_context: str | None = None,
     region_naming_conventions: str | None = None,
     generation: str | None = None,
-) -> list[dict[str, Any]]:
+) -> None:
     """Check a dweller name for AI-slop patterns.
 
-    Returns warnings (NOT errors). Education not enforcement.
+    Raises HTTPException if any part of the name matches curated lists.
+    Call this BEFORE creating the dweller/proposal.
 
     Args:
         name: The dweller's name
@@ -97,19 +101,16 @@ def check_name_quality(
         region_naming_conventions: The region's naming conventions text
         generation: The dweller's generation (founding, second-gen, etc.)
 
-    Returns:
-        List of warning dicts. Empty list = no issues detected.
+    Raises:
+        HTTPException 400 if name matches AI-default or sci-fi-slop patterns.
     """
-    warnings = []
     name_parts = name.lower().split()
 
-    # Check each part against the lists
     first_name_matches = []
     last_name_matches = []
     slop_matches = []
 
     for part in name_parts:
-        # Strip common suffixes/prefixes for matching
         clean = part.strip("-'")
         if clean in AI_DEFAULT_FIRST_NAMES:
             first_name_matches.append(part)
@@ -118,67 +119,45 @@ def check_name_quality(
         if clean in SCIFI_SLOP_NAMES:
             slop_matches.append(part)
 
-    # Build education message based on region info
+    all_matches = first_name_matches + last_name_matches + slop_matches
+    if not all_matches:
+        return
+
+    # Build context-specific guidance
     region_hint = ""
     if region_naming_conventions:
-        region_hint = f" Check the region's naming_conventions: \"{region_naming_conventions}\""
+        region_hint = f" This region's naming conventions: \"{region_naming_conventions}\""
 
     generation_hint = ""
     if generation:
-        generation_hint = f" This dweller is {generation} — how does their generation name children differently?"
+        generation_hint = f" This dweller is {generation} — how does their generation name differently?"
 
-    # Warn on first+last combo (strongest signal)
-    if first_name_matches and last_name_matches:
-        warnings.append({
-            "type": "common_ai_default",
-            "message": (
-                f"'{name}' combines common AI-default names "
-                f"('{', '.join(first_name_matches)}' + '{', '.join(last_name_matches)}'). "
-                f"In a world set 60+ years from now, naming conventions have evolved. "
-                f"Your name_context should explain WHY this name persists in this region's culture."
-            ),
-            "severity": "warning",
-            "education": (
-                "Good names emerge from regions: tech workers might use product names as given names, "
-                "third-gen immigrants might revive old-fashioned names ironically, "
-                "floating city residents might use tidal or marine terminology. "
-                f"{region_hint}{generation_hint}"
-            ),
-        })
-    elif first_name_matches or last_name_matches:
-        matched = first_name_matches or last_name_matches
-        warnings.append({
-            "type": "common_ai_default",
-            "message": (
-                f"'{', '.join(matched)}' in '{name}' is a common AI-generated name choice. "
-                f"This doesn't mean it's wrong — but your name_context should explain "
-                f"why this specific name exists unchanged 60+ years from now."
-            ),
-            "severity": "info",
-            "education": (
-                "Names that persist unchanged need cultural explanation: "
-                "religious preservation, retro revival trends, family legacy. "
-                f"If you can't explain why this exact name exists in this region, reconsider."
-                f"{region_hint}{generation_hint}"
-            ),
-        })
-
-    # Warn on sci-fi slop names
+    # Build specific error based on what matched
+    issues = []
+    if first_name_matches:
+        issues.append(f"AI-default first name(s): {', '.join(first_name_matches)}")
+    if last_name_matches:
+        issues.append(f"AI-default last name(s): {', '.join(last_name_matches)}")
     if slop_matches:
-        warnings.append({
-            "type": "scifi_slop",
-            "message": (
-                f"'{', '.join(slop_matches)}' in '{name}' is a generic sci-fi name. "
-                f"Real people in real futures don't name their children 'Nexus' or 'Cipher' — "
-                f"unless there's a specific cultural reason."
-            ),
-            "severity": "warning",
-            "education": (
-                "Sci-fi naming tropes break immersion. Even in 2089, people have names "
-                "that sound like names. If a culture DOES use concept-words as names, "
-                "explain the tradition in name_context."
-                f"{region_hint}"
-            ),
-        })
+        issues.append(f"Sci-fi slop name(s): {', '.join(slop_matches)}")
 
-    return warnings
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "error": f"Name '{name}' rejected — detected AI-generated naming patterns",
+            "matched": issues,
+            "how_to_fix": (
+                "Choose a name that reflects this world's culture 60+ years from now. "
+                "Names evolve: tech workers might name children after products, "
+                "third-gen immigrants might revive old names ironically, "
+                "floating city residents might use marine terminology. "
+                "Read the region's naming_conventions and create something that belongs."
+                f"{region_hint}{generation_hint}"
+            ),
+            "examples": [
+                "Undertow — Tide name, third-gen FC7 convention, single-name generational marker",
+                "7-Kahani — Anchor-born '7-' prefix, Hindi 'story', cultural preservationist parents",
+                "Asha de Vries — Bengali given + Dutch surname, common in founding generation",
+            ],
+        },
+    )

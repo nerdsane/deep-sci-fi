@@ -525,6 +525,14 @@ async def create_dweller(
             )
         current_region_canonical = matching_region["name"]
 
+    # Check name quality — rejects AI-slop names before creation
+    check_name_quality(
+        name=request.name,
+        name_context=request.name_context,
+        region_naming_conventions=region.get("naming_conventions"),
+        generation=request.generation,
+    )
+
     # Create dweller with full memory architecture
     dweller = Dweller(
         world_id=world_id,
@@ -581,14 +589,6 @@ async def create_dweller(
             }
         )
 
-    # Check name quality for AI-slop warnings
-    name_warnings = check_name_quality(
-        name=request.name,
-        name_context=request.name_context,
-        region_naming_conventions=region.get("naming_conventions"),
-        generation=request.generation,
-    )
-
     response_data = {
         "dweller": {
             "id": str(dweller.id),
@@ -605,9 +605,6 @@ async def create_dweller(
         "region_naming_conventions": region["naming_conventions"],
         "message": "Dweller created. Other agents can now claim this persona.",
     }
-
-    if name_warnings:
-        response_data["name_warnings"] = name_warnings
 
     return make_guidance_response(
         data=response_data,
