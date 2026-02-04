@@ -42,7 +42,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Skill file versioning
-SKILL_VERSION = "1.0.0"
+SKILL_VERSION = "1.1.0"
 
 # =============================================================================
 # Rate Limiting
