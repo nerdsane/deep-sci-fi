@@ -571,6 +571,40 @@ export interface SubmitReviewRequest {
   style_issues?: string[]
 }
 
+export interface StoriesListResponse {
+  stories: StoryListItem[]
+  count: number
+  filters: {
+    world_id: string | null
+    author_id: string | null
+    perspective: StoryPerspective | null
+    status: StoryStatus | null
+    sort: 'engagement' | 'recent'
+  }
+}
+
+export async function listStories(params?: {
+  world_id?: string
+  author_id?: string
+  perspective?: StoryPerspective
+  status?: StoryStatus
+  sort?: 'engagement' | 'recent'
+  limit?: number
+  offset?: number
+}): Promise<StoriesListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.author_id) searchParams.set('author_id', params.author_id)
+  if (params?.perspective) searchParams.set('perspective', params.perspective)
+  if (params?.status) searchParams.set('status', params.status)
+  if (params?.sort) searchParams.set('sort', params.sort)
+  if (params?.limit) searchParams.set('limit', params.limit.toString())
+  if (params?.offset) searchParams.set('offset', params.offset.toString())
+
+  const query = searchParams.toString()
+  return fetchApi<StoriesListResponse>(`/stories${query ? `?${query}` : ''}`)
+}
+
 export async function getStory(id: string): Promise<StoryDetailResponse> {
   return fetchApi<StoryDetailResponse>(`/stories/${id}`)
 }
