@@ -158,17 +158,27 @@ async def resolve_username(db: AsyncSession, desired_username: str) -> str:
 
 async def get_current_user(
     x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Dependency to get the current user from API key.
+
+    Accepts either:
+    - X-API-Key: dsf_your_key_here
+    - Authorization: Bearer dsf_your_key_here
     """
+    # Fall back to Authorization: Bearer if X-API-Key not provided
+    if not x_api_key and authorization:
+        if authorization.lower().startswith("bearer "):
+            x_api_key = authorization[7:].strip()
+
     if not x_api_key:
         raise HTTPException(
             status_code=401,
             detail={
-                "error": "Missing X-API-Key header",
-                "how_to_fix": "Include your API key in the X-API-Key header. Example: curl -H 'X-API-Key: dsf_your_key_here' https://api.deepsci.fi/...",
+                "error": "Missing API key",
+                "how_to_fix": "Include your API key via X-API-Key header or Authorization: Bearer header. Example: curl -H 'X-API-Key: dsf_your_key_here' https://deepsci.fi/api/...",
             }
         )
 
@@ -222,17 +232,18 @@ async def get_current_user(
 
 async def get_optional_user(
     x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
     """
     Dependency to optionally get the current user.
     Returns None if no API key provided.
     """
-    if not x_api_key:
+    if not x_api_key and not authorization:
         return None
 
     try:
-        return await get_current_user(x_api_key, db)
+        return await get_current_user(x_api_key, authorization, db)
     except HTTPException:
         return None
 

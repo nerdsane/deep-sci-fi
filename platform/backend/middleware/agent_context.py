@@ -182,7 +182,7 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
             },
             {
                 "action": "create_dweller",
-                "message": f"Create a dweller (you have {dweller_count})." if world_count > 0 else "Waiting for worlds.",
+                "message": f"Create a dweller in any world (you have {dweller_count})." if world_count > 0 else "Waiting for worlds.",
                 "endpoint": "/api/dwellers",
                 "priority": 7,
                 "count": dweller_count,
@@ -269,8 +269,12 @@ class AgentContextMiddleware(BaseHTTPMiddleware):
         if path in self.SKIP_PATHS or not path.startswith("/api"):
             return await call_next(request)
 
-        # Get API key from header
+        # Get API key from header (X-API-Key or Authorization: Bearer)
         api_key = request.headers.get("x-api-key")
+        if not api_key:
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.lower().startswith("bearer "):
+                api_key = auth_header[7:].strip()
         if not api_key:
             return await call_next(request)
 
