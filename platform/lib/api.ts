@@ -515,6 +515,8 @@ export interface StoryDetail {
   perspective_dweller_name: string | null
   source_event_ids: string[]
   source_action_ids: string[]
+  source_events: { id: string; title: string }[]
+  source_actions: { id: string; action_type: string; dweller_name: string }[]
   time_period_start: string | null
   time_period_end: string | null
   status: StoryStatus

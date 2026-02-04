@@ -26,7 +26,7 @@ from sqlalchemy import select, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus
+from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction
 from .auth import get_current_user, get_optional_user
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
@@ -100,6 +100,21 @@ class StoryResponse(BaseModel):
     created_at: datetime
 
 
+class SourceEventSummary(BaseModel):
+    """Summary of a referenced world event."""
+
+    id: str
+    title: str
+
+
+class SourceActionSummary(BaseModel):
+    """Summary of a referenced dweller action."""
+
+    id: str
+    action_type: str
+    dweller_name: str
+
+
 class StoryDetailResponse(BaseModel):
     """Full story details including content."""
 
@@ -118,6 +133,8 @@ class StoryDetailResponse(BaseModel):
     perspective_dweller_name: str | None
     source_event_ids: list[str]
     source_action_ids: list[str]
+    source_events: list[SourceEventSummary]
+    source_actions: list[SourceActionSummary]
     time_period_start: str | None
     time_period_end: str | None
     status: StoryStatus
@@ -256,12 +273,44 @@ def story_to_response(story: Story) -> StoryResponse:
     )
 
 
-def story_to_detail_response(story: Story) -> StoryDetailResponse:
+async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetailResponse:
     """Convert a Story model to a StoryDetailResponse."""
     # Count reviews and acclaim recommendations
     reviews = getattr(story, "reviews", []) or []
     review_count = len(reviews)
     acclaim_count = sum(1 for r in reviews if r.recommend_acclaim)
+
+    # Resolve source events
+    source_events: list[SourceEventSummary] = []
+    event_ids = story.source_event_ids or []
+    if event_ids:
+        result = await db.execute(
+            select(WorldEvent).where(WorldEvent.id.in_([UUID(eid) if isinstance(eid, str) else eid for eid in event_ids]))
+        )
+        events_by_id = {str(e.id): e for e in result.scalars().all()}
+        for eid in event_ids:
+            event = events_by_id.get(str(eid))
+            if event:
+                source_events.append(SourceEventSummary(id=str(event.id), title=event.title))
+
+    # Resolve source actions
+    source_actions: list[SourceActionSummary] = []
+    action_ids = story.source_action_ids or []
+    if action_ids:
+        result = await db.execute(
+            select(DwellerAction)
+            .options(selectinload(DwellerAction.dweller))
+            .where(DwellerAction.id.in_([UUID(aid) if isinstance(aid, str) else aid for aid in action_ids]))
+        )
+        actions_by_id = {str(a.id): a for a in result.scalars().all()}
+        for aid in action_ids:
+            action = actions_by_id.get(str(aid))
+            if action:
+                source_actions.append(SourceActionSummary(
+                    id=str(action.id),
+                    action_type=action.action_type,
+                    dweller_name=action.dweller.name if action.dweller else "Unknown",
+                ))
 
     return StoryDetailResponse(
         id=story.id,
@@ -279,8 +328,10 @@ def story_to_detail_response(story: Story) -> StoryDetailResponse:
         perspective_dweller_name=(
             story.perspective_dweller.name if story.perspective_dweller else None
         ),
-        source_event_ids=story.source_event_ids or [],
-        source_action_ids=story.source_action_ids or [],
+        source_event_ids=event_ids,
+        source_action_ids=action_ids,
+        source_events=source_events,
+        source_actions=source_actions,
         time_period_start=story.time_period_start,
         time_period_end=story.time_period_end,
         status=story.status,
@@ -580,7 +631,7 @@ async def get_story(
     eligible, reason = check_acclaim_eligibility(story)
 
     return {
-        "story": story_to_detail_response(story).model_dump(),
+        "story": (await story_to_detail_response(story, db)).model_dump(),
         "acclaim_eligibility": {
             "eligible": eligible,
             "reason": reason,
