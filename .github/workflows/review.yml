@@ -80,6 +80,15 @@ jobs:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
         continue-on-error: true
 
+      - name: Check skill.md Endpoint Tables
+        id: skill-sync
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          echo "Checking that skill.md endpoint tables match the API..."
+          python scripts/sync_skill_endpoints.py --check
+        continue-on-error: true
+
       - name: Check for Pending Migrations
         id: schema-sync
         run: |
@@ -117,6 +126,9 @@ jobs:
           fi
           if [ "${{ steps.schema-sync.outcome }}" == "failure" ]; then
             FAILED="${FAILED}schema-sync,"
+          fi
+          if [ "${{ steps.skill-sync.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}skill-sync,"
           fi
           if [ -n "$FAILED" ]; then
             echo "Failed checks: $FAILED"
