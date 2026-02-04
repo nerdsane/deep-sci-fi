@@ -26,7 +26,9 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import logging
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,12 +41,58 @@ from utils.errors import agent_error
 
 from .auth import get_current_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 # Rate limiter - disabled in test mode
 import os
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
+
+# Valid status transitions — terminal states cannot transition further
+VALID_TRANSITIONS = {
+    FeedbackStatus.NEW: {FeedbackStatus.ACKNOWLEDGED, FeedbackStatus.IN_PROGRESS, FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX},
+    FeedbackStatus.ACKNOWLEDGED: {FeedbackStatus.IN_PROGRESS, FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX},
+    FeedbackStatus.IN_PROGRESS: {FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX},
+    FeedbackStatus.RESOLVED: set(),
+    FeedbackStatus.WONT_FIX: set(),
+}
+
+
+async def get_admin_user(
+    x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Require admin API key for privileged operations."""
+    key = x_api_key
+    if not key and authorization:
+        if authorization.lower().startswith("bearer "):
+            key = authorization[7:].strip()
+
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail=agent_error(
+                error="Missing API key",
+                how_to_fix="Include admin API key via X-API-Key header.",
+            ),
+        )
+
+    if not ADMIN_API_KEY or key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail=agent_error(
+                error="Admin access required",
+                how_to_fix="This endpoint requires the admin API key. Regular agent keys cannot update feedback status.",
+            ),
+        )
+
+    # Still resolve the user for resolved_by tracking
+    return await get_current_user(x_api_key=x_api_key, authorization=authorization, db=db)
 
 
 # Request/Response models
@@ -630,19 +678,27 @@ async def update_feedback_status(
     request: Request,
     feedback_id: UUID,
     update: FeedbackStatusUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Update the status of a feedback item.
+    Update the status of a feedback item (admin only).
 
     Used to mark feedback as acknowledged, in_progress, resolved, or wont_fix.
+    Requires admin API key (set via ADMIN_API_KEY environment variable).
 
     WHEN TO USE EACH STATUS:
     - acknowledged: Issue confirmed, will be addressed
     - in_progress: Actively being worked on
     - resolved: Issue has been fixed
     - wont_fix: Won't be fixed (with explanation)
+
+    STATUS TRANSITIONS:
+    - new → acknowledged, in_progress, resolved, wont_fix
+    - acknowledged → in_progress, resolved, wont_fix
+    - in_progress → resolved, wont_fix
+    - resolved → (terminal)
+    - wont_fix → (terminal)
 
     NOTIFICATIONS:
     When feedback is marked as resolved or wont_fix, the original submitter
@@ -670,6 +726,19 @@ async def update_feedback_status(
             )
         )
 
+    # Validate status transition
+    allowed = VALID_TRANSITIONS.get(feedback.status, set())
+    if update.status not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=agent_error(
+                error=f"Cannot transition from {feedback.status.value} to {update.status.value}",
+                how_to_fix=f"Valid transitions from {feedback.status.value}: {[s.value for s in allowed]}",
+                current_status=feedback.status.value,
+                requested_status=update.status.value,
+            )
+        )
+
     # Require resolution_notes for resolved/wont_fix
     if update.status in [FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX]:
         if not update.resolution_notes:
@@ -692,15 +761,21 @@ async def update_feedback_status(
         feedback.resolved_at = datetime.now(timezone.utc)
         feedback.resolved_by = current_user.id
 
-        # Notify submitter and upvoters
-        from utils.notifications import notify_feedback_resolved
-        await notify_feedback_resolved(
-            db=db,
-            feedback=feedback,
-            resolver_name=current_user.username,
-        )
-
+    # Commit BEFORE sending notifications to avoid dirty session issues
     await db.commit()
+    await db.refresh(feedback, attribute_names=["agent"])
+
+    # Send notifications after commit (non-critical — don't fail the request)
+    if update.status in [FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX]:
+        try:
+            from utils.notifications import notify_feedback_resolved
+            await notify_feedback_resolved(
+                db=db,
+                feedback=feedback,
+                resolver_name=current_user.username,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send feedback resolution notification: {e}")
 
     return {
         "success": True,
