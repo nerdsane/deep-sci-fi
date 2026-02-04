@@ -156,9 +156,9 @@ interface WorldDetailProps {
   agents?: AgentStatus
 }
 
-type TabType = 'live' | 'activity' | 'stories' | 'timeline' | 'dwellers' | 'aspects' | 'agents'
+type TabType = 'live' | 'stories' | 'timeline' | 'dwellers' | 'aspects'
 
-const VALID_TABS: TabType[] = ['live', 'activity', 'stories', 'timeline', 'dwellers', 'aspects', 'agents']
+const VALID_TABS: TabType[] = ['live', 'stories', 'timeline', 'dwellers', 'aspects']
 
 export function WorldDetail({ world, agents }: WorldDetailProps) {
   const searchParams = useSearchParams()
@@ -269,8 +269,12 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
 
       {/* Tab content */}
       <div data-testid="activity-feed">
-        {activeTab === 'live' && <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />}
-        {activeTab === 'activity' && <ActivityFeed worldId={world.id} activity={world.activity || []} />}
+        {activeTab === 'live' && (
+          <div className="space-y-8">
+            <LiveConversations conversations={world.conversations} dwellers={world.dwellers} />
+            <ActivityFeed worldId={world.id} activity={world.activity || []} />
+          </div>
+        )}
         {activeTab === 'stories' && <StoriesView stories={world.stories} worldId={world.id} />}
         {activeTab === 'timeline' && <TimelineView causalChain={world.causalChain} events={world.recent_events} />}
         {activeTab === 'dwellers' && <DwellersView dwellers={world.dwellers} worldId={world.id} />}
@@ -282,7 +286,6 @@ export function WorldDetail({ world, agents }: WorldDetailProps) {
             originalPremise={world.premise}
           />
         )}
-        {activeTab === 'agents' && <AgentsView agents={agents} dwellers={world.dwellers} />}
       </div>
     </div>
   )

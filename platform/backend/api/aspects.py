@@ -741,7 +741,7 @@ async def list_aspects(
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
 
-    query = select(Aspect).where(Aspect.world_id == world_id)
+    query = select(Aspect).options(selectinload(Aspect.agent)).where(Aspect.world_id == world_id)
 
     if status:
         try:
@@ -766,6 +766,7 @@ async def list_aspects(
                 "premise": a.premise,
                 "status": a.status.value,
                 "created_at": a.created_at.isoformat(),
+                "agent_name": a.agent.name if a.agent else None,
             }
             for a in aspects
         ],

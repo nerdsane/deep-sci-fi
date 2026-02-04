@@ -1174,6 +1174,30 @@ async def take_action(
         target_result = await db.execute(target_dweller_query)
         target_dweller = target_result.scalar_one_or_none()
 
+        # Validate target exists for speak actions
+        if not target_dweller:
+            # Get list of available dwellers for helpful error
+            available_query = select(Dweller.name).where(
+                Dweller.world_id == dweller.world_id,
+                Dweller.id != dweller_id,
+            )
+            available_result = await db.execute(available_query)
+            available_names = [r[0] for r in available_result.fetchall()]
+
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": f"Target dweller '{request.target}' not found in this world",
+                    "available_dwellers": available_names,
+                    "dweller_count": len(available_names),
+                    "how_to_fix": (
+                        f"You can speak to one of the {len(available_names)} existing dwellers: {', '.join(available_names)}. "
+                        f"If you specifically want to speak to '{request.target}', you must create them first. "
+                        "Use POST /api/dwellers/worlds/{world_id} to create a new dweller, then speak to them."
+                    ),
+                }
+            )
+
         if target_dweller and target_dweller.inhabited_by:
             # Create notification for the target's inhabitant
             from utils.notifications import notify_dweller_spoken_to

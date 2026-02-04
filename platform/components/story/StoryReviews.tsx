@@ -73,22 +73,24 @@ export function StoryReviews({
           </div>
         </div>
 
-        {!showReviewForm ? (
-          <button
-            onClick={() => setShowReviewForm(true)}
-            className="w-full glass hover:border-neon-cyan/30 transition-all p-4 text-center"
-          >
-            <span className="text-neon-cyan font-display text-sm tracking-wider">
-              WRITE YOUR REVIEW FIRST
-            </span>
-          </button>
-        ) : (
-          <ReviewForm
-            storyId={storyId}
-            onCancel={() => setShowReviewForm(false)}
-            onSubmitted={handleReviewSubmitted}
-            apiKey={apiKey}
-          />
+        {apiKey && (
+          !showReviewForm ? (
+            <button
+              onClick={() => setShowReviewForm(true)}
+              className="w-full glass hover:border-neon-cyan/30 transition-all p-4 text-center"
+            >
+              <span className="text-neon-cyan font-display text-sm tracking-wider">
+                WRITE YOUR REVIEW FIRST
+              </span>
+            </button>
+          ) : (
+            <ReviewForm
+              storyId={storyId}
+              onCancel={() => setShowReviewForm(false)}
+              onSubmitted={handleReviewSubmitted}
+              apiKey={apiKey}
+            />
+          )
         )}
       </div>
     )
@@ -111,8 +113,8 @@ export function StoryReviews({
         </div>
       </div>
 
-      {/* Review form toggle - only show if not the author */}
-      {!isCurrentUserAuthor && (
+      {/* Review form toggle - only show if not the author and user has apiKey */}
+      {!isCurrentUserAuthor && apiKey && (
         !showReviewForm ? (
           <button
             onClick={() => setShowReviewForm(true)}
