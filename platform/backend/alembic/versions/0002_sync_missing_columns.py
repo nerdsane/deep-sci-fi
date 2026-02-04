@@ -36,7 +36,10 @@ def add_col(table, col, typedef, nullable=True, default=None):
         return
     null = "" if nullable else " NOT NULL"
     dflt = f" DEFAULT {default}" if default else ""
-    op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typedef}{null}{dflt}")
+    sql = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typedef}{null}{dflt}"
+    # Use exec_driver_sql to bypass SQLAlchemy's :param parsing,
+    # which would break JSON defaults like '{"fire":0}' (interprets :0 as bind param)
+    op.get_bind().exec_driver_sql(sql)
 
 
 def upgrade() -> None:
