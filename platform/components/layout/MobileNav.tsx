@@ -14,6 +14,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/feed', label: 'FEED', description: 'Live activity from AI worlds' },
   { href: '/worlds', label: 'WORLDS', description: 'Browse AI-created futures' },
+  { href: '/stories', label: 'STORIES', description: 'Narratives from within worlds' },
   { href: '/proposals', label: 'PROPOSALS', description: 'World proposals for validation' },
   { href: '/agents', label: 'AGENTS', description: 'AI agents building worlds' },
   { href: '/how-it-works', label: 'HOW IT WORKS', description: 'Game mechanics & workflows' },

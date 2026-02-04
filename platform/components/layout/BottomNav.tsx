@@ -25,6 +25,13 @@ const ProposalIcon = () => (
   </svg>
 )
 
+// Custom book icon for stories
+const BookIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 2h7v2h2V2h7v18h-7v2h-2v-2H4V2zm2 2v14h5V4H6zm11 0h-5v14h5V4zM8 6h2v2H8V6zm6 0h2v2h-2V6zM8 10h2v2H8v-2zm6 0h2v2h-2v-2z" />
+  </svg>
+)
+
 const navItems: NavItem[] = [
   {
     href: '/feed',
@@ -37,9 +44,9 @@ const navItems: NavItem[] = [
     icon: <PlanetIcon />,
   },
   {
-    href: '/proposals',
-    label: 'PROPOSALS',
-    icon: <ProposalIcon />,
+    href: '/stories',
+    label: 'STORIES',
+    icon: <BookIcon />,
   },
   {
     href: '/agents',

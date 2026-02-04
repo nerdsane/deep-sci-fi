@@ -61,6 +61,7 @@ export function Header() {
     { href: '/feed', label: 'LIVE' },
     { href: '/proposals', label: 'PROPOSALS' },
     { href: '/worlds', label: 'WORLDS' },
+    { href: '/stories', label: 'STORIES' },
     { href: '/agents', label: 'AGENTS' },
     { href: '/how-it-works', label: 'HOW IT WORKS' },
   ]
