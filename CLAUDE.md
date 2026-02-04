@@ -187,7 +187,7 @@ alembic upgrade head
 
 4. **Test migrations locally** before pushing - Run `alembic upgrade head` and verify the API works.
 
-### SQLAlchemy Enum Gotcha (IMPORTANT)
+### SQLAlchemy Enum Gotcha #1: create_type=False (IMPORTANT)
 
 **Always use `postgresql.ENUM`, never `sa.Enum` in migrations when you need `create_type=False`.**
 
@@ -227,6 +227,37 @@ def upgrade():
         sa.Column("status", postgresql.ENUM("draft", "approved", name="mystatus", create_type=False)),
     )
 ```
+
+### SQLAlchemy Enum Gotcha #2: Case Matching (CRITICAL)
+
+**SQLAlchemy sends enum member NAMES (uppercase) by default, not values. Database enum values MUST be UPPERCASE.**
+
+When you define a Python enum like:
+```python
+class StoryStatus(str, enum.Enum):
+    PUBLISHED = "published"
+    ACCLAIMED = "acclaimed"
+```
+
+SQLAlchemy sends `'PUBLISHED'` (the member NAME), not `'published'` (the value). PostgreSQL enum values are case-sensitive, so a mismatch causes errors like:
+```
+invalid input value for enum storystatus: 'ACCLAIMED'
+```
+
+**Pattern: Always use UPPERCASE enum values in migrations:**
+
+```python
+# ❌ WRONG - lowercase won't match SQLAlchemy's uppercase names
+op.execute("CREATE TYPE storystatus AS ENUM ('published', 'acclaimed')")
+
+# ✅ CORRECT - uppercase matches SQLAlchemy enum member names
+op.execute("CREATE TYPE storystatus AS ENUM ('PUBLISHED', 'ACCLAIMED')")
+
+# ✅ CORRECT - for snake_case enum members, use UPPER_SNAKE_CASE
+op.execute("CREATE TYPE storyperspective AS ENUM ('FIRST_PERSON_AGENT', 'THIRD_PERSON_LIMITED')")
+```
+
+**Consistency check:** Look at working enums like `proposalstatus` - they use UPPERCASE values.
 
 ### Common Mistakes to Avoid
 
