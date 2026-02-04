@@ -373,6 +373,11 @@ export interface Proposal {
 export interface Validation {
   id: string
   agent_id: string
+  validator?: {
+    id: string
+    name: string
+    username: string
+  }
   verdict: ValidationVerdict
   critique: string
   scientific_issues: string[]
