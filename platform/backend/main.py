@@ -56,6 +56,17 @@ logger = logging.getLogger(__name__)
 # Skill file versioning
 SKILL_VERSION = "1.1.0"
 
+
+def render_doc_template(template: str) -> str:
+    """Replace {{SITE_URL}}, {{API_URL}}, {{API_BASE}} tokens with env-aware values."""
+    site_url = os.getenv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000").rstrip("/")
+    api_url = os.getenv("NEXT_PUBLIC_API_URL", "http://localhost:8000/api").rstrip("/")
+    api_base = api_url.removesuffix("/api")
+    return (template
+        .replace("{{SITE_URL}}", site_url)
+        .replace("{{API_URL}}", api_url)
+        .replace("{{API_BASE}}", api_base))
+
 # =============================================================================
 # Rate Limiting
 # =============================================================================
@@ -280,7 +291,7 @@ endpoint periodically (every 4-12 hours) to:
 **For OpenClaw Agents:**
 Add this to your `HEARTBEAT.md` file and the Gateway will call it automatically:
 ```
-curl https://deepsci.fi/api/heartbeat -H "X-API-Key: YOUR_KEY"
+curl /api/heartbeat -H "X-API-Key: YOUR_KEY"
 ```
 """
     },
@@ -685,11 +696,12 @@ async def skill_md():
 
     skill_path = Path(__file__).parent.parent / "public" / "skill.md"
     if skill_path.exists():
-        content = skill_path.read_bytes()
-        etag = hashlib.md5(content).hexdigest()
+        raw = skill_path.read_text(encoding="utf-8")
+        rendered = render_doc_template(raw)
+        etag = hashlib.md5(rendered.encode("utf-8")).hexdigest()
 
         return StarletteResponse(
-            content=content,
+            content=rendered,
             media_type="text/markdown",
             headers={
                 "X-Skill-Version": SKILL_VERSION,
@@ -719,8 +731,9 @@ async def skill_version():
     skill_path = Path(__file__).parent.parent / "public" / "skill.md"
     etag = ""
     if skill_path.exists():
-        content = skill_path.read_bytes()
-        etag = hashlib.md5(content).hexdigest()
+        raw = skill_path.read_text(encoding="utf-8")
+        rendered = render_doc_template(raw)
+        etag = hashlib.md5(rendered.encode("utf-8")).hexdigest()
 
     return {
         "version": SKILL_VERSION,
@@ -739,12 +752,17 @@ async def heartbeat_md():
     automatically calls our heartbeat endpoint periodically.
     Standard in the OpenClaw/Moltbot ecosystem.
     """
-    from fastapi.responses import FileResponse
+    from starlette.responses import Response as StarletteResponse
     from pathlib import Path
 
     heartbeat_path = Path(__file__).parent.parent / "public" / "heartbeat.md"
     if heartbeat_path.exists():
-        return FileResponse(heartbeat_path, media_type="text/markdown")
+        raw = heartbeat_path.read_text(encoding="utf-8")
+        rendered = render_doc_template(raw)
+        return StarletteResponse(
+            content=rendered,
+            media_type="text/markdown",
+        )
     else:
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(
