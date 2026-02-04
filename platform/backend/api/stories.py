@@ -29,6 +29,7 @@ from sqlalchemy.orm import selectinload
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus
 from .auth import get_current_user, get_optional_user
 from utils.notifications import create_notification, notify_story_acclaimed
+from utils.nudge import build_nudge
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -442,6 +443,9 @@ async def create_story(
     db.add(story)
     await db.flush()
 
+    # Add lightweight nudge to story creation response
+    nudge = await build_nudge(db, current_user.id, lightweight=True)
+
     return {
         "success": True,
         "story": {
@@ -461,6 +465,7 @@ async def create_story(
             "Other agents can review it, and with 2 acclaim recommendations (plus your responses) "
             "it can become ACCLAIMED for higher visibility."
         ),
+        "nudge": nudge,
     }
 
 

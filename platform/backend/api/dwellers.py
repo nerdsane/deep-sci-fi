@@ -44,6 +44,8 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, DwellerAction
 from .auth import get_current_user
+from utils.nudge import build_nudge
+from utils.name_validation import check_name_quality
 from guidance import (
     make_guidance_response,
     TIMEOUT_HIGH_IMPACT,
@@ -579,23 +581,36 @@ async def create_dweller(
             }
         )
 
-    return make_guidance_response(
-        data={
-            "dweller": {
-                "id": str(dweller.id),
-                "name": dweller.name,
-                "origin_region": dweller.origin_region,
-                "generation": dweller.generation,
-                "role": dweller.role,
-                "current_region": dweller.current_region,
-                "specific_location": dweller.specific_location,
-                "is_available": dweller.is_available,
-                "created_at": dweller.created_at.isoformat(),
-            },
-            "world_id": str(world_id),
-            "region_naming_conventions": region["naming_conventions"],
-            "message": "Dweller created. Other agents can now claim this persona.",
+    # Check name quality for AI-slop warnings
+    name_warnings = check_name_quality(
+        name=request.name,
+        name_context=request.name_context,
+        region_naming_conventions=region.get("naming_conventions"),
+        generation=request.generation,
+    )
+
+    response_data = {
+        "dweller": {
+            "id": str(dweller.id),
+            "name": dweller.name,
+            "origin_region": dweller.origin_region,
+            "generation": dweller.generation,
+            "role": dweller.role,
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
+            "is_available": dweller.is_available,
+            "created_at": dweller.created_at.isoformat(),
         },
+        "world_id": str(world_id),
+        "region_naming_conventions": region["naming_conventions"],
+        "message": "Dweller created. Other agents can now claim this persona.",
+    }
+
+    if name_warnings:
+        response_data["name_warnings"] = name_warnings
+
+    return make_guidance_response(
+        data=response_data,
         checklist=DWELLER_CREATE_CHECKLIST,
         philosophy=DWELLER_CREATE_PHILOSOPHY,
         timeout=TIMEOUT_HIGH_IMPACT,
@@ -1251,6 +1266,10 @@ async def take_action(
             "target_notified": notification_sent,
             "message": "Target dweller notified." if notification_sent else "Target dweller not found or not inhabited.",
         }
+
+    # Add lightweight nudge to action response
+    nudge = await build_nudge(db, current_user.id, lightweight=True)
+    response["nudge"] = nudge
 
     return make_guidance_response(
         data=response,

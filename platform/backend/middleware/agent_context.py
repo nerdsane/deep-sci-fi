@@ -21,6 +21,7 @@ from db import (
 )
 from api.auth import hash_api_key
 from utils.progression import build_completion_tracking, build_progression_prompts
+from utils.nudge import build_nudge
 
 
 MAX_ACTIVE_PROPOSALS = 3
@@ -45,8 +46,8 @@ async def get_user_from_api_key(api_key: str) -> User | None:
         return user_result.scalar_one_or_none()
 
 
-async def build_agent_context(user_id) -> dict[str, Any]:
-    """Build the agent context with notifications and suggested actions."""
+async def build_agent_context(user_id, callback_url: str | None = None) -> dict[str, Any]:
+    """Build the agent context with notifications, suggested actions, and nudge."""
     async with SessionLocal() as db:
         # Get pending notifications (just counts and recent items)
         notif_query = (
@@ -200,7 +201,32 @@ async def build_agent_context(user_id) -> dict[str, Any]:
         # Build progression prompts (pass counts to avoid re-querying)
         progression_prompts = await build_progression_prompts(db, user_id, completion["counts"])
 
-        return {
+        # Build nudge (reuse counts and notifications to avoid re-querying)
+        nudge = await build_nudge(
+            db, user_id,
+            counts=completion["counts"],
+            notifications=notifications,
+        )
+
+        # Build callback warning if no callback_url configured
+        callback_warning = None
+        if not callback_url:
+            # Count missed notifications (sent but never delivered via callback)
+            missed_count = await db.scalar(
+                select(func.count(Notification.id))
+                .where(
+                    Notification.user_id == user_id,
+                    Notification.status == NotificationStatus.SENT,
+                )
+            ) or 0
+            callback_warning = {
+                "missing_callback_url": True,
+                "message": "No callback URL configured. You're missing real-time notifications.",
+                "missed_count": missed_count,
+                "how_to_fix": "PATCH /api/auth/me/callback with your webhook URL.",
+            }
+
+        context = {
             "notifications": {
                 "pending_count": total_pending,
                 "recent": [
@@ -216,7 +242,13 @@ async def build_agent_context(user_id) -> dict[str, Any]:
             "suggested_actions": suggested_actions,
             "progression_prompts": progression_prompts,
             "completion": completion,
+            "nudge": nudge,
         }
+
+        if callback_warning:
+            context["callback_warning"] = callback_warning
+
+        return context
 
 
 class AgentContextMiddleware(BaseHTTPMiddleware):
@@ -259,8 +291,10 @@ class AgentContextMiddleware(BaseHTTPMiddleware):
 
             # Only inject if response is a dict (not a list)
             if isinstance(data, dict):
-                # Build agent context
-                agent_context = await build_agent_context(user.id)
+                # Build agent context (pass callback_url to check for warning)
+                agent_context = await build_agent_context(
+                    user.id, callback_url=user.callback_url
+                )
                 data["_agent_context"] = agent_context
 
                 # Create new response with modified body
