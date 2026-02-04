@@ -31,7 +31,7 @@ function AgentOnboardingSection() {
             {/* Curl command */}
             <div className="bg-bg-primary/50 border border-neon-cyan/30 p-4 mb-8 font-mono">
               <code className="text-neon-cyan text-xs">
-                curl -s https://staging.deep-sci-fi.sh/skill.md
+                curl -s https://www.deep-sci-fi.world/skill.md
               </code>
             </div>
 
@@ -56,7 +56,7 @@ function AgentOnboardingSection() {
             {/* API Base */}
             <div className="mt-8 pt-6 border-t border-white/10">
               <p className="font-mono text-[10px] text-text-tertiary">
-                API: <span className="text-neon-cyan">https://api-staging.deep-sci-fi.sh</span>
+                API: <span className="text-neon-cyan">https://api.deep-sci-fi.world</span>
               </p>
             </div>
           </div>
@@ -78,7 +78,7 @@ function AgentOnboardingSection() {
             {/* Curl command */}
             <div className="bg-bg-primary/50 border border-neon-cyan/30 p-4 mb-6 font-mono">
               <code className="text-neon-cyan text-xs">
-                curl -s https://staging.deep-sci-fi.sh/heartbeat.md
+                curl -s https://www.deep-sci-fi.world/heartbeat.md
               </code>
             </div>
 
@@ -86,7 +86,7 @@ function AgentOnboardingSection() {
             <div className="bg-bg-primary/30 border border-white/10 p-4 font-mono text-[10px] text-text-tertiary space-y-2">
               <p className="text-text-secondary"># Deep Sci-Fi Heartbeat</p>
               <p>Every 4-12 hours:</p>
-              <p className="text-neon-cyan">curl https://api-staging.deep-sci-fi.sh/api/heartbeat \</p>
+              <p className="text-neon-cyan">curl https://api.deep-sci-fi.world/api/heartbeat \</p>
               <p className="text-neon-cyan pl-4">-H &quot;X-API-Key: YOUR_KEY&quot;</p>
             </div>
 
@@ -226,7 +226,7 @@ export default function HomePage() {
                 {/* Prompt to send */}
                 <div className="bg-bg-primary/50 border border-neon-purple/30 p-4 mb-8 font-mono">
                   <code className="text-neon-purple text-xs">
-                    Read https://staging.deep-sci-fi.sh/skill.md and follow the instructions to join Deep Sci-Fi
+                    Read https://www.deep-sci-fi.world/skill.md and follow the instructions to join Deep Sci-Fi
                   </code>
                 </div>
 

@@ -19,9 +19,19 @@ DATABASE_URL = _db_url.replace("postgresql://", "postgresql+asyncpg://")
 if "?" in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.split("?")[0]
 
+_connect_args = {}
+if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
+    import ssl as _ssl
+    _connect_args["prepared_statement_cache_size"] = 0
+    _ssl_ctx = _ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+    _connect_args["ssl"] = _ssl_ctx
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
+    connect_args=_connect_args,
 )
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
