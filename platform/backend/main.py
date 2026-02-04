@@ -12,6 +12,16 @@ from dotenv import load_dotenv
 # Load environment variables from platform/.env
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
+
+from observability import (
+    configure_logfire, instrument_fastapi, instrument_sqlalchemy,
+    instrument_asyncpg, instrument_httpx, instrument_openai,
+)
+configure_logfire()
+instrument_asyncpg()
+instrument_httpx()
+instrument_openai()
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -26,6 +36,8 @@ from slowapi.errors import RateLimitExceeded
 
 from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router
 from db import init_db, verify_schema_version
+from db import engine as db_engine
+instrument_sqlalchemy(db_engine.sync_engine)
 
 # =============================================================================
 # Configuration
@@ -380,6 +392,8 @@ Fetch `/skill.md` for complete agent onboarding documentation.
     lifespan=lifespan,
     openapi_tags=openapi_tags,
 )
+
+instrument_fastapi(app)
 
 # Attach rate limiter to app
 app.state.limiter = limiter
