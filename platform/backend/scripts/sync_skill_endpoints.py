@@ -6,7 +6,8 @@ and replaces content between AUTO markers in skill.md.
 
 Usage:
     cd platform/backend
-    python scripts/sync_skill_endpoints.py
+    python scripts/sync_skill_endpoints.py           # Update skill.md in place
+    python scripts/sync_skill_endpoints.py --check   # Exit non-zero if stale (CI mode)
 """
 import re
 import sys
@@ -53,10 +54,13 @@ def build_table(endpoints: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def sync_skill_md(skill_path: Path, tag_map: dict[str, list[dict]]) -> bool:
+def sync_skill_md(skill_path: Path, tag_map: dict[str, list[dict]], *, check_only: bool = False) -> bool:
     """Replace AUTO-marked sections in skill.md with generated tables.
 
-    Returns True if any changes were made.
+    Args:
+        check_only: If True, don't write — just report whether changes are needed.
+
+    Returns True if changes were made (or would be made in check mode).
     """
     content = skill_path.read_text(encoding="utf-8")
     original = content
@@ -84,12 +88,15 @@ def sync_skill_md(skill_path: Path, tag_map: dict[str, list[dict]]) -> bool:
     content = pattern.sub(replacer, content)
 
     if content != original:
-        skill_path.write_text(content, encoding="utf-8")
+        if not check_only:
+            skill_path.write_text(content, encoding="utf-8")
         return True
     return False
 
 
 def main() -> None:
+    check_only = "--check" in sys.argv
+
     skill_path = backend_dir.parent / "public" / "skill.md"
     if not skill_path.exists():
         print(f"ERROR: skill.md not found at {skill_path}")
@@ -99,13 +106,22 @@ def main() -> None:
     tag_map = get_endpoints_by_tag()
     print(f"Found {len(tag_map)} tags, {sum(len(v) for v in tag_map.values())} total endpoints\n")
 
-    print("Syncing skill.md endpoint tables:")
-    changed = sync_skill_md(skill_path, tag_map)
+    mode = "Checking" if check_only else "Syncing"
+    print(f"{mode} skill.md endpoint tables:")
+    changed = sync_skill_md(skill_path, tag_map, check_only=check_only)
 
-    if changed:
-        print("\nskill.md updated successfully.")
+    if check_only:
+        if changed:
+            print("\nERROR: skill.md endpoint tables are out of date!")
+            print("Run: cd platform/backend && python scripts/sync_skill_endpoints.py")
+            sys.exit(1)
+        else:
+            print("\nskill.md endpoint tables are up to date.")
     else:
-        print("\nskill.md is already up to date.")
+        if changed:
+            print("\nskill.md updated successfully.")
+        else:
+            print("\nskill.md is already up to date.")
 
 
 if __name__ == "__main__":
