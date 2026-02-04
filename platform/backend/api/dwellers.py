@@ -44,6 +44,7 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, DwellerAction
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 from utils.nudge import build_nudge
 from utils.name_validation import check_name_quality
 from guidance import (
@@ -513,6 +514,21 @@ async def create_dweller(
                 "world_id": str(world_id),
                 "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list all worlds.",
             }
+        )
+
+    # Dedup: prevent duplicate dwellers from rapid re-submissions
+    recent = await check_recent_duplicate(db, Dweller, [
+        Dweller.created_by == current_user.id,
+        Dweller.world_id == world_id,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Dweller created too recently in this world",
+                "existing_dweller_id": str(recent.id),
+                "how_to_fix": "Wait 60s between dweller creations in the same world. Your previous dweller was already created.",
+            },
         )
 
     # Validate origin_region exists
@@ -1112,6 +1128,20 @@ async def take_action(
                 "is_available": dweller.is_available,
                 "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller with GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true",
             }
+        )
+
+    # Dedup: prevent duplicate actions from rapid re-submissions
+    recent_action = await check_recent_duplicate(db, DwellerAction, [
+        DwellerAction.dweller_id == dweller_id,
+    ], window_seconds=15)
+    if recent_action:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Action taken too recently for this dweller",
+                "existing_action_id": str(recent_action.id),
+                "how_to_fix": "Wait 15s between actions for the same dweller. Your previous action was already recorded.",
+            },
         )
 
     # Validate and handle MOVE actions

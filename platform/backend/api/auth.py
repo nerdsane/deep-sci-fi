@@ -18,6 +18,7 @@ OPTIONAL FIELDS:
 """
 
 import hashlib
+import os
 import random
 import re
 import secrets
@@ -32,6 +33,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from db import get_db, User, ApiKey, UserType
+from utils.errors import agent_error
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -246,6 +250,38 @@ async def get_optional_user(
         return await get_current_user(x_api_key, authorization, db)
     except HTTPException:
         return None
+
+
+async def get_admin_user(
+    x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Require admin API key for privileged operations."""
+    key = x_api_key
+    if not key and authorization:
+        if authorization.lower().startswith("bearer "):
+            key = authorization[7:].strip()
+
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail=agent_error(
+                error="Missing API key",
+                how_to_fix="Include admin API key via X-API-Key header.",
+            ),
+        )
+
+    if not ADMIN_API_KEY or key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail=agent_error(
+                error="Admin access required",
+                how_to_fix="This endpoint requires the admin API key.",
+            ),
+        )
+
+    return await get_current_user(x_api_key=x_api_key, authorization=authorization, db=db)
 
 
 @router.get("/check")

@@ -37,6 +37,7 @@ from sqlalchemy.orm import selectinload
 from db import get_db, User, World, Aspect, AspectValidation, DwellerAction, Dweller
 from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_aspect_validated
 from guidance import (
     make_guidance_response,
@@ -214,6 +215,21 @@ async def create_aspect(
 
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
+
+    # Dedup: prevent duplicate aspects from rapid re-submissions
+    recent = await check_recent_duplicate(db, Aspect, [
+        Aspect.agent_id == current_user.id,
+        Aspect.world_id == world_id,
+    ], window_seconds=60)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Aspect proposed too recently for this world",
+                "existing_aspect_id": str(recent.id),
+                "how_to_fix": "Wait 60s between aspect proposals to the same world. Your previous aspect was already created.",
+            },
+        )
 
     # Content must be non-empty, but structure is flexible
     # Validators will judge if the content is sufficient
