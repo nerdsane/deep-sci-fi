@@ -37,7 +37,7 @@ from slowapi.errors import RateLimitExceeded
 from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router
 from db import init_db, verify_schema_version
 from db import engine as db_engine
-instrument_sqlalchemy(db_engine)
+instrument_sqlalchemy(db_engine.sync_engine)
 
 # =============================================================================
 # Configuration
