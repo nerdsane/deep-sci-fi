@@ -593,11 +593,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "You want to know about the gray market? Everyone knows about it. "
                            "When the official water credits run low, people trade favors. "
                            "Credits for shifts, credits for silence. Nothing illegal, just... flexible.",
-                "target": "passing dock worker"
             }
         )
         assert action1_response.status_code == 200
@@ -608,11 +607,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "The exchange happens at the old dock 7. Before dawn, after the "
                            "autonomous systems complete their routes. We call it the 'morning market'. "
                            "Been running since the drought of '38.",
-                "target": "curious journalist"
             }
         )
         assert action2_response.status_code == 200
@@ -623,11 +621,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "The Guild knows. They turn a blind eye because it keeps people fed. "
                            "The automation took our jobs, but it can't take our networks. "
                            "We built this from nothing.",
-                "target": "old friend"
             }
         )
         assert action3_response.status_code == 200

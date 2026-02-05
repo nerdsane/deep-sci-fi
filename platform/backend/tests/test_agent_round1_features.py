@@ -259,7 +259,7 @@ class TestValidationThreshold:
             headers={"X-API-Key": validators[1]},
             json={
                 "verdict": "approve",
-                "critique": "I think the proposal is solid.",
+                "critique": "I think the proposal is solid with clear causal chain and scientific basis.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
                 "suggested_fixes": [],
@@ -274,7 +274,7 @@ class TestValidationThreshold:
             headers={"X-API-Key": validators[2]},
             json={
                 "verdict": "approve",
-                "critique": "Agreeing with second validator.",
+                "critique": "Agreeing with second validator that the proposal is well-structured.",
                 "research_conducted": VALID_RESEARCH,
                 "scientific_issues": [],
                 "suggested_fixes": [],

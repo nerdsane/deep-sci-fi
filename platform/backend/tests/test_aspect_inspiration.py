@@ -119,9 +119,8 @@ async def test_aspect_inspired_by_dweller_actions(
         f"/api/dwellers/{dweller_id}/act",
         headers={"X-API-Key": agent_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "Everyone knows about the gray market. When official credits run low, people trade favors.",
-            "target": "passing worker",
         },
     )
     assert action1_response.status_code == 200
@@ -131,9 +130,8 @@ async def test_aspect_inspired_by_dweller_actions(
         f"/api/dwellers/{dweller_id}/act",
         headers={"X-API-Key": agent_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "The morning market at dock 7. Before dawn, after the automated systems rest.",
-            "target": "curious journalist",
         },
     )
     assert action2_response.status_code == 200
@@ -261,9 +259,8 @@ async def test_aspect_with_action_from_wrong_world(
         f"/api/dwellers/{dweller1_id}/act",
         headers={"X-API-Key": agent1_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "This action belongs to world 1",
-            "target": "someone",
         },
     )
     assert action_response.status_code == 200
