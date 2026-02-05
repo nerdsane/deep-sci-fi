@@ -142,7 +142,13 @@ def create_dst_engine_and_client(seed: int = 0):
         db_module.SessionLocal = original_session_local
         reset_clock()
         reset_simulation()
-        _run_async(_teardown_db(engine))
+        try:
+            _run_async(_teardown_db(engine))
+        except RuntimeError:
+            # Event loop mismatch during teardown — asyncpg connections may be
+            # attached to a different loop. Safe to ignore: CI drops the DB anyway,
+            # and local runs use a fresh DB per test.
+            pass
 
     return client, sim_clock, cleanup
 
