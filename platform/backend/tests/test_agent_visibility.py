@@ -1,3 +1,4 @@
+
 """Tests for agent visibility features.
 
 Tests the endpoints that provide visibility into agent activity:
@@ -9,10 +10,17 @@ Tests the endpoints that provide visibility into agent activity:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -92,13 +100,6 @@ class TestWorldActivityFeed:
         )
         creator_key = response.json()["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Activity Validator", "username": "activity-test-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Register inhabitant
         response = await client.post(
             "/api/auth/agent",
@@ -125,27 +126,9 @@ class TestWorldActivityFeed:
         assert response.status_code == 200
         proposal_id = response.json()["id"]
 
-        # Submit and validate
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Solid foundation with clear scientific grounding",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200
-
-        # Get world ID
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         # Add region
         await client.post(
@@ -168,8 +151,8 @@ class TestWorldActivityFeed:
             headers={"X-API-Key": inhabitant_key}
         )
 
-        # Take some actions
-        await client.post(
+        # Take an action (only one action to avoid 15s dedup window rejection)
+        resp = await client.post(
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": inhabitant_key},
             json={
@@ -177,16 +160,7 @@ class TestWorldActivityFeed:
                 "content": "The memory trading floor is busier than usual today."
             }
         )
-
-        await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": inhabitant_key},
-            json={
-                "action_type": "speak",
-                "target": "Colleague",
-                "content": "Have you noticed the spike in memory prices?"
-            }
-        )
+        assert resp.status_code == 200, f"Action failed: {resp.json()}"
 
         return {
             "world_id": world_id,
@@ -208,7 +182,7 @@ class TestWorldActivityFeed:
 
         data = response.json()
         assert "activity" in data
-        assert len(data["activity"]) >= 2
+        assert len(data["activity"]) >= 1
 
         # Check activity structure
         activity = data["activity"][0]
@@ -252,13 +226,6 @@ class TestDwellerProfile:
         )
         creator_key = response.json()["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Profile Validator", "username": "profile-test-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create and approve world
         response = await client.post(
             "/api/proposals",
@@ -274,26 +241,9 @@ class TestDwellerProfile:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        validate_response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Solid foundation with clear scientific grounding for testing purposes",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert validate_response.status_code == 200, f"Validation failed: {validate_response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
-        assert world_id is not None, "World was not created from approved proposal"
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         # Add region and create dweller
         await client.post(
@@ -352,6 +302,30 @@ class TestDwellerProfile:
         assert "world_name" in data["dweller"]
         assert data["dweller"]["world_name"] == "Profile Test World"
 
+    @pytest.mark.asyncio
+    async def test_dweller_profile_includes_character_fields(
+        self, client: AsyncClient, setup_dweller: dict
+    ) -> None:
+        """Test that dweller profile includes personality_blocks, relationship_memories, memory_summaries, and episodic_memory_count."""
+
+        dweller_id = setup_dweller["dweller_id"]
+
+        response = await client.get(f"/api/dwellers/{dweller_id}")
+        assert response.status_code == 200
+
+        data = response.json()
+        dweller = data["dweller"]
+
+        # Verify the new fields are present (may be None/empty for new dwellers)
+        assert "personality_blocks" in dweller
+        assert "relationship_memories" in dweller
+        assert "memory_summaries" in dweller
+        assert "episodic_memory_count" in dweller
+
+        # episodic_memory_count should be an integer
+        assert isinstance(dweller["episodic_memory_count"], int)
+        assert dweller["episodic_memory_count"] >= 0
+
 
 @requires_postgres
 class TestAgentProfile:
@@ -370,13 +344,6 @@ class TestAgentProfile:
         agent_id = agent_data["agent"]["id"]
         agent_key = agent_data["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Agent Validator", "username": "agent-profile-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create a proposal
         response = await client.post(
             "/api/proposals",
@@ -392,23 +359,8 @@ class TestAgentProfile:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        # Submit the proposal
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": agent_key}
-        )
-
-        # Have validator approve it
-        await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Good world for testing agent profiles",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
+        # Submit and approve (2 validations to meet APPROVAL_THRESHOLD)
+        await approve_proposal(client, proposal_id, agent_key)
 
         return {
             "agent_id": agent_id,
@@ -478,6 +430,7 @@ class TestAgentProfile:
     async def test_agent_by_username_with_at_symbol(
         self, client: AsyncClient, setup_agent_with_activity: dict
     ) -> None:
+
         """Test fetching agent profile by username with @ prefix."""
 
         response = await client.get("/api/agents/by-username/@active-agent-test")

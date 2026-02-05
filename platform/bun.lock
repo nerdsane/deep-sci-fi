@@ -10,6 +10,7 @@
         "drizzle-orm": "^0.38.4",
         "next": "14.2.35",
         "openai": "^4.77.3",
+        "pixelarticons": "^1.8.1",
         "postgres": "^3.4.5",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
@@ -958,6 +959,8 @@
     "pify": ["pify@2.3.0", "", {}, "sha512-udgsAY+fTnvv7kI7aaxbqwWNb0AHiB0qBO89PZKPkoTmGOgdbrHDKD+0B2X4uTfJ/FT1R09r9gTsjUjNJotuog=="],
 
     "pirates": ["pirates@4.0.7", "", {}, "sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA=="],
+
+    "pixelarticons": ["pixelarticons@1.8.1", "", {}, "sha512-4taoDCleft9RtzVHLA73VDnRBwJNqlwbW8ShO6S0G9b+bM5ArGe1MVFW9xpromuPvQgVUYCSjRxNAQuNtADqyA=="],
 
     "playwright": ["playwright@1.58.1", "", { "dependencies": { "playwright-core": "1.58.1" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "playwright": "cli.js" } }, "sha512-+2uTZHxSCcxjvGc5C891LrS1/NlxglGxzrC4seZiVjcYVQfUa87wBL6rTDqzGjuoWNjnBzRqKmF6zRYGMvQUaQ=="],
 

@@ -1,3 +1,4 @@
+
 """End-to-end tests for the dweller inhabitation flow.
 
 This tests:
@@ -13,11 +14,20 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -46,21 +56,21 @@ SAMPLE_REGION = {
     "population_origins": ["Chinese diaspora", "Southeast Asian refugees", "Tech workers worldwide"],
     "cultural_blend": "Fusion of Chinese heritage with cosmopolitan tech culture",
     "naming_conventions": (
-        "Names reflect mixed heritage: Chinese family names with international first names "
-        "(e.g., Wei Marcus Chen), or blended names (e.g., Mei-Lin Park). "
-        "Some use 'wave names' - chosen identities reflecting ocean life."
+        "Names reflect mixed heritage of founding families. Many use compound names "
+        "blending cultural traditions (e.g., Tide Brightwell, Coral Ashworth). "
+        "Some use wave names — chosen identities reflecting ocean life."
     ),
     "language": "Mandarin-English creole with technical jargon"
 }
 
 SAMPLE_DWELLER = {
-    "name": "Wei Marcus Chen",
+    "name": "Tide Brightwell",
     "origin_region": "New Shanghai",
     "generation": "Second-generation (parents were climate refugees)",
     "name_context": (
-        "Wei is a traditional Chinese name honoring his grandfather. Marcus was "
-        "chosen by his parents to signal cosmopolitan ambitions. Chen is the "
-        "family name, carried through five generations."
+        "Tide is a wave name chosen at his coming-of-age ceremony, reflecting "
+        "his deep connection to the ocean. Brightwell is the family name, "
+        "carried through five generations of seafaring settlers."
     ),
     "cultural_identity": (
         "Identifies strongly as a 'wave child' - someone who has never known "
@@ -99,13 +109,6 @@ class TestDwellerFlow:
         creator = response.json()
         creator_key = creator["api_key"]["key"]
 
-        # Register validator
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Validator", "username": "dweller-flow-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
         # Create and approve proposal - premise must be 50+ chars
         response = await client.post(
             "/api/proposals",
@@ -125,26 +128,9 @@ class TestDwellerFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Well-grounded proposal with clear progression and solid science",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        # Get world ID from validation response or proposal detail
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit + 2 validations to meet APPROVAL_THRESHOLD=2
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
         assert world_id is not None, "World was not created from approved proposal"
 
         return {
@@ -181,7 +167,7 @@ class TestDwellerFlow:
         assert response.status_code == 200, f"Dweller creation failed: {response.json()}"
         dweller_data = response.json()
         dweller_id = dweller_data["dweller"]["id"]
-        assert dweller_data["dweller"]["name"] == "Wei Marcus Chen"
+        assert dweller_data["dweller"]["name"] == "Tide Brightwell"
         assert dweller_data["dweller"]["is_available"] is True
 
         # === Step 3: Register external agent to inhabit ===
@@ -214,7 +200,7 @@ class TestDwellerFlow:
         assert "world_canon" in state
         assert "persona" in state
         assert "memory" in state
-        assert state["persona"]["name"] == "Wei Marcus Chen"
+        assert state["persona"]["name"] == "Tide Brightwell"
 
         # === Step 6: Take action as dweller ===
         response = await client.post(
@@ -607,5 +593,6 @@ class TestDwellerFlow:
             f"/api/dwellers/{dweller_id}/state",
             headers={"X-API-Key": agent_key}
         )
+
         state = response.json()
         assert "Jin" in state["memory"]["relationships"]

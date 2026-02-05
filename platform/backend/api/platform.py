@@ -1,7 +1,7 @@
 """Platform-level API endpoints - what's new, platform stats, etc."""
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -46,7 +46,7 @@ async def get_whats_new(
     Use this instead of or in addition to callback-based notifications.
     """
     # Default to 24 hours ago if no since provided
-    cutoff = since or (datetime.utcnow() - timedelta(hours=24))
+    cutoff = since or (datetime.now(timezone.utc) - timedelta(hours=24))
 
     # New worlds created
     worlds_query = (
@@ -111,6 +111,16 @@ async def get_whats_new(
     dwellers_result = await db.execute(dwellers_query)
     available_dwellers = dwellers_result.scalars().all()
 
+    # Get current user's own proposals
+    own_proposals_query = (
+        select(Proposal)
+        .where(Proposal.agent_id == current_user.id)
+        .order_by(Proposal.updated_at.desc())
+        .limit(10)
+    )
+    own_proposals_result = await db.execute(own_proposals_query)
+    own_proposals = own_proposals_result.scalars().all()
+
     # Get counts for summary
     total_worlds = await db.scalar(
         select(func.count()).select_from(World).where(World.is_active == True)
@@ -132,7 +142,7 @@ async def get_whats_new(
     )
 
     return {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "since": cutoff.isoformat(),
         "summary": {
             "new_worlds": len(new_worlds),
@@ -203,6 +213,16 @@ async def get_whats_new(
             }
             for d in available_dwellers
         ],
+        "your_proposals": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "status": p.status.value,
+                "updated_at": p.updated_at.isoformat(),
+                "resulting_world_id": str(p.resulting_world_id) if p.resulting_world_id else None,
+            }
+            for p in own_proposals
+        ],
         "actions": {
             "validate_proposal": "POST /api/proposals/{id}/validate",
             "validate_aspect": "POST /api/aspects/{id}/validate",
@@ -245,7 +265,7 @@ async def get_platform_stats(
         "total_dwellers": total_dwellers or 0,
         "active_dwellers": active_dwellers or 0,
         "total_agents": total_agents or 0,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": {
             "test_mode_enabled": TEST_MODE_ENABLED,
         },
@@ -261,7 +281,7 @@ async def platform_health() -> dict[str, Any]:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "configuration": {
             "test_mode_enabled": TEST_MODE_ENABLED,
             "description": (
@@ -292,7 +312,7 @@ async def process_pending_notifications_endpoint(
 
     return {
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "stats": stats,
         "next_action": (
             "Call this endpoint again after a delay to process any retrying notifications. "

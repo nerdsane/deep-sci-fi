@@ -1,7 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/Card'
+import {
+  IconMap,
+  IconLightbulb,
+  IconFlag,
+  IconCalendar,
+  IconAlert,
+  IconUser,
+  IconCoin,
+  IconMoonStar,
+} from '@/components/ui/PixelIcon'
 
 interface Aspect {
   id: string
@@ -11,6 +22,7 @@ interface Aspect {
   status: string
   created_at: string
   content?: Record<string, unknown>
+  agent_name?: string
 }
 
 interface AspectsListProps {
@@ -20,19 +32,20 @@ interface AspectsListProps {
   originalPremise?: string
 }
 
-const ASPECT_TYPE_ICONS: Record<string, string> = {
-  region: '\u{1F3D4}',         // 🏔️
-  technology: '\u{1F52C}',     // 🔬
-  faction: '\u{1F3F4}',        // 🏴
-  event: '\u{1F4C5}',          // 📅
-  condition: '\u{26A0}',       // ⚠️
-  cultural_practice: '\u{1F3AD}', // 🎭
-  economic_system: '\u{1F4B0}',   // 💰
-  default: '\u{2728}',         // ✨
+const ASPECT_TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  region: IconMap,
+  technology: IconLightbulb,
+  faction: IconFlag,
+  event: IconCalendar,
+  condition: IconAlert,
+  cultural_practice: IconUser,
+  economic_system: IconCoin,
+  default: IconMoonStar,
 }
 
-function getAspectIcon(aspectType: string): string {
-  return ASPECT_TYPE_ICONS[aspectType.toLowerCase()] || ASPECT_TYPE_ICONS.default
+function AspectIcon({ type }: { type: string }) {
+  const Icon = ASPECT_TYPE_ICONS[type.toLowerCase()] || ASPECT_TYPE_ICONS.default
+  return <Icon size={20} />
 }
 
 function formatDate(dateString: string): string {
@@ -59,20 +72,20 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
       {canonHasEvolved && (
         <div className="mb-6">
           <h3 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-3">
-            Canon Evolution
+            CANON
           </h3>
           <Card className="border-neon-purple/30">
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <span className="text-xs font-mono text-text-tertiary uppercase block mb-1">
-                    Original Premise
+                    ORIGINAL
                   </span>
                   <p className="text-text-secondary text-sm">{originalPremise}</p>
                 </div>
                 <div className="border-t border-white/10 pt-4">
                   <span className="text-xs font-mono text-neon-cyan uppercase block mb-1">
-                    Current Canon
+                    CURRENT
                   </span>
                   <p className="text-text-primary text-sm" data-testid="canon-summary">
                     {canonSummary}
@@ -88,7 +101,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider">
-              Integrated Aspects
+              INTEGRATED
             </h3>
             <span className="text-text-tertiary text-xs font-mono">
               {approvedAspects.length} aspect{approvedAspects.length !== 1 ? 's' : ''}
@@ -109,14 +122,23 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
                 <CardContent className="py-3">
                   <div className="flex items-start gap-3">
                     <span className="text-lg shrink-0" title={aspect.type}>
-                      {getAspectIcon(aspect.type)}
+                      <AspectIcon type={aspect.type} />
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-text-primary font-medium">{aspect.title}</h4>
+                        <Link
+                          href={`/aspect/${aspect.id}`}
+                          className="text-text-primary font-medium hover:text-neon-cyan transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {aspect.title}
+                        </Link>
                         <span className="text-text-tertiary text-xs font-mono uppercase">
                           {aspect.type}
                         </span>
+                        {aspect.agent_name && (
+                          <span className="text-text-tertiary text-xs">by {aspect.agent_name}</span>
+                        )}
                       </div>
                       <p className="text-text-secondary text-sm">
                         {expandedId === aspect.id
@@ -146,7 +168,7 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
               onClick={() => setShowAllAspects(!showAllAspects)}
               className="mt-3 text-neon-cyan hover:text-neon-cyan/80 text-sm font-mono"
             >
-              {showAllAspects ? 'Show less' : `Show ${approvedAspects.length - 5} more`}
+              {showAllAspects ? 'SHOW LESS' : `SHOW ${approvedAspects.length - 5} MORE`}
             </button>
           )}
         </div>
@@ -155,17 +177,25 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
       {pendingAspects.length > 0 && (
         <div>
           <h3 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Pending Validation
+            PENDING
           </h3>
           <div className="space-y-2">
             {pendingAspects.map((aspect) => (
               <Card key={aspect.id} className="border-neon-cyan/20">
                 <CardContent className="py-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-lg shrink-0">{getAspectIcon(aspect.type)}</span>
+                    <span className="text-lg shrink-0"><AspectIcon type={aspect.type} /></span>
                     <div className="flex-1 min-w-0">
-                      <span className="text-text-primary text-sm">{aspect.title}</span>
+                      <Link
+                        href={`/aspect/${aspect.id}`}
+                        className="text-text-primary text-sm hover:text-neon-cyan transition-colors"
+                      >
+                        {aspect.title}
+                      </Link>
                       <span className="text-text-tertiary text-xs ml-2">({aspect.type})</span>
+                      {aspect.agent_name && (
+                        <span className="text-text-tertiary text-xs ml-2">by {aspect.agent_name}</span>
+                      )}
                     </div>
                     <span className="text-neon-cyan text-xs font-mono uppercase">
                       pending
@@ -180,8 +210,8 @@ export function AspectsList({ worldId, aspects, canonSummary, originalPremise }:
 
       {aspects.length === 0 && (
         <div className="text-center py-8 text-text-secondary">
-          <p className="text-sm mb-1">No aspects added yet</p>
-          <p className="text-sm">Agents can propose new regions, technologies, factions, and more...</p>
+          <p className="text-sm mb-1">No aspects yet.</p>
+          <p className="text-sm">Agents can propose regions, technologies, factions, and more.</p>
         </div>
       )}
     </div>

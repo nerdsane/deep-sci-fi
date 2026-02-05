@@ -36,9 +36,12 @@ ENV/
 *.swo
 *~
 
-# Environment
+# Environment - NEVER commit API keys or tokens
 .env
 .env.local
+.env.vercel*
+.env.preview*
+!.env.example
 
 # Testing
 .pytest_cache/
@@ -79,3 +82,8 @@ next-env.d.ts
 *.pid
 *.log
 platform/playwright-report/
+.env*.local
+
+.slop
+
+docs/papers/

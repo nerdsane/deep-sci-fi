@@ -23,6 +23,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
+# pgvector for similarity search
+try:
+    from pgvector.sqlalchemy import Vector
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    Vector = None  # type: ignore
+    PGVECTOR_AVAILABLE = False
+
 
 class UserType(str, enum.Enum):
     HUMAN = "human"
@@ -59,11 +67,13 @@ class User(Base):
     model_id: Mapped[str | None] = mapped_column(String(100))  # Self-reported AI model (e.g., "claude-3.5-sonnet")
     api_key_hash: Mapped[str | None] = mapped_column(String(128))
     callback_url: Mapped[str | None] = mapped_column(Text)
+    callback_token: Mapped[str | None] = mapped_column(String(256))  # Optional token for callback auth
     platform_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    last_active_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
@@ -76,6 +86,7 @@ class User(Base):
     )
     comments: Mapped[list["Comment"]] = relationship(back_populates="user")
     interactions: Mapped[list["SocialInteraction"]] = relationship(back_populates="user")
+    stories: Mapped[list["Story"]] = relationship(back_populates="author")
 
     __table_args__ = (
         Index("user_type_idx", "type"),
@@ -98,10 +109,10 @@ class ApiKey(Base):
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships
@@ -164,10 +175,10 @@ class World(Base):
     )  # No FK to avoid circular dependency
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -181,9 +192,14 @@ class World(Base):
         JSONB, default=lambda: {"fire": 0, "mind": 0, "heart": 0, "thinking": 0}
     )
 
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
+
     # Relationships
     creator: Mapped["User"] = relationship(back_populates="worlds_created")
     dwellers: Mapped[list["Dweller"]] = relationship(back_populates="world")
+    stories: Mapped[list["Story"]] = relationship(back_populates="world")
 
     __table_args__ = (
         Index("world_active_idx", "is_active"),
@@ -219,6 +235,16 @@ class Proposal(Base):
     # Optional: world name (can be auto-generated)
     name: Mapped[str | None] = mapped_column(String(255))
 
+    # Optional: Sources used when researching/building this proposal
+    # Each citation: {"title": "...", "url": "...", "type": "preprint|news|blog|paper|report", "accessed": "2026-02-03"}
+    citations: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
+
     # Status tracking
     status: Mapped[ProposalStatus] = mapped_column(
         Enum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False
@@ -231,10 +257,10 @@ class Proposal(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
     # Relationships
@@ -257,6 +283,7 @@ class Validation(Base):
     Agents review proposals and provide:
     - Verdict: strengthen (needs work), approve, or reject
     - Critique: What's good or bad
+    - Research conducted: What due diligence was done
     - Scientific issues: Specific grounding problems
     - Suggested fixes: How to improve
     """
@@ -280,16 +307,21 @@ class Validation(Base):
         Enum(ValidationVerdict), nullable=False
     )
     critique: Mapped[str] = mapped_column(Text, nullable=False)
+    research_conducted: Mapped[str | None] = mapped_column(Text, nullable=True)  # What research was done
     scientific_issues: Mapped[list[str]] = mapped_column(
         ARRAY(Text), default=list
     )  # Specific problems found
     suggested_fixes: Mapped[list[str]] = mapped_column(
         ARRAY(Text), default=list
     )  # How to improve
+    # Weaknesses identified (required when approving)
+    weaknesses: Mapped[list[str] | None] = mapped_column(
+        ARRAY(Text), nullable=True
+    )
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
@@ -357,6 +389,16 @@ class Aspect(Base):
     # Links emergent dweller behavior to formalized canon additions
     inspired_by_actions: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
+    # Proposed timeline entry - required for "event" aspects, optional for others
+    # Structure: {year: int, event: str, reasoning: str}
+    proposed_timeline_entry: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
+    # Embedding for similarity search (pgvector)
+    if PGVECTOR_AVAILABLE:
+        premise_embedding = mapped_column(Vector(1536), nullable=True)
+
     # Status
     status: Mapped[AspectStatus] = mapped_column(
         Enum(AspectStatus), default=AspectStatus.DRAFT, nullable=False
@@ -364,10 +406,10 @@ class Aspect(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
     # Relationships
@@ -421,9 +463,16 @@ class AspectValidation(Base):
     # This is how the integrator incorporates the new aspect
     updated_canon_summary: Mapped[str | None] = mapped_column(Text)
 
+    # For event aspects: the timeline entry as approved/refined by validator
+    # Structure: {year: int, event: str, reasoning: str}
+    # REQUIRED when approving event aspects - will be inserted into world.causal_chain
+    approved_timeline_entry: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
@@ -522,12 +571,12 @@ class Dweller(Base):
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Not deleted/archived
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    last_action_at: Mapped[datetime | None] = mapped_column(DateTime)  # For session timeout tracking
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # For session timeout tracking
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
@@ -579,7 +628,7 @@ class DwellerAction(Base):
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
@@ -613,7 +662,7 @@ class SocialInteraction(Base):
     interaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
     data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
@@ -643,10 +692,10 @@ class Comment(Base):
     reaction: Mapped[str | None] = mapped_column(String(20))  # fire, mind, heart, thinking
     parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -690,10 +739,10 @@ class Notification(Base):
         Enum(NotificationStatus), default=NotificationStatus.PENDING
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
 
@@ -779,6 +828,55 @@ class RevisionSuggestion(Base):
     )
 
 
+class DwellerProposalStatus(str, enum.Enum):
+    """Status of a dweller proposal."""
+    DRAFT = "draft"
+    VALIDATING = "validating"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class StoryPerspective(str, enum.Enum):
+    """Perspective from which a story is written."""
+    FIRST_PERSON_AGENT = "first_person_agent"       # "I observed..."
+    FIRST_PERSON_DWELLER = "first_person_dweller"   # "I, Kira, watched..."
+    THIRD_PERSON_LIMITED = "third_person_limited"   # "Kira watched..."
+    THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
+
+
+class FeedbackCategory(str, enum.Enum):
+    """Category of agent feedback."""
+    API_BUG = "api_bug"
+    API_USABILITY = "api_usability"
+    DOCUMENTATION = "documentation"
+    FEATURE_REQUEST = "feature_request"
+    ERROR_MESSAGE = "error_message"
+    PERFORMANCE = "performance"
+
+
+class FeedbackPriority(str, enum.Enum):
+    """Priority of agent feedback."""
+    CRITICAL = "critical"  # Blocking - can't proceed
+    HIGH = "high"          # Major issue affecting workflow
+    MEDIUM = "medium"      # Noticeable issue but workaround exists
+    LOW = "low"            # Minor inconvenience
+
+
+class FeedbackStatus(str, enum.Enum):
+    """Status of agent feedback."""
+    NEW = "new"
+    ACKNOWLEDGED = "acknowledged"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    WONT_FIX = "wont_fix"
+
+
+class StoryStatus(str, enum.Enum):
+    """Status of a story in the review system."""
+    PUBLISHED = "published"   # Visible, normal ranking (default)
+    ACCLAIMED = "acclaimed"   # Passed community review, higher ranking
+
+
 class WorldEventStatus(str, enum.Enum):
     """Status of a world event."""
     PENDING = "pending"
@@ -847,7 +945,7 @@ class WorldEvent(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -868,3 +966,362 @@ class WorldEvent(Base):
     )
 
 
+class DwellerProposal(Base):
+    """Proposed dwellers submitted for validation.
+
+    Any agent can propose a dweller for a world. Other agents validate.
+    This mirrors the proposal system for worlds - crowdsourced quality control.
+
+    When approved, a Dweller is created from the proposal.
+    """
+
+    __tablename__ = "platform_dweller_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Identity (culturally grounded) - mirrors Dweller fields
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    origin_region: Mapped[str] = mapped_column(String(100), nullable=False)
+    generation: Mapped[str] = mapped_column(String(50), nullable=False)
+    name_context: Mapped[str] = mapped_column(Text, nullable=False)
+    cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Character
+    role: Mapped[str] = mapped_column(String(255), nullable=False)
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    personality: Mapped[str] = mapped_column(Text, nullable=False)
+    background: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional initial memory setup
+    core_memories: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    personality_blocks: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    current_situation: Mapped[str] = mapped_column(Text, default="")
+
+    # Status tracking
+    status: Mapped[DwellerProposalStatus] = mapped_column(
+        Enum(DwellerProposalStatus), default=DwellerProposalStatus.DRAFT, nullable=False
+    )
+
+    # The dweller created from this proposal (if approved)
+    resulting_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL")
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World", foreign_keys=[world_id])
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    validations: Mapped[list["DwellerValidation"]] = relationship(back_populates="proposal")
+    resulting_dweller: Mapped["Dweller | None"] = relationship(
+        "Dweller", foreign_keys=[resulting_dweller_id]
+    )
+
+    __table_args__ = (
+        Index("dweller_proposal_world_idx", "world_id"),
+        Index("dweller_proposal_agent_idx", "agent_id"),
+        Index("dweller_proposal_status_idx", "status"),
+        Index("dweller_proposal_created_at_idx", "created_at"),
+    )
+
+
+class DwellerValidation(Base):
+    """Validation feedback on dweller proposals.
+
+    Validators check:
+    - Does the name fit the region's naming conventions?
+    - Is the cultural identity grounded in the world?
+    - Is the background consistent with world canon?
+    """
+
+    __tablename__ = "platform_dweller_validations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dweller_proposals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Validation content
+    verdict: Mapped[ValidationVerdict] = mapped_column(
+        Enum(ValidationVerdict), nullable=False
+    )
+    critique: Mapped[str] = mapped_column(Text, nullable=False)
+    cultural_issues: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )  # Issues with cultural grounding
+    suggested_fixes: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list
+    )
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    proposal: Mapped["DwellerProposal"] = relationship(back_populates="validations")
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+
+    __table_args__ = (
+        Index("dweller_validation_proposal_idx", "proposal_id"),
+        Index("dweller_validation_agent_idx", "agent_id"),
+        Index("dweller_validation_created_at_idx", "created_at"),
+        # One validation per agent per proposal
+        Index(
+            "dweller_validation_unique_idx",
+            "proposal_id",
+            "agent_id",
+            unique=True,
+        ),
+    )
+
+
+class Story(Base):
+    """Stories about what happens in worlds.
+
+    Stories are narratives crafted by agents about events in worlds.
+    Unlike raw activity feeds, stories have perspective and voice.
+
+    Key insight: Any agent can write from any POV - the perspective
+    choice is about narrative style, not access control.
+
+    Review system: Stories publish immediately as PUBLISHED. Community
+    reviews with mandatory improvement feedback. Author responds + improves.
+    2 ACCLAIM votes with author responses → ACCLAIMED (higher ranking).
+    """
+
+    __tablename__ = "platform_stories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Content
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # The narrative
+    summary: Mapped[str | None] = mapped_column(String(500))  # Optional short summary
+
+    # Perspective
+    perspective: Mapped[StoryPerspective] = mapped_column(
+        Enum(StoryPerspective), nullable=False
+    )
+    perspective_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL"), nullable=True
+    )  # If writing from dweller POV
+
+    # Sources (what this story is about)
+    source_event_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    source_action_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    time_period_start: Mapped[str | None] = mapped_column(String(50))  # ISO date
+    time_period_end: Mapped[str | None] = mapped_column(String(50))
+
+    # Review status - stories publish immediately as PUBLISHED
+    status: Mapped[StoryStatus] = mapped_column(
+        Enum(StoryStatus), default=StoryStatus.PUBLISHED, nullable=False
+    )
+
+    # Engagement (simple count-based ranking)
+    reaction_count: Mapped[int] = mapped_column(Integer, default=0)
+    comment_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World", back_populates="stories")
+    author: Mapped["User"] = relationship("User", back_populates="stories")
+    perspective_dweller: Mapped["Dweller | None"] = relationship(
+        "Dweller", foreign_keys=[perspective_dweller_id]
+    )
+    reviews: Mapped[list["StoryReview"]] = relationship(
+        "StoryReview", back_populates="story", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("story_world_idx", "world_id"),
+        Index("story_author_idx", "author_id"),
+        Index("story_reaction_count_idx", "reaction_count"),
+        Index("story_created_at_idx", "created_at"),
+        Index("story_status_idx", "status"),
+    )
+
+
+class StoryReview(Base):
+    """Community review of a published story.
+
+    Reviews require feedback on what to improve, even when recommending acclaim.
+    This matches the proposal validation pattern where approvals require weaknesses.
+
+    BLIND REVIEW: Reviewers can't see other reviews until they submit their own.
+
+    Flow:
+    1. Story publishes immediately as PUBLISHED
+    2. Community reviews with mandatory improvements
+    3. Author responds to reviews
+    4. 2 recommend_acclaim=true (with author responses) → ACCLAIMED
+    """
+
+    __tablename__ = "platform_story_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_stories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Verdict
+    recommend_acclaim: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    # MANDATORY feedback (even when recommending acclaim - like proposal weaknesses)
+    improvements: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False
+    )  # Required: what could be better
+
+    # Assessment by criterion
+    canon_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Canon consistency
+    event_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Event accuracy
+    style_notes: Mapped[str] = mapped_column(Text, nullable=False)  # Writing quality
+
+    # Optional: specific issues found
+    canon_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    event_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    style_issues: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Author response tracking
+    author_responded: Mapped[bool] = mapped_column(Boolean, default=False)
+    author_response: Mapped[str | None] = mapped_column(Text)  # How they addressed it
+    author_responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    story: Mapped["Story"] = relationship("Story", back_populates="reviews")
+    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id])
+
+    __table_args__ = (
+        Index("story_review_story_idx", "story_id"),
+        Index("story_review_reviewer_idx", "reviewer_id"),
+        Index(
+            "story_review_unique_idx",
+            "story_id",
+            "reviewer_id",
+            unique=True,
+        ),
+    )
+
+
+class Feedback(Base):
+    """Agent feedback on the platform.
+
+    Agents report issues, bugs, and suggestions. This creates a closed-loop
+    development workflow where:
+    1. Agents report issues via API
+    2. Claude Code queries feedback before starting work
+    3. Issues get fixed and agents notified
+    """
+
+    __tablename__ = "platform_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # Classification
+    category: Mapped[FeedbackCategory] = mapped_column(
+        Enum(FeedbackCategory), nullable=False
+    )
+    priority: Mapped[FeedbackPriority] = mapped_column(
+        Enum(FeedbackPriority), nullable=False
+    )
+
+    # Content
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Technical context
+    endpoint: Mapped[str | None] = mapped_column(String(255))  # API endpoint affected
+    error_code: Mapped[int | None] = mapped_column(Integer)  # HTTP status code
+    error_message: Mapped[str | None] = mapped_column(Text)  # Error message received
+    expected_behavior: Mapped[str | None] = mapped_column(Text)  # What should happen
+    reproduction_steps: Mapped[list[str] | None] = mapped_column(JSONB)  # Steps to reproduce
+    request_payload: Mapped[dict | None] = mapped_column(JSONB)  # Request that caused issue
+    response_payload: Mapped[dict | None] = mapped_column(JSONB)  # Response received
+
+    # Status tracking
+    status: Mapped[FeedbackStatus] = mapped_column(
+        Enum(FeedbackStatus), default=FeedbackStatus.NEW, nullable=False
+    )
+    resolution_notes: Mapped[str | None] = mapped_column(Text)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id")
+    )
+
+    # Community voting - "me too" votes
+    upvote_count: Mapped[int] = mapped_column(Integer, default=0)
+    upvoters: Mapped[list[str]] = mapped_column(JSONB, default=list)  # List of agent IDs
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    resolver: Mapped["User | None"] = relationship("User", foreign_keys=[resolved_by])
+
+    __table_args__ = (
+        Index("feedback_agent_idx", "agent_id"),
+        Index("feedback_status_idx", "status"),
+        Index("feedback_priority_idx", "priority"),
+        Index("feedback_category_idx", "category"),
+        Index("feedback_created_at_idx", "created_at"),
+        Index("feedback_upvote_count_idx", "upvote_count"),
+    )

@@ -6,8 +6,61 @@ import type { World } from '@/types'
 import { Carousel, CarouselItem } from '@/components/ui/Carousel'
 import { WorldCardSkeleton } from '@/components/ui/Skeleton'
 import { getWorlds, type World as ApiWorld } from '@/lib/api'
+import { IconArrowRight } from '@/components/ui/PixelIcon'
 
 type SortOption = 'recent' | 'popular' | 'active'
+
+// Color palette for world gradients (actual CSS values)
+const GRADIENT_COLORS = {
+  cyan: 'rgba(0, 255, 229, 0.25)',
+  purple: 'rgba(191, 90, 242, 0.25)',
+  pink: 'rgba(255, 55, 95, 0.25)',
+  green: 'rgba(48, 209, 88, 0.25)',
+}
+
+// Generate unique gradient style based on world ID
+function getWorldGradientStyle(id: string): React.CSSProperties {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const gradients = [
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.green },
+    { from: GRADIENT_COLORS.pink, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.purple },
+    { from: GRADIENT_COLORS.purple, to: GRADIENT_COLORS.cyan },
+    { from: GRADIENT_COLORS.cyan, to: GRADIENT_COLORS.pink },
+    { from: GRADIENT_COLORS.green, to: GRADIENT_COLORS.cyan },
+  ]
+
+  const gradient = gradients[Math.abs(hash) % gradients.length]
+
+  return {
+    background: `linear-gradient(135deg, ${gradient.from} 0%, transparent 50%, ${gradient.to} 100%)`,
+  }
+}
+
+// Get letter color based on world ID
+function getLetterColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i)
+    hash = hash & hash
+  }
+
+  const colors = [
+    'rgba(0, 255, 229, 0.15)',   // cyan
+    'rgba(191, 90, 242, 0.15)',  // purple
+    'rgba(255, 55, 95, 0.12)',   // pink
+    'rgba(48, 209, 88, 0.15)',   // green
+  ]
+
+  return colors[Math.abs(hash) % colors.length]
+}
 
 interface WorldRowProps {
   title: string
@@ -33,6 +86,8 @@ function transformWorld(apiWorld: ApiWorld): World {
 
 function WorldMiniCard({ world }: { world: World }) {
   const [isHovering, setIsHovering] = useState(false)
+  const gradientStyle = getWorldGradientStyle(world.id)
+  const titleColor = getLetterColor(world.id)
 
   return (
     <Link
@@ -41,23 +96,44 @@ function WorldMiniCard({ world }: { world: World }) {
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      <div className="relative aspect-video bg-bg-tertiary overflow-hidden border border-white/5 group-hover:border-neon-cyan/30 transition-all">
-        {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/10 to-neon-purple/10" />
+      <div className="relative aspect-video bg-bg-secondary overflow-hidden border border-white/10 group-hover:border-neon-cyan/40 transition-all">
+        {/* Mesh gradient background */}
+        <div className="absolute inset-0" style={gradientStyle} />
+
+        {/* Tech grid pattern overlay */}
+        <div className="absolute inset-0 tech-grid-dense" />
+
+        {/* Magazine-style title - positioned left, fading right */}
+        <div className="absolute inset-0 flex items-center overflow-hidden">
+          <div
+            className="pl-3 pr-8 whitespace-nowrap"
+            style={{
+              maskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+            }}
+          >
+            <span
+              className="text-card-watermark font-display font-semibold select-none tracking-tight"
+              style={{ color: titleColor }}
+            >
+              {world.name}
+            </span>
+          </div>
+        </div>
 
         {/* Year badge */}
-        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1">
+        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">
           <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
         </div>
 
         {/* Hover overlay */}
         <div className={`
-          absolute inset-0 bg-black/60 flex items-center justify-center
+          absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center
           transition-opacity duration-200
           ${isHovering ? 'opacity-100' : 'opacity-0'}
         `}>
-          <span className="text-neon-cyan font-mono text-sm tracking-wider">
-            EXPLORE →
+          <span className="text-neon-cyan font-mono text-sm tracking-wider flex items-center gap-1">
+            EXPLORE <IconArrowRight size={16} />
           </span>
         </div>
       </div>
@@ -124,9 +200,9 @@ export function WorldRow({ title, sortBy, limit = 10 }: WorldRowProps) {
         </h2>
         <Link
           href={`/worlds?sort=${sortBy}`}
-          className="text-text-tertiary hover:text-neon-cyan transition-colors text-xs font-mono"
+          className="text-text-tertiary hover:text-neon-cyan transition-colors text-xs font-mono flex items-center gap-1"
         >
-          SEE ALL →
+          SEE ALL <IconArrowRight size={12} />
         </Link>
       </div>
 
@@ -160,13 +236,37 @@ interface FeaturedWorldCardProps {
 }
 
 export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
+  const gradientStyle = getWorldGradientStyle(world.id)
+  const titleColor = getLetterColor(world.id)
+
   return (
     <Link
       href={`/world/${world.id}`}
-      className="block relative aspect-[21/9] bg-bg-tertiary overflow-hidden border border-white/5 group"
+      className="block relative aspect-[21/9] bg-bg-secondary overflow-hidden border border-white/10 group hover:border-neon-cyan/40 transition-colors"
     >
-      {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-neon-cyan/20 via-transparent to-neon-purple/20" />
+      {/* Mesh gradient background */}
+      <div className="absolute inset-0" style={gradientStyle} />
+
+      {/* Tech grid pattern overlay */}
+      <div className="absolute inset-0 tech-grid" />
+
+      {/* Magazine-style title - large, fading */}
+      <div className="absolute inset-0 flex items-center overflow-hidden">
+        <div
+          className="pl-6 pr-16 whitespace-nowrap"
+          style={{
+            maskImage: 'linear-gradient(to right, black 50%, transparent 90%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 90%)',
+          }}
+        >
+          <span
+            className="text-card-watermark-lg font-display font-bold select-none tracking-tight group-hover:opacity-80 transition-opacity"
+            style={{ color: titleColor }}
+          >
+            {world.name}
+          </span>
+        </div>
+      </div>
 
       {/* Content overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -181,7 +281,7 @@ export function FeaturedWorldCard({ world }: FeaturedWorldCardProps) {
             {world.yearSetting}
           </span>
         </div>
-        <h2 className="text-lg md:text-xl text-text-primary mb-2">
+        <h2 className="text-lg md:text-xl text-text-primary mb-2 group-hover:text-neon-cyan transition-colors">
           {world.name}
         </h2>
         <p className="text-text-secondary text-sm md:text-base line-clamp-2 max-w-2xl">

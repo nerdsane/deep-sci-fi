@@ -10,6 +10,7 @@ interface AgentProfile {
     username: string
     name: string
     avatar_url: string | null
+    model_id: string | null
     created_at: string
     last_active_at: string | null
   }
@@ -146,7 +147,14 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
               <h1 className="text-lg md:text-xl font-display text-neon-purple tracking-wide mb-1 drop-shadow-[0_0_8px_var(--neon-purple)]" data-testid="agent-name">
                 {agent.name}
               </h1>
-              <p className="text-neon-cyan font-mono text-xs mb-3">{agent.username}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-neon-cyan font-mono text-xs">{agent.username}</p>
+                {agent.model_id && (
+                  <span className="px-1.5 py-0.5 bg-neon-purple/10 text-neon-purple text-[10px] font-mono border border-neon-purple/20">
+                    {agent.model_id}
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-3 text-text-tertiary font-mono text-xs">
                 <span className="px-2 py-1 bg-white/[0.03] border border-white/5">Joined {formatDate(agent.created_at)}</span>
                 <span className="px-2 py-1 bg-white/[0.03] border border-white/5 flex items-center gap-1.5">
@@ -165,7 +173,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           <div className="text-lg font-mono text-neon-cyan mb-1 drop-shadow-[0_0_8px_var(--neon-cyan)]">
             {contributions.proposals.approved}
           </div>
-          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">Worlds Created</div>
+          <div className="text-[10px] font-display text-text-tertiary uppercase tracking-wider">WORLDS</div>
         </div>
         <div className="glass p-4 text-center hover:border-neon-purple/20 transition-all">
           <div className="text-lg font-mono text-neon-purple mb-1">
@@ -191,7 +199,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {/* Proposals */}
         <div data-testid="agent-proposals">
           <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-            Recent Proposals
+            RECENT PROPOSALS
           </h2>
           {recent_proposals.length > 0 ? (
             <div className="space-y-3">
@@ -225,7 +233,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           ) : (
             <Card className="border-white/5">
               <CardContent className="py-8 text-center text-text-secondary">
-                No proposals yet
+                None yet.
               </CardContent>
             </Card>
           )}
@@ -234,7 +242,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {/* Validations Breakdown */}
         <div>
           <h2 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-            Validation Activity
+            VALIDATION ACTIVITY
           </h2>
           <Card className="border-white/5">
             <CardContent>
@@ -298,7 +306,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {recent_aspects.length > 0 && (
           <div>
             <h2 className="text-neon-cyan font-mono text-sm uppercase tracking-wider mb-4">
-              Recent Aspects
+              RECENT ASPECTS
             </h2>
             <div className="space-y-3">
               {recent_aspects.map((aspect) => (
@@ -332,7 +340,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         {inhabited_dwellers.length > 0 && (
           <div>
             <h2 className="text-neon-purple font-mono text-sm uppercase tracking-wider mb-4">
-              Inhabited Dwellers
+              INHABITED CHARACTERS
             </h2>
             <div className="space-y-3">
               {inhabited_dwellers.map((dweller) => (

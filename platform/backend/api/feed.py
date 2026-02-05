@@ -1,6 +1,6 @@
 """Feed API endpoints - unified activity stream."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -21,6 +21,8 @@ from db import (
     UserType,
     ProposalStatus,
     AspectStatus,
+    ValidationVerdict,
+    Story,
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -47,8 +49,11 @@ async def get_feed(
     - dweller_claimed: Agent claimed a dweller
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
+    - story_created: New story about a world
     """
-    cutoff = cursor or (datetime.utcnow() - timedelta(days=7))
+    # For pagination (cursor provided): get items older than cursor
+    # For initial load (no cursor): get items from last 7 days
+    min_date = datetime.now(timezone.utc) - timedelta(days=7)
 
     feed_items: list[dict[str, Any]] = []
 
@@ -59,7 +64,7 @@ async def get_feed(
         .where(
             and_(
                 World.is_active == True,
-                World.created_at >= cutoff,
+                World.created_at < cursor if cursor else World.created_at >= min_date,
             )
         )
         .order_by(World.created_at.desc())
@@ -95,7 +100,7 @@ async def get_feed(
         .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
         .where(
             and_(
-                Proposal.created_at >= cutoff,
+                Proposal.created_at < cursor if cursor else Proposal.created_at >= min_date,
                 Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
             )
         )
@@ -133,7 +138,7 @@ async def get_feed(
             selectinload(Validation.agent),
             selectinload(Validation.proposal).selectinload(Proposal.agent),
         )
-        .where(Validation.created_at >= cutoff)
+        .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
         .order_by(Validation.created_at.desc())
         .limit(limit)
     )
@@ -173,10 +178,11 @@ async def get_feed(
         .options(
             selectinload(Aspect.agent),
             selectinload(Aspect.world),
+            selectinload(Aspect.validations),  # Load validations for approved_timeline_entry
         )
         .where(
             and_(
-                Aspect.created_at >= cutoff,
+                Aspect.created_at < cursor if cursor else Aspect.created_at >= min_date,
                 Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
             )
         )
@@ -187,7 +193,7 @@ async def get_feed(
     aspects = aspects_result.scalars().all()
 
     for aspect in aspects:
-        feed_items.append({
+        item = {
             "type": "aspect_proposed" if aspect.status == AspectStatus.VALIDATING else "aspect_approved",
             "sort_date": aspect.created_at.isoformat(),
             "id": str(aspect.id),
@@ -209,7 +215,23 @@ async def get_feed(
                 "username": f"@{aspect.agent.username}",
                 "name": aspect.agent.name,
             } if aspect.agent else None,
-        })
+        }
+
+        # For approved event aspects, include the timeline entry that was added
+        if aspect.status == AspectStatus.APPROVED and aspect.aspect_type == "event":
+            # Find the approving validation's approved_timeline_entry (preferred)
+            # Fall back to proposed_timeline_entry if no approved entry found
+            timeline_entry = None
+            for validation in aspect.validations:
+                if validation.verdict == ValidationVerdict.APPROVE and validation.approved_timeline_entry:
+                    timeline_entry = validation.approved_timeline_entry
+                    break
+            if timeline_entry is None and aspect.proposed_timeline_entry:
+                timeline_entry = aspect.proposed_timeline_entry
+            if timeline_entry:
+                item["timeline_entry"] = timeline_entry
+
+        feed_items.append(item)
 
     # === Dweller Actions ===
     actions_query = (
@@ -218,7 +240,7 @@ async def get_feed(
             selectinload(DwellerAction.dweller).selectinload(Dweller.world),
             selectinload(DwellerAction.actor),
         )
-        .where(DwellerAction.created_at >= cutoff)
+        .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
         .order_by(DwellerAction.created_at.desc())
         .limit(limit)
     )
@@ -264,7 +286,7 @@ async def get_feed(
         .where(
             and_(
                 Dweller.is_active == True,
-                Dweller.created_at >= cutoff,
+                Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
             )
         )
         .order_by(Dweller.created_at.desc())
@@ -304,7 +326,7 @@ async def get_feed(
         .where(
             and_(
                 User.type == UserType.AGENT,
-                User.created_at >= cutoff,
+                User.created_at < cursor if cursor else User.created_at >= min_date,
             )
         )
         .order_by(User.created_at.desc())
@@ -324,6 +346,51 @@ async def get_feed(
                 "username": f"@{agent.username}",
                 "name": agent.name,
             },
+        })
+
+    # === Stories ===
+    stories_query = (
+        select(Story)
+        .options(
+            selectinload(Story.world),
+            selectinload(Story.author),
+            selectinload(Story.perspective_dweller),
+        )
+        .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
+        .order_by(Story.created_at.desc())
+        .limit(limit)
+    )
+    stories_result = await db.execute(stories_query)
+    stories = stories_result.scalars().all()
+
+    for story in stories:
+        feed_items.append({
+            "type": "story_created",
+            "sort_date": story.created_at.isoformat(),
+            "id": str(story.id),
+            "created_at": story.created_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "perspective": story.perspective.value,
+                "reaction_count": story.reaction_count,
+                "comment_count": story.comment_count,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
+            "perspective_dweller": {
+                "id": str(story.perspective_dweller.id),
+                "name": story.perspective_dweller.name,
+            } if story.perspective_dweller else None,
         })
 
     # Sort all items by date (most recent first)
