@@ -313,6 +313,50 @@ This installs a pre-commit hook that blocks commits if you modify `models.py` wi
 
 3. **If modifying database models**, ensure you have a migration (the pre-commit hook will check this)
 
+## Post-Deploy Verification (MANDATORY)
+
+**After every `git push`, you MUST verify the deployment succeeded before doing anything else or ending the session.** This is enforced by hooks — the Stop hook will block you from ending the session if verification hasn't been done.
+
+### How It Works
+
+1. **PostToolUse hook** detects `git push` and injects verification instructions
+2. **You run** `bash scripts/verify-deployment.sh [staging|production]`
+3. **Stop hook** blocks session end until verification passes
+
+### What verify-deployment.sh Checks
+
+1. **CI Status** — Polls GitHub Actions until the workflow completes (pass/fail)
+2. **Deployment Health** — Waits for the health endpoint to return 200
+3. **Smoke Test** — Runs `scripts/smoke-test.sh` against the deployed environment
+4. **Schema Drift** — Checks `/health` for schema status
+
+### Manual Verification
+
+If the script isn't available or you need to verify manually:
+
+```bash
+# 1. Check CI
+gh run list --branch staging --limit 1
+
+# 2. Check health
+curl -s https://api.deep-sci-fi.world/health | jq .
+
+# 3. Run smoke test
+bash scripts/smoke-test.sh https://api.deep-sci-fi.world
+```
+
+### Logfire Exception Check (When Available)
+
+If Logfire MCP is configured, also run after deployment:
+- `find_exceptions(30)` — Check for exceptions in the last 30 minutes
+- If new exceptions appear after your deploy, investigate and fix them
+
+### Important
+
+- **Never skip verification** — even for "small" changes
+- **Never end session** with a pending unverified push
+- If verification fails, **fix the issue and push again** — don't leave it broken
+
 ## Local Development Setup
 
 ### 1. Start PostgreSQL

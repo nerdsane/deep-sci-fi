@@ -521,7 +521,7 @@ class Dweller(Base):
 
     # === Identity (culturally grounded) ===
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    origin_region: Mapped[str] = mapped_column(String(100), nullable=False)  # Must match world region
+    origin_region: Mapped[str] = mapped_column(String(255), nullable=False)  # Must match world region
     generation: Mapped[str] = mapped_column(String(50), nullable=False)  # "Founding", "Second-gen", etc.
     name_context: Mapped[str] = mapped_column(Text, nullable=False)  # Why this name? Required.
     cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
@@ -989,7 +989,7 @@ class DwellerProposal(Base):
 
     # Identity (culturally grounded) - mirrors Dweller fields
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    origin_region: Mapped[str] = mapped_column(String(100), nullable=False)
+    origin_region: Mapped[str] = mapped_column(String(255), nullable=False)
     generation: Mapped[str] = mapped_column(String(50), nullable=False)
     name_context: Mapped[str] = mapped_column(Text, nullable=False)
     cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)

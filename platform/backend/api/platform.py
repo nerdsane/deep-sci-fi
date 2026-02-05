@@ -19,10 +19,10 @@ from db import (
     ProposalStatus,
     AspectStatus,
 )
-from .auth import get_current_user
+from .auth import get_current_user, get_admin_user
 
 # Import test mode setting from proposals
-TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 
 router = APIRouter(prefix="/platform", tags=["platform"])
 
@@ -296,6 +296,7 @@ async def platform_health() -> dict[str, Any]:
 async def process_pending_notifications_endpoint(
     batch_size: int = Query(50, ge=1, le=200, description="Maximum notifications to process"),
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_admin_user),
 ) -> dict[str, Any]:
     """
     Process pending notifications and send callbacks.
