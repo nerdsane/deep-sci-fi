@@ -87,9 +87,14 @@ def create_dst_engine_and_client(seed: int = 0):
     """Create a sync test client with simulation infrastructure.
 
     All async operations (engine creation, DB setup, teardown) run inside the
-    TestClient's event loop via portal.call(). This ensures asyncpg connections
-    live in the same loop that serves ASGI requests — preventing "attached to
-    a different loop" errors.
+    TestClient's portal — the same event loop that serves ASGI requests. This
+    prevents asyncpg "attached to a different loop" errors.
+
+    Key sequence:
+    1. Patch init_db() to no-op (prevents lifespan from using stale engine)
+    2. Enter TestClient context (starts portal + lifespan)
+    3. Create engine + tables inside the portal's event loop
+    4. Wire session factory into dependency injection
 
     Returns:
         (client, sim_clock, cleanup_fn)
@@ -99,6 +104,20 @@ def create_dst_engine_and_client(seed: int = 0):
     import db.database as db_database_module
 
     original_session_local = db_database_module.SessionLocal
+    original_init_db = db_database_module.init_db
+
+    # Patch init_db to no-op BEFORE TestClient enters (lifespan calls init_db).
+    # The module-level engine in db.database was created outside the portal's
+    # event loop, so it can't be used for asyncpg connections inside the portal.
+    # We'll create our own engine inside the portal after startup.
+    async def _noop_init_db():
+        pass
+    db_database_module.init_db = _noop_init_db
+
+    # Also patch the import in main.py (which imports init_db by name)
+    import main as main_module
+    original_main_init_db = getattr(main_module, 'init_db', None)
+    main_module.init_db = _noop_init_db
 
     # Initialize simulation infrastructure (sync — no event loop needed)
     sim_clock = SimulatedClock()
@@ -134,6 +153,9 @@ def create_dst_engine_and_client(seed: int = 0):
     def cleanup():
         app.dependency_overrides.clear()
         db_database_module.SessionLocal = original_session_local
+        db_database_module.init_db = original_init_db
+        if original_main_init_db is not None:
+            main_module.init_db = original_main_init_db
         db_module.SessionLocal = original_session_local
         reset_clock()
         reset_simulation()
