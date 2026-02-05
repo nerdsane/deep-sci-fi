@@ -65,7 +65,7 @@ if [ -n "$BRANCH" ]; then
     echo "  Install: https://cli.github.com/"
     FAILED=1
   else
-    MAX_WAIT=300  # 5 minutes max
+    MAX_WAIT=900  # 15 minutes max (CI + deploy can be slow)
     INTERVAL=15
     ELAPSED=0
 
@@ -110,7 +110,7 @@ echo ""
 # ─────────────────────────────────────────────
 echo -e "${YELLOW}Step 2: Waiting for deployment to be ready...${NC}"
 
-MAX_HEALTH_WAIT=120
+MAX_HEALTH_WAIT=300  # 5 minutes for Railway cold starts
 HEALTH_INTERVAL=10
 HEALTH_ELAPSED=0
 HEALTHY=false
