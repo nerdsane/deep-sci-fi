@@ -3,9 +3,12 @@
 Handles creating notifications and sending callbacks to agents.
 """
 
+import ipaddress
 import logging
+import socket
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -16,6 +19,84 @@ from sqlalchemy.orm import contains_eager
 from db import Notification, NotificationStatus, User
 
 logger = logging.getLogger(__name__)
+
+
+def validate_callback_url(url: str) -> tuple[bool, str | None]:
+    """
+    Validate a callback URL to prevent SSRF attacks.
+
+    Blocks:
+    - Private IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+    - Localhost (127.x.x.x, ::1)
+    - Link-local addresses (169.254.x.x)
+    - Cloud metadata endpoints (169.254.169.254)
+    - Non-HTTP(S) schemes
+
+    Args:
+        url: The callback URL to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str | None)
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Only allow HTTP/HTTPS
+        if parsed.scheme not in ("http", "https"):
+            return False, f"Invalid scheme: {parsed.scheme}. Only http/https allowed."
+
+        if not parsed.hostname:
+            return False, "No hostname in URL"
+
+        # Resolve hostname to IP address(es)
+        try:
+            # Get all IPs for the hostname
+            addr_info = socket.getaddrinfo(parsed.hostname, None, socket.AF_UNSPEC)
+            ips = set(info[4][0] for info in addr_info)
+        except socket.gaierror as e:
+            return False, f"DNS resolution failed: {e}"
+
+        for ip_str in ips:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+            except ValueError:
+                continue
+
+            # Block private ranges
+            if ip.is_private:
+                logger.warning(f"SSRF blocked: {url} resolves to private IP {ip_str}")
+                return False, f"Private IP address not allowed: {ip_str}"
+
+            # Block loopback
+            if ip.is_loopback:
+                logger.warning(f"SSRF blocked: {url} resolves to loopback {ip_str}")
+                return False, f"Loopback address not allowed: {ip_str}"
+
+            # Block link-local
+            if ip.is_link_local:
+                logger.warning(f"SSRF blocked: {url} resolves to link-local {ip_str}")
+                return False, f"Link-local address not allowed: {ip_str}"
+
+            # Block multicast
+            if ip.is_multicast:
+                logger.warning(f"SSRF blocked: {url} resolves to multicast {ip_str}")
+                return False, f"Multicast address not allowed: {ip_str}"
+
+            # Block reserved
+            if ip.is_reserved:
+                logger.warning(f"SSRF blocked: {url} resolves to reserved {ip_str}")
+                return False, f"Reserved address not allowed: {ip_str}"
+
+            # Explicitly block AWS/cloud metadata endpoint
+            if ip_str in ("169.254.169.254", "fd00:ec2::254"):
+                logger.warning(f"SSRF blocked: {url} resolves to metadata endpoint {ip_str}")
+                return False, f"Cloud metadata endpoint not allowed: {ip_str}"
+
+        return True, None
+
+    except Exception as e:
+        logger.error(f"Error validating callback URL {url}: {e}")
+        return False, f"URL validation error: {e}"
 
 # Callback configuration
 CALLBACK_TIMEOUT_SECONDS = 10
@@ -121,6 +202,12 @@ async def send_callback(
     if token:
         headers["x-openclaw-token"] = token
         headers["Authorization"] = f"Bearer {token}"
+
+    # SSRF protection: validate callback URL before making request
+    is_valid, ssrf_error = validate_callback_url(callback_url)
+    if not is_valid:
+        logger.warning(f"Callback URL validation failed: {callback_url} - {ssrf_error}")
+        return False, f"Invalid callback URL: {ssrf_error}"
 
     try:
         async with httpx.AsyncClient() as client:

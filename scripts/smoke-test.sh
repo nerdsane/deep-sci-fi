@@ -43,10 +43,10 @@ test_endpoint() {
 
     if [ "$status_code" -eq "$expected_status" ]; then
         echo -e "${GREEN}✓${NC} $description ($status_code)"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         echo -e "${RED}✗${NC} $description (expected $expected_status, got $status_code)"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 }
 
