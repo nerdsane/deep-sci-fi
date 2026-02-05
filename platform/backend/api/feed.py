@@ -1,6 +1,7 @@
 """Feed API endpoints - unified activity stream."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from utils.clock import now as utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -53,7 +54,7 @@ async def get_feed(
     """
     # For pagination (cursor provided): get items older than cursor
     # For initial load (no cursor): get items from last 7 days
-    min_date = datetime.now(timezone.utc) - timedelta(days=7)
+    min_date = utc_now() - timedelta(days=7)
 
     feed_items: list[dict[str, Any]] = []
 
