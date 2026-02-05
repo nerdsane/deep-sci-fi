@@ -132,7 +132,11 @@ def create_dst_engine_and_client(seed: int = 0):
     client = Client(transport=transport, base_url="http://test")
 
     def cleanup():
-        client.close()
+        try:
+            client.close()
+        except AttributeError:
+            # httpx ASGITransport has aclose() not close() in some versions
+            pass
         app.dependency_overrides.clear()
         db_database_module.SessionLocal = original_session_local
         db_module.SessionLocal = original_session_local
