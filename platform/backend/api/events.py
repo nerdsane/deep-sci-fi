@@ -34,7 +34,7 @@ from guidance import (
 )
 
 # Test mode allows self-approval - disable in production
-TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 
 router = APIRouter(prefix="/events", tags=["events"])
 

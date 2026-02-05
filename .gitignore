@@ -87,3 +87,7 @@ platform/playwright-report/
 .slop
 
 docs/papers/
+
+# Claude Code project-specific secrets
+.claude/logfire-token
+.claude/settings.local.json

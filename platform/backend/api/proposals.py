@@ -26,7 +26,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # Test mode allows self-validation - disable in production
-TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession

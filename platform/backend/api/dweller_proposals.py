@@ -52,7 +52,7 @@ from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
 router = APIRouter(prefix="/dweller-proposals", tags=["dweller-proposals"])
 
 # Test mode allows self-validation - disable in production
-TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "true").lower() == "true"
+TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 
 
 # ============================================================================
