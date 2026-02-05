@@ -523,8 +523,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
     Logs the error server-side but returns minimal info to clients.
     """
     # Generate a request ID for correlation
-    import uuid
-    request_id = str(uuid.uuid4())[:8]
+    from utils.deterministic import deterministic_uuid4
+    request_id = str(deterministic_uuid4())[:8]
 
     # Log full details server-side (with stack trace in dev only)
     if IS_PRODUCTION:

@@ -32,8 +32,9 @@ You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
 from typing import Any, Literal
-import uuid as uuid_module
 from uuid import UUID
+
+from utils.deterministic import deterministic_uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -1242,7 +1243,7 @@ async def take_action(
     from utils.clock import now as utc_now
 
     episodic_memory = {
-        "id": str(uuid_module.uuid4()),
+        "id": str(deterministic_uuid4()),
         "action_id": str(action.id),
         "timestamp": utc_now().isoformat(),
         "type": request.action_type,
@@ -1747,7 +1748,7 @@ async def create_summary(
     from utils.clock import now as utc_now
 
     summary_entry = {
-        "id": str(uuid_module.uuid4()),
+        "id": str(deterministic_uuid4()),
         "period": request.period,
         "summary": request.summary,
         "key_events": request.key_events,

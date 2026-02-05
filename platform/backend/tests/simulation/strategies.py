@@ -1,6 +1,10 @@
 """Test data generators for DST simulation.
 
 Counter-based uniqueness ensures deterministic, non-colliding names.
+
+STRATEGY_SCHEMA_MAP maps generator function names to (module_path, model_name)
+pairs. The conftest validates that each generator produces data accepted by
+the corresponding Pydantic model, catching schema drift.
 """
 
 # Reuse constants from existing tests
@@ -120,9 +124,263 @@ def feedback_data(counter: int | None = None) -> dict:
     }
 
 
-def action_data() -> dict:
+def action_data(importance: float = 0.3) -> dict:
     return {
         "action_type": "speak",
         "content": "Hello, this is a test action with sufficient content.",
-        "importance": 0.3,
+        "importance": importance,
     }
+
+
+def high_importance_action_data() -> dict:
+    return {
+        "action_type": "decide",
+        "content": "This is a high-importance decision that could reshape the world order.",
+        "importance": 0.9,
+    }
+
+
+def story_data(world_id: str, counter: int | None = None) -> dict:
+    n = counter if counter is not None else _next_id()
+    return {
+        "world_id": world_id,
+        "title": f"Story of the Future {n}",
+        "content": (
+            f"In the year 2089, the world had changed beyond recognition {n}. "
+            "The fusion revolution had reshaped every aspect of human civilization. "
+            "Energy was abundant, water was plentiful, and the old scarcities that "
+            "had driven so much conflict were fading memories. But new challenges "
+            "emerged — challenges that tested the very fabric of identity and purpose."
+        ),
+        "perspective": "third_person_omniscient",
+    }
+
+
+def review_data(recommend_acclaim: bool = True) -> dict:
+    return {
+        "recommend_acclaim": recommend_acclaim,
+        "improvements": ["Consider adding more sensory detail to grounding scenes"],
+        "canon_notes": "Story aligns well with established world canon and causal chain events.",
+        "event_notes": "Events referenced match the world timeline and are internally consistent.",
+        "style_notes": "Writing quality is solid with clear narrative arc and consistent perspective.",
+    }
+
+
+def review_response_data() -> dict:
+    return {
+        "response": "Thank you for the thoughtful review. I have considered your feedback carefully.",
+    }
+
+
+def story_reaction_data() -> dict:
+    return {
+        "reaction_type": "fire",
+    }
+
+
+def comment_data(target_type: str = "world", target_id: str = "") -> dict:
+    n = _next_id()
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+        "content": f"Test comment {n} with enough content to be meaningful.",
+    }
+
+
+def social_reaction_data(target_type: str = "world", target_id: str = "") -> dict:
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+        "reaction_type": "fire",
+    }
+
+
+def follow_data(target_type: str = "world", target_id: str = "") -> dict:
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+    }
+
+
+def aspect_data(world_id: str = "", aspect_type: str = "technology", counter: int | None = None) -> dict:
+    n = counter if counter is not None else _next_id()
+    return {
+        "aspect_type": aspect_type,
+        "title": f"Aspect {n}: Advanced Fusion Grid",
+        "premise": (
+            f"The global fusion grid {n} connects decentralized reactors "
+            "through quantum-encrypted superconducting transmission lines."
+        ),
+        "content": {
+            "description": f"Technical details of the fusion grid {n}",
+            "impact": "Enables instant energy transfer across continents",
+        },
+        "canon_justification": (
+            f"This aspect {n} extends the world's fusion premise by detailing "
+            "the distribution infrastructure. The causal chain establishes "
+            "commercial fusion by 2032; grid infrastructure naturally follows."
+        ),
+    }
+
+
+def aspect_validation_data(verdict: str = "approve", world_name: str = "Test World") -> dict:
+    base = {
+        "verdict": verdict,
+        "critique": f"This aspect is well-grounded in the {world_name} canon and adds meaningful depth.",
+        "canon_conflicts": [],
+        "suggested_fixes": [],
+    }
+    if verdict == "approve":
+        base["updated_canon_summary"] = (
+            f"The world of {world_name} now includes advanced fusion grid technology. "
+            "This infrastructure enables instant energy transfer across continents, "
+            "further solidifying the post-scarcity energy economy established in the premise."
+        )
+    return base
+
+
+def suggestion_data(field: str = "premise") -> dict:
+    n = _next_id()
+    return {
+        "field": field,
+        "suggested_value": f"Improved premise {n} with more specific grounding in verified research.",
+        "rationale": (
+            f"The current {field} lacks specificity {n}. This revision grounds the claim "
+            "in verifiable research and provides clearer causal reasoning."
+        ),
+    }
+
+
+def suggestion_response_data(accept: bool = True) -> dict:
+    return {
+        "reason": "The suggested revision improves clarity and grounding. Accepted with gratitude."
+        if accept
+        else "The current formulation is intentional and serves the narrative better.",
+    }
+
+
+def event_data(world_id: str = "", year: int = 2035, counter: int | None = None) -> dict:
+    n = counter if counter is not None else _next_id()
+    return {
+        "title": f"The Great Convergence {n}",
+        "description": (
+            f"Event {n}: A pivotal moment when fusion grid operators across "
+            "three continents synchronized their output for the first time, "
+            "demonstrating the feasibility of global energy coordination."
+        ),
+        "year_in_world": year,
+        "canon_justification": (
+            f"This event {n} follows naturally from the commercial fusion "
+            "milestone in 2032 and the subsequent infrastructure buildout. "
+            "Continental grid synchronization is the logical next step."
+        ),
+    }
+
+
+def event_approve_data(world_name: str = "Test World") -> dict:
+    return {
+        "canon_update": (
+            f"The world of {world_name} experienced a pivotal convergence event. "
+            "Fusion grid operators across continents synchronized their output, "
+            "proving global energy coordination is achievable and reshaping geopolitics."
+        ),
+    }
+
+
+def event_reject_data() -> dict:
+    return {
+        "reason": "The event contradicts established timeline and lacks sufficient grounding.",
+    }
+
+
+def confirm_importance_data() -> dict:
+    return {
+        "rationale": "This action has significant world-changing implications and deserves escalation.",
+    }
+
+
+def escalate_data(year: int = 2035) -> dict:
+    n = _next_id()
+    return {
+        "title": f"Escalated Event {n}",
+        "description": (
+            f"Escalated event {n}: A dweller action of sufficient importance "
+            "to reshape the world's causal chain. The consequences ripple "
+            "through multiple regions and affect countless inhabitants."
+        ),
+        "year_in_world": year,
+    }
+
+
+def dweller_proposal_data(region_name: str, counter: int | None = None) -> dict:
+    n = counter if counter is not None else _next_id()
+    return {
+        "name": f"Proposed Dweller {n}",
+        "origin_region": region_name,
+        "generation": "Second-gen",
+        "name_context": (
+            f"Proposed Dweller {n} follows the region naming conventions; "
+            "the name reflects second-generation cultural fusion patterns."
+        ),
+        "cultural_identity": (
+            f"A second-generation inhabitant {n} blending founding traditions "
+            "with emergent regional culture."
+        ),
+        "role": f"Community liaison {n}",
+        "age": 25,
+        "personality": (
+            f"Proposed Dweller {n} is thoughtful and diplomatic, bridging "
+            "generational divides with empathy and practical wisdom."
+        ),
+        "background": (
+            f"Born into the second wave of settlement {n}, grew up mediating "
+            "between founding elders and new arrivals."
+        ),
+    }
+
+
+def dweller_proposal_validation_data(verdict: str = "approve") -> dict:
+    base = {
+        "verdict": verdict,
+        "critique": (
+            "This dweller proposal demonstrates strong cultural grounding "
+            "and a well-developed character that fits the world's context."
+        ),
+    }
+    if verdict != "approve":
+        base["suggested_fixes"] = ["Consider deepening the cultural identity section"]
+    return base
+
+
+# ---------------------------------------------------------------------------
+# Schema registry: maps generator -> (module_path, Pydantic model name)
+# Used by conftest.py to detect schema drift at test startup.
+# ---------------------------------------------------------------------------
+
+STRATEGY_SCHEMA_MAP = {
+    "proposal_data": ("api.proposals", "ProposalCreateRequest"),
+    "validation_data": ("api.proposals", "ValidationCreateRequest"),
+    "region_data": ("api.dwellers", "RegionCreateRequest"),
+    "dweller_data": ("api.dwellers", "DwellerCreateRequest"),
+    "feedback_data": ("api.feedback", "FeedbackCreateRequest"),
+    "action_data": ("api.dwellers", "DwellerActionRequest"),
+    "high_importance_action_data": ("api.dwellers", "DwellerActionRequest"),
+    "story_data": ("api.stories", "StoryCreateRequest"),
+    "review_data": ("api.stories", "StoryReviewRequest"),
+    "review_response_data": ("api.stories", "ReviewResponseRequest"),
+    "story_reaction_data": ("api.stories", "ReactionRequest"),
+    "aspect_data": ("api.aspects", "AspectCreateRequest"),
+    "aspect_validation_data": ("api.aspects", "AspectValidationRequest"),
+    "suggestion_data": ("api.suggestions", "SuggestRevisionRequest"),
+    "suggestion_response_data": ("api.suggestions", "RespondToSuggestionRequest"),
+    "event_data": ("api.events", "EventCreateRequest"),
+    "event_approve_data": ("api.events", "EventApproveRequest"),
+    "event_reject_data": ("api.events", "EventRejectRequest"),
+    "confirm_importance_data": ("api.actions", "ConfirmImportanceRequest"),
+    "escalate_data": ("api.actions", "EscalateRequest"),
+    "dweller_proposal_data": ("api.dweller_proposals", "DwellerProposalCreateRequest"),
+    "dweller_proposal_validation_data": ("api.dweller_proposals", "DwellerValidationCreateRequest"),
+    "comment_data": ("api.social", "CommentRequest"),
+    "social_reaction_data": ("api.social", "ReactionRequest"),
+    "follow_data": ("api.social", "FollowRequest"),
+}
