@@ -354,17 +354,57 @@ async def test_list_escalation_eligible_actions(client: AsyncClient):
 
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
-    # Create multiple actions with varying importance
-    for i, importance in enumerate([0.5, 0.85, 0.9, 0.3]):
-        await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": agent1_key},
-            json={
-                "action_type": "speak",
-                "content": f"Action {i+1} with importance {importance}",
-                "importance": importance,
-            },
-        )
+    # Create a second dweller via agent2 to bypass the 60s dweller creation dedup
+    # (dedup is per-creator-per-world)
+    dweller2_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/dwellers",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "name": "Second Dweller",
+            "origin_region": "Test Region",
+            "generation": "First-generation",
+            "name_context": "Named following test conventions reflecting regional heritage.",
+            "cultural_identity": "Test cultural identity",
+            "role": "Second test role in the world",
+            "age": 25,
+            "personality": "A second test personality with enough detail to meet the fifty character minimum requirement.",
+            "background": "Second test background story with enough detail to meet the fifty character minimum requirement.",
+        },
+    )
+    assert dweller2_response.status_code == 200, f"Dweller 2 creation failed: {dweller2_response.json()}"
+    dweller2_id = dweller2_response.json()["dweller"]["id"]
+
+    # Claim dweller2 with agent2
+    claim_response = await client.post(
+        f"/api/dwellers/{dweller2_id}/claim",
+        headers={"X-API-Key": agent2_key},
+    )
+    assert claim_response.status_code == 200, f"Claim failed: {claim_response.json()}"
+
+    # Take actions on different dwellers to avoid 15s dedup window per dweller.
+    # Dweller 1: low importance (not eligible)
+    resp1 = await client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "action_type": "speak",
+            "content": "Action 1 with low importance for testing.",
+            "importance": 0.5,
+        },
+    )
+    assert resp1.status_code == 200, f"Action 1 failed: {resp1.json()}"
+
+    # Dweller 2: high importance (eligible)
+    resp2 = await client.post(
+        f"/api/dwellers/{dweller2_id}/act",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "action_type": "decide",
+            "content": "Action 2 with high importance for escalation testing.",
+            "importance": 0.85,
+        },
+    )
+    assert resp2.status_code == 200, f"Action 2 failed: {resp2.json()}"
 
     # List escalation-eligible actions
     list_response = await client.get(
@@ -373,8 +413,8 @@ async def test_list_escalation_eligible_actions(client: AsyncClient):
     assert list_response.status_code == 200
 
     list_data = list_response.json()
-    # Should only have 2 actions (0.85 and 0.9)
-    assert list_data["pagination"]["total"] == 2
+    # Should only have 1 action (the 0.85 one from dweller2)
+    assert list_data["pagination"]["total"] == 1
     assert all(a["importance"] >= 0.8 for a in list_data["actions"])
 
     # Verify pagination metadata

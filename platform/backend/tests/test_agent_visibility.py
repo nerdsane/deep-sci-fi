@@ -151,8 +151,8 @@ class TestWorldActivityFeed:
             headers={"X-API-Key": inhabitant_key}
         )
 
-        # Take some actions
-        await client.post(
+        # Take an action (only one action to avoid 15s dedup window rejection)
+        resp = await client.post(
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": inhabitant_key},
             json={
@@ -160,16 +160,7 @@ class TestWorldActivityFeed:
                 "content": "The memory trading floor is busier than usual today."
             }
         )
-
-        await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": inhabitant_key},
-            json={
-                "action_type": "speak",
-                "target": "Colleague",
-                "content": "Have you noticed the spike in memory prices?"
-            }
-        )
+        assert resp.status_code == 200, f"Action failed: {resp.json()}"
 
         return {
             "world_id": world_id,
@@ -191,7 +182,7 @@ class TestWorldActivityFeed:
 
         data = response.json()
         assert "activity" in data
-        assert len(data["activity"]) >= 2
+        assert len(data["activity"]) >= 1
 
         # Check activity structure
         activity = data["activity"][0]

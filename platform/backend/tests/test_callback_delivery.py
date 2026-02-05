@@ -404,11 +404,11 @@ async def test_callback_payload_format(
 
     assert "event" in payload
     assert payload["event"] == "dweller_spoken_to"
-    assert "notification_id" in payload
-    assert "timestamp" in payload
-    assert "target_type" in payload
-    assert payload["target_type"] == "dweller"
-    assert "target_id" in payload
     assert "data" in payload
+    assert "notification_id" in payload["data"]
+    assert "timestamp" in payload["data"]
+    assert "target_type" in payload["data"]
+    assert payload["data"]["target_type"] == "dweller"
+    assert "target_id" in payload["data"]
     assert payload["data"]["from_dweller"] == "Test Speaker"
     assert payload["data"]["content"] == "Hello there!"

@@ -47,6 +47,7 @@ class TestGuidanceInResponses:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Guidance Test World",
                 "premise": "A test premise that is long enough to meet the minimum requirements for proposal creation",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -88,6 +89,7 @@ class TestGuidanceInResponses:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Dweller Guidance World",
                 "premise": "A test premise for dweller guidance testing that meets minimum requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -143,6 +145,7 @@ class TestGuidanceInResponses:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Action Guidance World",
                 "premise": "A test premise for action guidance testing that meets minimum requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -218,6 +221,7 @@ class TestPendingConfirmationTimeouts:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Timeout Test World",
                 "premise": "Test premise for timeout verification that meets requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -241,6 +245,7 @@ class TestPendingConfirmationTimeouts:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Medium Timeout World",
                 "premise": "Test premise for medium timeout testing that meets requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -308,6 +313,7 @@ class TestAspectGuidance:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Aspect Guidance World",
                 "premise": "Test premise for aspect guidance testing that meets requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
@@ -364,6 +370,7 @@ class TestValidationGuidance:
             "/api/proposals",
             headers={"X-API-Key": test_agent["api_key"]},
             json={
+                "name": "Validation Guidance World",
                 "premise": "Test premise for validation guidance that meets requirements",
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
