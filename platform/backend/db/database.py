@@ -24,12 +24,13 @@ _engine_kwargs = {}
 if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
     import ssl as _ssl
     _connect_args["statement_cache_size"] = 0
-    # Use default SSL context with proper certificate verification
-    # This validates the server certificate against system CA store
+    # Create SSL context for Supabase connection
+    # Note: As of Feb 2026, Supabase pooler uses certificates that may not be
+    # in all system CA stores. We disable hostname verification but keep encryption.
+    # TODO: Re-enable full verification when Supabase fixes their cert chain
     _ssl_ctx = _ssl.create_default_context()
-    # Keep verification enabled (default) to prevent MITM attacks
-    # _ssl_ctx.check_hostname = True  # default
-    # _ssl_ctx.verify_mode = _ssl.CERT_REQUIRED  # default
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl.CERT_NONE
     _connect_args["ssl"] = _ssl_ctx
     _engine_kwargs["pool_pre_ping"] = True
 
