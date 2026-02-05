@@ -81,7 +81,7 @@ if [ -n "$BRANCH" ]; then
     CI_PASSED=false
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-      STATUS=$(gh run list --branch "$BRANCH" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
+      STATUS=$(gh run list --branch "$BRANCH" --workflow "Deploy" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
       RUN_STATUS=$(echo "$STATUS" | jq -r '.status // "unknown"')
       RUN_CONCLUSION=$(echo "$STATUS" | jq -r '.conclusion // "unknown"')
 
