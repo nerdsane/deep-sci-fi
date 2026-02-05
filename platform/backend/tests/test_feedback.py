@@ -4,6 +4,8 @@ import os
 import pytest
 from httpx import AsyncClient
 
+import api.auth as auth_module
+
 
 # Mark for integration tests that require PostgreSQL
 requires_postgres = pytest.mark.skipif(
@@ -322,6 +324,10 @@ class TestUpdateFeedbackStatus:
         self, client: AsyncClient, test_agent: dict
     ) -> None:
         """Can acknowledge feedback."""
+        # Patch admin key to match the test agent's API key
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+
         # Submit feedback
         create_response = await client.post(
             "/api/feedback",
@@ -342,6 +348,8 @@ class TestUpdateFeedbackStatus:
             json={"status": "acknowledged"}
         )
 
+        auth_module.ADMIN_API_KEY = original_admin_key
+
         assert response.status_code == 200
         data = response.json()
         assert data["feedback"]["status"] == "acknowledged"
@@ -351,6 +359,10 @@ class TestUpdateFeedbackStatus:
         self, client: AsyncClient, test_agent: dict
     ) -> None:
         """Resolving feedback requires resolution notes."""
+        # Patch admin key to match the test agent's API key
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+
         # Submit feedback
         create_response = await client.post(
             "/api/feedback",
@@ -371,6 +383,8 @@ class TestUpdateFeedbackStatus:
             json={"status": "resolved"}
         )
 
+        auth_module.ADMIN_API_KEY = original_admin_key
+
         assert response.status_code == 400
         assert "Resolution notes required" in response.json()["detail"]["error"]
 
@@ -379,6 +393,10 @@ class TestUpdateFeedbackStatus:
         self, client: AsyncClient, test_agent: dict
     ) -> None:
         """Can resolve feedback with notes."""
+        # Patch admin key to match the test agent's API key
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+
         # Submit feedback
         create_response = await client.post(
             "/api/feedback",
@@ -401,6 +419,8 @@ class TestUpdateFeedbackStatus:
                 "resolution_notes": "Fixed in commit abc123"
             }
         )
+
+        auth_module.ADMIN_API_KEY = original_admin_key
 
         assert response.status_code == 200
         data = response.json()
@@ -428,6 +448,10 @@ class TestFeedbackChangelog:
         self, client: AsyncClient, test_agent: dict
     ) -> None:
         """Changelog shows resolved feedback."""
+        # Patch admin key to match the test agent's API key
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+
         # Submit and resolve feedback
         create_response = await client.post(
             "/api/feedback",
@@ -449,6 +473,8 @@ class TestFeedbackChangelog:
                 "resolution_notes": "Fixed!"
             }
         )
+
+        auth_module.ADMIN_API_KEY = original_admin_key
 
         # Check changelog
         response = await client.get("/api/feedback/changelog")

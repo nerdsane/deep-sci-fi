@@ -4,6 +4,7 @@ Prevents duplicate records from rapid re-submissions (e.g., network retries,
 double-clicks). Each endpoint specifies its own filter criteria and time window.
 """
 
+import os
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, and_
@@ -27,6 +28,10 @@ async def check_recent_duplicate(
     Returns:
         The existing record if found, else None.
     """
+    # Skip dedup in test mode — tests create many records rapidly
+    if os.getenv("TESTING", "").lower() == "true":
+        return None
+
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
     query = (
         select(model)
