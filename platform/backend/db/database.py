@@ -23,16 +23,66 @@ _connect_args = {}
 _engine_kwargs = {}
 if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
     import ssl as _ssl
+    import tempfile
+    from base64 import b64decode
+    from pathlib import Path
+
     _connect_args["statement_cache_size"] = 0
-    # Create SSL context for Supabase connection
-    # Note: As of Feb 2026, Supabase pooler uses certificates that may not be
-    # in all system CA stores. We disable hostname verification but keep encryption.
-    # TODO: Re-enable full verification when Supabase fixes their cert chain
-    _ssl_ctx = _ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = _ssl.CERT_NONE
-    _connect_args["ssl"] = _ssl_ctx
     _engine_kwargs["pool_pre_ping"] = True
+
+    # SSL Configuration for Supabase Pooler
+    # =====================================
+    # Supabase's connection pooler uses a CA certificate that's not in standard
+    # system CA stores. The PROPER fix is to configure the CA certificate.
+    #
+    # Options (in order of preference):
+    # 1. SUPABASE_CA_CERT env var: Base64-encoded or raw PEM certificate
+    # 2. Bundled cert file: platform/backend/certs/supabase-ca.crt
+    # 3. Fallback: Disable verification (NOT RECOMMENDED for production)
+
+    _ca_cert = os.getenv("SUPABASE_CA_CERT", "")
+    _cert_file = Path(__file__).parent.parent / "certs" / "supabase-ca.crt"
+    _temp_cert_file = None
+
+    if _ca_cert:
+        # Option 1: CA cert from environment variable
+        try:
+            # Try base64 decode first
+            if not _ca_cert.startswith("-----BEGIN"):
+                _ca_cert = b64decode(_ca_cert).decode("utf-8")
+
+            # Write to temp file for ssl context
+            _temp_cert_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".crt", delete=False
+            )
+            _temp_cert_file.write(_ca_cert)
+            _temp_cert_file.close()
+
+            _ssl_ctx = _ssl.create_default_context(cafile=_temp_cert_file.name)
+            _connect_args["ssl"] = _ssl_ctx
+            logger.info("SSL: Using CA certificate from SUPABASE_CA_CERT env var")
+        except Exception as e:
+            logger.warning(f"SSL: Failed to parse SUPABASE_CA_CERT: {e}")
+            _ca_cert = ""  # Fall through to other options
+
+    if not _ca_cert and _cert_file.exists():
+        # Option 2: Bundled certificate file
+        _ssl_ctx = _ssl.create_default_context(cafile=str(_cert_file))
+        _connect_args["ssl"] = _ssl_ctx
+        logger.info(f"SSL: Using bundled CA certificate from {_cert_file}")
+
+    if "ssl" not in _connect_args:
+        # Option 3: Fallback - disable verification (with warning)
+        logger.warning(
+            "SSL: No CA certificate configured for Supabase. "
+            "Disabling certificate verification. "
+            "To fix: set SUPABASE_CA_CERT env var or add certs/supabase-ca.crt. "
+            "Download cert from Supabase Dashboard > Database Settings > SSL Configuration."
+        )
+        _ssl_ctx = _ssl.create_default_context()
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = _ssl.CERT_NONE
+        _connect_args["ssl"] = _ssl_ctx
 
 engine = create_async_engine(
     DATABASE_URL,

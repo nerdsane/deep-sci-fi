@@ -215,29 +215,45 @@ The **Stop hook** is the real enforcement — it physically blocked me from leav
 
 ### 4.4 The Proper Fix
 
-The current code includes documentation explaining the WHY:
+**The real fix is to configure Supabase's CA certificate, not disable verification.**
+
+Supabase's pooler uses a CA certificate that's not in standard system CA stores. The solution:
+
+1. **Download the CA certificate** from Supabase Dashboard > Database Settings > SSL Configuration
+2. **Configure it** via environment variable or bundled file
+
+The updated code supports three options (in order of preference):
 
 ```python
-_connect_args = {}
-_engine_kwargs = {}
-if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
-    import ssl as _ssl
-    _connect_args["statement_cache_size"] = 0
-    # Create SSL context for Supabase connection
-    # Note: As of Feb 2026, Supabase pooler uses certificates that may not be
-    # in all system CA stores. We disable hostname verification but keep encryption.
-    # TODO: Re-enable full verification when Supabase fixes their cert chain
-    _ssl_ctx = _ssl.create_default_context()
+# Option 1: CA cert from environment variable (SUPABASE_CA_CERT)
+if _ca_cert:
+    _ssl_ctx = _ssl.create_default_context(cafile=_temp_cert_file.name)
+    _connect_args["ssl"] = _ssl_ctx
+    logger.info("SSL: Using CA certificate from SUPABASE_CA_CERT env var")
+
+# Option 2: Bundled certificate file (certs/supabase-ca.crt)
+elif _cert_file.exists():
+    _ssl_ctx = _ssl.create_default_context(cafile=str(_cert_file))
+    _connect_args["ssl"] = _ssl_ctx
+
+# Option 3: Fallback - disable verification (with warning)
+else:
+    logger.warning("SSL: No CA certificate configured. Disabling verification.")
     _ssl_ctx.check_hostname = False
     _ssl_ctx.verify_mode = _ssl.CERT_NONE
-    _connect_args["ssl"] = _ssl_ctx
-    _engine_kwargs["pool_pre_ping"] = True
+```
+
+**Deployment setup (Railway):**
+```bash
+# Download cert from Supabase dashboard, then:
+railway variables set SUPABASE_CA_CERT="$(cat prod-ca-2021.crt | base64)"
 ```
 
 Key points:
-- **Connection is still encrypted** — we just skip certificate verification
-- **This is intentional** — documented with context and TODO
-- **Specific to Supabase** — only applies when connecting to pooler
+- **Full SSL verification** when CA certificate is configured
+- **Graceful fallback** with warning if not configured (for development)
+- **Clear logging** indicates which SSL mode is active
+- **No manual TODO** — the fix is now production-ready
 
 ---
 
