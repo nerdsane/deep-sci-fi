@@ -1,0 +1,9 @@
+# Logfire Read Token for this project
+# Copy this file to .claude/logfire-token (gitignored) and add your token
+#
+# Get a read token from: Logfire Dashboard → Project Settings → Read Tokens
+#
+# This file is read by the logfire-mcp-project wrapper to provide
+# project-specific observability access.
+
+YOUR_LOGFIRE_READ_TOKEN_HERE
