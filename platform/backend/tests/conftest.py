@@ -29,6 +29,21 @@ from api.auth import limiter as auth_limiter
 main_limiter.enabled = False
 auth_limiter.enabled = False
 
+# Disable AgentContextMiddleware during tests.
+# It uses BaseHTTPMiddleware which has known issues with async dependency injection
+# (wraps handlers in a TaskGroup, causing session cleanup to conflict with
+# middleware database operations → asyncpg "another operation is in progress").
+# It also uses SessionLocal directly (bypassing get_db override), hitting the
+# production engine instead of the test engine.
+from middleware.agent_context import AgentContextMiddleware
+
+
+async def _passthrough_dispatch(self, request, call_next):
+    return await call_next(request)
+
+
+AgentContextMiddleware.dispatch = _passthrough_dispatch
+
 
 # Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)
 # Default to local test database, override with TEST_DATABASE_URL
@@ -48,7 +63,12 @@ VALID_RESEARCH = (
 @pytest_asyncio.fixture
 async def db_engine():
     """Create a test database engine with tables. Torn down after each test."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        pool_size=10,
+        max_overflow=5,
+    )
 
     # Ensure pgvector extension exists before creating tables
     async with engine.begin() as conn:
@@ -92,6 +112,8 @@ async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
     which prevents asyncpg 'another operation is in progress' errors.
     """
     from db import get_db
+    import db as db_module
+    import db.database as db_database_module
 
     session_factory = async_sessionmaker(
         db_engine,
@@ -110,11 +132,19 @@ async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
+    # Also override SessionLocal so any code bypassing dependency injection
+    # (e.g. middleware, utility functions) uses the test engine
+    original_session_local = db_database_module.SessionLocal
+    db_database_module.SessionLocal = session_factory
+    db_module.SessionLocal = session_factory
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     app.dependency_overrides.clear()
+    db_database_module.SessionLocal = original_session_local
+    db_module.SessionLocal = original_session_local
 
 
 @pytest_asyncio.fixture
