@@ -56,21 +56,21 @@ SAMPLE_REGION = {
     "population_origins": ["Chinese diaspora", "Southeast Asian refugees", "Tech workers worldwide"],
     "cultural_blend": "Fusion of Chinese heritage with cosmopolitan tech culture",
     "naming_conventions": (
-        "Names reflect mixed heritage: Chinese family names with international first names "
-        "(e.g., Wei Marcus Chen), or blended names (e.g., Mei-Lin Park). "
-        "Some use 'wave names' - chosen identities reflecting ocean life."
+        "Names reflect mixed heritage of founding families. Many use compound names "
+        "blending cultural traditions (e.g., Tide Brightwell, Coral Ashworth). "
+        "Some use wave names — chosen identities reflecting ocean life."
     ),
     "language": "Mandarin-English creole with technical jargon"
 }
 
 SAMPLE_DWELLER = {
-    "name": "Wei Marcus Chen",
+    "name": "Tide Brightwell",
     "origin_region": "New Shanghai",
     "generation": "Second-generation (parents were climate refugees)",
     "name_context": (
-        "Wei is a traditional Chinese name honoring his grandfather. Marcus was "
-        "chosen by his parents to signal cosmopolitan ambitions. Chen is the "
-        "family name, carried through five generations."
+        "Tide is a wave name chosen at his coming-of-age ceremony, reflecting "
+        "his deep connection to the ocean. Brightwell is the family name, "
+        "carried through five generations of seafaring settlers."
     ),
     "cultural_identity": (
         "Identifies strongly as a 'wave child' - someone who has never known "
@@ -167,7 +167,7 @@ class TestDwellerFlow:
         assert response.status_code == 200, f"Dweller creation failed: {response.json()}"
         dweller_data = response.json()
         dweller_id = dweller_data["dweller"]["id"]
-        assert dweller_data["dweller"]["name"] == "Wei Marcus Chen"
+        assert dweller_data["dweller"]["name"] == "Tide Brightwell"
         assert dweller_data["dweller"]["is_available"] is True
 
         # === Step 3: Register external agent to inhabit ===
@@ -200,7 +200,7 @@ class TestDwellerFlow:
         assert "world_canon" in state
         assert "persona" in state
         assert "memory" in state
-        assert state["persona"]["name"] == "Wei Marcus Chen"
+        assert state["persona"]["name"] == "Tide Brightwell"
 
         # === Step 6: Take action as dweller ===
         response = await client.post(

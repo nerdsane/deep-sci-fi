@@ -231,9 +231,9 @@ class TestAspectFlow:
                         "maritime traditions and tech startup energy"
                     ),
                     "naming_conventions": (
-                        "Names reflect multiethnic background: Malay, Chinese, Indian, "
+                        "Names reflect multiethnic background: Malay, Southeast Asian, "
                         "Western names all common. Tech handles used professionally. "
-                        "Examples: Priya Lim, Marcus Tan, Fatimah-3 (handle)."
+                        "Examples: Beacon Holloway, Marcus Tan, Fatimah-3 (handle)."
                     ),
                     "language": "English primary, with Singlish and technical jargon"
                 },
@@ -564,10 +564,10 @@ class TestAspectFlow:
             f"/api/dwellers/worlds/{world_id}/dwellers",
             headers={"X-API-Key": creator_key},
             json={
-                "name": "Chen Wei",
+                "name": "Edmund Whitestone",
                 "origin_region": "Singapore Nexus",
                 "generation": "Second-gen",
-                "name_context": "Chinese-Singaporean naming tradition, Wei means 'great'",
+                "name_context": "Whitestone is a founding family name from the early maritime settlement era",
                 "cultural_identity": "Maritime logistics family, three generations in shipping",
                 "role": "Autonomous Fleet Coordinator",
                 "age": 34,
@@ -685,7 +685,7 @@ class TestAspectFlow:
             assert "dweller_name" in action
             assert "content" in action
             assert "created_at" in action
-            assert action["dweller_name"] == "Chen Wei"
+            assert action["dweller_name"] == "Edmund Whitestone"
 
         # Verify the content mentions the gray market
         action_contents = [a["content"] for a in detail["inspiring_actions"]]
