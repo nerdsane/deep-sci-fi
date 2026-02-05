@@ -85,6 +85,7 @@ platform/playwright-report/
 .env*.local
 
 .slop
+docs/slop/
 
 docs/papers/
 
