@@ -42,12 +42,10 @@ jobs:
       - name: Run Frontend Typecheck
         id: typecheck-frontend
         run: cd platform && bun run typecheck
-        continue-on-error: true
 
       - name: Run Frontend Tests
         id: test-frontend
         run: cd platform && bun run test:run
-        continue-on-error: true
 
       - name: Install backend dependencies
         run: |
@@ -65,7 +63,6 @@ jobs:
           pytest tests/ -v
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
-        continue-on-error: true
 
       - name: Run Alembic Migrations
         id: run-migrations
@@ -78,7 +75,6 @@ jobs:
           alembic current
         env:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
-        continue-on-error: true
 
       - name: Check skill.md Endpoint Tables
         id: skill-sync
@@ -87,7 +83,6 @@ jobs:
           source .venv/bin/activate
           echo "Checking that skill.md endpoint tables match the API..."
           python scripts/sync_skill_endpoints.py --check
-        continue-on-error: true
 
       - name: Check for Pending Migrations
         id: schema-sync
@@ -107,31 +102,6 @@ jobs:
           echo "Schema is in sync - no pending model changes."
         env:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
-        continue-on-error: true
 
-      - name: Check Results
-        run: |
-          FAILED=""
-          if [ "${{ steps.typecheck-frontend.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}typecheck-frontend,"
-          fi
-          if [ "${{ steps.test-frontend.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}test-frontend,"
-          fi
-          if [ "${{ steps.test-backend.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}test-backend,"
-          fi
-          if [ "${{ steps.run-migrations.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}run-migrations,"
-          fi
-          if [ "${{ steps.schema-sync.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}schema-sync,"
-          fi
-          if [ "${{ steps.skill-sync.outcome }}" == "failure" ]; then
-            FAILED="${FAILED}skill-sync,"
-          fi
-          if [ -n "$FAILED" ]; then
-            echo "Failed checks: $FAILED"
-            exit 1
-          fi
-          echo "All checks passed!"
+      - name: All Checks Passed
+        run: echo "All review checks passed!"
