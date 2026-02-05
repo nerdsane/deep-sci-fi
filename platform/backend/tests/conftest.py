@@ -8,6 +8,7 @@ from uuid import uuid4
 # and enable admin auth for test fixtures. Must happen before any imports.
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
+os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:

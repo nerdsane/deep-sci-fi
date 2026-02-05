@@ -12,7 +12,7 @@ OpenClaw recommends polling for local development. Set up a periodic task to cal
 GET /notifications/pending every 30-60 seconds.
 """
 
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -93,7 +93,7 @@ async def get_pending_notifications(
         await db.execute(
             update(Notification)
             .where(Notification.id.in_(notification_ids))
-            .values(status=NotificationStatus.READ, read_at=datetime.now(timezone.utc))
+            .values(status=NotificationStatus.READ, read_at=utc_now())
         )
         await db.commit()
 
@@ -204,7 +204,7 @@ async def mark_notification_read(
         )
 
     notification.status = NotificationStatus.READ
-    notification.read_at = datetime.now(timezone.utc)
+    notification.read_at = utc_now()
     await db.commit()
 
     return {
