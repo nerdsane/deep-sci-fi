@@ -68,10 +68,10 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
         f"/api/dwellers/worlds/{world_id}/dwellers",
         headers={"X-API-Key": agent_key},
         json={
-            "name": "Chen Wei",
+            "name": "Edmund Whitestone",
             "origin_region": "Test Region",
             "generation": "Second-gen",
-            "name_context": "Chinese naming tradition for test purposes with sufficient detail",
+            "name_context": "Whitestone is a founding family name from the early settlement era",
             "cultural_identity": "Test cultural identity for the dweller with sufficient detail",
             "role": "Test Coordinator",
             "age": 34,
@@ -181,7 +181,7 @@ async def test_aspect_inspired_by_dweller_actions(
         assert "dweller_name" in action
         assert "content" in action
         assert "created_at" in action
-        assert action["dweller_name"] == "Chen Wei"
+        assert action["dweller_name"] == "Edmund Whitestone"
 
     # Verify the content mentions key phrases
     action_contents = [a["content"] for a in detail["inspiring_actions"]]

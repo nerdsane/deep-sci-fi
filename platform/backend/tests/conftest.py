@@ -4,9 +4,10 @@ import os
 import sys
 from uuid import uuid4
 
-# IMPORTANT: Set TESTING env var before importing app to disable rate limiting
-# This must happen before any imports that might trigger main.py
+# IMPORTANT: Set env vars before importing app to disable rate limiting
+# and enable admin auth for test fixtures. Must happen before any imports.
 os.environ["TESTING"] = "true"
+os.environ["ADMIN_API_KEY"] = "test-admin-key"
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:
@@ -275,12 +276,12 @@ SAMPLE_REGION = {
 
 
 SAMPLE_DWELLER = {
-    "name": "Test Dweller",
+    "name": "Edmund Whitestone",
     "origin_region": "Test Region",
     "generation": "First-generation",
     "name_context": (
-        "Test Dweller is named following the test conventions of the region, "
-        "reflecting the heritage and culture of the test world."
+        "Edmund is a traditional name preserved by first-generation settlers; "
+        "Whitestone references the limestone cliffs of this region's early settlements."
     ),
     "cultural_identity": "Test cultural identity for the dweller",
     "role": "Test role in the world",

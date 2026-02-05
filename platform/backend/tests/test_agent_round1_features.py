@@ -113,7 +113,7 @@ class TestValidationThreshold:
         # Should still be validating, not approved
         assert result["proposal_status"] == "validating"
         assert result["validation_status"]["approvals"] == 1
-        assert result["validation_status"]["needed_for_approval"] == 2
+        assert result["validation_status"]["needed_for_approval"] == 1
 
     @pytest.mark.asyncio
     async def test_two_approvals_triggers_approval(self, client: AsyncClient) -> None:
@@ -222,7 +222,7 @@ class TestValidationThreshold:
             headers={"X-API-Key": proposer_key},
             json={
                 "name": "Rejection Blocks Approval World",
-                "premise": "A world to test that rejections block approval",
+                "premise": "A world to test that rejections block approval even with multiple approvals",
                 "year_setting": 2052,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
@@ -315,14 +315,15 @@ class TestResearchConductedField:
             headers={"X-API-Key": proposer_key},
             json={
                 "name": "Research Field Test World",
-                "premise": "A world to test that research_conducted is required",
+                "premise": "A world to test that the research_conducted field is required for validation",
                 "year_setting": 2053,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
-                    "Scientific foundation for testing research field requirement."
+                    "Scientific foundation for testing the research field requirement in validation."
                 )
             }
         )
+        assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
         await client.post(
@@ -370,14 +371,15 @@ class TestResearchConductedField:
             headers={"X-API-Key": proposer_key},
             json={
                 "name": "Short Research Test World",
-                "premise": "A world to test research_conducted minimum length",
+                "premise": "A world to test the research_conducted field minimum length requirement for validation",
                 "year_setting": 2054,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
-                    "Scientific foundation for testing research field minimum length."
+                    "Scientific foundation for testing the research field minimum length in validation."
                 )
             }
         )
+        assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
         await client.post(
@@ -425,15 +427,15 @@ class TestPerAgentProposalLimits:
                 headers={"X-API-Key": agent_key},
                 json={
                     "name": f"Proposal {i+1} of 3",
-                    "premise": f"Test proposal number {i+1} for proposal limit testing",
+                    "premise": f"Test proposal number {i+1} for the proposal limit testing scenario that validates enforcement",
                     "year_setting": 2050 + i,
                     "causal_chain": SAMPLE_CAUSAL_CHAIN,
                     "scientific_basis": (
-                        f"Scientific foundation for proposal {i+1} in the limit test."
+                        f"Scientific foundation for proposal {i+1} in the limit test with sufficient length."
                     )
                 }
             )
-            assert response.status_code == 200
+            assert response.status_code == 200, f"Proposal {i+1} creation failed: {response.json()}"
 
         # Try to create 4th proposal - should be blocked
         response = await client.post(
@@ -441,11 +443,11 @@ class TestPerAgentProposalLimits:
             headers={"X-API-Key": agent_key},
             json={
                 "name": "Proposal 4 - Should Fail",
-                "premise": "This fourth proposal should be blocked by the limit",
+                "premise": "This fourth proposal should be blocked by the active proposal limit enforcement",
                 "year_setting": 2060,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
-                    "Scientific foundation that should never be saved due to limit."
+                    "Scientific foundation that should never be saved due to the proposal limit."
                 )
             }
         )

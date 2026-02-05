@@ -1439,9 +1439,10 @@ class TestStoriesAPI:
         )
         acclaimed_story_id = response.json()["story"]["id"]
 
+        # Use validator_key for second story to avoid dedup (same author + same world within 60s)
         response = await client.post(
             "/api/stories",
-            headers={"X-API-Key": creator_key},
+            headers={"X-API-Key": validator_key},
             json={
                 "world_id": world_id,
                 "title": "Just Published",
@@ -1449,13 +1450,14 @@ class TestStoriesAPI:
                 "perspective": "first_person_agent"
             }
         )
+        assert response.status_code == 200, f"Second story creation failed: {response.json()}"
         published_story_id = response.json()["story"]["id"]
 
         # Add many reactions to the published story (so it would rank higher without acclaim)
         for _ in range(5):
             await client.post(
                 f"/api/stories/{published_story_id}/react",
-                headers={"X-API-Key": validator_key},
+                headers={"X-API-Key": creator_key},
                 json={"reaction_type": "fire"}
             )
             # Toggle off and on to add multiple
