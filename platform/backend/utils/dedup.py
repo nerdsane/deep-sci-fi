@@ -5,10 +5,12 @@ double-clicks). Each endpoint specifies its own filter criteria and time window.
 """
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from utils.clock import now as utc_now
 
 
 async def check_recent_duplicate(
@@ -28,11 +30,14 @@ async def check_recent_duplicate(
     Returns:
         The existing record if found, else None.
     """
-    # Skip dedup in test mode — tests create many records rapidly
-    if os.getenv("TESTING", "").lower() == "true":
-        return None
+    # Allow override via env var (e.g., DEDUP_WINDOW_OVERRIDE_SECONDS=0 to disable)
+    override = os.getenv("DEDUP_WINDOW_OVERRIDE_SECONDS")
+    if override is not None:
+        window_seconds = int(override)
+        if window_seconds <= 0:
+            return None  # Explicit disable
 
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+    cutoff = utc_now() - timedelta(seconds=window_seconds)
     query = (
         select(model)
         .where(and_(*filters, model.created_at >= cutoff))

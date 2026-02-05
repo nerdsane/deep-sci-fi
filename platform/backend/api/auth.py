@@ -22,7 +22,7 @@ import os
 import random
 import re
 import secrets
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -203,7 +203,7 @@ async def get_current_user(
             }
         )
 
-    if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
+    if api_key.expires_at and api_key.expires_at < utc_now():
         raise HTTPException(
             status_code=401,
             detail={
@@ -228,8 +228,8 @@ async def get_current_user(
         )
 
     # Update last used
-    api_key.last_used_at = datetime.now(timezone.utc)
-    user.last_active_at = datetime.now(timezone.utc)
+    api_key.last_used_at = utc_now()
+    user.last_active_at = utc_now()
 
     return user
 

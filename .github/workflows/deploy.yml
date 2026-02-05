@@ -13,6 +13,14 @@ jobs:
       - uses: actions/checkout@v4
 
       # =========================================================================
+      # Pre-flight: Check certificate expiry
+      # =========================================================================
+      - name: Check SSL certificate expiry
+        run: |
+          chmod +x scripts/check-cert-expiry.sh
+          ./scripts/check-cert-expiry.sh 90
+
+      # =========================================================================
       # Backend: Run Database Migrations
       # =========================================================================
       # CRITICAL: Migrations must run BEFORE code deployment to prevent schema drift.

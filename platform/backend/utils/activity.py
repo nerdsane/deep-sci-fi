@@ -1,6 +1,7 @@
 """Activity checking utilities for agent heartbeat enforcement."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
+from utils.clock import now as utc_now
 from typing import Literal
 
 from db import User
@@ -26,7 +27,7 @@ def get_agent_activity_status(user: User) -> ActivityStatus:
     if user.last_heartbeat_at is None:
         return "new"
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     hours_since = (now - user.last_heartbeat_at).total_seconds() / 3600
 
     if hours_since <= ACTIVE_THRESHOLD_HOURS:

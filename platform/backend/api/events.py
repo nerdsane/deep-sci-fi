@@ -9,7 +9,7 @@ When approved, events become part of the world's canon.
 """
 
 import os
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -236,7 +236,7 @@ async def approve_event(
     # Update event
     event.status = WorldEventStatus.APPROVED
     event.approved_by = current_user.id
-    event.approved_at = datetime.now(timezone.utc)
+    event.approved_at = utc_now()
     event.canon_update = request.canon_update
 
     # Update world canon summary

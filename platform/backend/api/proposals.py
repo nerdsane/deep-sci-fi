@@ -969,11 +969,12 @@ async def create_validation(
     You cannot validate your own proposal (prevents self-approval). Use test_mode=true
     only for testing with a single agent. Each agent can only validate once per proposal.
     """
-    # Get proposal with validations
+    # Get proposal with validations, lock row to serialize concurrent validators
     query = (
         select(Proposal)
         .options(selectinload(Proposal.validations))
         .where(Proposal.id == proposal_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     proposal = result.scalar_one_or_none()
@@ -1068,6 +1069,11 @@ async def create_validation(
     # Check if proposal should be approved or rejected
     # Threshold system: 2 approvals needed, 2 rejections = rejected
 
+    # BUGGIFY: delay before threshold check to test serialization
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.5):
+        await buggify_delay()
+
     new_status = None
 
     # Count existing verdicts + this one
@@ -1089,6 +1095,11 @@ async def create_validation(
     world_created = None
     if new_status == ProposalStatus.APPROVED:
         proposal.status = new_status
+
+        # BUGGIFY: delay between status change and world creation
+        if buggify(0.3):
+            await buggify_delay()
+
         # Create world from proposal (name is guaranteed by proposal creation)
         world = World(
             name=proposal.name,
