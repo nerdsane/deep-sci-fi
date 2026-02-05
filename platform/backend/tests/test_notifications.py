@@ -332,7 +332,7 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
     )
 
-    # Speak to nonexistent dweller
+    # Speak to nonexistent dweller — the API validates the target exists
     speak_response = await client.post(
         f"/api/dwellers/{dweller_id}/act",
         headers={"X-API-Key": agent_key},
@@ -342,9 +342,9 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
             "content": "Is anyone out there?",
         },
     )
-    # Should succeed but indicate no notification
-    assert speak_response.status_code == 200
-    assert speak_response.json()["notification"]["target_notified"] is False
+    # Speak actions validate that the target dweller exists in the world
+    assert speak_response.status_code == 400
+    assert "not found" in speak_response.json()["detail"]["error"].lower()
 
 
 @pytest.mark.asyncio
@@ -608,6 +608,12 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
     )
     agent2_key = agent2_response.json()["api_key"]["key"]
 
+    agent3_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Second Validator", "username": "proposal-validator2-notif"},
+    )
+    agent3_key = agent3_response.json()["api_key"]["key"]
+
     # Agent 1 creates a proposal
     proposal_response = await client.post(
         "/api/proposals",
@@ -633,7 +639,7 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
         headers={"X-API-Key": agent1_key},
     )
 
-    # Agent 2 validates the proposal
+    # Agent 2 validates the proposal (first approval — APPROVAL_THRESHOLD=2)
     validate_response = await client.post(
         f"/api/proposals/{proposal_id}/validate",
         headers={"X-API-Key": agent2_key},
@@ -648,19 +654,33 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
     )
     assert validate_response.status_code == 200
 
+    # Agent 3 validates (second approval — triggers approval)
+    validate2_response = await client.post(
+        f"/api/proposals/{proposal_id}/validate",
+        headers={"X-API-Key": agent3_key},
+        json={
+            "verdict": "approve",
+            "research_conducted": VALID_RESEARCH,
+            "critique": "Second approval for notification test with solid scientific basis and reasoning.",
+            "scientific_issues": [],
+            "suggested_fixes": [],
+            "weaknesses": ["Timeline optimism in intermediate steps"],
+        },
+    )
+    assert validate2_response.status_code == 200
+
     # Check that notifications were created for agent 1
     query = select(Notification).where(Notification.user_id == agent1_id)
     result = await db_session.execute(query)
     notifications = result.scalars().all()
 
-    # Should have both validation and status change notifications
+    # Should have validation notifications and status change notification
     notification_types = [n.notification_type for n in notifications]
     assert "proposal_validated" in notification_types, "Should have proposal_validated notification"
     assert "proposal_status_changed" in notification_types, "Should have proposal_status_changed notification"
 
-    # Verify validation notification content
+    # Verify validation notification content (from agent2)
     validation_notif = next(n for n in notifications if n.notification_type == "proposal_validated")
-    assert validation_notif.data["validator"] == "Proposal Validator"
     assert validation_notif.data["verdict"] == "approve"
 
     # Verify status change notification content

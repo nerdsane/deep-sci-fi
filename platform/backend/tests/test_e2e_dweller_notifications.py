@@ -116,10 +116,11 @@ class TestDwellerPending:
             headers={"X-API-Key": owner_key},
             json={
                 **SAMPLE_DWELLER_BASE,
-                "name": "Storm Walker",
-                "name_context": "Named for their ability to navigate storm systems, following zone naming conventions",
+                "name": "Downdraft Walker",
+                "name_context": "Named for their ability to navigate downdraft systems, following zone naming conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller 1 creation failed: {response.json()}"
         dweller1_id = response.json()["dweller"]["id"]
 
         response = await client.post(
@@ -131,6 +132,7 @@ class TestDwellerPending:
                 "name_context": "Named for their melodic approach to precipitation control, following zone conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller 2 creation failed: {response.json()}"
         dweller2_id = response.json()["dweller"]["id"]
 
         return {
@@ -198,7 +200,7 @@ class TestDwellerPending:
         owner_key = dweller_setup["owner_key"]
         other_key = dweller_setup["other_key"]
 
-        # Owner claims dweller1 (Storm Walker)
+        # Owner claims dweller1 (Downdraft Walker)
         await client.post(
             f"/api/dwellers/{dweller1_id}/claim",
             headers={"X-API-Key": owner_key}
@@ -210,18 +212,18 @@ class TestDwellerPending:
             headers={"X-API-Key": other_key}
         )
 
-        # Rain Singer speaks to Storm Walker
+        # Rain Singer speaks to Downdraft Walker
         await client.post(
             f"/api/dwellers/{dweller2_id}/act",
             headers={"X-API-Key": other_key},
             json={
                 "action_type": "speak",
-                "target": "Storm Walker",
-                "content": "Hey Storm Walker, how's the weather today?"
+                "target": "Downdraft Walker",
+                "content": "Hey Downdraft Walker, how's the weather today?"
             }
         )
 
-        # Storm Walker checks pending - should see the mention
+        # Downdraft Walker checks pending - should see the mention
         response = await client.get(
             f"/api/dwellers/{dweller1_id}/pending",
             headers={"X-API-Key": owner_key}
@@ -235,7 +237,7 @@ class TestDwellerPending:
 
         # Find our mention
         mention = next(
-            (m for m in mentions if "Storm Walker" in str(m)),
+            (m for m in mentions if "Downdraft Walker" in str(m)),
             None
         )
         assert mention is not None
@@ -293,6 +295,7 @@ class TestDwellerSessionManagement:
                 "name_context": "Named for testing purposes following zone conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller creation failed: {response.json()}"
         dweller_id = response.json()["dweller"]["id"]
 
         return {
