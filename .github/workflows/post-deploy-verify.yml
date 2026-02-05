@@ -1,0 +1,163 @@
+name: Post-Deploy Verification
+
+# Runs AFTER deploy workflow completes on main
+# This catches issues from PR merges that bypass Claude Code hooks
+
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment to propagate
+        run: sleep 60  # Give Railway/Vercel time to deploy
+
+      - name: Verify Backend Health
+        id: backend
+        run: |
+          MAX_WAIT=600
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.deep-sci-fi.world/health" --max-time 10 || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend healthy"
+              echo "status=healthy" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Backend not ready (HTTP $STATUS)... waiting"
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+          echo "status=unhealthy" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Verify Frontend Health
+        id: frontend
+        run: |
+          MAX_WAIT=600
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://deep-sci-fi.world" --max-time 10 || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              CONTENT=$(curl -s "https://deep-sci-fi.world" --max-time 10 || echo "")
+              if echo "$CONTENT" | grep -q "Deep Sci-Fi\|deep-sci-fi\|__NEXT"; then
+                echo "Frontend healthy"
+                echo "status=healthy" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+            echo "Frontend not ready (HTTP $STATUS)... waiting"
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+          echo "status=unhealthy" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Run Smoke Test
+        id: smoke
+        run: |
+          chmod +x scripts/smoke-test.sh
+          if bash scripts/smoke-test.sh "https://api.deep-sci-fi.world"; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check Logfire for 500 Errors
+        id: logfire
+        env:
+          LOGFIRE_READ_TOKEN: ${{ secrets.LOGFIRE_READ_TOKEN }}
+        run: |
+          if [ -z "$LOGFIRE_READ_TOKEN" ]; then
+            echo "LOGFIRE_READ_TOKEN not set — skipping"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Query for 500 errors in last 30 minutes
+          RESULT=$(curl -s --max-time 30 \
+            -H "Authorization: Bearer $LOGFIRE_READ_TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST "https://logfire-api.pydantic.dev/v1/query" \
+            -d '{
+              "sql": "SELECT COUNT(*) as error_count FROM records WHERE http_response_status_code >= 500",
+              "min_timestamp": "'$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ)'"
+            }' || echo '{"error": "failed"}')
+
+          if echo "$RESULT" | grep -q '"error"'; then
+            echo "Could not query Logfire"
+            echo "status=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          ERROR_COUNT=$(echo "$RESULT" | jq -r '.data[0].error_count // 0')
+          echo "Found $ERROR_COUNT server errors"
+
+          if [ "$ERROR_COUNT" != "0" ]; then
+            echo "status=errors_found" >> $GITHUB_OUTPUT
+            echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "status=clean" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backend = '${{ steps.backend.outputs.status }}';
+            const frontend = '${{ steps.frontend.outputs.status }}';
+            const smoke = '${{ steps.smoke.outputs.status }}';
+            const logfire = '${{ steps.logfire.outputs.status }}';
+            const errorCount = '${{ steps.logfire.outputs.error_count }}' || '0';
+
+            let body = `## Production Deployment Verification FAILED
+
+            The deploy to \`main\` completed but verification checks failed.
+
+            ### Results
+            | Check | Status |
+            |-------|--------|
+            | Backend Health | ${backend === 'healthy' ? '✅' : '❌'} ${backend} |
+            | Frontend Health | ${frontend === 'healthy' ? '✅' : '❌'} ${frontend} |
+            | Smoke Test | ${smoke === 'passed' ? '✅' : '❌'} ${smoke} |
+            | Logfire (500 errors) | ${logfire === 'clean' ? '✅' : '❌'} ${logfire} ${errorCount !== '0' ? `(${errorCount} errors)` : ''} |
+
+            ### Action Required
+            1. Check the [workflow run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+            2. If there are 500 errors, query Logfire for details
+            3. Fix the issue and deploy again
+
+            ### Triggered by
+            - Commit: ${context.sha.substring(0, 7)}
+            - Workflow: Deploy → main
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 PRODUCTION VERIFICATION FAILED',
+              body: body,
+              labels: ['bug', 'critical', 'production']
+            });
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ Production deployment verified successfully"
+          echo ""
+          echo "All checks passed:"
+          echo "  - Backend: healthy"
+          echo "  - Frontend: healthy"
+          echo "  - Smoke test: passed"
+          echo "  - Logfire: no 500 errors"
