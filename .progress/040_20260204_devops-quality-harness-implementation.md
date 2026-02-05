@@ -8,11 +8,20 @@
 
 ## Phase 0: Foundation ✅
 
-### Task 0.1: Install Logfire MCP — BLOCKED
-- [ ] Run `claude mcp add logfire -e LOGFIRE_READ_TOKEN=... -- uvx logfire-mcp@latest`
-- [ ] Verify with `find_exceptions(60)` query
+### Task 0.1: Install Logfire MCP — READY (needs user token)
+- [x] Created `~/.local/bin/logfire-mcp-project` wrapper for per-project tokens
+- [x] Created `.claude/logfire-token.example` template
+- [x] Added `.claude/logfire-token` to `.gitignore`
 - [x] CLAUDE.md directive added (in Post-Deploy Verification section)
-- **BLOCKED:** Need LOGFIRE_READ_TOKEN from Logfire dashboard (Project Settings → Read Tokens). Existing tokens are write/ingest only.
+- [ ] User needs to: create read token in Logfire dashboard, save to `.claude/logfire-token`
+- [ ] User needs to: add to `~/.claude.json` mcpServers:
+  ```json
+  "logfire": {
+    "command": "/Users/seshendranalla/.local/bin/logfire-mcp-project",
+    "args": []
+  }
+  ```
+- [ ] Verify with `find_exceptions(60)` query
 
 ### Task 0.2: Create Post-Push Verification Hook ✅
 - [x] Created `.claude/hooks/post-push-verify.sh`
@@ -124,6 +133,7 @@
 - TLA+ deemed unnecessary — Hypothesis + actual code gives ~80% of value with 0% spec maintenance
 - claude-code-action uses API billing (not Max subscription)
 - Hook coordination uses marker files in `/tmp/claude-deepsci/` — simple and reliable
+- Logfire read tokens are PROJECT-scoped (not org-level) — solved with `logfire-mcp-project` wrapper that reads token from `.claude/logfire-token` in project root
 
 ---
 
