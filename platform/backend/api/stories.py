@@ -16,7 +16,8 @@ REVIEW SYSTEM:
 - 2 ACCLAIM votes (with author responses) → ACCLAIMED (higher ranking)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -1100,7 +1101,7 @@ async def respond_to_review(
     # Record the response
     review.author_responded = True
     review.author_response = request.response
-    review.author_responded_at = datetime.now(timezone.utc)
+    review.author_responded_at = utc_now()
 
     # Check if story should now become acclaimed
     transitioned = await maybe_transition_to_acclaimed(story, db)
@@ -1217,7 +1218,7 @@ async def revise_story(
             "message": "No changes detected - story unchanged.",
         }
 
-    story.updated_at = datetime.now(timezone.utc)
+    story.updated_at = utc_now()
 
     return {
         "success": True,

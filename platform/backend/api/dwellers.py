@@ -70,7 +70,8 @@ SESSION_WARNING_HOURS = 20
 
 def _get_session_info(dweller: Dweller) -> dict[str, Any]:
     """Get session timeout info for a dweller."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import timedelta
+    from utils.clock import now as utc_now
 
     if not dweller.last_action_at:
         return {
@@ -81,7 +82,7 @@ def _get_session_info(dweller: Dweller) -> dict[str, Any]:
             "timeout_imminent": False,
         }
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     hours_since = (now - dweller.last_action_at).total_seconds() / 3600
     hours_until = max(0, SESSION_TIMEOUT_HOURS - hours_since)
 
@@ -803,7 +804,11 @@ async def claim_dweller(
 
     The dweller must be available (not already claimed by another agent).
     """
-    dweller = await db.get(Dweller, dweller_id)
+    # Use FOR UPDATE to prevent TOCTOU race: two agents reading is_available=True
+    result = await db.execute(
+        select(Dweller).where(Dweller.id == dweller_id).with_for_update()
+    )
+    dweller = result.scalar_one_or_none()
 
     if not dweller:
         raise HTTPException(
@@ -814,6 +819,11 @@ async def claim_dweller(
                 "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
             }
         )
+
+    # BUGGIFY: widen window between lock acquisition and mutation
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.5):
+        await buggify_delay()
 
     if not dweller.is_available:
         raise HTTPException(
@@ -846,10 +856,10 @@ async def claim_dweller(
         )
 
     # Claim the dweller
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
     dweller.inhabited_by = current_user.id
     dweller.is_available = False
-    dweller.last_action_at = datetime.now(timezone.utc)  # Start session timer
+    dweller.last_action_at = utc_now()  # Start session timer
 
     await db.commit()
 
@@ -1229,12 +1239,12 @@ async def take_action(
     await db.flush()  # Get the action ID
 
     # Create episodic memory (FULL history, never truncated)
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
 
     episodic_memory = {
         "id": str(uuid_module.uuid4()),
         "action_id": str(action.id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": utc_now().isoformat(),
         "type": request.action_type,
         "content": request.content,
         "target": request.target,
@@ -1254,7 +1264,7 @@ async def take_action(
                 "history": []
             }
         rel_memories[request.target]["history"].append({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": utc_now().isoformat(),
             "event": f"{request.action_type}: {request.content[:100]}",
             "sentiment": "neutral"  # Could be inferred or specified
         })
@@ -1266,7 +1276,7 @@ async def take_action(
         dweller.specific_location = new_specific_location
 
     # Update session activity timestamp
-    dweller.last_action_at = datetime.now(timezone.utc)
+    dweller.last_action_at = utc_now()
 
     # Notify target dweller if this is a speak action
     notification_sent = False
@@ -1595,9 +1605,9 @@ async def update_relationship(
 
     # Add event if provided
     if request.add_event:
-        from datetime import datetime, timezone
+        from utils.clock import now as utc_now
         event_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": utc_now().isoformat(),
             "event": request.add_event.get("event", ""),
             "sentiment": request.add_event.get("sentiment", "neutral"),
         }
@@ -1734,7 +1744,7 @@ async def create_summary(
             }
         )
 
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
 
     summary_entry = {
         "id": str(uuid_module.uuid4()),
@@ -1742,7 +1752,7 @@ async def create_summary(
         "summary": request.summary,
         "key_events": request.key_events,
         "emotional_arc": request.emotional_arc,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": utc_now().isoformat(),
         "created_by": str(current_user.id),
     }
 
@@ -1978,8 +1988,9 @@ async def get_pending_events(
 
     # Also check for actions directed at this dweller (speech)
     # Look for actions where target matches this dweller's name (case-insensitive)
-    from datetime import datetime, timedelta, timezone
-    since_last_check = datetime.now(timezone.utc) - timedelta(hours=24)
+    from datetime import timedelta
+    from utils.clock import now as utc_now
+    since_last_check = utc_now() - timedelta(hours=24)
 
     # Preload the dweller relationship to avoid N+1 queries when getting speaker names
     actions_query = (
@@ -2027,7 +2038,7 @@ async def get_pending_events(
     if mark_read and notifications:
         for n in notifications:
             n.status = NotificationStatus.READ
-            n.read_at = datetime.now(timezone.utc)
+            n.read_at = utc_now()
         await db.commit()
 
     return {

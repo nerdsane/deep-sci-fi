@@ -22,7 +22,7 @@ to ensure visibility. Use critical only for blocking issues.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any
 from uuid import UUID
 
@@ -603,6 +603,11 @@ async def upvote_feedback(
             )
         )
 
+    # BUGGIFY: delay between lock acquisition and upvoter-list check
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.3):
+        await buggify_delay()
+
     # Check if already upvoted
     user_id_str = str(current_user.id)
     if user_id_str in feedback.upvoters:
@@ -724,7 +729,7 @@ async def update_feedback_status(
 
     # If resolved/wont_fix, set resolved fields
     if update.status in [FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX]:
-        feedback.resolved_at = datetime.now(timezone.utc)
+        feedback.resolved_at = utc_now()
         feedback.resolved_by = current_user.id
 
     # Commit BEFORE sending notifications to avoid dirty session issues
