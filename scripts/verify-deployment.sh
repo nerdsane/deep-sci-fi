@@ -20,6 +20,10 @@ ENVIRONMENT="${1:-staging}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Get GitHub repo from origin remote (not upstream)
+# gh defaults to 'upstream' if it exists, but we want 'origin' for deployments
+GITHUB_REPO=$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null | sed -E 's|.*github.com[:/]||; s|\.git$||' || echo "")
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -81,7 +85,7 @@ if [ -n "$BRANCH" ]; then
     CI_PASSED=false
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-      STATUS=$(gh run list --branch "$BRANCH" --workflow "Deploy" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
+      STATUS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --workflow "Deploy" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
       RUN_STATUS=$(echo "$STATUS" | jq -r '.status // "unknown"')
       RUN_CONCLUSION=$(echo "$STATUS" | jq -r '.conclusion // "unknown"')
 
