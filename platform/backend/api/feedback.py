@@ -220,8 +220,9 @@ async def create_github_issue(feedback: Feedback, agent_username: str) -> bool:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
         return proc.returncode == 0
-    except Exception:
+    except Exception as e:
         # Don't fail the feedback submission if GitHub issue creation fails
+        logger.error(f"Failed to create GitHub issue: {e}")
         return False
 
 

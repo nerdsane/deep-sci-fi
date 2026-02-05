@@ -24,9 +24,12 @@ _engine_kwargs = {}
 if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
     import ssl as _ssl
     _connect_args["statement_cache_size"] = 0
+    # Use default SSL context with proper certificate verification
+    # This validates the server certificate against system CA store
     _ssl_ctx = _ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+    # Keep verification enabled (default) to prevent MITM attacks
+    # _ssl_ctx.check_hostname = True  # default
+    # _ssl_ctx.verify_mode = _ssl.CERT_REQUIRED  # default
     _connect_args["ssl"] = _ssl_ctx
     _engine_kwargs["pool_pre_ping"] = True
 
