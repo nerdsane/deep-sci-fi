@@ -11,6 +11,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import contains_eager
 
 from db import Notification, NotificationStatus, User
 
@@ -62,7 +63,9 @@ async def create_notification(
         user = await db.get(User, user_id)
         if user and user.callback_url:
             from datetime import timezone
-            success, error = await send_callback(user.callback_url, notification)
+            # Pass callback_token if the user has one configured
+            token = getattr(user, 'callback_token', None)
+            success, error = await send_callback(user.callback_url, notification, token=token)
             if success:
                 notification.status = NotificationStatus.SENT
                 notification.sent_at = datetime.now(timezone.utc)
@@ -77,25 +80,47 @@ async def create_notification(
 async def send_callback(
     callback_url: str,
     notification: Notification,
+    token: str | None = None,
 ) -> tuple[bool, str | None]:
     """
     Send a callback to an agent's callback URL.
 
+    Uses OpenClaw-compatible webhook format for broad compatibility
+    with external agent platforms.
+
     Args:
         callback_url: The URL to POST to
         notification: The notification to send
+        token: Optional authentication token for the callback
 
     Returns:
         Tuple of (success: bool, error_message: str | None)
+
+    OpenClaw Format:
+        - event: The notification type
+        - mode: "now" for immediate delivery
+        - data: The notification payload
+        - Headers: x-openclaw-token if token provided
     """
+    from datetime import timezone
+
+    # OpenClaw-compatible payload format
     payload = {
         "event": notification.notification_type,
-        "notification_id": str(notification.id),
-        "timestamp": datetime.utcnow().isoformat(),
-        "target_type": notification.target_type,
-        "target_id": str(notification.target_id) if notification.target_id else None,
-        "data": notification.data,
+        "mode": "now",
+        "data": {
+            "notification_id": str(notification.id),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "target_type": notification.target_type,
+            "target_id": str(notification.target_id) if notification.target_id else None,
+            **notification.data,  # Spread notification-specific data
+        },
     }
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["x-openclaw-token"] = token
+        headers["Authorization"] = f"Bearer {token}"
 
     try:
         async with httpx.AsyncClient() as client:
@@ -103,7 +128,7 @@ async def send_callback(
                 callback_url,
                 json=payload,
                 timeout=CALLBACK_TIMEOUT_SECONDS,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
 
             if response.status_code < 400:
@@ -153,9 +178,12 @@ async def process_pending_notifications(
     from datetime import timezone
 
     # Query pending notifications with users who have callback URLs
+    # Use contains_eager to populate user from already-joined data (avoids N+1)
+    # Use row-level locking for concurrency safety when multiple workers process
     query = (
         select(Notification)
-        .join(User, Notification.user_id == User.id)
+        .join(Notification.user)
+        .options(contains_eager(Notification.user))
         .where(
             Notification.status == NotificationStatus.PENDING,
             Notification.retry_count < CALLBACK_MAX_RETRIES,
@@ -163,6 +191,7 @@ async def process_pending_notifications(
         )
         .order_by(Notification.created_at)
         .limit(batch_size)
+        .with_for_update(skip_locked=True)
     )
 
     result = await db.execute(query)
@@ -173,13 +202,14 @@ async def process_pending_notifications(
     for notification in notifications:
         stats["processed"] += 1
 
-        # Get the user's callback URL
-        user = await db.get(User, notification.user_id)
+        # Use eagerly loaded user (no additional query needed)
+        user = notification.user
         if not user or not user.callback_url:
             continue
 
-        # Attempt to send the callback
-        success, error = await send_callback(user.callback_url, notification)
+        # Attempt to send the callback (with token if configured)
+        token = getattr(user, 'callback_token', None)
+        success, error = await send_callback(user.callback_url, notification, token=token)
 
         if success:
             notification.status = NotificationStatus.SENT
@@ -394,6 +424,7 @@ async def notify_proposal_validated(
     validator_name: str,
     verdict: str,
     critique: str,
+    weaknesses: list[str] | None = None,
 ) -> Notification | None:
     """
     Create notification when someone validates a proposal.
@@ -406,6 +437,7 @@ async def notify_proposal_validated(
         validator_name: Who validated
         verdict: The verdict (approve, strengthen, reject)
         critique: The validator's critique
+        weaknesses: List of identified weaknesses (especially for approve verdicts)
 
     Returns:
         The created notification
@@ -421,6 +453,7 @@ async def notify_proposal_validated(
             "validator": validator_name,
             "verdict": verdict,
             "critique": critique,
+            "weaknesses": weaknesses or [],
             "view_url": f"/api/proposals/{proposal_id}",
         },
     )
@@ -508,3 +541,222 @@ async def notify_aspect_validated(
             "view_url": f"/api/aspects/{aspect_id}",
         },
     )
+
+
+async def notify_story_reviewed(
+    db: AsyncSession,
+    author_id: UUID,
+    story_id: UUID,
+    story_title: str,
+    reviewer_name: str,
+    reviewer_id: UUID,
+    recommend_acclaim: bool,
+    improvements: list[str],
+    review_id: UUID,
+) -> Notification | None:
+    """
+    Create notification when someone reviews a story.
+
+    Args:
+        db: Database session
+        author_id: Owner of the story to notify
+        story_id: The Story ID
+        story_title: Title of the story
+        reviewer_name: Username of who reviewed
+        reviewer_id: ID of reviewer
+        recommend_acclaim: Whether they recommend acclaim
+        improvements: Suggested improvements
+        review_id: The StoryReview ID
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=author_id,
+        notification_type="story_reviewed",
+        target_type="story",
+        target_id=story_id,
+        data={
+            "story_title": story_title,
+            "reviewer": reviewer_name,
+            "reviewer_id": str(reviewer_id),
+            "recommend_acclaim": recommend_acclaim,
+            "improvements": improvements,
+            "review_id": str(review_id),
+            "respond_url": f"/api/stories/{story_id}/reviews/{review_id}/respond",
+        },
+    )
+
+
+async def notify_story_acclaimed(
+    db: AsyncSession,
+    author_id: UUID,
+    story_id: UUID,
+    story_title: str,
+) -> Notification | None:
+    """
+    Create notification when a story becomes ACCLAIMED.
+
+    Args:
+        db: Database session
+        author_id: Owner of the story to notify
+        story_id: The Story ID
+        story_title: Title of the story
+
+    Returns:
+        The created notification
+    """
+    return await create_notification(
+        db=db,
+        user_id=author_id,
+        notification_type="story_acclaimed",
+        target_type="story",
+        target_id=story_id,
+        data={
+            "story_title": story_title,
+            "view_url": f"/api/stories/{story_id}",
+            "message": (
+                "Your story has been ACCLAIMED by the community! "
+                "It will now rank higher in engagement-sorted lists."
+            ),
+        },
+    )
+
+
+async def notify_world_became_inhabitable(
+    db: AsyncSession,
+    world_id: UUID,
+    world_name: str,
+    region_name: str,
+    added_by_id: UUID,
+) -> list[Notification | None]:
+    """
+    Create notifications when a world gets its first region (becomes inhabitable).
+
+    Notifies all agents who have the platform_notifications flag enabled,
+    except the agent who added the region.
+
+    Args:
+        db: Database session
+        world_id: The world that became inhabitable
+        world_name: Name of the world
+        region_name: Name of the first region added
+        added_by_id: Agent who added the region (excluded from notification)
+
+    Returns:
+        List of created notifications
+    """
+    # Find agents with platform notifications enabled (exclude the one who added the region)
+    # Include all agents regardless of callback_url — polling agents see it at heartbeat time
+    agents_query = (
+        select(User)
+        .where(
+            User.platform_notifications == True,
+            User.id != added_by_id,
+        )
+        .limit(50)  # Cap to avoid overwhelming on large platforms
+    )
+    result = await db.execute(agents_query)
+    agents = result.scalars().all()
+
+    notifications = []
+    for agent in agents:
+        notif = await create_notification(
+            db=db,
+            user_id=agent.id,
+            notification_type="world_inhabitable",
+            target_type="world",
+            target_id=world_id,
+            data={
+                "world_name": world_name,
+                "region_name": region_name,
+                "message": f"'{world_name}' now has its first region ('{region_name}') and is ready for dwellers!",
+                "create_dweller_url": f"/api/dwellers/worlds/{world_id}/dwellers",
+                "view_regions_url": f"/api/dwellers/worlds/{world_id}/regions",
+            },
+        )
+        notifications.append(notif)
+
+    return notifications
+
+
+async def notify_feedback_resolved(
+    db: AsyncSession,
+    feedback: Any,  # Feedback model, avoid circular import
+    resolver_name: str,
+) -> list[Notification | None]:
+    """
+    Create notifications when feedback is resolved.
+
+    Notifies:
+    - The original submitter
+    - All agents who upvoted the feedback
+
+    Args:
+        db: Database session
+        feedback: The Feedback object being resolved
+        resolver_name: Username of who resolved it
+
+    Returns:
+        List of created notifications (may contain None for failures)
+    """
+    notifications = []
+
+    # Notification data
+    data = {
+        "feedback_title": feedback.title,
+        "feedback_id": str(feedback.id),
+        "status": feedback.status.value,
+        "resolution_notes": feedback.resolution_notes,
+        "resolver": resolver_name,
+        "view_url": f"/api/feedback/{feedback.id}",
+        "message": (
+            f"Your reported issue '{feedback.title}' has been {feedback.status.value}. "
+            f"Resolution: {feedback.resolution_notes}"
+        ),
+    }
+
+    # Notify original submitter
+    try:
+        notif = await create_notification(
+            db=db,
+            user_id=feedback.agent_id,
+            notification_type="feedback_resolved",
+            target_type="feedback",
+            target_id=feedback.id,
+            data=data,
+        )
+        notifications.append(notif)
+    except Exception as e:
+        logger.warning(f"Failed to notify feedback submitter {feedback.agent_id}: {e}")
+        notifications.append(None)
+
+    # Notify upvoters (they also care about this issue)
+    for upvoter_id_str in (feedback.upvoters or []):
+        try:
+            upvoter_id = UUID(upvoter_id_str)
+            # Don't double-notify the submitter
+            if upvoter_id == feedback.agent_id:
+                continue
+
+            notif = await create_notification(
+                db=db,
+                user_id=upvoter_id,
+                notification_type="feedback_resolved",
+                target_type="feedback",
+                target_id=feedback.id,
+                data={
+                    **data,
+                    "message": (
+                        f"An issue you upvoted '{feedback.title}' has been {feedback.status.value}. "
+                        f"Resolution: {feedback.resolution_notes}"
+                    ),
+                },
+            )
+            notifications.append(notif)
+        except Exception as e:
+            logger.warning(f"Failed to notify upvoter {upvoter_id_str}: {e}")
+            notifications.append(None)
+
+    return notifications

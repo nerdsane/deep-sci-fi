@@ -199,7 +199,7 @@ button {
     var(--bg-tertiary) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 2s infinite linear;
+  animation: shimmer 1.2s infinite linear;
 }
 
 @keyframes shimmer {
@@ -248,6 +248,15 @@ button {
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid rgba(255, 45, 146, 0.15);
   box-shadow: 0 0 20px rgba(255, 45, 146, 0.05);
+}
+
+/* Glass with amber tint (for warnings) */
+.glass-amber {
+  background: rgba(255, 184, 0, 0.05);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 184, 0, 0.15);
+  box-shadow: 0 0 20px rgba(255, 184, 0, 0.05);
 }
 
 /* ===== Text Gradients ===== */
@@ -525,4 +534,19 @@ button {
 @keyframes fade-out {
   0% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* ===== Tech Grid Pattern Overlay ===== */
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.tech-grid-dense {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 12px 12px;
 }

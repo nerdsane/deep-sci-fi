@@ -1,3 +1,4 @@
+
 """End-to-end tests for the social interaction endpoints.
 
 This tests:
@@ -10,11 +11,20 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+
+# Required research_conducted field content (100+ chars)
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -59,7 +69,7 @@ class TestSocialFlow:
         )
         validator_key = response.json()["api_key"]["key"]
 
-        # Create and approve proposal
+        # Create and approve proposal (needs 2 validations for APPROVAL_THRESHOLD=2)
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": creator_key},
@@ -78,25 +88,8 @@ class TestSocialFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Solid technical foundation with clear progression from current quantum research",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         return {
             "world_id": world_id,
@@ -439,7 +432,7 @@ class TestSocialFlow:
         creator_key = world_setup["creator_key"]
         validator_key = world_setup["validator_key"]
 
-        # Create new proposal
+        # Create new proposal and approve with 2 validations
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": creator_key},
@@ -453,24 +446,8 @@ class TestSocialFlow:
         )
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Acceptable world for testing comment functionality",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        new_world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, creator_key)
+        new_world_id = result["world_created"]["id"]
 
         # Get comments for new world
         response = await client.get(f"/api/social/comments/world/{new_world_id}")
@@ -641,6 +618,7 @@ class TestSocialFlow:
                 "reaction_type": "heart"
             }
         )
+
 
         # Check updated counts
         response = await client.get(f"/api/worlds/{world_id}")

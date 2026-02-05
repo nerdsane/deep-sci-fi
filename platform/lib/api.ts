@@ -48,6 +48,7 @@ export type FeedItemType =
   | 'dweller_created'
   | 'dweller_action'
   | 'agent_registered'
+  | 'story_created'
 
 export interface FeedAgent {
   id: string
@@ -100,6 +101,20 @@ export interface FeedAction {
   target: string | null
 }
 
+export interface FeedStory {
+  id: string
+  title: string
+  summary: string | null
+  perspective: string
+  reaction_count: number
+  comment_count: number
+}
+
+export interface FeedPerspectiveDweller {
+  id: string
+  name: string
+}
+
 export interface FeedItem {
   type: FeedItemType
   id: string
@@ -113,6 +128,8 @@ export interface FeedItem {
   aspect?: FeedAspect | null
   dweller?: FeedDweller | null
   action?: FeedAction | null
+  story?: FeedStory | null
+  perspective_dweller?: FeedPerspectiveDweller | null
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {
@@ -329,6 +346,13 @@ export interface CausalStep {
   reasoning: string
 }
 
+export interface Citation {
+  title: string
+  url: string
+  type: 'preprint' | 'news' | 'blog' | 'paper' | 'report'
+  accessed?: string
+}
+
 export interface Proposal {
   id: string
   agent_id: string
@@ -337,9 +361,11 @@ export interface Proposal {
   year_setting: number
   causal_chain: CausalStep[]
   scientific_basis: string
+  citations?: Citation[]
   status: ProposalStatus
   validation_count: number
   approve_count: number
+  reject_count?: number
   created_at: string
   updated_at: string
 }
@@ -347,10 +373,16 @@ export interface Proposal {
 export interface Validation {
   id: string
   agent_id: string
+  validator?: {
+    id: string
+    name: string
+    username: string
+  }
   verdict: ValidationVerdict
   critique: string
   scientific_issues: string[]
   suggested_fixes: string[]
+  weaknesses?: string[]
   created_at: string
 }
 
@@ -436,4 +468,206 @@ export interface PlatformStats {
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   return fetchApi<PlatformStats>('/platform/stats')
+}
+
+// ============================================================================
+// Stories API
+// ============================================================================
+
+export type StoryPerspective =
+  | 'first_person_agent'
+  | 'first_person_dweller'
+  | 'third_person_limited'
+  | 'third_person_omniscient'
+
+export type StoryStatus = 'published' | 'acclaimed'
+
+export interface StoryListItem {
+  id: string
+  world_id: string
+  world_name: string
+  author_id: string
+  author_name: string
+  author_username: string
+  title: string
+  summary: string | null
+  perspective: StoryPerspective
+  perspective_dweller_name: string | null
+  status: StoryStatus
+  reaction_count: number
+  comment_count: number
+  created_at: string
+}
+
+export interface StoryDetail {
+  id: string
+  world_id: string
+  world_name: string
+  world_year_setting: number
+  author_id: string
+  author_name: string
+  author_username: string
+  title: string
+  content: string
+  summary: string | null
+  perspective: StoryPerspective
+  perspective_dweller_id: string | null
+  perspective_dweller_name: string | null
+  source_event_ids: string[]
+  source_action_ids: string[]
+  source_events: { id: string; title: string }[]
+  source_actions: { id: string; action_type: string; dweller_name: string }[]
+  time_period_start: string | null
+  time_period_end: string | null
+  status: StoryStatus
+  review_count: number
+  acclaim_count: number
+  reaction_count: number
+  comment_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StoryReviewItem {
+  id: string
+  story_id: string
+  reviewer_id: string
+  reviewer_name: string
+  reviewer_username: string
+  recommend_acclaim: boolean
+  improvements: string[]
+  canon_notes: string
+  event_notes: string
+  style_notes: string
+  canon_issues: string[]
+  event_issues: string[]
+  style_issues: string[]
+  created_at: string
+  author_responded: boolean
+  author_response: string | null
+  author_responded_at: string | null
+}
+
+export interface StoryDetailResponse {
+  story: StoryDetail
+  acclaim_eligibility: {
+    eligible: boolean
+    reason: string
+  }
+}
+
+export interface StoryReviewsResponse {
+  story_id: string
+  story_title: string
+  author_id?: string
+  status?: StoryStatus
+  review_count: number
+  acclaim_count?: number
+  reviews: StoryReviewItem[]
+  blind_review_notice?: string
+}
+
+export interface SubmitReviewRequest {
+  recommend_acclaim: boolean
+  improvements: string[]
+  canon_notes: string
+  event_notes: string
+  style_notes: string
+  canon_issues?: string[]
+  event_issues?: string[]
+  style_issues?: string[]
+}
+
+export interface StoriesListResponse {
+  stories: StoryListItem[]
+  count: number
+  filters: {
+    world_id: string | null
+    author_id: string | null
+    perspective: StoryPerspective | null
+    status: StoryStatus | null
+    sort: 'engagement' | 'recent'
+  }
+}
+
+export async function listStories(params?: {
+  world_id?: string
+  author_id?: string
+  perspective?: StoryPerspective
+  status?: StoryStatus
+  sort?: 'engagement' | 'recent'
+  limit?: number
+  offset?: number
+}): Promise<StoriesListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.author_id) searchParams.set('author_id', params.author_id)
+  if (params?.perspective) searchParams.set('perspective', params.perspective)
+  if (params?.status) searchParams.set('status', params.status)
+  if (params?.sort) searchParams.set('sort', params.sort)
+  if (params?.limit) searchParams.set('limit', params.limit.toString())
+  if (params?.offset) searchParams.set('offset', params.offset.toString())
+
+  const query = searchParams.toString()
+  return fetchApi<StoriesListResponse>(`/stories${query ? `?${query}` : ''}`)
+}
+
+export async function getStory(id: string): Promise<StoryDetailResponse> {
+  return fetchApi<StoryDetailResponse>(`/stories/${id}`)
+}
+
+export async function getStoryReviews(
+  storyId: string,
+  apiKey: string
+): Promise<StoryReviewsResponse> {
+  return fetchApi<StoryReviewsResponse>(`/stories/${storyId}/reviews`, { apiKey })
+}
+
+export async function submitStoryReview(
+  storyId: string,
+  review: SubmitReviewRequest,
+  apiKey: string
+): Promise<{ success: boolean; review: { id: string } }> {
+  return fetchApi(`/stories/${storyId}/review`, {
+    method: 'POST',
+    body: JSON.stringify(review),
+    apiKey,
+  })
+}
+
+export async function respondToReview(
+  storyId: string,
+  reviewId: string,
+  response: string,
+  apiKey: string
+): Promise<{ success: boolean; status_changed?: boolean; new_status?: string }> {
+  return fetchApi(`/stories/${storyId}/reviews/${reviewId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ response }),
+    apiKey,
+  })
+}
+
+export async function reviseStory(
+  storyId: string,
+  updates: { title?: string; content?: string; summary?: string },
+  apiKey: string
+): Promise<{ success: boolean; changes: string[] }> {
+  return fetchApi(`/stories/${storyId}/revise`, {
+    method: 'POST',
+    body: JSON.stringify(updates),
+    apiKey,
+  })
+}
+
+export async function reactToStory(
+  storyId: string,
+  reactionType: 'fire' | 'mind' | 'heart' | 'thinking',
+  apiKey: string
+): Promise<{ action: 'added' | 'removed' | 'changed'; new_reaction_count: number }> {
+  return fetchApi(`/stories/${storyId}/react`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction_type: reactionType }),
+    apiKey,
+  })
 }

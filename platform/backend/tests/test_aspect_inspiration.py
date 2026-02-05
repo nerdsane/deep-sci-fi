@@ -1,3 +1,4 @@
+
 """E2E tests for aspect inspiration from dweller actions (soft canon → hard canon).
 
 Tests the flow:
@@ -10,8 +11,14 @@ Tests the flow:
 import uuid
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from tests.conftest import approve_proposal
 
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
+)
 
 SAMPLE_CAUSAL_CHAIN = [
     {"year": 2030, "event": "Test event 1", "reasoning": "Test reasoning 1"},
@@ -37,25 +44,9 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
     assert proposal_response.status_code == 200
     proposal_id = proposal_response.json()["id"]
 
-    # Submit proposal
-    await client.post(
-        f"/api/proposals/{proposal_id}/submit",
-        headers={"X-API-Key": agent_key},
-    )
-
-    # Self-validate (test mode)
-    validation_response = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
-        headers={"X-API-Key": agent_key},
-        json={
-            "verdict": "approve",
-            "critique": "Test approval with sufficient length for validation.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-        },
-    )
-    assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"
-    world_id = validation_response.json()["world_created"]["id"]
+    # Submit and approve proposal (requires 2 validations to meet APPROVAL_THRESHOLD)
+    result = await approve_proposal(client, proposal_id, agent_key)
+    world_id = result["world_created"]["id"]
 
     # Add region (required before creating dwellers)
     region_response = await client.post(
@@ -77,10 +68,10 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
         f"/api/dwellers/worlds/{world_id}/dwellers",
         headers={"X-API-Key": agent_key},
         json={
-            "name": "Chen Wei",
+            "name": "Edmund Whitestone",
             "origin_region": "Test Region",
             "generation": "Second-gen",
-            "name_context": "Chinese naming tradition for test purposes with sufficient detail",
+            "name_context": "Whitestone is a founding family name from the early settlement era",
             "cultural_identity": "Test cultural identity for the dweller with sufficient detail",
             "role": "Test Coordinator",
             "age": 34,
@@ -105,7 +96,7 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
 
 @pytest.mark.asyncio
 async def test_aspect_inspired_by_dweller_actions(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test creating an aspect inspired by dweller actions (soft canon → hard canon)."""
     # Create agent
@@ -128,9 +119,8 @@ async def test_aspect_inspired_by_dweller_actions(
         f"/api/dwellers/{dweller_id}/act",
         headers={"X-API-Key": agent_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "Everyone knows about the gray market. When official credits run low, people trade favors.",
-            "target": "passing worker",
         },
     )
     assert action1_response.status_code == 200
@@ -140,9 +130,8 @@ async def test_aspect_inspired_by_dweller_actions(
         f"/api/dwellers/{dweller_id}/act",
         headers={"X-API-Key": agent_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "The morning market at dock 7. Before dawn, after the automated systems rest.",
-            "target": "curious journalist",
         },
     )
     assert action2_response.status_code == 200
@@ -190,7 +179,7 @@ async def test_aspect_inspired_by_dweller_actions(
         assert "dweller_name" in action
         assert "content" in action
         assert "created_at" in action
-        assert action["dweller_name"] == "Chen Wei"
+        assert action["dweller_name"] == "Edmund Whitestone"
 
     # Verify the content mentions key phrases
     action_contents = [a["content"] for a in detail["inspiring_actions"]]
@@ -203,7 +192,7 @@ async def test_aspect_inspired_by_dweller_actions(
 
 @pytest.mark.asyncio
 async def test_aspect_with_invalid_action_ids(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that invalid action IDs are rejected."""
     # Create agent
@@ -239,7 +228,7 @@ async def test_aspect_with_invalid_action_ids(
 
 @pytest.mark.asyncio
 async def test_aspect_with_action_from_wrong_world(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that action IDs from a different world are rejected."""
     # Create two agents
@@ -270,9 +259,8 @@ async def test_aspect_with_action_from_wrong_world(
         f"/api/dwellers/{dweller1_id}/act",
         headers={"X-API-Key": agent1_key},
         json={
-            "action_type": "speak",
+            "action_type": "observe",
             "content": "This action belongs to world 1",
-            "target": "someone",
         },
     )
     assert action_response.status_code == 200
@@ -297,7 +285,7 @@ async def test_aspect_with_action_from_wrong_world(
 
 @pytest.mark.asyncio
 async def test_aspect_without_inspired_actions_works(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
 ):
     """Test that aspects can still be created without inspired_by_actions."""
     # Create agent
@@ -325,6 +313,7 @@ async def test_aspect_without_inspired_actions_works(
             # No inspired_by_actions field
         },
     )
+
     assert response.status_code == 200
     aspect_id = response.json()["aspect"]["id"]
 

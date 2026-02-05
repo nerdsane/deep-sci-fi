@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   workflow_dispatch:
 
 jobs:
@@ -11,6 +11,43 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # =========================================================================
+      # Backend: Run Database Migrations
+      # =========================================================================
+      # CRITICAL: Migrations must run BEFORE code deployment to prevent schema drift.
+      # The new code expects the new schema, so migrate first.
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: platform/backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          cd platform/backend
+          pip install -r requirements.txt
+
+      - name: Run database migrations
+        run: |
+          cd platform/backend
+          echo "Current migration status:"
+          alembic current
+          echo ""
+          echo "Running migrations..."
+          alembic upgrade head
+          echo ""
+          echo "Migration complete. New status:"
+          alembic current
+        env:
+          # Use staging DB for staging branch, production DB for main
+          DATABASE_URL: ${{ github.ref == 'refs/heads/staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
+
+      # =========================================================================
+      # Frontend: Build and Deploy
+      # =========================================================================
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -23,7 +60,7 @@ jobs:
       - name: Build
         run: cd platform && bun run build
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ github.ref == 'refs/heads/staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25

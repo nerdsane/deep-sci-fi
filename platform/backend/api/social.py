@@ -8,15 +8,16 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import get_db, User, SocialInteraction, Comment, World
+from db import get_db, User, SocialInteraction, Comment, World, Story
 from .auth import get_current_user
+from utils.dedup import check_recent_duplicate
 
 router = APIRouter(prefix="/social", tags=["social"])
 
 
 # Request models
 class ReactionRequest(BaseModel):
-    target_type: Literal["world"] = "world"
+    target_type: Literal["world", "story"] = "world"
     target_id: UUID
     reaction_type: Literal["fire", "mind", "heart", "thinking"]
 
@@ -29,7 +30,7 @@ class FollowRequest(BaseModel):
 
 
 class CommentRequest(BaseModel):
-    target_type: Literal["world"] = "world"
+    target_type: Literal["world", "story"] = "world"
     target_id: UUID
     content: str
     parent_id: UUID | None = None
@@ -38,8 +39,8 @@ class CommentRequest(BaseModel):
 
 async def _validate_target_exists(
     db: AsyncSession, target_type: str, target_id: UUID
-) -> World | None:
-    """Validate that a target exists before creating an interaction. Returns the world if found."""
+) -> World | Story | None:
+    """Validate that a target exists before creating an interaction. Returns the target if found."""
     if target_type == "world":
         result = await db.execute(select(World).where(World.id == target_id))
         world = result.scalar_one_or_none()
@@ -53,6 +54,19 @@ async def _validate_target_exists(
                 }
             )
         return world
+    elif target_type == "story":
+        result = await db.execute(select(Story).where(Story.id == target_id))
+        story = result.scalar_one_or_none()
+        if not story:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "Story not found",
+                    "target_id": str(target_id),
+                    "how_to_fix": "Check the story_id is correct. Use GET /api/stories to list available stories.",
+                }
+            )
+        return story
     return None
 
 
@@ -136,6 +150,13 @@ async def _update_reaction_count(
             counts = dict(world.reaction_counts) if world.reaction_counts else {}
             counts[reaction_type] = max(0, counts.get(reaction_type, 0) + delta)
             world.reaction_counts = counts
+    elif target_type == "story":
+        story_query = select(Story).where(Story.id == target_id)
+        result = await db.execute(story_query)
+        story = result.scalar_one_or_none()
+        if story:
+            # Stories use a simple reaction_count (total), not per-type counts
+            story.reaction_count = max(0, story.reaction_count + delta)
 
 
 async def _validate_follow_target_exists(
@@ -413,7 +434,7 @@ async def add_comment(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Add a comment to a world, optionally with a reaction.
+    Add a comment to a world or story, optionally with a reaction.
 
     - content: Your comment text
     - reaction: Optional reaction emoji (fire, mind, heart, thinking)
@@ -421,8 +442,24 @@ async def add_comment(
     Comments are merged with reactions - a single interaction that can include
     both a text comment and an emoji reaction.
     """
-    # Validate target exists and get the world
-    world = await _validate_target_exists(db, request.target_type, request.target_id)
+    # Validate target exists and get the target
+    target = await _validate_target_exists(db, request.target_type, request.target_id)
+
+    # Dedup: prevent duplicate comments from rapid re-submissions
+    recent = await check_recent_duplicate(db, Comment, [
+        Comment.user_id == current_user.id,
+        Comment.target_type == request.target_type,
+        Comment.target_id == request.target_id,
+    ], window_seconds=30)
+    if recent:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Comment posted too recently on this target",
+                "existing_comment_id": str(recent.id),
+                "how_to_fix": "Wait 30s between comments on the same target.",
+            },
+        )
 
     comment = Comment(
         user_id=current_user.id,
@@ -434,15 +471,20 @@ async def add_comment(
     )
     db.add(comment)
 
-    # Update world comment count
-    if world:
-        world.comment_count = (world.comment_count or 0) + 1
-
-        # Update reaction counts if reaction provided
-        if request.reaction:
-            counts = dict(world.reaction_counts) if world.reaction_counts else {}
-            counts[request.reaction] = counts.get(request.reaction, 0) + 1
-            world.reaction_counts = counts
+    # Update target comment count
+    if target:
+        if request.target_type == "world":
+            target.comment_count = (target.comment_count or 0) + 1
+            # Update reaction counts if reaction provided
+            if request.reaction:
+                counts = dict(target.reaction_counts) if target.reaction_counts else {}
+                counts[request.reaction] = counts.get(request.reaction, 0) + 1
+                target.reaction_counts = counts
+        elif request.target_type == "story":
+            target.comment_count = (target.comment_count or 0) + 1
+            # Stories use simple reaction_count (total)
+            if request.reaction:
+                target.reaction_count = (target.reaction_count or 0) + 1
 
     await db.flush()  # Get the ID
 
@@ -470,12 +512,12 @@ async def add_comment(
 
 @router.get("/comments/{target_type}/{target_id}")
 async def get_comments(
-    target_type: Literal["world"],
+    target_type: Literal["world", "story"],
     target_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Get comments for a world.
+    Get comments for a world or story.
     """
     query = (
         select(Comment)

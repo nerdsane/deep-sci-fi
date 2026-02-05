@@ -1,3 +1,4 @@
+
 """End-to-end tests for dweller notification and session management.
 
 This tests:
@@ -9,11 +10,18 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -77,13 +85,7 @@ class TestDwellerPending:
         )
         other_key = response.json()["api_key"]["key"]
 
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Validator Agent", "username": "validator-agent"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
-        # Create and approve world
+        # Create and approve world (2 validations required)
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": owner_key},
@@ -98,25 +100,8 @@ class TestDwellerPending:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": owner_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, owner_key)
+        world_id = result["world_created"]["id"]
 
         # Add region
         await client.post(
@@ -131,10 +116,11 @@ class TestDwellerPending:
             headers={"X-API-Key": owner_key},
             json={
                 **SAMPLE_DWELLER_BASE,
-                "name": "Storm Walker",
-                "name_context": "Named for their ability to navigate storm systems, following zone naming conventions",
+                "name": "Downdraft Walker",
+                "name_context": "Named for their ability to navigate downdraft systems, following zone naming conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller 1 creation failed: {response.json()}"
         dweller1_id = response.json()["dweller"]["id"]
 
         response = await client.post(
@@ -146,12 +132,12 @@ class TestDwellerPending:
                 "name_context": "Named for their melodic approach to precipitation control, following zone conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller 2 creation failed: {response.json()}"
         dweller2_id = response.json()["dweller"]["id"]
 
         return {
             "owner_key": owner_key,
             "other_key": other_key,
-            "validator_key": validator_key,
             "world_id": world_id,
             "dweller1_id": dweller1_id,
             "dweller2_id": dweller2_id,
@@ -214,7 +200,7 @@ class TestDwellerPending:
         owner_key = dweller_setup["owner_key"]
         other_key = dweller_setup["other_key"]
 
-        # Owner claims dweller1 (Storm Walker)
+        # Owner claims dweller1 (Downdraft Walker)
         await client.post(
             f"/api/dwellers/{dweller1_id}/claim",
             headers={"X-API-Key": owner_key}
@@ -226,18 +212,18 @@ class TestDwellerPending:
             headers={"X-API-Key": other_key}
         )
 
-        # Rain Singer speaks to Storm Walker
+        # Rain Singer speaks to Downdraft Walker
         await client.post(
             f"/api/dwellers/{dweller2_id}/act",
             headers={"X-API-Key": other_key},
             json={
                 "action_type": "speak",
-                "target": "Storm Walker",
-                "content": "Hey Storm Walker, how's the weather today?"
+                "target": "Downdraft Walker",
+                "content": "Hey Downdraft Walker, how's the weather today?"
             }
         )
 
-        # Storm Walker checks pending - should see the mention
+        # Downdraft Walker checks pending - should see the mention
         response = await client.get(
             f"/api/dwellers/{dweller1_id}/pending",
             headers={"X-API-Key": owner_key}
@@ -251,7 +237,7 @@ class TestDwellerPending:
 
         # Find our mention
         mention = next(
-            (m for m in mentions if "Storm Walker" in str(m)),
+            (m for m in mentions if "Downdraft Walker" in str(m)),
             None
         )
         assert mention is not None
@@ -274,13 +260,7 @@ class TestDwellerSessionManagement:
         )
         agent_key = response.json()["api_key"]["key"]
 
-        response = await client.post(
-            "/api/auth/agent",
-            json={"name": "Session Validator", "username": "session-validator"}
-        )
-        validator_key = response.json()["api_key"]["key"]
-
-        # Create world
+        # Create world (2 validations required)
         response = await client.post(
             "/api/proposals",
             headers={"X-API-Key": agent_key},
@@ -295,25 +275,8 @@ class TestDwellerSessionManagement:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": agent_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Solid technical foundation with clear progression from current scientific research for testing purposes",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200, f"Validation failed: {response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, agent_key)
+        world_id = result["world_created"]["id"]
 
         # Add region
         await client.post(
@@ -332,6 +295,7 @@ class TestDwellerSessionManagement:
                 "name_context": "Named for testing purposes following zone conventions",
             }
         )
+        assert response.status_code == 200, f"Dweller creation failed: {response.json()}"
         dweller_id = response.json()["dweller"]["id"]
 
         return {
@@ -430,6 +394,7 @@ class TestDwellerSessionManagement:
             f"/api/dwellers/{dweller_id}/state",
             headers={"X-API-Key": agent_key}
         )
+
         session = response.json()["session"]
 
         # Just claimed, so should have close to 24 hours

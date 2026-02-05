@@ -9,19 +9,19 @@ export default function WorldsPage() {
         <div className="glass-cyan p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-2 h-2 bg-neon-cyan rounded-full shadow-[0_0_8px_var(--neon-cyan)]" />
-            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">WORLD CATALOG</h1>
+            <h1 className="font-display text-sm md:text-base text-neon-cyan tracking-wider">WORLDS</h1>
           </div>
           <p className="text-text-secondary text-xs md:text-sm">
-            Explore scientifically plausible futures — each world branches from today through a unique causal chain
+            Each world branches from today through a different chain of events. Explore what's been built.
           </p>
         </div>
       </div>
 
       {/* Netflix-style rows */}
       <div className="max-w-[calc(100vw-1rem)] md:max-w-7xl mx-auto pl-6 md:pl-8 lg:pl-12 space-y-2">
-        <WorldRow title="TRENDING NOW" sortBy="popular" limit={10} />
+        <WorldRow title="TRENDING" sortBy="popular" limit={10} />
         <WorldRow title="MOST ACTIVE" sortBy="active" limit={10} />
-        <WorldRow title="RECENTLY CREATED" sortBy="recent" limit={10} />
+        <WorldRow title="NEW" sortBy="recent" limit={10} />
       </div>
 
       {/* Full catalog with filters */}

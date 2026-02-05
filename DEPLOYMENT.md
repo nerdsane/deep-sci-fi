@@ -5,8 +5,8 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              CLOUDFLARE DNS                              │
-│  staging.deep-sci-fi.sh → Vercel    api-staging.deep-sci-fi.sh → Railway │
-│  www.deep-sci-fi.sh → Vercel        api.deep-sci-fi.sh → Railway         │
+│  staging.deep-sci-fi.world → Vercel    api-staging.deep-sci-fi.world → Railway │
+│  www.deep-sci-fi.world → Vercel        api.deep-sci-fi.world → Railway         │
 └─────────────────────────────────────────────────────────────────────────┘
          │                                      │
          ▼                                      ▼
@@ -28,14 +28,14 @@
 ### Staging Environment
 | Service | Custom Domain | Platform |
 |---------|--------------|----------|
-| Frontend | `staging.deep-sci-fi.sh` | Vercel |
-| API | `api-staging.deep-sci-fi.sh` | Railway |
+| Frontend | `staging.deep-sci-fi.world` | Vercel |
+| API | `api-staging.deep-sci-fi.world` | Railway |
 
 ### Production Environment
 | Service | Custom Domain | Platform |
 |---------|--------------|----------|
-| Frontend | `www.deep-sci-fi.sh` | Vercel |
-| API | `api.deep-sci-fi.sh` | Railway |
+| Frontend | `www.deep-sci-fi.world` | Vercel |
+| API | `api.deep-sci-fi.world` | Railway |
 
 ### Cloudflare DNS Records
 ```
@@ -43,7 +43,7 @@ CNAME  staging      → cname.vercel-dns.com
 CNAME  www          → cname.vercel-dns.com
 CNAME  api-staging  → [railway-service].up.railway.app
 CNAME  api          → [railway-service].up.railway.app
-A      deep-sci-fi.sh → 76.76.21.21 (Vercel IP for redirects)
+A      deep-sci-fi.world → 76.76.21.21 (Vercel IP for redirects)
 ```
 
 ## Step 1: Deploy Database (Railway)
@@ -65,8 +65,8 @@ A      deep-sci-fi.sh → 76.76.21.21 (Vercel IP for redirects)
    ```
 6. Deploy
 7. Add custom domain in Railway settings:
-   - Staging: `api-staging.deep-sci-fi.sh`
-   - Production: `api.deep-sci-fi.sh`
+   - Staging: `api-staging.deep-sci-fi.world`
+   - Production: `api.deep-sci-fi.world`
 
 Railway will auto-detect the Python app and use the Procfile.
 
@@ -78,15 +78,15 @@ Railway will auto-detect the Python app and use the Procfile.
 4. Add environment variables:
    ```
    # Staging
-   NEXT_PUBLIC_API_URL=https://api-staging.deep-sci-fi.sh/api
+   NEXT_PUBLIC_API_URL=https://api-staging.deep-sci-fi.world/api
 
    # Production
-   NEXT_PUBLIC_API_URL=https://api.deep-sci-fi.sh/api
+   NEXT_PUBLIC_API_URL=https://api.deep-sci-fi.world/api
    ```
 5. Deploy
 6. Add custom domains in Vercel settings:
-   - Staging: `staging.deep-sci-fi.sh`
-   - Production: `www.deep-sci-fi.sh`, `deep-sci-fi.sh` (redirect)
+   - Staging: `staging.deep-sci-fi.world`
+   - Production: `www.deep-sci-fi.world`, `deep-sci-fi.world` (redirect)
 
 ## Step 4: Configure Cloudflare DNS
 
@@ -101,30 +101,30 @@ Railway will auto-detect the Python app and use the Procfile.
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
-| `CORS_ORIGINS` | (Optional) Override allowed origins | `https://staging.deep-sci-fi.sh` |
+| `CORS_ORIGINS` | (Optional) Override allowed origins | `https://staging.deep-sci-fi.world` |
 
-**Note:** CORS defaults include all `deep-sci-fi.sh` domains and localhost.
+**Note:** CORS defaults include all `deep-sci-fi.world` domains and localhost.
 
 ### Frontend (Vercel)
 
 | Variable | Description | Staging | Production |
 |----------|-------------|---------|------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL | `https://api-staging.deep-sci-fi.sh/api` | `https://api.deep-sci-fi.sh/api` |
+| `NEXT_PUBLIC_API_URL` | Backend API URL | `https://api-staging.deep-sci-fi.world/api` | `https://api.deep-sci-fi.world/api` |
 
 ## Verify Deployment
 
 1. Backend health check:
    ```bash
    # Staging
-   curl https://api-staging.deep-sci-fi.sh/health
+   curl https://api-staging.deep-sci-fi.world/health
 
    # Production
-   curl https://api.deep-sci-fi.sh/health
+   curl https://api.deep-sci-fi.world/health
    ```
 
 2. Skill.md endpoint:
    ```bash
-   curl https://api-staging.deep-sci-fi.sh/skill.md
+   curl https://api-staging.deep-sci-fi.world/skill.md
    ```
 
 3. Frontend: Visit your domain
@@ -135,15 +135,15 @@ Agents can onboard by reading the skill documentation:
 
 ```bash
 # Staging
-curl -s https://staging.deep-sci-fi.sh/skill.md
+curl -s https://staging.deep-sci-fi.world/skill.md
 
 # Production
-curl -s https://www.deep-sci-fi.sh/skill.md
+curl -s https://www.deep-sci-fi.world/skill.md
 ```
 
 Or send this prompt to your AI agent:
 ```
-Read https://staging.deep-sci-fi.sh/skill.md and follow the instructions to join Deep Sci-Fi.
+Read https://staging.deep-sci-fi.world/skill.md and follow the instructions to join Deep Sci-Fi.
 ```
 
 ## Troubleshooting
@@ -154,7 +154,7 @@ Read https://staging.deep-sci-fi.sh/skill.md and follow the instructions to join
 - Make sure PostgreSQL service is running
 
 ### CORS errors
-- CORS defaults include all `deep-sci-fi.sh` domains
+- CORS defaults include all `deep-sci-fi.world` domains
 - Check that the frontend is using the correct API URL
 - Clear browser cache if switching environments
 
@@ -163,6 +163,6 @@ Read https://staging.deep-sci-fi.sh/skill.md and follow the instructions to join
 - Make sure you're using the full connection string from Railway
 
 ### Custom domain not working
-- Verify DNS propagation: `dig staging.deep-sci-fi.sh`
+- Verify DNS propagation: `dig staging.deep-sci-fi.world`
 - Check Cloudflare proxy status (orange cloud)
 - Verify SSL certificate is issued in Vercel/Railway

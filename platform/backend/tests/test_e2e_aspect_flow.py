@@ -1,3 +1,4 @@
+
 """End-to-end tests for the aspect integration flow.
 
 This tests:
@@ -11,11 +12,18 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
     reason="Requires PostgreSQL (set TEST_DATABASE_URL)"
+)
+
+VALID_RESEARCH = (
+    "I researched the scientific basis by reviewing ITER progress reports, fusion startup "
+    "funding trends, and historical energy cost curves. The causal chain aligns with "
+    "mainstream fusion research timelines and economic projections from IEA reports."
 )
 
 
@@ -82,26 +90,9 @@ class TestAspectFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        validation_response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Well-reasoned proposal with solid causal chain and scientific grounding",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert validation_response.status_code == 200, f"Validation failed: {validation_response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        # Proposal detail response is {"proposal": {...}, "validations": [...]}
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit + 2 validations (meets APPROVAL_THRESHOLD=2)
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         return {
             "world_id": world_id,
@@ -176,6 +167,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": (
                     "Good addition. The quantum navigation technology fills an important "
                     "gap in the causal chain and the limitations make it believable."
@@ -239,9 +231,9 @@ class TestAspectFlow:
                         "maritime traditions and tech startup energy"
                     ),
                     "naming_conventions": (
-                        "Names reflect multiethnic background: Malay, Chinese, Indian, "
+                        "Names reflect multiethnic background: Malay, Southeast Asian, "
                         "Western names all common. Tech handles used professionally. "
-                        "Examples: Priya Lim, Marcus Tan, Fatimah-3 (handle)."
+                        "Examples: Beacon Holloway, Marcus Tan, Fatimah-3 (handle)."
                     ),
                     "language": "English primary, with Singlish and technical jargon"
                 },
@@ -264,6 +256,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Well-designed region with strong cultural grounding and realistic details",
                 "canon_conflicts": [],
                 "suggested_fixes": [],
@@ -306,7 +299,12 @@ class TestAspectFlow:
                     "impact": "Proves autonomous systems can handle extreme conditions",
                     "actors": ["IMO", "Major shipping companies", "Singapore port"]
                 },
-                "canon_justification": "Adds dramatic tension to the world narrative and validates the resilience of autonomous shipping technology"
+                "canon_justification": "Adds dramatic tension to the world narrative and validates the resilience of autonomous shipping technology",
+                "proposed_timeline_entry": {
+                    "year": 2037,
+                    "event": "Super-typhoon Nara disrupts Pacific routes for 3 weeks",
+                    "reasoning": "Tests autonomous shipping resilience and proves the technology can handle extreme conditions"
+                }
             }
         )
         aspect_id = response.json()["aspect"]["id"]
@@ -322,6 +320,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good event that adds drama to the world narrative",
                 "canon_conflicts": [],
                 "suggested_fixes": []
@@ -372,6 +371,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good concept but needs more detail on their methods",
                 "canon_conflicts": [],
                 "suggested_fixes": [
@@ -424,6 +424,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "reject",
+                "research_conducted": VALID_RESEARCH,
                 "critique": (
                     "This contradicts the scientific grounding of the world. "
                     "The premise is autonomous shipping, not psychic shipping."
@@ -457,7 +458,12 @@ class TestAspectFlow:
                     "title": f"Event {i}",
                     "premise": f"Historical event number {i} that shaped the development of autonomous shipping",
                     "content": {"year": 2030 + i, "event": f"Something significant happened during year {i} of the transition"},
-                    "canon_justification": f"Event {i} adds historical depth and context to the world's development timeline"
+                    "canon_justification": f"Event {i} adds historical depth and context to the world's development timeline",
+                    "proposed_timeline_entry": {
+                        "year": 2030 + i,
+                        "event": f"Something significant happened during year {i}",
+                        "reasoning": f"Event {i} reasoning"
+                    }
                 }
             )
 
@@ -507,6 +513,7 @@ class TestAspectFlow:
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
+                "research_conducted": VALID_RESEARCH,
                 "critique": "Good concept but needs version history for completeness",
                 "canon_conflicts": [],
                 "suggested_fixes": ["Add GSP v1 and v2 history"]
@@ -537,15 +544,30 @@ class TestAspectFlow:
         world_id = world_setup["world_id"]
         creator_key = world_setup["creator_key"]
 
+        # === Step 0: Create a region first (required before creating dwellers) ===
+        region_response = await client.post(
+            f"/api/dwellers/worlds/{world_id}/regions",
+            headers={"X-API-Key": creator_key},
+            json={
+                "name": "Singapore Nexus",
+                "location": "Maritime Southeast Asia, centered on Singapore",
+                "population_origins": ["Chinese-Singaporean", "Malay", "Indian-Singaporean"],
+                "cultural_blend": "Multicultural maritime hub blending Chinese, Malay, and Indian influences",
+                "naming_conventions": "Chinese-Singaporean naming tradition with family name first, given name second",
+                "language": "Singlish (Singapore English with Chinese, Malay, Tamil influences)",
+            }
+        )
+        assert region_response.status_code == 200, f"Region creation failed: {region_response.json()}"
+
         # === Step 1: Create a dweller in the world ===
         dweller_response = await client.post(
             f"/api/dwellers/worlds/{world_id}/dwellers",
             headers={"X-API-Key": creator_key},
             json={
-                "name": "Chen Wei",
+                "name": "Edmund Whitestone",
                 "origin_region": "Singapore Nexus",
                 "generation": "Second-gen",
-                "name_context": "Chinese-Singaporean naming tradition, Wei means 'great'",
+                "name_context": "Whitestone is a founding family name from the early maritime settlement era",
                 "cultural_identity": "Maritime logistics family, three generations in shipping",
                 "role": "Autonomous Fleet Coordinator",
                 "age": 34,
@@ -571,11 +593,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "You want to know about the gray market? Everyone knows about it. "
                            "When the official water credits run low, people trade favors. "
                            "Credits for shifts, credits for silence. Nothing illegal, just... flexible.",
-                "target": "passing dock worker"
             }
         )
         assert action1_response.status_code == 200
@@ -586,11 +607,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "The exchange happens at the old dock 7. Before dawn, after the "
                            "autonomous systems complete their routes. We call it the 'morning market'. "
                            "Been running since the drought of '38.",
-                "target": "curious journalist"
             }
         )
         assert action2_response.status_code == 200
@@ -601,11 +621,10 @@ class TestAspectFlow:
             f"/api/dwellers/{dweller_id}/act",
             headers={"X-API-Key": creator_key},
             json={
-                "action_type": "speak",
+                "action_type": "observe",
                 "content": "The Guild knows. They turn a blind eye because it keeps people fed. "
                            "The automation took our jobs, but it can't take our networks. "
                            "We built this from nothing.",
-                "target": "old friend"
             }
         )
         assert action3_response.status_code == 200
@@ -663,7 +682,7 @@ class TestAspectFlow:
             assert "dweller_name" in action
             assert "content" in action
             assert "created_at" in action
-            assert action["dweller_name"] == "Chen Wei"
+            assert action["dweller_name"] == "Edmund Whitestone"
 
         # Verify the content mentions the gray market
         action_contents = [a["content"] for a in detail["inspiring_actions"]]
@@ -733,3 +752,184 @@ class TestAspectFlow:
 
         # No inspiring_actions field when empty
         assert "inspiring_actions" not in detail
+
+    @pytest.mark.asyncio
+    async def test_event_aspect_requires_proposed_timeline_entry(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that event aspects require proposed_timeline_entry."""
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+
+        # Try to create event aspect WITHOUT proposed_timeline_entry
+        response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "event",
+                "title": "Some Historical Event",
+                "premise": "A significant event that occurred during the transition period and shaped shipping",
+                "content": {"year": 2035, "event": "Something happened"},
+                "canon_justification": "This event adds historical depth and context to the world's development timeline"
+                # Missing: proposed_timeline_entry (REQUIRED for event aspects)
+            }
+        )
+        assert response.status_code == 400
+        assert "proposed_timeline_entry" in response.json()["detail"]["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_event_aspect_timeline_integration(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that approved event aspects are added to world.causal_chain."""
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+        validator_key = world_setup["validator_key"]
+
+        # Get initial causal_chain length
+        response = await client.get(f"/api/aspects/worlds/{world_id}/canon")
+        initial_chain_length = len(response.json()["causal_chain"])
+
+        # Create event aspect with proposed_timeline_entry
+        response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "event",
+                "title": "The Singapore Accord",
+                "premise": "A landmark agreement between major shipping nations on autonomous vessel standards",
+                "content": {
+                    "year": 2035,
+                    "event": "Singapore Accord signed by 47 nations",
+                    "impact": "Unified global standards for autonomous shipping",
+                    "actors": ["Singapore", "China", "US", "EU", "Japan"]
+                },
+                "canon_justification": "This accord fills the gap between IMO framework adoption (2028) and full autonomous operation (2040)",
+                "proposed_timeline_entry": {
+                    "year": 2035,
+                    "event": "Singapore Accord: 47 nations agree on unified autonomous shipping standards",
+                    "reasoning": "Explains how international cooperation accelerated autonomous shipping adoption"
+                }
+            }
+        )
+        assert response.status_code == 200
+        aspect_id = response.json()["aspect"]["id"]
+
+        # Verify aspect includes proposed_timeline_entry
+        assert "proposed_timeline_entry" in response.json()["aspect"]
+        assert response.json()["aspect"]["proposed_timeline_entry"]["year"] == 2035
+
+        # Submit for validation
+        await client.post(
+            f"/api/aspects/{aspect_id}/submit",
+            headers={"X-API-Key": creator_key}
+        )
+
+        # Approve WITH approved_timeline_entry
+        response = await client.post(
+            f"/api/aspects/{aspect_id}/validate",
+            headers={"X-API-Key": validator_key},
+            json={
+                "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
+                "critique": "Excellent event that bridges the timeline gap between framework adoption and full operation",
+                "canon_conflicts": [],
+                "suggested_fixes": [],
+                "updated_canon_summary": (
+                    "WORLD: Autonomous Shipping 2040\n\n"
+                    "TIMELINE:\n"
+                    "- 2028: IMO framework adopted\n"
+                    "- 2033: Insurance standards established\n"
+                    "- 2035: Singapore Accord - 47 nations unify standards\n"
+                    "- 2040: Full autonomous operation\n"
+                ),
+                "approved_timeline_entry": {
+                    "year": 2035,
+                    "event": "Singapore Accord: 47 nations agree on unified autonomous shipping standards",
+                    "reasoning": "International cooperation accelerates autonomous shipping adoption"
+                }
+            }
+        )
+        assert response.status_code == 200
+        result = response.json()
+
+        # Verify timeline was updated
+        assert result["world_updated"]["timeline_updated"] is True
+        assert "new_timeline_entry" in result["world_updated"]
+        assert result["world_updated"]["new_timeline_entry"]["year"] == 2035
+
+        # Verify world.causal_chain was actually updated
+        response = await client.get(f"/api/aspects/worlds/{world_id}/canon")
+        new_chain = response.json()["causal_chain"]
+
+        # Should have one more entry
+        assert len(new_chain) == initial_chain_length + 1
+
+        # Find the new entry
+        singapore_accord = next((e for e in new_chain if e["year"] == 2035), None)
+        assert singapore_accord is not None
+        assert "Singapore Accord" in singapore_accord["event"]
+
+        # Verify chronological ordering (2035 should be between 2033 and 2040)
+        years = [e["year"] for e in new_chain]
+        assert years == sorted(years), "causal_chain should be chronologically ordered"
+
+    @pytest.mark.asyncio
+    async def test_event_approval_requires_approved_timeline_entry(
+        self, client: AsyncClient, world_setup: dict
+    ) -> None:
+        """Test that approving event aspects requires approved_timeline_entry."""
+
+        world_id = world_setup["world_id"]
+        creator_key = world_setup["creator_key"]
+        validator_key = world_setup["validator_key"]
+
+        # Create event aspect with proposed_timeline_entry
+        response = await client.post(
+            f"/api/aspects/worlds/{world_id}/aspects",
+            headers={"X-API-Key": creator_key},
+            json={
+                "aspect_type": "event",
+                "title": "The First Collision",
+                "premise": "First major autonomous ship collision incident between two cargo vessels in the South China Sea",
+                "content": {"year": 2031, "event": "Collision", "impact": "Safety reforms"},
+                "canon_justification": "Adds realism with a setback event that demonstrates the technology was not perfect from the start",
+                "proposed_timeline_entry": {
+                    "year": 2031,
+                    "event": "First autonomous ship collision in South China Sea",
+                    "reasoning": "No injuries, but triggers safety review"
+                }
+            }
+        )
+        assert response.status_code == 200
+        aspect_id = response.json()["aspect"]["id"]
+
+        await client.post(
+            f"/api/aspects/{aspect_id}/submit",
+            headers={"X-API-Key": creator_key}
+        )
+
+        # Try to approve WITHOUT approved_timeline_entry
+        response = await client.post(
+            f"/api/aspects/{aspect_id}/validate",
+            headers={"X-API-Key": validator_key},
+            json={
+                "verdict": "approve",
+                "research_conducted": VALID_RESEARCH,
+                "critique": "Good setback event that adds realism to the narrative",
+                "canon_conflicts": [],
+                "suggested_fixes": [],
+                "updated_canon_summary": "Updated canon with the collision event that shows the technology was not perfect from the beginning..."
+                # Missing: approved_timeline_entry (REQUIRED for event aspects)
+            }
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        # detail might be a string or a dict
+        if isinstance(detail, dict):
+            assert "approved_timeline_entry" in detail["error"].lower()
+        else:
+            assert "approved_timeline_entry" in detail.lower()

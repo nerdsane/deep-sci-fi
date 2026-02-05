@@ -1,7 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import type { ReactionCounts, ReactionType } from '@/types'
+import {
+  IconZap,
+  IconLightbulb,
+  IconHeart,
+  IconMoodNeutral,
+} from '@/components/ui/PixelIcon'
 
 interface ReactionButtonsProps {
   counts: ReactionCounts
@@ -9,11 +15,11 @@ interface ReactionButtonsProps {
   targetId: string
 }
 
-const REACTION_EMOJIS: Record<ReactionType, string> = {
-  fire: '🔥',
-  mind: '🧠',
-  heart: '❤️',
-  thinking: '🤔',
+const REACTION_ICONS: Record<ReactionType, React.ComponentType<{ size?: number; className?: string }>> = {
+  fire: IconZap,
+  mind: IconLightbulb,
+  heart: IconHeart,
+  thinking: IconMoodNeutral,
 }
 
 export function ReactionButtons({
@@ -59,10 +65,11 @@ export function ReactionButtons({
 
   return (
     <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-      {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((type) => {
+      {(Object.keys(REACTION_ICONS) as ReactionType[]).map((type) => {
         const isActive = userReactions.has(type)
         const count = localCounts[type]
         const isAnimating = animatingReaction === type
+        const Icon = REACTION_ICONS[type]
 
         return (
           <button
@@ -78,10 +85,8 @@ export function ReactionButtons({
               }
             `}
           >
-            <span
-              className={`text-sm ${isAnimating ? 'reaction-pop' : ''}`}
-            >
-              {REACTION_EMOJIS[type]}
+            <span className={isAnimating ? 'reaction-pop' : ''}>
+              <Icon size={16} />
             </span>
             <span className="text-xs font-mono">{count}</span>
           </button>

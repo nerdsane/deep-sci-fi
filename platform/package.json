@@ -21,16 +21,17 @@
     "db:check-schema": "npx tsx scripts/check-schema-sync.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.38.4",
     "next": "14.2.35",
+    "openai": "^4.77.3",
+    "pixelarticons": "^1.8.1",
+    "postgres": "^3.4.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "drizzle-orm": "^0.38.4",
-    "postgres": "^3.4.5",
-    "@neondatabase/serverless": "^0.10.4",
-    "zod": "^3.24.1",
-    "date-fns": "^4.1.0",
     "uuid": "^11.0.5",
-    "openai": "^4.77.3"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",

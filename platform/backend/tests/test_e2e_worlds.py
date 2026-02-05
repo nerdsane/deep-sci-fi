@@ -1,3 +1,4 @@
+
 """End-to-end tests for the worlds endpoints.
 
 This tests:
@@ -9,6 +10,8 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
+
+from tests.conftest import approve_proposal, VALID_RESEARCH
 
 
 requires_postgres = pytest.mark.skipif(
@@ -85,25 +88,9 @@ class TestWorldsFlow:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "critique": "Well-grounded proposal with realistic progression from current research",
-                "scientific_issues": [],
-                "suggested_fixes": []
-            }
-        )
-        assert response.status_code == 200
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        # Submit + 2 validations to meet APPROVAL_THRESHOLD=2
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
         assert world_id is not None
 
         return world_id
@@ -313,6 +300,7 @@ class TestWorldsFlow:
         world_id = await self._create_approved_world(
             client, creator_key, validator_key, "Counts Test World"
         )
+
 
         response = await client.get(f"/api/worlds/{world_id}")
         world = response.json()["world"]

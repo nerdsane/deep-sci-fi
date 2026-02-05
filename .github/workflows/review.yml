@@ -10,7 +10,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: deepsci
           POSTGRES_PASSWORD: deepsci
@@ -67,18 +67,44 @@ jobs:
           TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
         continue-on-error: true
 
-      - name: Initialize Database Schema
+      - name: Run Alembic Migrations
+        id: run-migrations
         run: |
           cd platform/backend
           source .venv/bin/activate
-          pip install asyncpg
-          python -c "import asyncio; from db.database import init_db; asyncio.run(init_db())"
+          echo "Applying all migrations to test database..."
+          alembic upgrade head
+          echo "Current migration version:"
+          alembic current
         env:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
+        continue-on-error: true
 
-      - name: Check Schema Sync
+      - name: Check skill.md Endpoint Tables
+        id: skill-sync
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          echo "Checking that skill.md endpoint tables match the API..."
+          python scripts/sync_skill_endpoints.py --check
+        continue-on-error: true
+
+      - name: Check for Pending Migrations
         id: schema-sync
-        run: cd platform && bun run db:check-schema
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          # Check if there are any model changes not captured in migrations
+          # Generate a migration (dry-run style) and check if it's empty
+          echo "Checking for schema drift between models and migrations..."
+          alembic revision --autogenerate -m "check_drift" --sql 2>&1 | tee /tmp/migration_output.txt
+          # If the migration would have changes, fail
+          if grep -q "ALTER\|CREATE\|DROP" /tmp/migration_output.txt; then
+            echo "ERROR: Model changes detected that are not in migrations!"
+            echo "Run 'alembic revision --autogenerate -m \"description\"' to create a migration."
+            exit 1
+          fi
+          echo "Schema is in sync - no pending model changes."
         env:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
         continue-on-error: true
@@ -95,8 +121,14 @@ jobs:
           if [ "${{ steps.test-backend.outcome }}" == "failure" ]; then
             FAILED="${FAILED}test-backend,"
           fi
+          if [ "${{ steps.run-migrations.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}run-migrations,"
+          fi
           if [ "${{ steps.schema-sync.outcome }}" == "failure" ]; then
             FAILED="${FAILED}schema-sync,"
+          fi
+          if [ "${{ steps.skill-sync.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}skill-sync,"
           fi
           if [ -n "$FAILED" ]; then
             echo "Failed checks: $FAILED"
