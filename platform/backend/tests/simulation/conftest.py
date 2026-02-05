@@ -2,10 +2,16 @@
 
 Key design: sync httpx.Client with ASGITransport. Hypothesis rules are
 synchronous; httpx handles the async bridge internally.
+
+Schema validation: at session startup, every strategy generator is validated
+against its corresponding Pydantic model to catch schema drift.
 """
 
 import asyncio
+import importlib
+import inspect
 import os
+import uuid
 from collections.abc import AsyncGenerator
 
 import sqlalchemy as sa
@@ -135,3 +141,62 @@ def create_dst_engine_and_client(seed: int = 0):
         _run_async(_teardown_db(engine))
 
     return client, sim_clock, cleanup
+
+
+# ---------------------------------------------------------------------------
+# Schema validation: fail fast if test data generators drift from Pydantic models
+# ---------------------------------------------------------------------------
+
+def _call_generator(func):
+    """Call a strategy generator with appropriate dummy args based on signature."""
+    sig = inspect.signature(func)
+    kwargs = {}
+    for name, param in sig.parameters.items():
+        if param.default is not inspect.Parameter.empty:
+            continue  # has default, skip
+        # Provide dummy values for required args
+        if "region" in name:
+            kwargs[name] = "Test Region"
+        elif "world" in name or "id" in name:
+            kwargs[name] = str(uuid.uuid4())
+        elif "type" in name:
+            kwargs[name] = "world"
+        else:
+            kwargs[name] = "test"
+    return func(**kwargs)
+
+
+def validate_strategy_schemas():
+    """Validate all strategy generators produce data accepted by Pydantic models."""
+    from tests.simulation import strategies as strat
+
+    if not hasattr(strat, "STRATEGY_SCHEMA_MAP"):
+        return
+
+    errors = []
+    for func_name, (module_path, model_name) in strat.STRATEGY_SCHEMA_MAP.items():
+        try:
+            mod = importlib.import_module(module_path)
+            model_cls = getattr(mod, model_name)
+            generator = getattr(strat, func_name)
+            sample = _call_generator(generator)
+            model_cls.model_validate(sample)
+        except Exception as e:
+            errors.append(f"  {func_name} -> {module_path}.{model_name}: {e}")
+
+    if errors:
+        msg = "Schema drift detected! Strategy generators don't match Pydantic models:\n"
+        msg += "\n".join(errors)
+        msg += "\n\nFix: update strategies.py generators to match current request models."
+        raise AssertionError(msg)
+
+
+# Run schema validation at import time (session startup)
+try:
+    validate_strategy_schemas()
+except AssertionError:
+    # Re-raise but only if not in a context where models can't be loaded
+    # (e.g., missing database). In CI this will always run.
+    import traceback
+    traceback.print_exc()
+    raise

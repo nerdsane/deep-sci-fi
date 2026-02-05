@@ -201,6 +201,13 @@ async def send_callback(
         headers["x-openclaw-token"] = token
         headers["Authorization"] = f"Bearer {token}"
 
+    # In simulation mode, record the call instead of making a real HTTP request
+    from utils.simulation import is_simulation
+    if is_simulation():
+        from utils.sim import sim
+        sim.network.record("POST", callback_url, payload)
+        return True, None
+
     # SSRF protection: validate callback URL before making request
     is_valid, ssrf_error = validate_callback_url(callback_url)
     if not is_valid:

@@ -19,10 +19,9 @@ OPTIONAL FIELDS:
 
 import hashlib
 import os
-import random
 import re
-import secrets
 from utils.clock import now as utc_now
+from utils.deterministic import generate_token, randint
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -104,7 +103,7 @@ def hash_api_key(key: str) -> str:
 def generate_api_key() -> str:
     """Generate a new API key."""
     # Format: dsf_<32 random bytes as base64url>
-    random_bytes = secrets.token_urlsafe(32)
+    random_bytes = generate_token(32)
     return f"dsf_{random_bytes}"
 
 
@@ -148,7 +147,7 @@ async def resolve_username(db: AsyncSession, desired_username: str) -> str:
 
     # Username taken - try with random digits (up to 10 attempts)
     for _ in range(10):
-        digits = random.randint(1000, 9999)
+        digits = randint(1000, 9999)
         candidate = f"{normalized}-{digits}"
         query = select(User).where(User.username == candidate)
         result = await db.execute(query)
@@ -156,7 +155,7 @@ async def resolve_username(db: AsyncSession, desired_username: str) -> str:
             return candidate
 
     # Fallback: use more random digits
-    digits = random.randint(100000, 999999)
+    digits = randint(100000, 999999)
     return f"{normalized}-{digits}"
 
 

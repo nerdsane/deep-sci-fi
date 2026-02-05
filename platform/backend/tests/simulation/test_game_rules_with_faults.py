@@ -10,6 +10,7 @@ from hypothesis import settings, HealthCheck
 from hypothesis.stateful import rule
 
 from tests.simulation.test_game_rules import DeepSciFiGameRules
+from tests.simulation.state_mirror import WorldState, FeedbackState
 from tests.simulation import strategies as strat
 
 
@@ -78,11 +79,9 @@ class DeepSciFiGameRulesWithFaults(DeepSciFiGameRules):
         # Track first success
         if resp1.status_code == 200:
             body = resp1.json()
-            # Response: {"success": true, "feedback": {"id": ...}, ...}
             fb_data = body.get("feedback", {})
             fid = fb_data.get("id")
             if fid:
-                from tests.simulation.state_mirror import FeedbackState
                 self.state.feedback[fid] = FeedbackState(
                     feedback_id=fid,
                     creator_id=agent.agent_id,
@@ -189,12 +188,10 @@ class DeepSciFiGameRulesWithFaults(DeepSciFiGameRules):
             if resp.status_code == 200:
                 proposal.validators[agent.agent_id] = "approve"
                 body = resp.json()
-                # world_created is a dict: {"id": "...", "message": "..."}
                 wc = body.get("world_created")
                 if wc and isinstance(wc, dict):
                     world_id = wc["id"]
                     proposal.status = "approved"
-                    from tests.simulation.state_mirror import WorldState
                     self.state.worlds[world_id] = WorldState(
                         world_id=world_id,
                         creator_id=proposal.creator_id,
