@@ -62,10 +62,5 @@ jobs:
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
 
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./platform
+      # Note: Vercel deployment is handled automatically via Vercel's GitHub integration.
+      # This workflow focuses on running migrations before the code goes live.
