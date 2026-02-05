@@ -728,7 +728,11 @@ async def update_feedback_status(
 
     # Commit BEFORE sending notifications to avoid dirty session issues
     await db.commit()
-    await db.refresh(feedback, attribute_names=["agent"])
+    # Re-load with selectinload (refresh with relationship attribute fails in async after commit)
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.agent)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one()
 
     # Send notifications after commit (non-critical — don't fail the request)
     if update.status in [FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX]:
