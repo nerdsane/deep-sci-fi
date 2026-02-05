@@ -1,7 +1,8 @@
 """DST simulation test fixtures.
 
-Key design: sync httpx.Client with ASGITransport. Hypothesis rules are
-synchronous; httpx handles the async bridge internally.
+Key design: Starlette TestClient wraps the FastAPI ASGI app for sync
+access. Hypothesis rules are synchronous; TestClient handles the
+async bridge internally.
 
 Schema validation: at session startup, every strategy generator is validated
 against its corresponding Pydantic model to catch schema drift.
@@ -15,7 +16,7 @@ import uuid
 from collections.abc import AsyncGenerator
 
 import sqlalchemy as sa
-from httpx import Client, ASGITransport
+from starlette.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from utils.clock import SimulatedClock, set_clock, reset_clock
@@ -128,15 +129,12 @@ def create_dst_engine_and_client(seed: int = 0):
     set_clock(sim_clock)
     init_simulation(seed)
 
-    transport = ASGITransport(app=app)
-    client = Client(transport=transport, base_url="http://test")
+    # Use Starlette TestClient — properly bridges sync calls to ASGI app.
+    # Unlike raw httpx Client + ASGITransport, this works across all httpx versions.
+    client = TestClient(app, base_url="http://test", raise_server_exceptions=False)
 
     def cleanup():
-        try:
-            client.close()
-        except AttributeError:
-            # httpx ASGITransport has aclose() not close() in some versions
-            pass
+        client.close()
         app.dependency_overrides.clear()
         db_database_module.SessionLocal = original_session_local
         db_module.SessionLocal = original_session_local
