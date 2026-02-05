@@ -106,7 +106,10 @@ def dweller_data(region_name: str, counter: int | None = None) -> dict:
             f"A test personality {n} with sufficient detail to meet the minimum "
             "character requirements for dweller creation validation."
         ),
-        "background": f"Test background story {n} for the dweller character",
+        "background": (
+            f"Test background story {n} for the dweller character with "
+            "enough detail to meet the minimum validation requirements."
+        ),
     }
 
 

@@ -153,7 +153,10 @@ def _call_generator(func):
     kwargs = {}
     for name, param in sig.parameters.items():
         if param.default is not inspect.Parameter.empty:
-            continue  # has default, skip
+            # Override empty-string defaults for ID fields (Pydantic expects UUIDs)
+            if param.default == "" and "id" in name:
+                kwargs[name] = str(uuid.uuid4())
+            continue  # has default, skip or already overridden
         # Provide dummy values for required args
         if "region" in name:
             kwargs[name] = "Test Region"
