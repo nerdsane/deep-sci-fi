@@ -40,6 +40,7 @@ def get_rng() -> _random_module.Random | None:
     return _rng
 
 
+
 def reset_simulation() -> None:
     global _SIMULATION_MODE, _rng, _seed
     _SIMULATION_MODE = False
