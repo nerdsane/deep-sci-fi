@@ -103,9 +103,36 @@ class SafetyInvariantsMixin:
     @invariant()
     def s_s3_one_reaction_per_user(self):
         """Verify story reaction endpoint rejects duplicate reactions (spot-check)."""
-        # Enforcement is at the API level; we verify no 500s (s7) and
-        # structural consistency. The fault layer tests double-react explicitly.
-        pass
+        if not self.state.stories or not self._agent_keys:
+            return
+        sid = list(self.state.stories.keys())[0]
+        agent = self.state.agents[self._agent_keys[0]]
+        # Post duplicate reaction — neither should 500
+        resp1 = self.client.post(
+            f"/api/stories/{sid}/react",
+            headers=self._headers(agent),
+            json={"reaction_type": "fire"},
+        )
+        resp2 = self.client.post(
+            f"/api/stories/{sid}/react",
+            headers=self._headers(agent),
+            json={"reaction_type": "fire"},
+        )
+        assert resp1.status_code < 500, (
+            f"Story reaction 1 returned {resp1.status_code}: {resp1.text[:200]}"
+        )
+        assert resp2.status_code < 500, (
+            f"Duplicate story reaction returned {resp2.status_code}: {resp2.text[:200]}"
+        )
+
+    @invariant()
+    def s_s4_acclaimed_stories_revised(self):
+        """Acclaimed stories must have been revised at least once."""
+        for sid, story in self.state.stories.items():
+            if story.status == "ACCLAIMED":
+                assert story.revision_count >= 1, (
+                    f"Story {sid} is ACCLAIMED but revision_count={story.revision_count}"
+                )
 
     # -------------------------------------------------------------------------
     # Aspect invariants
@@ -121,19 +148,27 @@ class SafetyInvariantsMixin:
 
     @invariant()
     def s_a2_valid_aspect_transitions(self):
-        """Aspects only transition through valid states."""
+        """Aspects only transition through valid states (API spot-check)."""
         valid_transitions = {
             "draft": {"validating"},
             "validating": {"approved", "rejected"},
             "approved": set(),
             "rejected": set(),
         }
-        for aid, a in self.state.aspects.items():
+        for aid, a in list(self.state.aspects.items())[:3]:
             if a.status not in valid_transitions:
                 continue
-            # We trust our state mirror updated by rules; spot-check via API
-            # only for a sample to avoid perf issues
-        # Structural check passes — transitions validated in rule handlers
+            resp = self.client.get(f"/api/aspects/{aid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            aspect_data = body.get("aspect", {})
+            actual_status = aspect_data.get("status", a.status)
+            if actual_status != a.status:
+                assert actual_status in valid_transitions.get(a.status, set()), (
+                    f"Aspect {aid}: invalid transition {a.status} -> {actual_status}"
+                )
+                a.status = actual_status
 
     # -------------------------------------------------------------------------
     # Event invariants
@@ -207,10 +242,75 @@ class SafetyInvariantsMixin:
             )
 
     # -------------------------------------------------------------------------
+    # Cross-domain invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s8_max_5_dwellers_per_agent(self):
+        """No agent claims more than 5 dwellers simultaneously."""
+        from collections import Counter
+        claims = Counter()
+        for d in self.state.dwellers.values():
+            if d.claimed_by is not None:
+                claims[d.claimed_by] += 1
+        for agent_id, count in claims.items():
+            assert count <= 5, (
+                f"Agent {agent_id} has {count} claimed dwellers (max 5)"
+            )
+
+    @invariant()
+    def s9_feedback_upvote_consistency(self):
+        """Feedback upvote_count matches len(upvoters) in state mirror."""
+        for fid, fb in self.state.feedback.items():
+            assert fb.upvote_count == len(fb.upvoters), (
+                f"Feedback {fid}: upvote_count={fb.upvote_count} "
+                f"but {len(fb.upvoters)} upvoters tracked"
+            )
+
+    @invariant()
+    def s10_story_acclaim_conditions(self):
+        """Acclaimed stories meet all acclaim prerequisites."""
+        for sid, story in self.state.stories.items():
+            if story.status != "ACCLAIMED":
+                continue
+            acclaim_reviews = sum(
+                1 for ref in story.reviews.values()
+                if ref.recommend_acclaim
+            )
+            assert acclaim_reviews >= 2, (
+                f"Story {sid} is ACCLAIMED but only {acclaim_reviews} "
+                f"acclaim reviews (need >= 2)"
+            )
+            responded = sum(
+                1 for ref in story.reviews.values()
+                if ref.review_id in story.author_responses
+            )
+            assert responded == len(story.reviews), (
+                f"Story {sid} is ACCLAIMED but only {responded}/{len(story.reviews)} "
+                f"reviews responded to"
+            )
+            assert story.revision_count >= 1, (
+                f"Story {sid} is ACCLAIMED but revision_count={story.revision_count}"
+            )
+
+    @invariant()
+    def s11_escalation_requires_confirmation(self):
+        """Escalated actions must have been confirmed first."""
+        for aid, action in self.state.actions.items():
+            if action.escalated:
+                assert action.confirmed_by is not None, (
+                    f"Action {aid}: escalated but not confirmed"
+                )
+
+    # -------------------------------------------------------------------------
     # Read-only invariant
     # -------------------------------------------------------------------------
 
     @invariant()
     def s_r1_read_only_no_500s(self):
-        """Read-only endpoints never return 500. Covered by s7_no_500_errors."""
-        pass
+        """Read-only endpoints never return 500 (spot-check)."""
+        for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
+            resp = self.client.get(endpoint)
+            assert resp.status_code < 500, (
+                f"Read-only {endpoint} returned {resp.status_code}: {resp.text[:200]}"
+            )

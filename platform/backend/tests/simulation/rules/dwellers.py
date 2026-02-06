@@ -168,3 +168,34 @@ class DwellerRulesMixin:
                         importance=data["importance"],
                     )
             return
+
+    @rule()
+    def claim_sixth_dweller(self):
+        """Agent with 5 claimed dwellers tries to claim a 6th — must be rejected."""
+        from collections import Counter
+        claims = Counter()
+        for d in self.state.dwellers.values():
+            if d.claimed_by is not None:
+                claims[d.claimed_by] += 1
+        # Find an agent at the boundary (5 claimed)
+        boundary_agent_id = None
+        for agent_id, count in claims.items():
+            if count >= 5:
+                boundary_agent_id = agent_id
+                break
+        if not boundary_agent_id:
+            return
+        # Find an unclaimed dweller
+        for did, ds in self.state.dwellers.items():
+            if ds.claimed_by is None:
+                agent = self.state.agents[boundary_agent_id]
+                resp = self.client.post(
+                    f"/api/dwellers/{did}/claim",
+                    headers=self._headers(agent),
+                )
+                self._track_response(resp, f"claim 6th dweller {did}")
+                assert resp.status_code == 400, (
+                    f"6th dweller claim should return 400 but got "
+                    f"{resp.status_code}: {resp.text[:200]}"
+                )
+                return

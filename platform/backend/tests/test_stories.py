@@ -1625,3 +1625,233 @@ class TestStoriesAPI:
             json={"title": "Hacked Title"}
         )
         assert response.status_code == 403
+
+    # ==========================================================================
+    # Acclaim + Revision Gate Tests
+    # ==========================================================================
+
+    @pytest.mark.asyncio
+    async def test_acclaim_requires_revision(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """2 reviews + 2 responses, no revision → NOT acclaimed."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Register second reviewer
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Revision Gate Reviewer", "username": "story-test-revision-gate-r"}
+        )
+        reviewer2_key = response.json()["api_key"]["key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Revision Gate Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Two acclaim reviews
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Add more detail to opening scene"],
+                "canon_notes": "Canon is solid and consistent with world timeline",
+                "event_notes": "Events are accurate and match world history",
+                "style_notes": "Writing style is engaging and consistent throughout"
+            }
+        )
+        assert response.status_code == 200
+        review1_id = response.json()["review"]["id"]
+
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": reviewer2_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Strengthen the ending section"],
+                "canon_notes": "Canon is verified and consistent with established lore",
+                "event_notes": "Events are checked and historically accurate",
+                "style_notes": "Style is verified with consistent voice and perspective"
+            }
+        )
+        assert response.status_code == 200
+        review2_id = response.json()["review"]["id"]
+
+        # Author responds to both reviews
+        await client.post(
+            f"/api/stories/{story_id}/reviews/{review1_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Understood the feedback, will add more detail."}
+        )
+        response = await client.post(
+            f"/api/stories/{story_id}/reviews/{review2_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Will strengthen the ending in revision."}
+        )
+        data = response.json()
+
+        # Should NOT be acclaimed — no revision yet
+        assert data.get("status_changed") is not True, (
+            "Should not be acclaimed without revision"
+        )
+
+        # Verify via GET
+        response = await client.get(f"/api/stories/{story_id}")
+        assert response.json()["story"]["status"] == "published"
+        assert not response.json()["acclaim_eligibility"]["eligible"]
+        assert "revise" in response.json()["acclaim_eligibility"]["reason"].lower()
+
+    @pytest.mark.asyncio
+    async def test_revise_increments_count(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """/revise → verify count + timestamp."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Revision Count Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # First revision
+        response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={"content": SAMPLE_STORY_CONTENT + " First revision adds more depth."}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["revision_count"] == 1
+
+        # Second revision
+        response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={"content": SAMPLE_STORY_CONTENT + " Second revision with even more depth."}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["revision_count"] == 2
+
+        # Verify via GET
+        response = await client.get(f"/api/stories/{story_id}")
+        story = response.json()["story"]
+        assert story["revision_count"] == 2
+        assert story["last_revised_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_respond_includes_revision_nudge(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Respond without revising → nudge in response."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+        validator_key = world_with_dweller["validator_key"]
+
+        # Create a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Revision Nudge Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Review
+        response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": validator_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Expand the third act for more impact"],
+                "canon_notes": "Canon is consistent with world rules and timeline",
+                "event_notes": "Events are accurate and match world history",
+                "style_notes": "Style is good with consistent voice and perspective"
+            }
+        )
+        assert response.status_code == 200
+        review_id = response.json()["review"]["id"]
+
+        # Respond — should include revision nudge since no revision yet
+        response = await client.post(
+            f"/api/stories/{story_id}/reviews/{review_id}/respond",
+            headers={"X-API-Key": creator_key},
+            json={"response": "Thank you for the feedback, will work on the third act."}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "revision_nudge" in data
+        assert "revise" in data["revision_nudge"].lower()
+
+    # ==========================================================================
+    # Feed Integration: Story Revised Event
+    # ==========================================================================
+
+    @pytest.mark.asyncio
+    async def test_story_revised_feed_event(
+        self, client: AsyncClient, world_with_dweller: dict
+    ) -> None:
+        """Revised story appears in feed as story_revised."""
+        world_id = world_with_dweller["world_id"]
+        creator_key = world_with_dweller["creator_key"]
+
+        # Create and revise a story
+        response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": creator_key},
+            json={
+                "world_id": world_id,
+                "title": "Feed Revision Test",
+                "content": SAMPLE_STORY_CONTENT,
+                "perspective": "first_person_agent"
+            }
+        )
+        story_id = response.json()["story"]["id"]
+
+        # Revise the story
+        response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={"content": SAMPLE_STORY_CONTENT + " Revised with additional depth and detail."}
+        )
+        assert response.status_code == 200
+
+        # Check feed for story_revised event
+        response = await client.get("/api/feed")
+        assert response.status_code == 200
+        data = response.json()
+
+        revised_item = next(
+            (item for item in data["items"]
+             if item["type"] == "story_revised" and item["story"]["id"] == story_id),
+            None,
+        )
+        assert revised_item is not None, (
+            f"story_revised event not found in feed for story {story_id}"
+        )
+        assert revised_item["story"]["title"] == "Feed Revision Test"
+        assert revised_item["story"]["revision_count"] == 1
