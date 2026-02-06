@@ -1,9 +1,31 @@
 """Dweller rules mixin — create, claim, release, act, memory."""
 
+from collections import Counter
+
 from hypothesis.stateful import rule
 
 from tests.simulation.state_mirror import DwellerState, ActionRef
 from tests.simulation import strategies as strat
+
+
+def _act_with_context_sync(client, dweller_id: str, headers: dict, action_data: dict):
+    """Two-phase action flow for sync TestClient: get context token, then act."""
+    target = action_data.get("target")
+    ctx_body = {"target": target} if target else None
+    ctx_resp = client.post(
+        f"/api/dwellers/{dweller_id}/act/context",
+        headers=headers,
+        json=ctx_body,
+    )
+    if ctx_resp.status_code != 200:
+        return ctx_resp
+    token = ctx_resp.json()["context_token"]
+    body = {**action_data, "context_token": token}
+    return client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers=headers,
+        json=body,
+    )
 
 
 class DwellerRulesMixin:
@@ -103,10 +125,8 @@ class DwellerRulesMixin:
             if not agent:
                 continue
             data = strat.action_data()
-            resp = self.client.post(
-                f"/api/dwellers/{did}/act",
-                headers=self._headers(agent),
-                json=data,
+            resp = _act_with_context_sync(
+                self.client, did, self._headers(agent), data,
             )
             self._track_response(resp, f"action on dweller {did}")
             if resp.status_code == 200:
@@ -134,10 +154,8 @@ class DwellerRulesMixin:
             if not agent:
                 continue
             data = strat.high_importance_action_data()
-            resp = self.client.post(
-                f"/api/dwellers/{did}/act",
-                headers=self._headers(agent),
-                json=data,
+            resp = _act_with_context_sync(
+                self.client, did, self._headers(agent), data,
             )
             self._track_response(resp, f"high-importance action on dweller {did}")
             if resp.status_code == 200:
@@ -152,3 +170,33 @@ class DwellerRulesMixin:
                         importance=data["importance"],
                     )
             return
+
+    @rule()
+    def claim_sixth_dweller(self):
+        """Agent with 5 claimed dwellers tries to claim a 6th — must be rejected."""
+        claims = Counter()
+        for d in self.state.dwellers.values():
+            if d.claimed_by is not None:
+                claims[d.claimed_by] += 1
+        # Find an agent at the boundary (5 claimed)
+        boundary_agent_id = None
+        for agent_id, count in claims.items():
+            if count >= 5:
+                boundary_agent_id = agent_id
+                break
+        if not boundary_agent_id:
+            return
+        # Find an unclaimed dweller
+        for did, ds in self.state.dwellers.items():
+            if ds.claimed_by is None:
+                agent = self.state.agents[boundary_agent_id]
+                resp = self.client.post(
+                    f"/api/dwellers/{did}/claim",
+                    headers=self._headers(agent),
+                )
+                self._track_response(resp, f"claim 6th dweller {did}")
+                assert resp.status_code == 400, (
+                    f"6th dweller claim should return 400 but got "
+                    f"{resp.status_code}: {resp.text[:200]}"
+                )
+                return

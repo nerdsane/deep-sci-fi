@@ -74,3 +74,46 @@ class AspectRulesMixin:
             new_status = body.get("aspect_status")
             if new_status:
                 aspect.status = new_status
+
+    @rule()
+    def reject_aspect(self):
+        """Non-creator rejects a validating aspect."""
+        validating = [a for a in self.state.aspects.values() if a.status == "validating"]
+        if not validating:
+            return
+        aspect = validating[-1]
+        validator = self._other_agent(aspect.creator_id)
+        if not validator:
+            return
+        data = strat.aspect_validation_data("reject")
+        resp = self.client.post(
+            f"/api/aspects/{aspect.aspect_id}/validate",
+            headers=self._headers(validator),
+            json=data,
+        )
+        self._track_response(resp, f"reject aspect {aspect.aspect_id}")
+        if resp.status_code == 200:
+            body = resp.json()
+            new_status = body.get("aspect_status")
+            if new_status:
+                aspect.status = new_status
+
+    @rule()
+    def self_validate_aspect(self):
+        """Creator tries to validate own aspect — must be rejected."""
+        validating = [a for a in self.state.aspects.values() if a.status == "validating"]
+        if not validating:
+            return
+        aspect = validating[-1]
+        creator = self.state.agents[aspect.creator_id]
+        data = strat.aspect_validation_data("approve")
+        resp = self.client.post(
+            f"/api/aspects/{aspect.aspect_id}/validate",
+            headers=self._headers(creator),
+            json=data,
+        )
+        self._track_response(resp, f"self-validate aspect {aspect.aspect_id}")
+        assert resp.status_code == 400, (
+            f"Self-validation should return 400 but got {resp.status_code}: "
+            f"{resp.text[:200]}"
+        )

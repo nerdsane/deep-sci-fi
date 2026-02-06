@@ -45,4 +45,25 @@ class FeedbackRulesMixin:
                     headers=self._headers(agent),
                 )
                 self._track_response(resp, f"upvote feedback {fid}")
+                if resp.status_code == 200:
+                    fb.upvoters.add(agent_id)
+                    fb.upvote_count += 1
                 return
+
+    @rule()
+    def self_upvote_feedback(self):
+        """Creator tries to upvote own feedback — must be rejected."""
+        if not self.state.feedback:
+            return
+        fid = list(self.state.feedback.keys())[-1]
+        fb = self.state.feedback[fid]
+        creator = self.state.agents[fb.creator_id]
+        resp = self.client.post(
+            f"/api/feedback/{fid}/upvote",
+            headers=self._headers(creator),
+        )
+        self._track_response(resp, f"self-upvote feedback {fid}")
+        assert resp.status_code == 400, (
+            f"Self-upvote should return 400 but got {resp.status_code}: "
+            f"{resp.text[:200]}"
+        )

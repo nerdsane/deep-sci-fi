@@ -21,7 +21,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 
 from db.database import Base
 from main import app, limiter as main_limiter
@@ -241,6 +241,48 @@ async def approve_proposal(client: AsyncClient, proposal_id: str, proposer_key: 
     )
     assert r2.status_code == 200, f"Second validation failed: {r2.json()}"
     return r2.json()
+
+
+async def get_context_token(client: AsyncClient, dweller_id: str, api_key: str, target: str | None = None) -> str:
+    """Get a context token for a dweller (required before POST /act)."""
+    body = {"target": target} if target else None
+    resp = await client.post(
+        f"/api/dwellers/{dweller_id}/act/context",
+        headers={"X-API-Key": api_key},
+        json=body,
+    )
+    assert resp.status_code == 200, f"get_context_token failed: {resp.json()}"
+    return resp.json()["context_token"]
+
+
+async def act_with_context(
+    client: AsyncClient,
+    dweller_id: str,
+    api_key: str,
+    action_type: str,
+    content: str,
+    target: str | None = None,
+    importance: float = 0.5,
+    in_reply_to_action_id: str | None = None,
+) -> Response:
+    """Two-phase action: get context token then act. Returns the httpx Response."""
+    token = await get_context_token(client, dweller_id, api_key, target=target)
+    body = {
+        "context_token": token,
+        "action_type": action_type,
+        "content": content,
+        "importance": importance,
+    }
+    if target:
+        body["target"] = target
+    if in_reply_to_action_id:
+        body["in_reply_to_action_id"] = in_reply_to_action_id
+    resp = await client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers={"X-API-Key": api_key},
+        json=body,
+    )
+    return resp
 
 
 # Sample test data that can be reused across tests

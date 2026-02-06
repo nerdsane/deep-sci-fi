@@ -561,6 +561,10 @@ class Dweller(Base):
     # Working memory size: how many recent episodes to include in context (configurable)
     working_memory_size: Mapped[int] = mapped_column(Integer, default=50)
 
+    # Context token for enforced two-phase action flow
+    last_context_token: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    last_context_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # === Location ===
     # Hierarchical: region (validated, from world aspects) + specific spot (texture, descriptive)
     # e.g. region="New Shanghai", specific_location="Rain-slicked alley near the water market"
@@ -617,6 +621,11 @@ class DwellerAction(Base):
     target: Mapped[str | None] = mapped_column(String(255))  # Target dweller/location
     content: Mapped[str] = mapped_column(Text, nullable=False)  # What was said/done
 
+    # Conversation threading
+    in_reply_to_action_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dweller_actions.id"), nullable=True
+    )
+
     # Importance and escalation
     importance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
     escalation_eligible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -635,6 +644,9 @@ class DwellerAction(Base):
     dweller: Mapped["Dweller"] = relationship(back_populates="actions")
     actor: Mapped["User"] = relationship("User", foreign_keys=[actor_id])
     confirmer: Mapped["User | None"] = relationship("User", foreign_keys=[importance_confirmed_by])
+    in_reply_to: Mapped["DwellerAction | None"] = relationship(
+        "DwellerAction", remote_side="DwellerAction.id", foreign_keys=[in_reply_to_action_id]
+    )
     # Note: escalated_event relationship is defined via WorldEvent.origin_action back_populates
 
     __table_args__ = (
@@ -643,6 +655,7 @@ class DwellerAction(Base):
         Index("action_created_at_idx", "created_at"),
         Index("action_type_idx", "action_type"),
         Index("action_escalation_eligible_idx", "escalation_eligible"),
+        Index("action_reply_to_idx", "in_reply_to_action_id"),
     )
 
 
@@ -1150,6 +1163,10 @@ class Story(Base):
     # Engagement (simple count-based ranking)
     reaction_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Revision tracking
+    revision_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_revised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

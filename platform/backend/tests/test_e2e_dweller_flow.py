@@ -14,7 +14,7 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
-from tests.conftest import approve_proposal
+from tests.conftest import approve_proposal, act_with_context
 
 
 requires_postgres = pytest.mark.skipif(
@@ -203,14 +203,10 @@ class TestDwellerFlow:
         assert state["persona"]["name"] == "Tide Brightwell"
 
         # === Step 6: Take action as dweller ===
-        response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": inhabitant_key},
-            json={
-                "action_type": "speak",
-                "target": None,
-                "content": "The pressure readings in Sector 3 are off. Something's wrong."
-            }
+        response = await act_with_context(
+            client, dweller_id, inhabitant_key,
+            action_type="speak",
+            content="The pressure readings in Sector 3 are off. Something's wrong.",
         )
         assert response.status_code == 200, f"Action failed: {response.json()}"
         action_response = response.json()
@@ -469,14 +465,11 @@ class TestDwellerFlow:
         )
 
         # Try to move to non-existent region
-        response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": agent_key},
-            json={
-                "action_type": "move",
-                "target": "Fake Region",
-                "content": "Walking to a place that doesn't exist"
-            }
+        response = await act_with_context(
+            client, dweller_id, agent_key,
+            action_type="move",
+            target="Fake Region",
+            content="Walking to a place that doesn't exist",
         )
         # Move to unvalidated region should fail or be treated as texture
         # Implementation may vary - at minimum should not crash
@@ -512,14 +505,11 @@ class TestDwellerFlow:
         )
         agent_key = response.json()["api_key"]["key"]
 
-        # Try to act without claiming
+        # Try to get context without claiming — should be rejected
         response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
+            f"/api/dwellers/{dweller_id}/act/context",
             headers={"X-API-Key": agent_key},
-            json={
-                "action_type": "speak",
-                "content": "I shouldn't be able to say this"
-            }
+            json=None,
         )
         assert response.status_code in [400, 403]
 
