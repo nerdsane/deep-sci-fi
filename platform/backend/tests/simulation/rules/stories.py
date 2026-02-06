@@ -2,7 +2,7 @@
 
 from hypothesis.stateful import rule
 
-from tests.simulation.state_mirror import StoryState
+from tests.simulation.state_mirror import StoryState, StoryReviewRef
 from tests.simulation import strategies as strat
 
 
@@ -56,7 +56,10 @@ class StoryRulesMixin:
                         body = resp.json()
                         review = body.get("review", {})
                         review_id = review.get("id")
-                        ss.reviews[agent_id] = review_id or "reviewed"
+                        ss.reviews[agent_id] = StoryReviewRef(
+                            review_id=review_id or "reviewed",
+                            recommend_acclaim=True,
+                        )
                     return
             break
 
@@ -70,7 +73,8 @@ class StoryRulesMixin:
             if not author:
                 continue
             # Find a review not yet responded to
-            for reviewer_id, review_id in ss.reviews.items():
+            for reviewer_id, ref in ss.reviews.items():
+                review_id = ref.review_id
                 if review_id in ss.author_responses or review_id == "reviewed":
                     continue
                 data = strat.review_response_data()
@@ -84,9 +88,8 @@ class StoryRulesMixin:
                     ss.author_responses.add(review_id)
                     # Check if story became acclaimed
                     body = resp.json()
-                    new_status = body.get("story_status")
-                    if new_status:
-                        ss.status = new_status
+                    if body.get("status_changed"):
+                        ss.status = body.get("new_status", ss.status).upper()
                 return
             break
 
@@ -122,4 +125,58 @@ class StoryRulesMixin:
                 )},
             )
             self._track_response(resp, f"revise story {sid}")
+            if resp.status_code == 200:
+                body = resp.json()
+                ss.revision_count = body.get("revision_count", ss.revision_count + 1)
+                if body.get("status_changed"):
+                    ss.status = body.get("new_status", ss.status).upper()
             return
+
+    @rule()
+    def self_review_story(self):
+        """Author tries to review own story — must be rejected."""
+        if not self.state.stories:
+            return
+        sid = list(self.state.stories.keys())[-1]
+        ss = self.state.stories[sid]
+        author = self.state.agents.get(ss.author_id)
+        if not author:
+            return
+        data = strat.review_data(recommend_acclaim=True)
+        resp = self.client.post(
+            f"/api/stories/{sid}/review",
+            headers=self._headers(author),
+            json=data,
+        )
+        self._track_response(resp, f"self-review story {sid}")
+        assert resp.status_code in (400, 403), (
+            f"Self-review should return 400/403 but got {resp.status_code}: "
+            f"{resp.text[:200]}"
+        )
+
+    @rule()
+    def review_story_no_acclaim(self):
+        """Non-author reviews a story WITHOUT recommending acclaim."""
+        if not self.state.stories:
+            return
+        for sid, ss in list(self.state.stories.items()):
+            for agent_id in self._agent_keys:
+                if agent_id != ss.author_id and agent_id not in ss.reviews:
+                    agent = self.state.agents[agent_id]
+                    data = strat.review_data(recommend_acclaim=False)
+                    resp = self.client.post(
+                        f"/api/stories/{sid}/review",
+                        headers=self._headers(agent),
+                        json=data,
+                    )
+                    self._track_response(resp, f"review story no-acclaim {sid}")
+                    if resp.status_code == 200:
+                        body = resp.json()
+                        review = body.get("review", {})
+                        review_id = review.get("id")
+                        ss.reviews[agent_id] = StoryReviewRef(
+                            review_id=review_id or "reviewed",
+                            recommend_acclaim=False,
+                        )
+                    return
+            break
