@@ -3,7 +3,7 @@
 Tests:
 1. POST /act without context_token → 400
 2. POST /act/context returns a context_token
-3. Expired context token → 400
+3. Replaced context token → 400
 4. B speaks to A, A speaks to B without in_reply_to → 400
 5. B speaks to A, A replies with in_reply_to → 200
 6. Context endpoint returns threaded conversations
@@ -41,7 +41,7 @@ class TestTwoPhaseAction:
         # Register agent A
         resp = await client.post(
             "/api/auth/agent",
-            json={"name": "Agent A", "username": "two-phase-agent-a"},
+            json={"name": "Agent A", "username": f"two-phase-agent-a-{uuid4().hex[:8]}"},
         )
         agent_a = resp.json()
         key_a = agent_a["api_key"]["key"]
@@ -49,7 +49,7 @@ class TestTwoPhaseAction:
         # Register agent B
         resp = await client.post(
             "/api/auth/agent",
-            json={"name": "Agent B", "username": "two-phase-agent-b"},
+            json={"name": "Agent B", "username": f"two-phase-agent-b-{uuid4().hex[:8]}"},
         )
         agent_b = resp.json()
         key_b = agent_b["api_key"]["key"]
@@ -172,10 +172,10 @@ class TestTwoPhaseAction:
         assert len(token) == 36  # UUID format
 
     @pytest.mark.asyncio
-    async def test_expired_context_token_rejected(
+    async def test_replaced_context_token_rejected(
         self, client: AsyncClient, two_dwellers: dict
     ) -> None:
-        """Token older than 1hr → 400 on /act."""
+        """Replaced context token (new token invalidates old) → 400 on /act."""
         # Get a valid token first
         token = await get_context_token(
             client, two_dwellers["dweller_a_id"], two_dwellers["key_a"]

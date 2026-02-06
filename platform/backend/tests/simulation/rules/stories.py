@@ -109,6 +109,26 @@ class StoryRulesMixin:
         self._track_response(resp, f"react to story {sid}")
 
     @rule()
+    def duplicate_story_reaction(self):
+        """Post duplicate reaction — neither should 500."""
+        if not self.state.stories or not self._agent_keys:
+            return
+        sid = list(self.state.stories.keys())[0]
+        agent = self.state.agents[self._agent_keys[0]]
+        resp1 = self.client.post(
+            f"/api/stories/{sid}/react",
+            headers=self._headers(agent),
+            json={"reaction_type": "fire"},
+        )
+        self._track_response(resp1, f"duplicate reaction 1 on {sid}")
+        resp2 = self.client.post(
+            f"/api/stories/{sid}/react",
+            headers=self._headers(agent),
+            json={"reaction_type": "fire"},
+        )
+        self._track_response(resp2, f"duplicate reaction 2 on {sid}")
+
+    @rule()
     def revise_story(self):
         """Author revises their own story."""
         for sid, ss in self.state.stories.items():

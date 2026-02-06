@@ -21,7 +21,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 
 from db.database import Base
 from main import app, limiter as main_limiter
@@ -264,8 +264,8 @@ async def act_with_context(
     target: str | None = None,
     importance: float = 0.5,
     in_reply_to_action_id: str | None = None,
-) -> dict:
-    """Two-phase action: get context token then act. Returns the act response dict."""
+) -> Response:
+    """Two-phase action: get context token then act. Returns the httpx Response."""
     token = await get_context_token(client, dweller_id, api_key, target=target)
     body = {
         "context_token": token,

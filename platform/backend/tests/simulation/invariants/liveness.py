@@ -60,7 +60,11 @@ class LivenessInvariantsMixin:
                 1 for ref in ss.reviews.values()
                 if ref.recommend_acclaim
             )
-            all_responded = len(ss.author_responses) >= len(ss.reviews) and len(ss.reviews) > 0
+            responded = sum(
+                1 for ref in ss.reviews.values()
+                if ref.review_id in ss.author_responses
+            )
+            all_responded = responded == len(ss.reviews) and len(ss.reviews) > 0
             if acclaim_reviews >= 2 and all_responded and ss.revision_count >= 1:
                 assert ss.status == "ACCLAIMED", (
                     f"Story {sid}: {acclaim_reviews} acclaim reviews, all responded, "
