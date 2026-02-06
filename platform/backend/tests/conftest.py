@@ -310,7 +310,7 @@ SAMPLE_REGION = {
     "name": "Test Region",
     "location": "Test Location",
     "population_origins": ["Test origin 1", "Test origin 2"],
-    "cultural_blend": "Test cultural blend",
+    "cultural_blend": "A fusion of test heritage traditions with modern experimental culture",
     "naming_conventions": (
         "Names follow test conventions: First names are simple, "
         "family names reflect test heritage. Examples: Test Person, Sample Name."
