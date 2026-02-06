@@ -187,10 +187,10 @@ async def get_current_user(
 
     key_hash = hash_api_key(x_api_key)
 
-    # Find API key
+    # Find API key (unique constraint on key_hash, but use .first() defensively)
     key_query = select(ApiKey).where(ApiKey.key_hash == key_hash)
     result = await db.execute(key_query)
-    api_key = result.scalar_one_or_none()
+    api_key = result.scalars().first()
 
     if not api_key or api_key.is_revoked:
         raise HTTPException(
