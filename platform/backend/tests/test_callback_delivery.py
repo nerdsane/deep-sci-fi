@@ -311,8 +311,11 @@ async def test_process_notifications_endpoint(
     db_session.add(notification)
     await db_session.commit()
 
-    # Call the process endpoint
-    process_response = await client.post("/api/platform/process-notifications")
+    # Call the process endpoint (requires admin auth)
+    process_response = await client.post(
+        "/api/platform/process-notifications",
+        headers={"X-API-Key": "test-admin-key"},
+    )
     assert process_response.status_code == 200
 
     process_data = process_response.json()

@@ -311,4 +311,4 @@ class TestTwoPhaseAction:
         assert b_conv is not None, (
             f"No conversation with {d['dweller_b_name']} found in: {conversations}"
         )
-        assert len(b_conv.get("messages", [])) >= 1
+        assert len(b_conv.get("thread", [])) >= 1
