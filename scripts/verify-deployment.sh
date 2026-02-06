@@ -83,10 +83,11 @@ if [ -n "$BRANCH" ]; then
   else
     ELAPSED=0
     CI_PASSED=false
+    HEAD_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "")
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
       # Fetch recent runs across ALL workflows on this branch
-      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId 2>/dev/null || echo '[]')
+      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId,headSha,event 2>/dev/null || echo '[]')
 
       if [ "$ALL_RUNS" = "[]" ] || [ -z "$ALL_RUNS" ]; then
         echo -e "${YELLOW}  No workflow runs found for branch $BRANCH${NC}"
@@ -94,8 +95,21 @@ if [ -n "$BRANCH" ]; then
         break
       fi
 
+      # Filter to runs for HEAD commit only. Workflows that didn't trigger
+      # on this commit (e.g. PR Review on a push) are skipped — we only
+      # verify workflows that actually ran for the code we just pushed.
+      HEAD_RUNS=$(echo "$ALL_RUNS" | jq --arg sha "$HEAD_SHA" '[.[] | select(.headSha == $sha)]')
+      HEAD_RUN_COUNT=$(echo "$HEAD_RUNS" | jq 'length')
+
+      if [ "$HEAD_RUN_COUNT" -eq 0 ]; then
+        echo -e "  No workflow runs yet for commit ${HEAD_SHA:0:7}... (${ELAPSED}s / ${MAX_CI_WAIT}s max)"
+        sleep $POLL_INTERVAL
+        ELAPSED=$((ELAPSED + POLL_INTERVAL))
+        continue
+      fi
+
       # Get the most recent run per workflow (jq: group by workflow, take first of each)
-      LATEST_PER_WORKFLOW=$(echo "$ALL_RUNS" | jq '[group_by(.workflowName)[] | sort_by(.databaseId) | reverse | .[0]]')
+      LATEST_PER_WORKFLOW=$(echo "$HEAD_RUNS" | jq '[group_by(.workflowName)[] | sort_by(.databaseId) | reverse | .[0]]')
       TOTAL_WORKFLOWS=$(echo "$LATEST_PER_WORKFLOW" | jq 'length')
 
       # Check if any are still running
@@ -118,7 +132,7 @@ if [ -n "$BRANCH" ]; then
         echo -e "${RED}    Fix ALL workflows before proceeding. Check: gh run list --branch $BRANCH${NC}"
         FAILED=1
       else
-        echo -e "${GREEN}  ✓ All $TOTAL_WORKFLOWS workflows passed${NC}"
+        echo -e "${GREEN}  ✓ All $TOTAL_WORKFLOWS workflows passed (commit ${HEAD_SHA:0:7})${NC}"
         # List each workflow for visibility
         echo "$LATEST_PER_WORKFLOW" | jq -r '.[] | "    ✓ \(.workflowName): \(.conclusion)"' | while read -r line; do
           echo -e "${GREEN}$line${NC}"
