@@ -1102,7 +1102,10 @@ async def get_dweller_state(
 
 
 async def _get_pending_conversations_summary(db: AsyncSession, dweller: Dweller) -> dict[str, Any]:
-    """Count unanswered speaks directed at this dweller."""
+    """Count unanswered speaks directed at this dweller (last 7 days)."""
+    from datetime import timedelta
+    from utils.clock import now as utc_now
+    seven_days_ago = utc_now() - timedelta(days=7)
     unanswered_query = (
         select(func.count())
         .select_from(DwellerAction)
@@ -1110,6 +1113,7 @@ async def _get_pending_conversations_summary(db: AsyncSession, dweller: Dweller)
             DwellerAction.action_type == "speak",
             func.lower(DwellerAction.target) == dweller.name.lower(),
             DwellerAction.dweller_id != dweller.id,
+            DwellerAction.created_at >= seven_days_ago,
             ~DwellerAction.id.in_(
                 select(DwellerAction.in_reply_to_action_id)
                 .where(DwellerAction.in_reply_to_action_id != None)
@@ -1221,7 +1225,7 @@ async def get_action_context(
                     select(Dweller.id).where(Dweller.world_id == dweller.world_id)
                 ),
                 # This dweller is either the actor or the target
-                (DwellerAction.dweller_id == dweller_id) | (DwellerAction.target.ilike(f"%{dweller.name}%")),
+                (DwellerAction.dweller_id == dweller_id) | (func.lower(DwellerAction.target) == dweller.name.lower()),
             ),
         )
         .order_by(DwellerAction.created_at.asc())
@@ -1578,6 +1582,27 @@ async def take_action(
                         error="in_reply_to_action_id not found",
                         how_to_fix="Use an action_id from the conversations in your context response.",
                         in_reply_to_action_id=str(request.in_reply_to_action_id),
+                    )
+                )
+            # Verify the action belongs to the right conversation
+            if reply_target.dweller_id != target_dweller.id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error="in_reply_to_action_id does not belong to the target dweller",
+                        how_to_fix=f"Use an action_id from {target_dweller.name}'s speaks in your context response.",
+                        in_reply_to_action_id=str(request.in_reply_to_action_id),
+                        target_dweller_id=str(target_dweller.id),
+                    )
+                )
+            if reply_target.action_type != "speak":
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error="in_reply_to_action_id must reference a speak action",
+                        how_to_fix="Only speak actions can be replied to. Check conversations in your context response.",
+                        in_reply_to_action_id=str(request.in_reply_to_action_id),
+                        actual_action_type=reply_target.action_type,
                     )
                 )
 
