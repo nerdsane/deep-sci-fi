@@ -59,6 +59,9 @@ class DeepSciFiBaseRules(RuleBasedStateMachine):
     def _headers(self, agent: AgentState) -> dict:
         return {"X-API-Key": agent.api_key}
 
+    def _admin_headers(self) -> dict:
+        return {"X-API-Key": "test-admin-key"}
+
     def _track_response(self, resp, context: str = ""):
         if resp.status_code >= 500:
             self.state.error_log.append({

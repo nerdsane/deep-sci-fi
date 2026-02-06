@@ -25,6 +25,7 @@ from tests.simulation.rules.events import EventRulesMixin
 from tests.simulation.rules.actions import ActionRulesMixin
 from tests.simulation.rules.dweller_proposals import DwellerProposalRulesMixin
 from tests.simulation.rules.notifications import NotificationRulesMixin
+from tests.simulation.rules.auth import AuthRulesMixin
 from tests.simulation.rules.heartbeat import HeartbeatRulesMixin
 from tests.simulation.rules.read_only import ReadOnlyRulesMixin
 
@@ -49,6 +50,7 @@ class DeepSciFiGameRules(
     ActionRulesMixin,
     DwellerProposalRulesMixin,
     NotificationRulesMixin,
+    AuthRulesMixin,
     HeartbeatRulesMixin,
     ReadOnlyRulesMixin,
     # Base (must be last — provides RuleBasedStateMachine)
