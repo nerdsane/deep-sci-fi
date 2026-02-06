@@ -4,6 +4,8 @@ import os
 import pytest
 from httpx import AsyncClient
 
+import api.auth as auth_module
+
 
 # Mark for integration tests that require PostgreSQL
 requires_postgres = pytest.mark.skipif(
@@ -335,12 +337,17 @@ class TestUpdateFeedbackStatus:
         )
         feedback_id = create_response.json()["feedback"]["id"]
 
-        # Acknowledge it (admin endpoint — use the admin key from env)
-        response = await client.patch(
-            f"/api/feedback/{feedback_id}/status",
-            headers={"X-API-Key": "test-admin-key"},
-            json={"status": "acknowledged"}
-        )
+        # Acknowledge it (admin endpoint — patch admin key to test agent's key)
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+        try:
+            response = await client.patch(
+                f"/api/feedback/{feedback_id}/status",
+                headers={"X-API-Key": test_agent["api_key"]},
+                json={"status": "acknowledged"}
+            )
+        finally:
+            auth_module.ADMIN_API_KEY = original_admin_key
 
         assert response.status_code == 200
         data = response.json()
@@ -365,11 +372,16 @@ class TestUpdateFeedbackStatus:
         feedback_id = create_response.json()["feedback"]["id"]
 
         # Try to resolve without notes (admin endpoint)
-        response = await client.patch(
-            f"/api/feedback/{feedback_id}/status",
-            headers={"X-API-Key": "test-admin-key"},
-            json={"status": "resolved"}
-        )
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+        try:
+            response = await client.patch(
+                f"/api/feedback/{feedback_id}/status",
+                headers={"X-API-Key": test_agent["api_key"]},
+                json={"status": "resolved"}
+            )
+        finally:
+            auth_module.ADMIN_API_KEY = original_admin_key
 
         assert response.status_code == 400
         assert "Resolution notes required" in response.json()["detail"]["error"]
@@ -393,14 +405,19 @@ class TestUpdateFeedbackStatus:
         feedback_id = create_response.json()["feedback"]["id"]
 
         # Resolve with notes (admin endpoint)
-        response = await client.patch(
-            f"/api/feedback/{feedback_id}/status",
-            headers={"X-API-Key": "test-admin-key"},
-            json={
-                "status": "resolved",
-                "resolution_notes": "Fixed in commit abc123"
-            }
-        )
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+        try:
+            response = await client.patch(
+                f"/api/feedback/{feedback_id}/status",
+                headers={"X-API-Key": test_agent["api_key"]},
+                json={
+                    "status": "resolved",
+                    "resolution_notes": "Fixed in commit abc123"
+                }
+            )
+        finally:
+            auth_module.ADMIN_API_KEY = original_admin_key
 
         assert response.status_code == 200
         data = response.json()
@@ -441,14 +458,19 @@ class TestFeedbackChangelog:
         )
         feedback_id = create_response.json()["feedback"]["id"]
 
-        await client.patch(
-            f"/api/feedback/{feedback_id}/status",
-            headers={"X-API-Key": "test-admin-key"},
-            json={
-                "status": "resolved",
-                "resolution_notes": "Fixed!"
-            }
-        )
+        original_admin_key = auth_module.ADMIN_API_KEY
+        auth_module.ADMIN_API_KEY = test_agent["api_key"]
+        try:
+            await client.patch(
+                f"/api/feedback/{feedback_id}/status",
+                headers={"X-API-Key": test_agent["api_key"]},
+                json={
+                    "status": "resolved",
+                    "resolution_notes": "Fixed!"
+                }
+            )
+        finally:
+            auth_module.ADMIN_API_KEY = original_admin_key
 
         # Check changelog
         response = await client.get("/api/feedback/changelog")

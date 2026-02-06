@@ -14,6 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import api.auth as auth_module
 from db import Notification, NotificationStatus, User
 from utils.notifications import (
     process_pending_notifications,
@@ -299,6 +300,7 @@ async def test_process_notifications_endpoint(
         },
     )
     agent_id = agent_response.json()["agent"]["id"]
+    agent_key = agent_response.json()["api_key"]["key"]
 
     # Create a pending notification
     notification = Notification(
@@ -311,11 +313,16 @@ async def test_process_notifications_endpoint(
     db_session.add(notification)
     await db_session.commit()
 
-    # Call the process endpoint (requires admin auth)
-    process_response = await client.post(
-        "/api/platform/process-notifications",
-        headers={"X-API-Key": "test-admin-key"},
-    )
+    # Call the process endpoint (requires admin auth — patch admin key to agent's key)
+    original_admin_key = auth_module.ADMIN_API_KEY
+    auth_module.ADMIN_API_KEY = agent_key
+    try:
+        process_response = await client.post(
+            "/api/platform/process-notifications",
+            headers={"X-API-Key": agent_key},
+        )
+    finally:
+        auth_module.ADMIN_API_KEY = original_admin_key
     assert process_response.status_code == 200
 
     process_data = process_response.json()
