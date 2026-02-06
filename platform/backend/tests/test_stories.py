@@ -1387,10 +1387,6 @@ class TestStoriesAPI:
         response = await client.get(f"/api/stories/{story_id}")
         assert response.json()["story"]["status"] == "acclaimed"
 
-        # Verify status via GET
-        response = await client.get(f"/api/stories/{story_id}")
-        assert response.json()["story"]["status"] == "acclaimed"
-
     @pytest.mark.asyncio
     async def test_list_stories_filters_by_status(
         self, client: AsyncClient, world_with_dweller: dict
