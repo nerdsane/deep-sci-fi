@@ -319,7 +319,9 @@ else
   echo -e "${CYAN}======================================${NC}"
 
   # Signal to Stop hook that verification passed
-  MARKER_DIR="/tmp/claude-deepsci"
+  # Scope must match hooks — keyed by project directory hash
+  PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
+  MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
   mkdir -p "$MARKER_DIR"
   touch "$MARKER_DIR/deploy-verified"
 

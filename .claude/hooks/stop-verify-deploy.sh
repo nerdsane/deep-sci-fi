@@ -6,13 +6,17 @@
 # Output: JSON on stdout — { "decision": "block", "reason": "..." } or {}
 #
 # Coordination:
-#   post-push-verify.sh creates /tmp/claude-deepsci/push-pending
-#   verify-deployment.sh creates /tmp/claude-deepsci/deploy-verified
+#   post-push-verify.sh creates /tmp/claude-deepsci/{hash}/push-pending
+#   verify-deployment.sh creates /tmp/claude-deepsci/{hash}/deploy-verified
+#   Markers are scoped by project directory hash to isolate worktrees/sessions.
 #   This hook blocks if push-pending exists but deploy-verified does not.
 
 set -euo pipefail
 
-MARKER_DIR="/tmp/claude-deepsci"
+# Scope markers by project directory to avoid cross-session interference
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
+MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
 PUSH_MARKER="$MARKER_DIR/push-pending"
 VERIFY_MARKER="$MARKER_DIR/deploy-verified"
 
