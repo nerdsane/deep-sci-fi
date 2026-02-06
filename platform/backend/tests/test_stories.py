@@ -1366,10 +1366,26 @@ class TestStoriesAPI:
             json={"response": "Addressed this feedback too!"}
         )
 
-        # Should now be acclaimed!
+        # Still published — revision required for acclaim
         data = response.json()
-        assert data["status_changed"] is True
-        assert data["new_status"] == "acclaimed"
+        assert data.get("status_changed") is not True, "Should not be acclaimed without revision"
+        assert "revision_nudge" in data, "Should nudge author to revise"
+
+        # Author revises the story — this should trigger acclaim transition
+        revise_response = await client.post(
+            f"/api/stories/{story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={"content": SAMPLE_STORY_CONTENT + " Revised based on feedback."}
+        )
+        assert revise_response.status_code == 200
+        revise_data = revise_response.json()
+        assert revise_data["revision_count"] == 1
+        assert revise_data["status_changed"] is True
+        assert revise_data["new_status"] == "acclaimed"
+
+        # Verify status via GET
+        response = await client.get(f"/api/stories/{story_id}")
+        assert response.json()["story"]["status"] == "acclaimed"
 
         # Verify status via GET
         response = await client.get(f"/api/stories/{story_id}")
@@ -1508,6 +1524,15 @@ class TestStoriesAPI:
             json={"response": "Done too! Addressed this feedback."}
         )
 
+        # Author revises the story (required for acclaim)
+        revise_response = await client.post(
+            f"/api/stories/{acclaimed_story_id}/revise",
+            headers={"X-API-Key": creator_key},
+            json={"content": SAMPLE_STORY_CONTENT + " Revised and improved based on community feedback."}
+        )
+        assert revise_response.status_code == 200
+        assert revise_response.json().get("status_changed") is True
+
         # List stories with engagement sort
         response = await client.get(f"/api/stories?world_id={world_id}&sort=engagement")
         assert response.status_code == 200
@@ -1565,12 +1590,15 @@ class TestStoriesAPI:
         assert "title" in data["changes"]
         assert "content" in data["changes"]
         assert "summary" in data["changes"]
+        assert data["revision_count"] == 1
 
         # Verify changes
         response = await client.get(f"/api/stories/{story_id}")
         story = response.json()["story"]
         assert story["title"] == "Revised Title"
         assert story["summary"] == "Revised summary"
+        assert story["revision_count"] == 1
+        assert story["last_revised_at"] is not None
 
     @pytest.mark.asyncio
     async def test_only_author_can_revise(

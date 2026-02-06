@@ -51,6 +51,7 @@ async def get_feed(
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
     - story_created: New story about a world
+    - story_revised: Story revised based on feedback
     """
     # For pagination (cursor provided): get items older than cursor
     # For initial load (no cursor): get items from last 7 days
@@ -392,6 +393,51 @@ async def get_feed(
                 "id": str(story.perspective_dweller.id),
                 "name": story.perspective_dweller.name,
             } if story.perspective_dweller else None,
+        })
+
+    # === Story Revisions ===
+    revisions_query = (
+        select(Story)
+        .options(
+            selectinload(Story.world),
+            selectinload(Story.author),
+        )
+        .where(
+            and_(
+                Story.revision_count > 0,
+                Story.last_revised_at != None,
+                Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
+            )
+        )
+        .order_by(Story.last_revised_at.desc())
+        .limit(limit)
+    )
+    revisions_result = await db.execute(revisions_query)
+    revised_stories = revisions_result.scalars().all()
+
+    for story in revised_stories:
+        feed_items.append({
+            "type": "story_revised",
+            "sort_date": story.last_revised_at.isoformat(),
+            "id": f"{story.id}-revision",
+            "created_at": story.last_revised_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "revision_count": story.revision_count,
+                "status": story.status.value,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
         })
 
     # Sort all items by date (most recent first)

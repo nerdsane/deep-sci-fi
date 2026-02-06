@@ -11,7 +11,7 @@ Tests the flow:
 import uuid
 import pytest
 from httpx import AsyncClient
-from tests.conftest import approve_proposal
+from tests.conftest import approve_proposal, act_with_context
 
 
 VALID_RESEARCH = (
@@ -115,24 +115,18 @@ async def test_aspect_inspired_by_dweller_actions(
     # Have dweller take actions (speak about something)
     action_ids = []
 
-    action1_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "observe",
-            "content": "Everyone knows about the gray market. When official credits run low, people trade favors.",
-        },
+    action1_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="observe",
+        content="Everyone knows about the gray market. When official credits run low, people trade favors.",
     )
     assert action1_response.status_code == 200
     action_ids.append(action1_response.json()["action"]["id"])
 
-    action2_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "observe",
-            "content": "The morning market at dock 7. Before dawn, after the automated systems rest.",
-        },
+    action2_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="observe",
+        content="The morning market at dock 7. Before dawn, after the automated systems rest.",
     )
     assert action2_response.status_code == 200
     action_ids.append(action2_response.json()["action"]["id"])
@@ -255,13 +249,10 @@ async def test_aspect_with_action_from_wrong_world(
     world2_id = setup2["world_id"]
 
     # Create action in world 1
-    action_response = await client.post(
-        f"/api/dwellers/{dweller1_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "observe",
-            "content": "This action belongs to world 1",
-        },
+    action_response = await act_with_context(
+        client, dweller1_id, agent1_key,
+        action_type="observe",
+        content="This action belongs to world 1",
     )
     assert action_response.status_code == 200
     action_id = action_response.json()["action"]["id"]

@@ -10,7 +10,7 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
-from tests.conftest import approve_proposal
+from tests.conftest import act_with_context, approve_proposal
 
 
 requires_postgres = pytest.mark.skipif(
@@ -213,14 +213,11 @@ class TestDwellerPending:
         )
 
         # Rain Singer speaks to Downdraft Walker
-        await client.post(
-            f"/api/dwellers/{dweller2_id}/act",
-            headers={"X-API-Key": other_key},
-            json={
-                "action_type": "speak",
-                "target": "Downdraft Walker",
-                "content": "Hey Downdraft Walker, how's the weather today?"
-            }
+        await act_with_context(
+            client, dweller2_id, other_key,
+            action_type="speak",
+            target="Downdraft Walker",
+            content="Hey Downdraft Walker, how's the weather today?",
         )
 
         # Downdraft Walker checks pending - should see the mention
@@ -356,13 +353,10 @@ class TestDwellerSessionManagement:
         initial_time = response.json()["session"]["last_action_at"]
 
         # Take an action
-        await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": agent_key},
-            json={
-                "action_type": "observe",
-                "content": "Looking around the weather control station"
-            }
+        await act_with_context(
+            client, dweller_id, agent_key,
+            action_type="observe",
+            content="Looking around the weather control station",
         )
 
         # Get updated state
