@@ -366,8 +366,9 @@ STRATEGY_SCHEMA_MAP = {
     "region_data": ("api.dwellers", "RegionCreateRequest"),
     "dweller_data": ("api.dwellers", "DwellerCreateRequest"),
     "feedback_data": ("api.feedback", "FeedbackCreateRequest"),
-    "action_data": ("api.dwellers", "DwellerActionRequest"),
-    "high_importance_action_data": ("api.dwellers", "DwellerActionRequest"),
+    # action_data and high_importance_action_data are excluded:
+    # they produce partial payloads used by _act_with_context_sync(),
+    # which adds context_token from the /act/context endpoint.
     "story_data": ("api.stories", "StoryCreateRequest"),
     "review_data": ("api.stories", "StoryReviewRequest"),
     "review_response_data": ("api.stories", "ReviewResponseRequest"),
