@@ -12,7 +12,7 @@ This tests:
 import os
 import pytest
 from httpx import AsyncClient
-from tests.conftest import approve_proposal
+from tests.conftest import approve_proposal, act_with_context
 
 
 requires_postgres = pytest.mark.skipif(
@@ -589,43 +589,34 @@ class TestAspectFlow:
         action_ids = []
 
         # First action - mentions informal trading
-        action1_response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": creator_key},
-            json={
-                "action_type": "observe",
-                "content": "You want to know about the gray market? Everyone knows about it. "
-                           "When the official water credits run low, people trade favors. "
-                           "Credits for shifts, credits for silence. Nothing illegal, just... flexible.",
-            }
+        action1_response = await act_with_context(
+            client, dweller_id, creator_key,
+            action_type="observe",
+            content="You want to know about the gray market? Everyone knows about it. "
+                    "When the official water credits run low, people trade favors. "
+                    "Credits for shifts, credits for silence. Nothing illegal, just... flexible.",
         )
         assert action1_response.status_code == 200
         action_ids.append(action1_response.json()["action"]["id"])
 
         # Second action - more detail about the system
-        action2_response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": creator_key},
-            json={
-                "action_type": "observe",
-                "content": "The exchange happens at the old dock 7. Before dawn, after the "
-                           "autonomous systems complete their routes. We call it the 'morning market'. "
-                           "Been running since the drought of '38.",
-            }
+        action2_response = await act_with_context(
+            client, dweller_id, creator_key,
+            action_type="observe",
+            content="The exchange happens at the old dock 7. Before dawn, after the "
+                    "autonomous systems complete their routes. We call it the 'morning market'. "
+                    "Been running since the drought of '38.",
         )
         assert action2_response.status_code == 200
         action_ids.append(action2_response.json()["action"]["id"])
 
         # Third action - establishes the social dynamics
-        action3_response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": creator_key},
-            json={
-                "action_type": "observe",
-                "content": "The Guild knows. They turn a blind eye because it keeps people fed. "
-                           "The automation took our jobs, but it can't take our networks. "
-                           "We built this from nothing.",
-            }
+        action3_response = await act_with_context(
+            client, dweller_id, creator_key,
+            action_type="observe",
+            content="The Guild knows. They turn a blind eye because it keeps people fed. "
+                    "The automation took our jobs, but it can't take our networks. "
+                    "We built this from nothing.",
         )
         assert action3_response.status_code == 200
         action_ids.append(action3_response.json()["action"]["id"])

@@ -6,6 +6,26 @@ from tests.simulation.state_mirror import DwellerState, ActionRef
 from tests.simulation import strategies as strat
 
 
+def _act_with_context_sync(client, dweller_id: str, headers: dict, action_data: dict):
+    """Two-phase action flow for sync TestClient: get context token, then act."""
+    target = action_data.get("target")
+    ctx_body = {"target": target} if target else None
+    ctx_resp = client.post(
+        f"/api/dwellers/{dweller_id}/act/context",
+        headers=headers,
+        json=ctx_body,
+    )
+    if ctx_resp.status_code != 200:
+        return ctx_resp
+    token = ctx_resp.json()["context_token"]
+    body = {**action_data, "context_token": token}
+    return client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers=headers,
+        json=body,
+    )
+
+
 class DwellerRulesMixin:
     """Rules for dweller lifecycle and actions."""
 
@@ -103,10 +123,8 @@ class DwellerRulesMixin:
             if not agent:
                 continue
             data = strat.action_data()
-            resp = self.client.post(
-                f"/api/dwellers/{did}/act",
-                headers=self._headers(agent),
-                json=data,
+            resp = _act_with_context_sync(
+                self.client, did, self._headers(agent), data,
             )
             self._track_response(resp, f"action on dweller {did}")
             if resp.status_code == 200:
@@ -134,10 +152,8 @@ class DwellerRulesMixin:
             if not agent:
                 continue
             data = strat.high_importance_action_data()
-            resp = self.client.post(
-                f"/api/dwellers/{did}/act",
-                headers=self._headers(agent),
-                json=data,
+            resp = _act_with_context_sync(
+                self.client, did, self._headers(agent), data,
             )
             self._track_response(resp, f"high-importance action on dweller {did}")
             if resp.status_code == 200:

@@ -145,6 +145,8 @@ class StoryDetailResponse(BaseModel):
     acclaim_count: int
     reaction_count: int
     comment_count: int
+    revision_count: int
+    last_revised_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -342,6 +344,8 @@ async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetai
         acclaim_count=acclaim_count,
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
+        revision_count=getattr(story, "revision_count", 0) or 0,
+        last_revised_at=getattr(story, "last_revised_at", None),
         created_at=story.created_at,
         updated_at=story.updated_at,
     )
@@ -377,6 +381,7 @@ def check_acclaim_eligibility(story: Story) -> tuple[bool, str]:
     Requirements:
     1. At least 2 reviews recommending acclaim
     2. Author has responded to ALL reviews
+    3. Author has revised the story at least once
 
     Returns: (eligible, reason)
     """
@@ -392,6 +397,10 @@ def check_acclaim_eligibility(story: Story) -> tuple[bool, str]:
 
     if unresponded:
         return False, f"Author must respond to {len(unresponded)} review(s) first"
+
+    revision_count = getattr(story, "revision_count", 0) or 0
+    if revision_count < 1:
+        return False, "Author must revise the story at least once based on feedback. Use POST /api/stories/{story_id}/revise"
 
     return True, "Eligible for acclaim"
 
@@ -1142,6 +1151,14 @@ async def respond_to_review(
             "reason": reason,
         }
 
+    # Nudge to revise if they haven't yet
+    if (getattr(story, "revision_count", 0) or 0) == 0:
+        response["revision_nudge"] = (
+            "You've responded to this review. To become eligible for acclaim, "
+            "revise your story to incorporate feedback. "
+            f"Use POST /api/stories/{story_id}/revise"
+        )
+
     return response
 
 
@@ -1161,8 +1178,8 @@ async def revise_story(
     This allows authors to improve their story based on feedback
     while maintaining the story's core identity and sources.
     """
-    # Get story
-    query = select(Story).where(Story.id == story_id)
+    # Get story with reviews (needed for acclaim check after revision)
+    query = select(Story).options(selectinload(Story.reviews)).where(Story.id == story_id)
     result = await db.execute(query)
     story = result.scalar_one_or_none()
 
@@ -1219,14 +1236,28 @@ async def revise_story(
         }
 
     story.updated_at = utc_now()
+    story.revision_count = (story.revision_count or 0) + 1
+    story.last_revised_at = utc_now()
 
-    return {
+    # Check if story should now become acclaimed (revision was the missing requirement)
+    transitioned = await maybe_transition_to_acclaimed(story, db)
+
+    response = {
         "success": True,
         "story_id": str(story_id),
         "changes": changes,
+        "revision_count": story.revision_count,
         "updated_at": story.updated_at.isoformat(),
-        "message": f"Story revised successfully. Updated: {', '.join(changes)}",
+        "message": f"Story revised successfully (revision #{story.revision_count}). Updated: {', '.join(changes)}",
     }
+
+    if transitioned:
+        await notify_story_acclaimed(db, story.author_id, story.id, story.title)
+        response["status_changed"] = True
+        response["new_status"] = "acclaimed"
+        response["message"] += " Your story has been ACCLAIMED!"
+
+    return response
 
 
 # =============================================================================

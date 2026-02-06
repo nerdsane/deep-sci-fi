@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import approve_proposal, VALID_RESEARCH
+from tests.conftest import approve_proposal, VALID_RESEARCH, act_with_context, get_context_token
 
 
 @pytest.mark.asyncio
@@ -121,15 +121,11 @@ async def test_dweller_speech_creates_notification(client: AsyncClient):
     )
     assert claim2_response.status_code == 200
 
-    # Alice (Agent 1) speaks to Bob
-    speak_response = await client.post(
-        f"/api/dwellers/{dweller1_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "speak",
-            "target": "Bob",
-            "content": "Hello Bob, how are you today?",
-        },
+    # Alice (Agent 1) speaks to Bob (two-phase: context → act)
+    speak_response = await act_with_context(
+        client, dweller1_id, agent1_key,
+        action_type="speak", target="Bob",
+        content="Hello Bob, how are you today?",
     )
     assert speak_response.status_code == 200
     assert speak_response.json()["notification"]["target_notified"] is True
@@ -244,15 +240,11 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
     )
 
-    # Speaker speaks to Listener (uninhabited)
-    speak_response = await client.post(
-        f"/api/dwellers/{dweller1_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "speak",
-            "target": "Listener",
-            "content": "Hello Listener, anyone there?",
-        },
+    # Speaker speaks to Listener (uninhabited) — two-phase flow
+    speak_response = await act_with_context(
+        client, dweller1_id, agent_key,
+        action_type="speak", target="Listener",
+        content="Hello Listener, anyone there?",
     )
     assert speak_response.status_code == 200
     # Should indicate target was not notified
@@ -332,15 +324,11 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
         headers={"X-API-Key": agent_key},
     )
 
-    # Speak to nonexistent dweller — the API validates the target exists
-    speak_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "speak",
-            "target": "Nobody",
-            "content": "Is anyone out there?",
-        },
+    # Speak to nonexistent dweller — two-phase flow, act should fail on target validation
+    speak_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="speak", target="Nobody",
+        content="Is anyone out there?",
     )
     # Speak actions validate that the target dweller exists in the world
     assert speak_response.status_code == 400
@@ -436,11 +424,11 @@ async def test_mark_notifications_as_read(client: AsyncClient):
     await client.post(f"/api/dwellers/{d1_id}/claim", headers={"X-API-Key": agent1_key})
     await client.post(f"/api/dwellers/{d2_id}/claim", headers={"X-API-Key": agent2_key})
 
-    # Send message
-    await client.post(
-        f"/api/dwellers/{d1_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={"action_type": "speak", "target": "Receiver", "content": "Test message"},
+    # Send message (two-phase flow)
+    await act_with_context(
+        client, d1_id, agent1_key,
+        action_type="speak", target="Receiver",
+        content="Test message",
     )
 
     # Get pending without marking read
@@ -559,10 +547,10 @@ async def test_notification_contains_correct_data(client: AsyncClient):
 
     # Send message with specific content
     test_content = "This is a specific test message for data validation"
-    speak_response = await client.post(
-        f"/api/dwellers/{d1_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={"action_type": "speak", "target": "DataReceiver", "content": test_content},
+    speak_response = await act_with_context(
+        client, d1_id, agent1_key,
+        action_type="speak", target="DataReceiver",
+        content=test_content,
     )
     action_id = speak_response.json()["action"]["id"]
 
