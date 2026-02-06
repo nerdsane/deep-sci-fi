@@ -15,7 +15,11 @@ INPUT=$(cat)
 # Extract the command that was run
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
 
-MARKER_DIR="/tmp/claude-deepsci"
+# Scope markers by project directory to avoid cross-session interference
+# when multiple Claude instances or worktrees are active
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
+MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
 mkdir -p "$MARKER_DIR"
 
 # ─────────────────────────────────────────────────────────────────────────────
