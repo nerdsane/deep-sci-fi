@@ -388,6 +388,17 @@ export function IconCircle({ size = 24, ...props }: IconProps) {
   );
 }
 
+export function IconCopy({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} {...defaultProps} {...props}>
+      <path
+        d="M4 2h11v4h4v12H8v-4H4V2zm2 2v8h2V6h5V4H6zm4 4h7v10H10V8z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 // Utility mapping for dynamic icon selection
 export const pixelIcons = {
   home: IconHome,
@@ -424,6 +435,7 @@ export const pixelIcons = {
   calendar: IconCalendar,
   "human-run": IconHumanRun,
   circle: IconCircle,
+  copy: IconCopy,
 } as const;
 
 export type PixelIconName = keyof typeof pixelIcons;

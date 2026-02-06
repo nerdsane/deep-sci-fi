@@ -4,6 +4,8 @@ Each invariant queries the API/state to verify game rules are maintained.
 Prefixed S-XX for traceability to the plan.
 """
 
+from collections import Counter
+
 from hypothesis.stateful import invariant
 
 
@@ -68,7 +70,6 @@ class SafetyInvariantsMixin:
                 assert actual_status in valid_transitions.get(p.status, set()), (
                     f"Proposal {pid}: invalid transition {p.status} -> {actual_status}"
                 )
-                p.status = actual_status
 
     @invariant()
     def s6_approved_proposals_have_one_world(self):
@@ -100,12 +101,8 @@ class SafetyInvariantsMixin:
                 f"Story {sid} references unknown world {story.world_id}"
             )
 
-    @invariant()
-    def s_s3_one_reaction_per_user(self):
-        """Verify story reaction endpoint rejects duplicate reactions (spot-check)."""
-        # Enforcement is at the API level; we verify no 500s (s7) and
-        # structural consistency. The fault layer tests double-react explicitly.
-        pass
+    # s_s3 duplicate reaction testing moved to rules/stories.py::duplicate_story_reaction
+    # s_s4 removed (redundant with s10_story_acclaim_conditions)
 
     # -------------------------------------------------------------------------
     # Aspect invariants
@@ -121,19 +118,26 @@ class SafetyInvariantsMixin:
 
     @invariant()
     def s_a2_valid_aspect_transitions(self):
-        """Aspects only transition through valid states."""
+        """Aspects only transition through valid states (API spot-check)."""
         valid_transitions = {
             "draft": {"validating"},
             "validating": {"approved", "rejected"},
             "approved": set(),
             "rejected": set(),
         }
-        for aid, a in self.state.aspects.items():
+        for aid, a in list(self.state.aspects.items())[:3]:
             if a.status not in valid_transitions:
                 continue
-            # We trust our state mirror updated by rules; spot-check via API
-            # only for a sample to avoid perf issues
-        # Structural check passes — transitions validated in rule handlers
+            resp = self.client.get(f"/api/aspects/{aid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            aspect_data = body.get("aspect", {})
+            actual_status = aspect_data.get("status", a.status)
+            if actual_status != a.status:
+                assert actual_status in valid_transitions.get(a.status, set()), (
+                    f"Aspect {aid}: invalid transition {a.status} -> {actual_status}"
+                )
 
     # -------------------------------------------------------------------------
     # Event invariants
@@ -196,7 +200,6 @@ class SafetyInvariantsMixin:
     @invariant()
     def s_dp1_max_active_proposals(self):
         """No agent has more than 5 active dweller proposals (draft + validating)."""
-        from collections import Counter
         active_by_agent = Counter()
         for dp in self.state.dweller_proposals.values():
             if dp.status in ("draft", "validating"):
@@ -207,10 +210,75 @@ class SafetyInvariantsMixin:
             )
 
     # -------------------------------------------------------------------------
+    # Cross-domain invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s8_max_5_dwellers_per_agent(self):
+        """No agent claims more than 5 dwellers simultaneously."""
+        claims = Counter()
+        for d in self.state.dwellers.values():
+            if d.claimed_by is not None:
+                claims[d.claimed_by] += 1
+        for agent_id, count in claims.items():
+            assert count <= 5, (
+                f"Agent {agent_id} has {count} claimed dwellers (max 5)"
+            )
+
+    @invariant()
+    def s9_feedback_upvote_consistency(self):
+        """Feedback upvote_count matches len(upvoters) in state mirror."""
+        for fid, fb in self.state.feedback.items():
+            assert fb.upvote_count == len(fb.upvoters), (
+                f"Feedback {fid}: upvote_count={fb.upvote_count} "
+                f"but {len(fb.upvoters)} upvoters tracked"
+            )
+
+    @invariant()
+    def s10_story_acclaim_conditions(self):
+        """Acclaimed stories meet all acclaim prerequisites."""
+        for sid, story in self.state.stories.items():
+            if story.status != "ACCLAIMED":
+                continue
+            acclaim_reviews = sum(
+                1 for ref in story.reviews.values()
+                if ref.recommend_acclaim
+            )
+            assert acclaim_reviews >= 2, (
+                f"Story {sid} is ACCLAIMED but only {acclaim_reviews} "
+                f"acclaim reviews (need >= 2)"
+            )
+            responded = sum(
+                1 for ref in story.reviews.values()
+                if ref.review_id in story.author_responses
+            )
+            assert responded == len(story.reviews), (
+                f"Story {sid} is ACCLAIMED but only {responded}/{len(story.reviews)} "
+                f"reviews responded to"
+            )
+            assert story.revision_count >= 1, (
+                f"Story {sid} is ACCLAIMED but revision_count={story.revision_count}"
+            )
+
+    @invariant()
+    def s11_escalation_requires_confirmation(self):
+        """Escalated actions must have been confirmed first."""
+        for aid, action in self.state.actions.items():
+            if action.escalated:
+                assert action.confirmed_by is not None, (
+                    f"Action {aid}: escalated but not confirmed"
+                )
+
+    # -------------------------------------------------------------------------
     # Read-only invariant
     # -------------------------------------------------------------------------
 
     @invariant()
     def s_r1_read_only_no_500s(self):
-        """Read-only endpoints never return 500. Covered by s7_no_500_errors."""
-        pass
+        """Read-only endpoints never return 500 (spot-check, routed via _track_response)."""
+        # Only spot-check when worlds exist (reduces contention on empty DB)
+        if not self.state.worlds:
+            return
+        for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
+            resp = self.client.get(endpoint)
+            self._track_response(resp, f"read-only {endpoint}")

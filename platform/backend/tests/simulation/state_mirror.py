@@ -44,6 +44,14 @@ class DwellerState:
 class FeedbackState:
     feedback_id: str
     creator_id: str
+    upvote_count: int = 0
+    upvoters: set[str] = field(default_factory=set)
+
+
+@dataclass
+class StoryReviewRef:
+    review_id: str
+    recommend_acclaim: bool
 
 
 @dataclass
@@ -52,8 +60,9 @@ class StoryState:
     world_id: str
     author_id: str
     status: str  # PUBLISHED or ACCLAIMED
-    reviews: dict[str, str] = field(default_factory=dict)  # reviewer_id -> "recommend_acclaim" | "no_acclaim"
+    reviews: dict[str, StoryReviewRef] = field(default_factory=dict)  # reviewer_id -> StoryReviewRef
     author_responses: set[str] = field(default_factory=set)  # review_ids responded to
+    revision_count: int = 0
 
 
 @dataclass
@@ -92,6 +101,7 @@ class ActionRef:
     importance: float
     confirmed_by: str | None = None
     escalated: bool = False
+    in_reply_to_action_id: str | None = None
 
 
 @dataclass

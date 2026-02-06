@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import SAMPLE_CAUSAL_CHAIN, SAMPLE_DWELLER, approve_proposal
+from tests.conftest import SAMPLE_CAUSAL_CHAIN, SAMPLE_DWELLER, act_with_context, approve_proposal
 
 
 # Override SAMPLE_REGION with one that meets all minimum length requirements
@@ -182,14 +182,11 @@ class TestGuidanceInResponses:
         )
 
         # Take an action
-        response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={
-                "action_type": "speak",
-                "content": "Test action for guidance system verification.",
-                "importance": 0.5,
-            }
+        response = await act_with_context(
+            client, dweller_id, test_agent["api_key"],
+            action_type="speak",
+            content="Test action for guidance system verification.",
+            importance=0.5,
         )
         assert response.status_code == 200
         data = response.json()
@@ -280,14 +277,11 @@ class TestPendingConfirmationTimeouts:
         )
 
         # Act endpoint (medium impact)
-        response = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": test_agent["api_key"]},
-            json={
-                "action_type": "think",
-                "content": "Testing medium impact timeout verification.",
-                "importance": 0.3,
-            }
+        response = await act_with_context(
+            client, dweller_id, test_agent["api_key"],
+            action_type="think",
+            content="Testing medium impact timeout verification.",
+            importance=0.3,
         )
         data = response.json()
 
