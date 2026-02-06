@@ -74,7 +74,7 @@ FAILED=0
 # Step 1: Wait for CI / Deploy workflow to complete
 # ─────────────────────────────────────────────────────────────────────────────
 if [ -n "$BRANCH" ]; then
-  echo -e "${CYAN}[Step 1/6] Waiting for GitHub Actions CI...${NC}"
+  echo -e "${CYAN}[Step 1/6] Waiting for GitHub Actions CI (ALL workflows)...${NC}"
 
   if ! command -v gh &> /dev/null; then
     echo -e "${RED}  ERROR: gh CLI not installed${NC}"
@@ -85,30 +85,47 @@ if [ -n "$BRANCH" ]; then
     CI_PASSED=false
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-      STATUS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --workflow "Deploy" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
-      RUN_STATUS=$(echo "$STATUS" | jq -r '.status // "unknown"')
-      RUN_CONCLUSION=$(echo "$STATUS" | jq -r '.conclusion // "unknown"')
+      # Fetch recent runs across ALL workflows on this branch
+      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId 2>/dev/null || echo '[]')
 
-      if [ "$RUN_STATUS" = "completed" ]; then
-        if [ "$RUN_CONCLUSION" = "success" ]; then
-          echo -e "${GREEN}  ✓ CI passed${NC}"
-          CI_PASSED=true
-          break
-        else
-          echo -e "${RED}  ✗ CI failed (${RUN_CONCLUSION})${NC}"
-          echo -e "${RED}    Fix CI before proceeding. Check: gh run view${NC}"
-          FAILED=1
-          break
-        fi
-      elif [ "$RUN_STATUS" = "in_progress" ] || [ "$RUN_STATUS" = "queued" ]; then
-        echo -e "  Workflow ${RUN_STATUS}... (${ELAPSED}s / ${MAX_CI_WAIT}s max)"
-        sleep $POLL_INTERVAL
-        ELAPSED=$((ELAPSED + POLL_INTERVAL))
-      else
-        echo -e "${YELLOW}  No workflow found for branch $BRANCH${NC}"
+      if [ "$ALL_RUNS" = "[]" ] || [ -z "$ALL_RUNS" ]; then
+        echo -e "${YELLOW}  No workflow runs found for branch $BRANCH${NC}"
         echo -e "${YELLOW}  Continuing with other checks...${NC}"
         break
       fi
+
+      # Get the most recent run per workflow (jq: group by workflow, take first of each)
+      LATEST_PER_WORKFLOW=$(echo "$ALL_RUNS" | jq '[group_by(.workflowName)[] | sort_by(.databaseId) | reverse | .[0]]')
+      TOTAL_WORKFLOWS=$(echo "$LATEST_PER_WORKFLOW" | jq 'length')
+
+      # Check if any are still running
+      PENDING_COUNT=$(echo "$LATEST_PER_WORKFLOW" | jq '[.[] | select(.status != "completed")] | length')
+
+      if [ "$PENDING_COUNT" -gt 0 ]; then
+        PENDING_NAMES=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.status != "completed") | "\(.workflowName) (\(.status))"] | join(", ")')
+        echo -e "  Waiting on $PENDING_COUNT/$TOTAL_WORKFLOWS workflows: $PENDING_NAMES (${ELAPSED}s / ${MAX_CI_WAIT}s max)"
+        sleep $POLL_INTERVAL
+        ELAPSED=$((ELAPSED + POLL_INTERVAL))
+        continue
+      fi
+
+      # All completed — check for failures
+      FAILED_WORKFLOWS=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+
+      if [ "$FAILED_WORKFLOWS" -gt 0 ]; then
+        FAILED_NAMES=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.workflowName) (\(.conclusion))"] | join(", ")')
+        echo -e "${RED}  ✗ $FAILED_WORKFLOWS/$TOTAL_WORKFLOWS workflows failed: $FAILED_NAMES${NC}"
+        echo -e "${RED}    Fix ALL workflows before proceeding. Check: gh run list --branch $BRANCH${NC}"
+        FAILED=1
+      else
+        echo -e "${GREEN}  ✓ All $TOTAL_WORKFLOWS workflows passed${NC}"
+        # List each workflow for visibility
+        echo "$LATEST_PER_WORKFLOW" | jq -r '.[] | "    ✓ \(.workflowName): \(.conclusion)"' | while read -r line; do
+          echo -e "${GREEN}$line${NC}"
+        done
+        CI_PASSED=true
+      fi
+      break
     done
 
     if [ $ELAPSED -ge $MAX_CI_WAIT ] && [ "$CI_PASSED" = false ]; then

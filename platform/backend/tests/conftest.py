@@ -9,6 +9,7 @@ from uuid import uuid4
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
+os.environ["DSF_TEST_MODE_ENABLED"] = "true"
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:
