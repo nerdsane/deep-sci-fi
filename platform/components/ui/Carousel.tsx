@@ -86,7 +86,7 @@ export function Carousel({
       {/* Scroll container */}
       <div
         ref={scrollRef}
-        className="flex overflow-x-auto scrollbar-hide snap-x-mandatory"
+        className="flex overflow-x-auto scrollbar-hide snap-x-mandatory py-2"
         style={{ gap: `${gap}px` }}
       >
         {children}

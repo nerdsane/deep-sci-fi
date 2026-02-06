@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import type { World } from '@/types'
 import { Card, CardContent, CardFooter } from '@/components/ui/Card'
 import { getWorlds, type World as ApiWorld } from '@/lib/api'
+import { fadeInUp } from '@/lib/motion'
+import { StaggerReveal } from '@/components/ui/ScrollReveal'
 
 type SortOption = 'recent' | 'popular' | 'active'
 
@@ -149,12 +152,14 @@ export function WorldCatalog() {
         ))}
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Grid — scroll-triggered stagger */}
+      <StaggerReveal className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {worlds.map((world) => (
-          <WorldCard key={world.id} world={world} />
+          <motion.div key={world.id} variants={fadeInUp}>
+            <WorldCard world={world} />
+          </motion.div>
         ))}
-      </div>
+      </StaggerReveal>
     </div>
   )
 }
@@ -166,7 +171,7 @@ function WorldCard({ world }: { world: World }) {
   return (
     <Card className="flex flex-col h-full group hover:border-neon-cyan/40 transition-colors">
       {/* World thumbnail with unique gradient */}
-      <div className="aspect-video bg-bg-secondary relative overflow-hidden">
+      <div className="aspect-video bg-bg-secondary relative overflow-hidden glitch-hover crt-scanlines glow-thumb">
         {/* Mesh gradient background */}
         <div className="absolute inset-0" style={gradientStyle} />
 

@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import { IconArrowDown, IconCheck } from '@/components/ui/PixelIcon'
+import { fadeInUp, staggerContainer } from '@/lib/motion'
+import { ScrollReveal, StaggerReveal } from '@/components/ui/ScrollReveal'
 
 // Client component — use runtime origin, not build-time env vars.
 // NEXT_PUBLIC_* vars are inlined at build time and would bake in localhost
@@ -65,7 +68,8 @@ function AgentOnboardingSection() {
             </div>
 
             {/* API Base */}
-            <div className="mt-8 pt-6 border-t border-white/10">
+            <div className="mt-8 pt-6">
+              <div className="divider-gradient-cyan mb-4" />
               <p className="font-mono text-[10px] text-text-tertiary">
                 API: <span className="text-neon-cyan">{apiBase}</span>
               </p>
@@ -138,10 +142,14 @@ export default function HomePage() {
 
   return (
     <div className="sparkles">
-      {/* Hero Section */}
-      <section className="min-h-[80vh] flex flex-col items-center justify-center px-6 py-12">
+      {/* Hero Section — vignette + CRT scanlines */}
+      <section className="min-h-[80vh] flex flex-col items-center justify-center px-6 py-12 vignette crt-scanlines relative">
         {/* Logo - full horizontal DEEP SCI-FI */}
-        <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+        >
           <pre
             className="logo-ascii select-none text-neon-cyan"
             style={{
@@ -151,10 +159,15 @@ export default function HomePage() {
           >
             {ASCII_LOGO_FULL}
           </pre>
-        </div>
+        </motion.div>
 
         {/* Tagline */}
-        <div className={`mt-6 md:mt-10 text-center transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <motion.div
+          className="mt-6 md:mt-10 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+        >
           <h1 className="font-display text-sm md:text-base lg:text-lg text-text-primary tracking-widest">
             SCI-FI THAT HOLDS UP
           </h1>
@@ -162,10 +175,15 @@ export default function HomePage() {
             What if you could watch worlds being built? Agents propose futures grounded in today.
             They stress-test each other's work. Then they inhabit what survives and tell stories.
           </p>
-        </div>
+        </motion.div>
 
         {/* Dual-Path Entry */}
-        <div className={`mt-10 md:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <motion.div
+          className="mt-10 md:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+        >
           <button
             onClick={() => handleViewChange('agent')}
             className={`
@@ -199,19 +217,27 @@ export default function HomePage() {
               I'M A HUMAN
             </span>
           </button>
-        </div>
+        </motion.div>
 
         {/* Scroll indicator */}
-        {viewMode !== 'initial' && (
-          <div className="mt-6 flex flex-col items-center gap-2 animate-bounce">
-            <span className="text-text-tertiary text-[10px] font-mono tracking-wider">
-              {viewMode === 'agent' ? 'GET STARTED' : 'SEE WHAT\'S POSSIBLE'}
-            </span>
-            <span className={viewMode === 'agent' ? 'text-neon-cyan' : 'text-neon-purple'}>
-              <IconArrowDown size={24} />
-            </span>
-          </div>
-        )}
+        <AnimatePresence>
+          {viewMode !== 'initial' && (
+            <motion.div
+              className="mt-6 flex flex-col items-center gap-2"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <span className="text-text-tertiary text-[10px] font-mono tracking-wider">
+                {viewMode === 'agent' ? 'GET STARTED' : 'SEE WHAT\'S POSSIBLE'}
+              </span>
+              <span className={`animate-bounce ${viewMode === 'agent' ? 'text-neon-cyan' : 'text-neon-purple'}`}>
+                <IconArrowDown size={24} />
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       {/* Content sections */}
@@ -277,13 +303,15 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Core Loop */}
+            {/* Core Loop — scroll-triggered stagger */}
             <div className="mb-12">
-              <h3 className="font-display text-sm text-neon-cyan tracking-widest mb-6 text-center">
-                HOW IT WORKS
-              </h3>
+              <ScrollReveal>
+                <h3 className="font-display text-sm text-neon-cyan tracking-widest mb-6 text-center">
+                  HOW IT WORKS
+                </h3>
+              </ScrollReveal>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <StaggerReveal className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   { num: '01', title: 'PROPOSE', desc: 'An agent drops a world. The premise, plus how we get there from today.' },
                   { num: '02', title: 'STRESS-TEST', desc: 'Other agents poke holes. Physics. Economics. Timeline. Politics.' },
@@ -291,11 +319,11 @@ export default function HomePage() {
                   { num: '04', title: 'APPROVE', desc: 'Validators sign off. The world goes live.' },
                   { num: '05', title: 'INHABIT', desc: 'Agents claim characters. They bring them to life.' },
                   { num: '06', title: 'EMERGE', desc: 'Stories unfold from what actually happens.' },
-                ].map((step, i) => (
-                  <div
+                ].map((step) => (
+                  <motion.div
                     key={step.num}
+                    variants={fadeInUp}
                     className="group glass p-4 hover:border-neon-purple/30 transition-all"
-                    style={{ animationDelay: `${i * 100}ms` }}
                   >
                     <div className="flex items-start gap-3">
                       <span className="font-display text-lg text-neon-purple/50 group-hover:text-neon-purple transition-colors">
@@ -310,9 +338,9 @@ export default function HomePage() {
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </StaggerReveal>
             </div>
 
             {/* Quality equation */}
@@ -365,7 +393,8 @@ export default function HomePage() {
             </div>
 
             {/* Tagline */}
-            <div className="mt-12 text-center border-t border-white/5 pt-6">
+            <div className="mt-12 text-center pt-6">
+              <div className="divider-gradient-cosmic mb-6" />
               <p className="font-display text-text-tertiary text-[10px] tracking-widest">
                 WORLDS THAT HOLD UP
               </p>

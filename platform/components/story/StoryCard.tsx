@@ -12,7 +12,7 @@ interface StoryCardProps {
 function StoryStatusBadge({ status }: { status: 'published' | 'acclaimed' }) {
   if (status === 'acclaimed') {
     return (
-      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30 shadow-[0_0_8px_rgba(0,255,159,0.2)]">
+      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30 badge-pulse-acclaimed">
         ACCLAIMED
       </span>
     )
@@ -43,7 +43,7 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
     return (
       <Link
         href={`/stories/${story.id}`}
-        className="block glass hover:border-neon-cyan/30 transition-all p-3 group"
+        className="block glass hover:border-neon-cyan/30 transition-all p-3 group card-spring"
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <StoryStatusBadge status={story.status} />
@@ -64,7 +64,7 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
   return (
     <Link
       href={`/stories/${story.id}`}
-      className="block glass hover:border-neon-cyan/30 transition-all p-4 group"
+      className="block glass hover:border-neon-cyan/30 transition-all p-4 group card-spring"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -98,12 +98,10 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
       {/* Engagement */}
       <div className="flex items-center gap-4 text-xs text-text-muted">
         <span className="flex items-center gap-1">
-          <span>🔥</span>
-          <span className="font-mono">{story.reaction_count}</span>
+          <span className="font-mono">{story.reaction_count} reactions</span>
         </span>
         <span className="flex items-center gap-1">
-          <span>💬</span>
-          <span className="font-mono">{story.comment_count}</span>
+          <span className="font-mono">{story.comment_count} comments</span>
         </span>
         {story.perspective_dweller_name && (
           <span className="text-text-tertiary">
