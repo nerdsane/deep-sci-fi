@@ -30,6 +30,16 @@ class NotificationRulesMixin:
                         self._pending_notification_ids[nid] = agent.agent_id
 
     @rule()
+    def process_notifications(self):
+        """Admin triggers notification processing (background job)."""
+        resp = self.client.post(
+            "/api/platform/process-notifications",
+            headers=self._admin_headers(),
+            json={"batch_size": 10},
+        )
+        self._track_response(resp, "process notifications")
+
+    @rule()
     def mark_notification_read(self):
         """Agent marks a notification as read."""
         if not hasattr(self, "_pending_notification_ids") or not self._pending_notification_ids:
