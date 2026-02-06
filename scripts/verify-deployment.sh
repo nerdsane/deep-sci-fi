@@ -6,9 +6,13 @@
 # Polls GitHub Actions, verifies both frontend and backend, checks Logfire.
 #
 # Usage:
-#   ./scripts/verify-deployment.sh              # Verify staging (default)
-#   ./scripts/verify-deployment.sh production   # Verify production
-#   ./scripts/verify-deployment.sh local        # Verify local (skip CI/Logfire)
+#   ./scripts/verify-deployment.sh                          # Verify staging (default)
+#   ./scripts/verify-deployment.sh production               # Verify production
+#   ./scripts/verify-deployment.sh staging --session 12345  # With session ID (from hooks)
+#   ./scripts/verify-deployment.sh local                    # Verify local (skip CI/Logfire)
+#
+# The --session flag ties the verified marker to a specific Claude Code session,
+# so parallel sessions don't interfere with each other's verification state.
 #
 # Exit codes:
 #   0 = all checks passed
@@ -16,7 +20,16 @@
 
 set -euo pipefail
 
-ENVIRONMENT="${1:-staging}"
+# Parse arguments
+ENVIRONMENT="staging"
+SESSION_ID=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --session) SESSION_ID="$2"; shift 2 ;;
+    staging|production|local) ENVIRONMENT="$1"; shift ;;
+    *) shift ;;
+  esac
+done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
@@ -322,11 +335,16 @@ else
   echo -e "${CYAN}======================================${NC}"
 
   # Signal to Stop hook that verification passed
-  # Scope must match hooks — keyed by project directory hash
+  # Scope must match hooks — keyed by project directory hash + session ID
   PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
   MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
   mkdir -p "$MARKER_DIR"
-  touch "$MARKER_DIR/deploy-verified"
+  if [ -n "$SESSION_ID" ]; then
+    touch "$MARKER_DIR/deploy-verified-$SESSION_ID"
+  else
+    # Fallback for manual runs without --session
+    touch "$MARKER_DIR/deploy-verified"
+  fi
 
   exit 0
 fi
