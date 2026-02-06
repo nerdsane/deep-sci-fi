@@ -550,3 +550,249 @@ button {
     linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 12px 12px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN ENHANCEMENTS
+   All additive — nothing above is modified
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ===== CRT Scanlines Overlay ===== */
+.crt-scanlines {
+  position: relative;
+}
+
+.crt-scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Stronger scanlines for hero sections */
+.crt-scanlines-strong::after {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+}
+
+/* ===== Vignette Overlay ===== */
+.vignette {
+  position: relative;
+}
+
+.vignette::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(5, 5, 8, 0.5) 100%
+  );
+}
+
+/* ===== Enhanced Layered Glows ===== */
+.glow-cyan-layered {
+  box-shadow:
+    0 0 15px var(--shadow-cyan),
+    0 0 40px var(--shadow-cyan-soft),
+    inset 0 0 20px rgba(0, 255, 229, 0.03);
+}
+
+.glow-purple-layered {
+  box-shadow:
+    0 0 15px var(--shadow-purple),
+    0 0 40px var(--shadow-purple-soft),
+    inset 0 0 20px rgba(139, 92, 246, 0.03);
+}
+
+.glow-cosmic-layered {
+  box-shadow:
+    0 0 15px var(--shadow-cyan),
+    0 0 30px var(--shadow-purple-soft),
+    0 0 50px rgba(255, 45, 146, 0.08),
+    inset 0 0 15px rgba(0, 255, 229, 0.02);
+}
+
+/* ===== Gradient Dividers ===== */
+.divider-gradient-cyan {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--neon-cyan) 50%,
+    transparent 100%
+  );
+  opacity: 0.3;
+}
+
+.divider-gradient-purple {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--neon-purple) 50%,
+    transparent 100%
+  );
+  opacity: 0.3;
+}
+
+.divider-gradient-cosmic {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--neon-cyan) 30%,
+    var(--neon-purple) 50%,
+    var(--neon-pink) 70%,
+    transparent 100%
+  );
+  opacity: 0.25;
+}
+
+/* ===== Chromatic Aberration Hover ===== */
+.glitch-hover {
+  position: relative;
+}
+
+.glitch-hover::before,
+.glitch-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+
+.glitch-hover::before {
+  background: rgba(0, 255, 229, 0.08);
+  transform: translate(-2px, 0);
+}
+
+.glitch-hover::after {
+  background: rgba(255, 45, 146, 0.08);
+  transform: translate(2px, 0);
+}
+
+.glitch-hover:hover::before,
+.glitch-hover:hover::after {
+  opacity: 1;
+  animation: glitch-flicker 0.3s ease-out;
+}
+
+@keyframes glitch-flicker {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  40% { opacity: 0.4; }
+  60% { opacity: 1; }
+  80% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* ===== Pulsing Glow Badges ===== */
+.badge-pulse-live {
+  animation: badge-glow-green 2s ease-in-out infinite;
+}
+
+@keyframes badge-glow-green {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(0, 255, 159, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(0, 255, 159, 0.6), 0 0 24px rgba(0, 255, 159, 0.2);
+  }
+}
+
+.badge-pulse-new {
+  animation: badge-glow-cyan 2s ease-in-out infinite;
+}
+
+@keyframes badge-glow-cyan {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(0, 255, 229, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(0, 255, 229, 0.6), 0 0 24px rgba(0, 255, 229, 0.2);
+  }
+}
+
+.badge-pulse-acclaimed {
+  animation: badge-glow-green-strong 2.5s ease-in-out infinite;
+}
+
+/* ===== Spring-feel Card Hover (CSS-only, no wrapper div) ===== */
+.card-spring {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease;
+}
+
+.card-spring:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px var(--shadow-cyan-soft), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Glow on thumbnail only (triggered by parent group hover) */
+.glow-thumb {
+  transition: box-shadow 0.25s ease;
+}
+.group:hover .glow-thumb {
+  box-shadow: 0 0 12px var(--shadow-cyan-soft), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes badge-glow-green-strong {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(0, 255, 159, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 255, 159, 0.7), 0 0 32px rgba(0, 255, 159, 0.25);
+  }
+}
+
+/* ===== Fade-in entrance (for non-framer-motion contexts) ===== */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in-up 0.5s ease-out both;
+}
+
+/* ===== Slide-up stagger (legacy, used by feed) ===== */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.35s ease-out both;
+}
