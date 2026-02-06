@@ -334,5 +334,5 @@ SAMPLE_DWELLER = {
         "A test personality with sufficient detail to meet the minimum "
         "character requirements for dweller creation validation."
     ),
-    "background": "Test background story for the dweller character"
+    "background": "Test background story for the dweller character with enough detail to pass validation"
 }
