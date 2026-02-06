@@ -72,7 +72,7 @@ class TestTwoPhaseAction:
         assert resp.status_code == 200, f"Proposal creation failed: {resp.json()}"
         proposal_id = resp.json()["id"]
         result = await approve_proposal(client, proposal_id, key_a)
-        world_id = result.get("world_created", {}).get("world_id")
+        world_id = result.get("world_created", {}).get("id")
         assert world_id, f"No world_id in approval result: {result}"
 
         # Add region
