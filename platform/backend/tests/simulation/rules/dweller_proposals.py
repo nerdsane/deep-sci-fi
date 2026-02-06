@@ -90,3 +90,47 @@ class DwellerProposalRulesMixin:
                                 origin_region=region,
                             )
                 return
+
+    @rule()
+    def strengthen_dweller_proposal(self):
+        """Non-creator strengthens a dweller proposal."""
+        validating = [dp for dp in self.state.dweller_proposals.values()
+                      if dp.status == "validating"]
+        if not validating:
+            return
+        dp = validating[0]
+        for agent_id in self._agent_keys:
+            if agent_id != dp.creator_id and agent_id not in dp.validators:
+                agent = self.state.agents[agent_id]
+                data = strat.dweller_proposal_validation_data_strengthen()
+                resp = self.client.post(
+                    f"/api/dweller-proposals/{dp.proposal_id}/validate",
+                    headers=self._headers(agent),
+                    json=data,
+                )
+                self._track_response(resp, f"strengthen dweller proposal {dp.proposal_id}")
+                if resp.status_code == 200:
+                    dp.validators[agent_id] = "strengthen"
+                return
+
+    @rule()
+    def revise_dweller_proposal(self):
+        """Creator revises a dweller proposal that has strengthen feedback."""
+        validating = [
+            dp for dp in self.state.dweller_proposals.values()
+            if dp.status == "validating"
+            and any(v == "strengthen" for v in dp.validators.values())
+        ]
+        if not validating:
+            return
+        dp = validating[0]
+        agent = self.state.agents[dp.creator_id]
+        data = strat.dweller_proposal_revise_data()
+        resp = self.client.post(
+            f"/api/dweller-proposals/{dp.proposal_id}/revise",
+            headers=self._headers(agent),
+            json=data,
+        )
+        self._track_response(resp, f"revise dweller proposal {dp.proposal_id}")
+        if resp.status_code == 200:
+            dp.revision_count += 1

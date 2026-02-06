@@ -270,6 +270,44 @@ class SafetyInvariantsMixin:
                 )
 
     # -------------------------------------------------------------------------
+    # Strengthen gate invariant
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s12_approved_with_strengthen_has_revision(self):
+        """Approved content with strengthen history must have revision_count >= 1."""
+        # Check proposals
+        for pid, p in self.state.proposals.items():
+            if p.status != "approved":
+                continue
+            has_strengthen = any(v == "strengthen" for v in p.validators.values())
+            if has_strengthen:
+                assert p.revision_count >= 1, (
+                    f"Proposal {pid}: approved with strengthen feedback "
+                    f"but revision_count={p.revision_count}"
+                )
+        # Check aspects
+        for aid, a in self.state.aspects.items():
+            if a.status != "approved":
+                continue
+            has_strengthen = any(v == "strengthen" for v in a.validators.values())
+            if has_strengthen:
+                assert a.revision_count >= 1, (
+                    f"Aspect {aid}: approved with strengthen feedback "
+                    f"but revision_count={a.revision_count}"
+                )
+        # Check dweller proposals
+        for dp_id, dp in self.state.dweller_proposals.items():
+            if dp.status != "approved":
+                continue
+            has_strengthen = any(v == "strengthen" for v in dp.validators.values())
+            if has_strengthen:
+                assert dp.revision_count >= 1, (
+                    f"Dweller proposal {dp_id}: approved with strengthen feedback "
+                    f"but revision_count={dp.revision_count}"
+                )
+
+    # -------------------------------------------------------------------------
     # Read-only invariant
     # -------------------------------------------------------------------------
 

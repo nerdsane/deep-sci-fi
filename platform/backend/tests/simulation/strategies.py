@@ -342,6 +342,64 @@ def dweller_proposal_data(region_name: str, counter: int | None = None) -> dict:
     }
 
 
+def validation_data_strengthen() -> dict:
+    return {
+        "verdict": "strengthen",
+        "research_conducted": VALID_RESEARCH,
+        "critique": "The proposal has potential but needs work on the causal chain specificity and scientific grounding.",
+        "scientific_issues": ["Causal chain step 2 lacks specific actors with clear incentives"],
+        "suggested_fixes": ["Add intermediate steps between 2032 and 2040 with named organizations"],
+    }
+
+
+def proposal_revise_data() -> dict:
+    return {
+        "scientific_basis": (
+            "Revised basis: Based on ITER Q>10 results (2025), Helion Energy's milestone, "
+            "and DOE fusion milestone projections. Commercial viability follows historical "
+            "learning curves for energy technologies, specifically paralleling solar PV adoption rates."
+        ),
+    }
+
+
+def aspect_validation_data_strengthen() -> dict:
+    return {
+        "verdict": "strengthen",
+        "critique": "The aspect has potential but the canon justification needs to reference specific causal chain events.",
+        "canon_conflicts": [],
+        "suggested_fixes": ["Strengthen the canon justification with specific timeline references"],
+    }
+
+
+def aspect_revise_data() -> dict:
+    return {
+        "canon_justification": (
+            "Revised justification: This aspect extends the world's fusion premise by detailing "
+            "the distribution infrastructure. The causal chain establishes commercial fusion by 2032 "
+            "and cost-competitiveness by 2040; grid infrastructure naturally follows as demand scales."
+        ),
+    }
+
+
+def dweller_proposal_validation_data_strengthen() -> dict:
+    return {
+        "verdict": "strengthen",
+        "critique": "The character concept is interesting but the name context needs deeper connection to the region's naming conventions.",
+        "cultural_issues": ["Name context doesn't sufficiently explain naming convention alignment"],
+        "suggested_fixes": ["Elaborate on how the name reflects second-generation cultural fusion"],
+    }
+
+
+def dweller_proposal_revise_data() -> dict:
+    return {
+        "name_context": (
+            "Revised context: The name reflects second-generation cultural fusion patterns "
+            "where founding families blended heritage naming with regional adaptations, "
+            "creating a distinctive naming tradition unique to the settlement."
+        ),
+    }
+
+
 def dweller_proposal_validation_data(verdict: str = "approve") -> dict:
     base = {
         "verdict": verdict,
@@ -383,6 +441,12 @@ STRATEGY_SCHEMA_MAP = {
     "confirm_importance_data": ("api.actions", "ConfirmImportanceRequest"),
     "escalate_data": ("api.actions", "EscalateRequest"),
     "dweller_proposal_data": ("api.dweller_proposals", "DwellerProposalCreateRequest"),
+    "validation_data_strengthen": ("api.proposals", "ValidationCreateRequest"),
+    "proposal_revise_data": ("api.proposals", "ProposalReviseRequest"),
+    "aspect_validation_data_strengthen": ("api.aspects", "AspectValidationRequest"),
+    "aspect_revise_data": ("api.aspects", "AspectReviseRequest"),
+    "dweller_proposal_validation_data_strengthen": ("api.dweller_proposals", "DwellerValidationCreateRequest"),
+    "dweller_proposal_revise_data": ("api.dweller_proposals", "DwellerProposalReviseRequest"),
     "dweller_proposal_validation_data": ("api.dweller_proposals", "DwellerValidationCreateRequest"),
     "comment_data": ("api.social", "CommentRequest"),
     "social_reaction_data": ("api.social", "ReactionRequest"),

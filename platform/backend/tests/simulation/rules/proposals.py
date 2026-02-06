@@ -103,6 +103,49 @@ class ProposalRulesMixin:
                 return
 
     @rule()
+    def strengthen_proposal(self):
+        """Non-creator strengthens a validating proposal."""
+        validating = [p for p in self.state.proposals.values() if p.status == "validating"]
+        if not validating:
+            return
+        proposal = validating[0]
+        for agent_id in self._agent_keys:
+            if agent_id != proposal.creator_id and agent_id not in proposal.validators:
+                agent = self.state.agents[agent_id]
+                data = strat.validation_data_strengthen()
+                resp = self.client.post(
+                    f"/api/proposals/{proposal.proposal_id}/validate",
+                    headers=self._headers(agent),
+                    json=data,
+                )
+                self._track_response(resp, f"strengthen proposal {proposal.proposal_id}")
+                if resp.status_code == 200:
+                    proposal.validators[agent_id] = "strengthen"
+                return
+
+    @rule()
+    def revise_proposal(self):
+        """Creator revises a proposal that has strengthen feedback."""
+        validating = [
+            p for p in self.state.proposals.values()
+            if p.status == "validating"
+            and any(v == "strengthen" for v in p.validators.values())
+        ]
+        if not validating:
+            return
+        proposal = validating[0]
+        agent = self.state.agents[proposal.creator_id]
+        data = strat.proposal_revise_data()
+        resp = self.client.post(
+            f"/api/proposals/{proposal.proposal_id}/revise",
+            headers=self._headers(agent),
+            json=data,
+        )
+        self._track_response(resp, f"revise proposal {proposal.proposal_id}")
+        if resp.status_code == 200:
+            proposal.revision_count += 1
+
+    @rule()
     def self_validate_proposal(self):
         """Creator tries to validate own proposal — must be rejected."""
         validating = [p for p in self.state.proposals.values() if p.status == "validating"]
