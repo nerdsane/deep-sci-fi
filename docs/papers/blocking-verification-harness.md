@@ -73,16 +73,25 @@ Triggers when Bash tool executes commands matching:
 - `gh pr merge` (any branch)
 
 Actions:
-1. Creates marker: `/tmp/claude-deepsci/push-pending` (contains branch name)
-2. Removes: `/tmp/claude-deepsci/deploy-verified`
-3. Injects `additionalContext` with verification instructions
+1. Creates marker: `/tmp/claude-deepsci/{hash}/push-pending-{session}` (contains branch name)
+2. Removes: `/tmp/claude-deepsci/{hash}/deploy-verified-{session}`
+3. Injects `additionalContext` with verification instructions (including `--session` flag)
+4. Cleans up stale markers from dead sessions (older than 2 hours)
+
+Markers are scoped by two dimensions:
+- **Project directory hash** — isolates different worktrees
+- **Session ID (`$PPID`)** — isolates parallel Claude Code sessions in the same directory
 
 ```bash
+SESSION_ID=$PPID
+PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
+MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
+
 if echo "$COMMAND" | grep -qE '^\\s*git\\s+push\\b'; then
   BRANCH=$(echo "$COMMAND" | grep -oE '(staging|main|master)' | head -1)
-  echo "$BRANCH" > "$MARKER_DIR/push-pending"
-  rm -f "$MARKER_DIR/deploy-verified"
-  # Inject blocking context...
+  echo "$BRANCH" > "$MARKER_DIR/push-pending-$SESSION_ID"
+  rm -f "$MARKER_DIR/deploy-verified-$SESSION_ID"
+  # Inject blocking context with --session flag...
 fi
 ```
 
@@ -99,20 +108,22 @@ Six-step blocking verification with generous timeouts (30 min CI, 10 min health)
 | 5 | Schema drift (migration version) | Yes |
 | 6 | Logfire 500 errors (last 30 min) | Yes |
 
-On success: Creates `/tmp/claude-deepsci/deploy-verified`
+On success: Creates `/tmp/claude-deepsci/{hash}/deploy-verified-{session}` (session ID passed via `--session` flag)
 On failure: Exits with code 1, session blocked
 
 ### 2.3 Stop Hook (`stop-verify-deploy.sh`)
 
-Runs when session attempts to end. Checks:
-1. Is there a `push-pending` marker?
-2. Is there a `deploy-verified` marker?
+Runs when session attempts to end. Only checks markers for **this session** (matching `$PPID`):
+1. Is there a `push-pending-{session}` marker?
+2. Is there a `deploy-verified-{session}` marker?
 
-If push-pending exists but deploy-verified doesn't, **blocks session exit** with:
+If this session's push-pending exists but deploy-verified doesn't, **blocks session exit** with:
 ```
 DEPLOYMENT NOT VERIFIED - You pushed to [branch] but haven't verified.
 You CANNOT end this session.
 ```
+
+Other sessions' markers are completely invisible — no cross-session interference.
 
 ### 2.4 GitHub Actions Fallback (`post-deploy-verify.yml`)
 
@@ -346,7 +357,35 @@ Multiple layers catch different failures:
 
 No single layer is sufficient. Together, they form an escape-proof loop.
 
-### 5.5 The gh CLI Remote Quirk
+### 5.5 Per-Session Marker Isolation
+
+**Problem:** The initial implementation used a single shared marker directory (`/tmp/claude-deepsci/`). When multiple Claude Code sessions ran in parallel — common with git worktrees — any session's `git push` created a global `push-pending` marker that blocked *every* session from stopping. This caused:
+
+1. **Wasted tokens** — Multiple sessions all trying to verify the same deployment
+2. **Conflict** — Multiple sessions trying to fix the same CI failure simultaneously
+3. **False blocks** — Session B blocked by Session A's unverified push, even though B never pushed
+
+**Evolution:** The fix went through two iterations:
+
+1. **Per-worktree scoping** (hash of project root): Solved cross-worktree interference but still shared markers between sessions in the same directory.
+2. **Per-session scoping** (`$PPID` of hook = Claude Code PID): Full isolation. Each session only sees its own markers.
+
+**Design tradeoff — safety net vs. isolation:**
+
+Shared markers acted as a safety net: if Session A pushed and then crashed, Session B would inherit the `push-pending` marker and be forced to verify. Per-session markers lose this safety net — a dead session's unverified deployment goes unchecked.
+
+We chose per-session isolation because:
+- **CI is the primary gate.** The hook system is defense-in-depth, not the only line of defense.
+- **Dead sessions can't fix anything anyway.** A human would need to intervene regardless.
+- **The token waste is real and recurring.** Multiple sessions burning tokens on the same blocked verification is a concrete, frequent cost.
+- **Stale marker cleanup mitigates orphans.** The PostToolUse hook deletes markers older than 2 hours on every invocation, preventing accumulation from dead sessions.
+
+**Implementation:** The session ID flows through all three scripts:
+- `post-push-verify.sh` writes `push-pending-$PPID` and embeds `--session $PPID` in the `additionalContext` message
+- The agent passes `--session <ID>` to `verify-deployment.sh`, which writes `deploy-verified-<ID>`
+- `stop-verify-deploy.sh` checks only for `push-pending-$PPID` and `deploy-verified-$PPID`
+
+### 5.6 The gh CLI Remote Quirk
 
 A subtle bug: `gh` CLI defaults to the `upstream` remote if it exists, not `origin`. Our verify script was checking CI on the wrong repository (nerdsane/deep-sci-fi instead of rita-aga/deep-sci-fi).
 
@@ -441,11 +480,26 @@ platform/backend/certs/
 
 ## Appendix B: Marker Files
 
+Markers are scoped by project directory hash and session ID to prevent cross-session interference:
+
 ```
 /tmp/claude-deepsci/
-├── push-pending             # Contains branch name (staging/main)
-└── deploy-verified          # Created on successful verification
+└── {project_hash}/                  # cksum of git root path
+    ├── push-pending-{session_id}    # Contains branch name (staging/main)
+    └── deploy-verified-{session_id} # Created on successful verification
 ```
+
+Example with two parallel sessions in different worktrees:
+```
+/tmp/claude-deepsci/
+├── 2346780863/                      # /Users/.../deep-sci-fi
+│   ├── push-pending-51234           # Session A pushed to staging
+│   └── deploy-verified-51234        # Session A verified
+└── 1615248239/                      # /Users/.../deep-sci-fi-worktree
+    └── push-pending-67890           # Session B pushed, not yet verified
+```
+
+Stale markers (from dead sessions) are automatically cleaned up after 2 hours.
 
 ## Appendix C: Verification Steps
 

@@ -9,6 +9,7 @@ from uuid import uuid4
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
+os.environ["DSF_TEST_MODE_ENABLED"] = "true"
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:
@@ -309,7 +310,7 @@ SAMPLE_REGION = {
     "name": "Test Region",
     "location": "Test Location",
     "population_origins": ["Test origin 1", "Test origin 2"],
-    "cultural_blend": "Test cultural blend",
+    "cultural_blend": "A fusion of test heritage traditions with modern experimental culture",
     "naming_conventions": (
         "Names follow test conventions: First names are simple, "
         "family names reflect test heritage. Examples: Test Person, Sample Name."
@@ -333,5 +334,5 @@ SAMPLE_DWELLER = {
         "A test personality with sufficient detail to meet the minimum "
         "character requirements for dweller creation validation."
     ),
-    "background": "Test background story for the dweller character"
+    "background": "Test background story for the dweller character with enough detail to pass validation"
 }

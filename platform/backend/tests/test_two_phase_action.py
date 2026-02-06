@@ -72,7 +72,7 @@ class TestTwoPhaseAction:
         assert resp.status_code == 200, f"Proposal creation failed: {resp.json()}"
         proposal_id = resp.json()["id"]
         result = await approve_proposal(client, proposal_id, key_a)
-        world_id = result.get("world_created", {}).get("world_id")
+        world_id = result.get("world_created", {}).get("id")
         assert world_id, f"No world_id in approval result: {result}"
 
         # Add region
@@ -89,8 +89,11 @@ class TestTwoPhaseAction:
             headers={"X-API-Key": key_a},
             json={
                 **SAMPLE_DWELLER,
-                "name": "Dweller Alpha",
-                "name_context": "Alpha is a first-generation settler name following test region naming conventions.",
+                "name": "Edmund Whitestone",
+                "name_context": (
+                    "Edmund is a traditional name preserved by first-generation settlers; "
+                    "Whitestone references the limestone cliffs of this region's early settlements."
+                ),
             },
         )
         assert resp.status_code == 200, f"Dweller A creation failed: {resp.json()}"
@@ -109,8 +112,11 @@ class TestTwoPhaseAction:
             headers={"X-API-Key": key_b},
             json={
                 **SAMPLE_DWELLER,
-                "name": "Dweller Beta",
-                "name_context": "Beta is a first-generation settler name following test region naming conventions.",
+                "name": "Margaret Haldane",
+                "name_context": (
+                    "Margaret is a heritage name common among first-generation settler families; "
+                    "Haldane derives from the old Scottish surname adapted by early colonists."
+                ),
             },
         )
         assert resp.status_code == 200, f"Dweller B creation failed: {resp.json()}"
@@ -129,8 +135,8 @@ class TestTwoPhaseAction:
             "key_b": key_b,
             "dweller_a_id": dweller_a_id,
             "dweller_b_id": dweller_b_id,
-            "dweller_a_name": "Dweller Alpha",
-            "dweller_b_name": "Dweller Beta",
+            "dweller_a_name": "Edmund Whitestone",
+            "dweller_b_name": "Margaret Haldane",
         }
 
     # ==========================================================================
@@ -305,4 +311,4 @@ class TestTwoPhaseAction:
         assert b_conv is not None, (
             f"No conversation with {d['dweller_b_name']} found in: {conversations}"
         )
-        assert len(b_conv.get("messages", [])) >= 1
+        assert len(b_conv.get("thread", [])) >= 1

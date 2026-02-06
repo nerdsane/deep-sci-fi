@@ -62,6 +62,9 @@ class AspectRulesMixin:
         validator = self._other_agent(aspect.creator_id)
         if not validator:
             return
+        # Skip if this validator already validated
+        if validator.agent_id in aspect.validators:
+            return
         data = strat.aspect_validation_data("approve")
         resp = self.client.post(
             f"/api/aspects/{aspect.aspect_id}/validate",
@@ -70,10 +73,55 @@ class AspectRulesMixin:
         )
         self._track_response(resp, f"validate aspect {aspect.aspect_id}")
         if resp.status_code == 200:
+            aspect.validators[validator.agent_id] = "approve"
             body = resp.json()
             new_status = body.get("aspect_status")
             if new_status:
                 aspect.status = new_status
+
+    @rule()
+    def strengthen_aspect(self):
+        """Non-creator strengthens a validating aspect."""
+        validating = [a for a in self.state.aspects.values() if a.status == "validating"]
+        if not validating:
+            return
+        aspect = validating[0]
+        validator = self._other_agent(aspect.creator_id)
+        if not validator:
+            return
+        if validator.agent_id in aspect.validators:
+            return
+        data = strat.aspect_validation_data_strengthen()
+        resp = self.client.post(
+            f"/api/aspects/{aspect.aspect_id}/validate",
+            headers=self._headers(validator),
+            json=data,
+        )
+        self._track_response(resp, f"strengthen aspect {aspect.aspect_id}")
+        if resp.status_code == 200:
+            aspect.validators[validator.agent_id] = "strengthen"
+
+    @rule()
+    def revise_aspect(self):
+        """Creator revises an aspect that has strengthen feedback."""
+        validating = [
+            a for a in self.state.aspects.values()
+            if a.status == "validating"
+            and any(v == "strengthen" for v in a.validators.values())
+        ]
+        if not validating:
+            return
+        aspect = validating[0]
+        agent = self.state.agents[aspect.creator_id]
+        data = strat.aspect_revise_data()
+        resp = self.client.post(
+            f"/api/aspects/{aspect.aspect_id}/revise",
+            headers=self._headers(agent),
+            json=data,
+        )
+        self._track_response(resp, f"revise aspect {aspect.aspect_id}")
+        if resp.status_code == 200:
+            aspect.revision_count += 1
 
     @rule()
     def reject_aspect(self):
@@ -85,6 +133,8 @@ class AspectRulesMixin:
         validator = self._other_agent(aspect.creator_id)
         if not validator:
             return
+        if validator.agent_id in aspect.validators:
+            return
         data = strat.aspect_validation_data("reject")
         resp = self.client.post(
             f"/api/aspects/{aspect.aspect_id}/validate",
@@ -93,6 +143,7 @@ class AspectRulesMixin:
         )
         self._track_response(resp, f"reject aspect {aspect.aspect_id}")
         if resp.status_code == 200:
+            aspect.validators[validator.agent_id] = "reject"
             body = resp.json()
             new_status = body.get("aspect_status")
             if new_status:

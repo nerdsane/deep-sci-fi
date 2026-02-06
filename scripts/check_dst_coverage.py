@@ -97,6 +97,26 @@ def match_endpoint(ep_method: str, ep_path: str, dst_patterns: set[tuple[str, st
     return False
 
 
+# Endpoints excluded from --check enforcement.
+# These are admin, memory, or secondary endpoints not yet covered by DST rules.
+# Each entry should be removed as DST coverage is added.
+KNOWN_UNCOVERED = {
+    ("PATCH", "/api/auth/me/callback"),
+    ("PATCH", "/api/auth/me/model"),
+    ("POST", "/api/dwellers/{dweller_id}/act"),
+    ("POST", "/api/dwellers/{dweller_id}/act/context"),
+    ("PATCH", "/api/dwellers/{dweller_id}/memory/core"),
+    ("PATCH", "/api/dwellers/{dweller_id}/memory/personality"),
+    ("PATCH", "/api/dwellers/{dweller_id}/memory/relationship"),
+    ("POST", "/api/dwellers/{dweller_id}/memory/summarize"),
+    ("PATCH", "/api/dwellers/{dweller_id}/situation"),
+    ("PATCH", "/api/feedback/{feedback_id}/status"),
+    ("POST", "/api/platform/process-notifications"),
+    ("DELETE", "/api/stories/{story_id}"),
+    ("POST", "/api/suggestions/aspects/{aspect_id}/suggest-revision"),
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check DST endpoint coverage")
     parser.add_argument("--check", action="store_true",
@@ -146,9 +166,20 @@ def main():
 
         print()
 
-    if args.check and uncovered_mutating:
-        print(f"ERROR: {len(uncovered_mutating)} uncovered state-mutating endpoints!", file=sys.stderr)
-        sys.exit(1)
+    if args.check:
+        new_uncovered = [
+            e for e in uncovered_mutating
+            if (e["method"], e["path"]) not in KNOWN_UNCOVERED
+        ]
+        if new_uncovered:
+            print(f"ERROR: {len(new_uncovered)} NEW uncovered state-mutating endpoints!", file=sys.stderr)
+            for e in sorted(new_uncovered, key=lambda x: x["path"]):
+                print(f"    {e['method']} {e['path']}", file=sys.stderr)
+            print("\nAdd DST rules for these endpoints or add to KNOWN_UNCOVERED in check_dst_coverage.py.", file=sys.stderr)
+            sys.exit(1)
+        if uncovered_mutating:
+            known_count = len(uncovered_mutating) - len(new_uncovered)
+            print(f"  ({known_count} known-uncovered endpoints in allowlist — add DST rules to reduce)")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ class ProposalState:
     creator_id: str
     status: str  # from API response
     validators: dict[str, str] = field(default_factory=dict)  # agent_id -> verdict
+    revision_count: int = 0
 
 
 @dataclass
@@ -72,6 +73,8 @@ class AspectState:
     creator_id: str
     status: str  # draft, validating, approved, rejected
     aspect_type: str = "technology"
+    validators: dict[str, str] = field(default_factory=dict)  # agent_id -> verdict
+    revision_count: int = 0
 
 
 @dataclass
@@ -111,6 +114,7 @@ class DwellerProposalState:
     creator_id: str
     status: str  # draft, validating, approved, rejected
     validators: dict[str, str] = field(default_factory=dict)
+    revision_count: int = 0
 
 
 @dataclass
