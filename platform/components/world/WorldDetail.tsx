@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { motion } from 'framer-motion'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ActivityFeed } from './ActivityFeed'
 import { AspectsList } from './AspectsList'
+import { fadeInUp } from '@/lib/motion'
+import { ScrollReveal, StaggerReveal } from '@/components/ui/ScrollReveal'
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -146,8 +149,8 @@ export function WorldDetail({ world }: WorldDetailProps) {
 
   return (
     <div className="space-y-8">
-      {/* Hero section with glass effect */}
-      <div className="glass-cyan mb-8">
+      {/* Hero section with glass effect + enhanced glow */}
+      <div className="glass-cyan glow-cyan-layered mb-8">
         <div className="p-6 md:p-8">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -189,7 +192,8 @@ export function WorldDetail({ world }: WorldDetailProps) {
 
           {/* Scientific Basis */}
           {world.scientificBasis && (
-            <div className="mt-6 pt-4 border-t border-white/5">
+            <div className="mt-6 pt-4">
+              <div className="divider-gradient-cyan mb-4" />
               <h3 className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider mb-2">SCIENTIFIC BASIS</h3>
               <p className="text-text-secondary text-sm leading-relaxed">{world.scientificBasis}</p>
             </div>
@@ -307,9 +311,9 @@ function TimelineView({
             {/* Timeline line */}
             <div className="absolute left-[60px] top-0 bottom-0 w-px bg-white/10" />
 
-            <div className="space-y-6">
+            <StaggerReveal className="space-y-6">
               {causalChain.map((event, index) => (
-                <div key={index} className="relative flex gap-6">
+                <motion.div key={index} variants={fadeInUp} className="relative flex gap-6">
                   {/* Year marker */}
                   <div className="w-[50px] shrink-0 text-right">
                     <span className="font-mono text-neon-cyan text-sm">{event.year}</span>
@@ -330,9 +334,9 @@ function TimelineView({
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </StaggerReveal>
           </div>
         </>
       )}
@@ -437,7 +441,7 @@ function LiveConversations({
 function StoryStatusBadge({ status }: { status?: 'published' | 'acclaimed' }) {
   if (status === 'acclaimed') {
     return (
-      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30">
+      <span className="text-[10px] font-display tracking-wider px-2 py-0.5 border text-neon-green bg-neon-green/10 border-neon-green/30 badge-pulse-acclaimed">
         ACCLAIMED
       </span>
     )
@@ -729,7 +733,7 @@ function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: st
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <StaggerReveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {dwellers.map((dweller) => {
         // Support both flat structure (from API) and nested persona structure (from conversations)
         const name = dweller.name || dweller.persona?.name || 'Unknown'
@@ -737,40 +741,41 @@ function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: st
         const avatarUrl = dweller.persona?.avatar_url
 
         return (
-          <a
-            key={dweller.id}
-            href={`/dweller/${dweller.id}`}
-            className="block bg-bg-secondary border border-white/5 rounded p-3 hover:border-neon-cyan/30 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={name}
-                  className="w-10 h-10 rounded object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
-                  {name.charAt(0) || '?'}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-text-primary truncate">{name}</span>
-                  {!dweller.is_available && (
-                    <span className="w-2 h-2 bg-neon-green rounded-full shrink-0" title="Inhabited" />
+          <motion.div key={dweller.id} variants={fadeInUp}>
+            <a
+              href={`/dweller/${dweller.id}`}
+              className="block bg-bg-secondary border border-white/5 rounded p-3 hover:border-neon-cyan/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={name}
+                    className="w-10 h-10 rounded object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
+                    {name.charAt(0) || '?'}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                    {!dweller.is_available && (
+                      <span className="w-2 h-2 bg-neon-green rounded-full shrink-0" title="Inhabited" />
+                    )}
+                  </div>
+                  <div className="text-xs text-text-tertiary">{role}</div>
+                  {dweller.current_region && (
+                    <div className="text-xs text-text-tertiary mt-0.5">{dweller.current_region}</div>
                   )}
                 </div>
-                <div className="text-xs text-text-tertiary">{role}</div>
-                {dweller.current_region && (
-                  <div className="text-xs text-text-tertiary mt-0.5">📍 {dweller.current_region}</div>
-                )}
               </div>
-            </div>
-          </a>
+            </a>
+          </motion.div>
         )
       })}
-    </div>
+    </StaggerReveal>
   )
 }
 

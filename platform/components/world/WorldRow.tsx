@@ -90,65 +90,65 @@ function WorldMiniCard({ world }: { world: World }) {
   const titleColor = getLetterColor(world.id)
 
   return (
-    <Link
-      href={`/world/${world.id}`}
-      className="block w-[200px] md:w-[260px] lg:w-[300px] group"
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      <div className="relative aspect-video bg-bg-secondary overflow-hidden border border-white/10 group-hover:border-neon-cyan/40 transition-all">
-        {/* Mesh gradient background */}
-        <div className="absolute inset-0" style={gradientStyle} />
+      <Link
+        href={`/world/${world.id}`}
+        className="block w-[200px] md:w-[260px] lg:w-[300px] group"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        <div className="relative aspect-video bg-bg-secondary overflow-hidden border border-white/10 group-hover:border-neon-cyan/40 transition-all glitch-hover crt-scanlines glow-thumb">
+          {/* Mesh gradient background */}
+          <div className="absolute inset-0" style={gradientStyle} />
 
-        {/* Tech grid pattern overlay */}
-        <div className="absolute inset-0 tech-grid-dense" />
+          {/* Tech grid pattern overlay */}
+          <div className="absolute inset-0 tech-grid-dense" />
 
-        {/* Magazine-style title - positioned left, fading right */}
-        <div className="absolute inset-0 flex items-center overflow-hidden">
-          <div
-            className="pl-3 pr-8 whitespace-nowrap"
-            style={{
-              maskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
-            }}
-          >
-            <span
-              className="text-card-watermark font-display font-semibold select-none tracking-tight"
-              style={{ color: titleColor }}
+          {/* Magazine-style title - positioned left, fading right */}
+          <div className="absolute inset-0 flex items-center overflow-hidden">
+            <div
+              className="pl-3 pr-8 whitespace-nowrap"
+              style={{
+                maskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%)',
+              }}
             >
-              {world.name}
+              <span
+                className="text-card-watermark font-display font-semibold select-none tracking-tight"
+                style={{ color: titleColor }}
+              >
+                {world.name}
+              </span>
+            </div>
+          </div>
+
+          {/* Year badge */}
+          <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">
+            <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
+          </div>
+
+          {/* Hover overlay */}
+          <div className={`
+            absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center
+            transition-opacity duration-200 z-[3]
+            ${isHovering ? 'opacity-100' : 'opacity-0'}
+          `}>
+            <span className="text-neon-cyan font-mono text-sm tracking-wider flex items-center gap-1">
+              EXPLORE <IconArrowRight size={16} />
             </span>
           </div>
         </div>
 
-        {/* Year badge */}
-        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">
-          <span className="text-xs font-mono text-neon-cyan">{world.yearSetting}</span>
+        <div className="mt-2 px-1">
+          <h3 className="text-sm text-text-primary truncate group-hover:text-neon-cyan transition-colors">
+            {world.name}
+          </h3>
+          <div className="flex items-center gap-2 mt-1 text-text-tertiary text-xs font-mono">
+            <span>{world.dwellerCount || 0} DWELLERS</span>
+            <span>•</span>
+            <span>{world.storyCount || 0} STORIES</span>
+          </div>
         </div>
-
-        {/* Hover overlay */}
-        <div className={`
-          absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center
-          transition-opacity duration-200
-          ${isHovering ? 'opacity-100' : 'opacity-0'}
-        `}>
-          <span className="text-neon-cyan font-mono text-sm tracking-wider flex items-center gap-1">
-            EXPLORE <IconArrowRight size={16} />
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-2 px-1">
-        <h3 className="text-sm text-text-primary truncate group-hover:text-neon-cyan transition-colors">
-          {world.name}
-        </h3>
-        <div className="flex items-center gap-2 mt-1 text-text-tertiary text-xs font-mono">
-          <span>{world.dwellerCount || 0} DWELLERS</span>
-          <span>•</span>
-          <span>{world.storyCount || 0} STORIES</span>
-        </div>
-      </div>
-    </Link>
+      </Link>
   )
 }
 

@@ -42,8 +42,8 @@ export default function RootLayout({
         <div className="flex flex-col h-full">
           <Header />
 
-          {/* Main content with nebula background */}
-          <main className="flex-1 min-h-0 overflow-auto pb-nav md:pb-0 nebula-bg">
+          {/* Main content with nebula background + subtle CRT scanlines */}
+          <main className="flex-1 min-h-0 overflow-auto pb-nav md:pb-0 nebula-bg crt-scanlines">
             <div className="min-h-full flex flex-col">
               <div className="flex-1">
                 {children}
