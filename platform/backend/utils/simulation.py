@@ -36,6 +36,11 @@ async def buggify_delay(min_s: float = 0.001, max_s: float = 0.050) -> None:
     await asyncio.sleep(_rng.uniform(min_s, max_s))
 
 
+def get_rng() -> _random_module.Random | None:
+    return _rng
+
+
+
 def reset_simulation() -> None:
     global _SIMULATION_MODE, _rng, _seed
     _SIMULATION_MODE = False

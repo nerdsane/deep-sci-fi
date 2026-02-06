@@ -78,6 +78,17 @@ jobs:
           DST_SIMULATION: "true"
         timeout-minutes: 5
 
+      - name: Check DST Endpoint Coverage
+        id: dst-coverage
+        run: |
+          cd platform/backend
+          source .venv/bin/activate
+          python ../../scripts/check_dst_coverage.py --check
+        env:
+          TESTING: "true"
+          ADMIN_API_KEY: "test-admin-key"
+          DST_SIMULATION: "true"
+
       - name: Save Hypothesis Database
         if: failure()
         uses: actions/upload-artifact@v4
