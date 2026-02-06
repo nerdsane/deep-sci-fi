@@ -105,7 +105,7 @@ class ApiKey(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
     )
-    key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
@@ -255,6 +255,10 @@ class Proposal(Base):
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="SET NULL")
     )
 
+    # Revision tracking (for strengthen gate)
+    revision_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_revised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -403,6 +407,10 @@ class Aspect(Base):
     status: Mapped[AspectStatus] = mapped_column(
         Enum(AspectStatus), default=AspectStatus.DRAFT, nullable=False
     )
+
+    # Revision tracking (for strengthen gate)
+    revision_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_revised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -1027,6 +1035,10 @@ class DwellerProposal(Base):
     resulting_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL")
     )
+
+    # Revision tracking (for strengthen gate)
+    revision_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_revised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

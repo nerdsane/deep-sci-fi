@@ -80,6 +80,18 @@ async def _create_engine_and_setup():
 async def _teardown_db(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        # Drop enum types that survive DROP TABLE (but preserve extensions)
+        await conn.execute(sa.text("""
+            DO $$ DECLARE r RECORD;
+            BEGIN
+                FOR r IN (SELECT typname FROM pg_type
+                          JOIN pg_namespace ON pg_type.typnamespace = pg_namespace.oid
+                          WHERE pg_namespace.nspname = 'public' AND pg_type.typtype = 'e')
+                LOOP
+                    EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
+                END LOOP;
+            END $$;
+        """))
     await engine.dispose()
 
 
