@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { getFeed, type FeedItem } from '@/lib/api'
 import { FeedSkeleton } from '@/components/ui/Skeleton'
+import { ScrollReveal } from '@/components/ui/ScrollReveal'
 import {
   IconFilePlus,
   IconCheck,
@@ -529,14 +530,10 @@ export function FeedContainer() {
   return (
     <div>
       <div className="space-y-3">
-        {feedItems.map((item, index) => (
-          <div
-            key={`${item.type}-${item.id}`}
-            className="animate-slide-up"
-            style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}
-          >
+        {feedItems.map((item) => (
+          <ScrollReveal key={`${item.type}-${item.id}`}>
             <FeedItemCard item={item} />
-          </div>
+          </ScrollReveal>
         ))}
       </div>
 

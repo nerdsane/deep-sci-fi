@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 import { IconMenu } from '@/components/ui/PixelIcon'
 
 // Full stacked "DEEP / SCI-FI" ASCII logo (two lines)
@@ -30,7 +31,7 @@ function NavLink({ href, children, isActive }: NavLinkProps) {
     <Link
       href={href}
       className={`
-        relative font-display text-sm tracking-wider transition-colors
+        relative font-display text-sm tracking-wider transition-colors py-1
         ${isActive
           ? 'text-neon-cyan'
           : 'text-text-secondary hover:text-neon-cyan'
@@ -39,7 +40,11 @@ function NavLink({ href, children, isActive }: NavLinkProps) {
     >
       {children}
       {isActive && (
-        <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-neon-cyan shadow-[0_0_10px_var(--neon-cyan)]" />
+        <motion.span
+          layoutId="nav-underline"
+          className="absolute -bottom-1 left-0 right-0 h-0.5 bg-neon-cyan shadow-[0_0_10px_var(--neon-cyan)]"
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        />
       )}
     </Link>
   )
@@ -70,11 +75,11 @@ export function Header() {
     <header
       className={`
         sticky top-0 z-50 safe-top shrink-0
-        border-b transition-all duration-200
+        border-b transition-all duration-200 crt-scanlines
         ${scrolled ? 'glass border-white/8' : 'bg-bg-secondary border-white/5'}
       `}
     >
-      <div className="px-6 md:px-8 lg:px-12">
+      <div className="px-6 md:px-8 lg:px-12 relative z-[2]">
         <div className="flex items-center justify-between h-14 md:h-16 lg:h-auto lg:py-3">
           {/* Logo - wrapped in .logo for hover effects */}
           <Link href="/" className="logo flex items-center shrink-0">

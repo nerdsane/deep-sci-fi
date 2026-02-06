@@ -233,6 +233,12 @@ async def init_db() -> None:
     """
     from . import models  # noqa: F401 - Import to register models
 
+    if os.getenv("DST_SIMULATION"):
+        # DST manages its own engine and tables via portal.call() to keep
+        # asyncpg connections in the TestClient's event loop.
+        logger.info("DST simulation mode — skipping init_db (test manages its own engine)")
+        return
+
     is_testing = os.getenv("TESTING", "").lower() == "true"
 
     if is_testing:
