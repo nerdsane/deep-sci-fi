@@ -1,5 +1,7 @@
 """Dweller rules mixin — create, claim, release, act, memory."""
 
+from collections import Counter
+
 from hypothesis.stateful import rule
 
 from tests.simulation.state_mirror import DwellerState, ActionRef
@@ -172,7 +174,6 @@ class DwellerRulesMixin:
     @rule()
     def claim_sixth_dweller(self):
         """Agent with 5 claimed dwellers tries to claim a 6th — must be rejected."""
-        from collections import Counter
         claims = Counter()
         for d in self.state.dwellers.values():
             if d.claimed_by is not None:

@@ -4,6 +4,8 @@ Each invariant queries the API/state to verify game rules are maintained.
 Prefixed S-XX for traceability to the plan.
 """
 
+from collections import Counter
+
 from hypothesis.stateful import invariant
 
 
@@ -68,7 +70,6 @@ class SafetyInvariantsMixin:
                 assert actual_status in valid_transitions.get(p.status, set()), (
                     f"Proposal {pid}: invalid transition {p.status} -> {actual_status}"
                 )
-                p.status = actual_status
 
     @invariant()
     def s6_approved_proposals_have_one_world(self):
@@ -100,39 +101,8 @@ class SafetyInvariantsMixin:
                 f"Story {sid} references unknown world {story.world_id}"
             )
 
-    @invariant()
-    def s_s3_one_reaction_per_user(self):
-        """Verify story reaction endpoint rejects duplicate reactions (spot-check)."""
-        if not self.state.stories or not self._agent_keys:
-            return
-        sid = list(self.state.stories.keys())[0]
-        agent = self.state.agents[self._agent_keys[0]]
-        # Post duplicate reaction — neither should 500
-        resp1 = self.client.post(
-            f"/api/stories/{sid}/react",
-            headers=self._headers(agent),
-            json={"reaction_type": "fire"},
-        )
-        resp2 = self.client.post(
-            f"/api/stories/{sid}/react",
-            headers=self._headers(agent),
-            json={"reaction_type": "fire"},
-        )
-        assert resp1.status_code < 500, (
-            f"Story reaction 1 returned {resp1.status_code}: {resp1.text[:200]}"
-        )
-        assert resp2.status_code < 500, (
-            f"Duplicate story reaction returned {resp2.status_code}: {resp2.text[:200]}"
-        )
-
-    @invariant()
-    def s_s4_acclaimed_stories_revised(self):
-        """Acclaimed stories must have been revised at least once."""
-        for sid, story in self.state.stories.items():
-            if story.status == "ACCLAIMED":
-                assert story.revision_count >= 1, (
-                    f"Story {sid} is ACCLAIMED but revision_count={story.revision_count}"
-                )
+    # s_s3 duplicate reaction testing moved to rules/stories.py::duplicate_story_reaction
+    # s_s4 removed (redundant with s10_story_acclaim_conditions)
 
     # -------------------------------------------------------------------------
     # Aspect invariants
@@ -168,7 +138,6 @@ class SafetyInvariantsMixin:
                 assert actual_status in valid_transitions.get(a.status, set()), (
                     f"Aspect {aid}: invalid transition {a.status} -> {actual_status}"
                 )
-                a.status = actual_status
 
     # -------------------------------------------------------------------------
     # Event invariants
@@ -231,7 +200,6 @@ class SafetyInvariantsMixin:
     @invariant()
     def s_dp1_max_active_proposals(self):
         """No agent has more than 5 active dweller proposals (draft + validating)."""
-        from collections import Counter
         active_by_agent = Counter()
         for dp in self.state.dweller_proposals.values():
             if dp.status in ("draft", "validating"):
@@ -248,7 +216,6 @@ class SafetyInvariantsMixin:
     @invariant()
     def s8_max_5_dwellers_per_agent(self):
         """No agent claims more than 5 dwellers simultaneously."""
-        from collections import Counter
         claims = Counter()
         for d in self.state.dwellers.values():
             if d.claimed_by is not None:
@@ -308,9 +275,10 @@ class SafetyInvariantsMixin:
 
     @invariant()
     def s_r1_read_only_no_500s(self):
-        """Read-only endpoints never return 500 (spot-check)."""
+        """Read-only endpoints never return 500 (spot-check, routed via _track_response)."""
+        # Only spot-check when worlds exist (reduces contention on empty DB)
+        if not self.state.worlds:
+            return
         for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
             resp = self.client.get(endpoint)
-            assert resp.status_code < 500, (
-                f"Read-only {endpoint} returned {resp.status_code}: {resp.text[:200]}"
-            )
+            self._track_response(resp, f"read-only {endpoint}")
