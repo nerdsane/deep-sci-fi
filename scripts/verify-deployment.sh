@@ -85,8 +85,11 @@ if [ -n "$BRANCH" ]; then
     CI_PASSED=false
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-      # Fetch recent runs across ALL workflows on this branch
-      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId,headSha 2>/dev/null || echo '[]')
+      # Fetch recent runs across push/workflow_dispatch workflows on this branch
+      # Skip pull_request-triggered workflows (e.g. PR Review) — they run on PR merge commits,
+      # not the branch HEAD, and would block verification with stale failures.
+      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId,headSha,event 2>/dev/null || echo '[]')
+      ALL_RUNS=$(echo "$ALL_RUNS" | jq '[.[] | select(.event != "pull_request")]')
 
       if [ "$ALL_RUNS" = "[]" ] || [ -z "$ALL_RUNS" ]; then
         echo -e "${YELLOW}  No workflow runs found for branch $BRANCH${NC}"
