@@ -1,27 +1,21 @@
 # DevOps & Quality Harness Implementation
 
 **Date:** 2026-02-04
-**Status:** IN PROGRESS (Phase 0 complete, Phase 1 next)
+**Status:** IN PROGRESS (Phase 0 complete, Phase 2.2 complete, Phase 1 next)
 **Paper:** docs/papers/deterministic-simulation-testing.md
 
 ---
 
 ## Phase 0: Foundation ✅
 
-### Task 0.1: Install Logfire MCP — READY (needs user token)
+### Task 0.1: Install Logfire MCP ✅
 - [x] Created `~/.local/bin/logfire-mcp-project` wrapper for per-project tokens
 - [x] Created `.claude/logfire-token.example` template
 - [x] Added `.claude/logfire-token` to `.gitignore`
 - [x] CLAUDE.md directive added (in Post-Deploy Verification section)
-- [ ] User needs to: create read token in Logfire dashboard, save to `.claude/logfire-token`
-- [ ] User needs to: add to `~/.claude.json` mcpServers:
-  ```json
-  "logfire": {
-    "command": "/Users/seshendranalla/.local/bin/logfire-mcp-project",
-    "args": []
-  }
-  ```
-- [ ] Verify with `find_exceptions(60)` query
+- [x] Updated `.claude/logfire-token` with new read token
+- [x] Created `.mcp.json` with logfire MCP server config (gitignored — machine-specific paths)
+- [ ] Verify with `find_exceptions(60)` query (requires session restart)
 
 ### Task 0.2: Create Post-Push Verification Hook ✅
 - [x] Created `.claude/hooks/post-push-verify.sh`
@@ -104,11 +98,19 @@
 - [ ] Run smoke test against deployed URL
 - [ ] Send Slack notification on result (informational)
 
-### Task 2.2: claude-code-action for Feedback Triage
-- [ ] Create `.github/workflows/feedback-triage.yml`
-- [ ] Scheduled daily + workflow_dispatch
-- [ ] Claude reads feedback summary, groups similar, creates GitHub Issue
-- [ ] Human labels items "approved" → triggers fix workflow
+### Task 2.2: claude-code-action for Feedback Triage ✅
+- [x] Created `.github/workflows/feedback-triage.yml`
+  - Scheduled daily at 9am UTC + workflow_dispatch
+  - Fetches feedback summary + open items from production API
+  - Early exits if no open feedback
+  - Claude triages: groups by root cause, prioritizes by severity + upvotes
+  - Creates GitHub Issue with label `feedback-triage`
+- [x] Created `.github/workflows/feedback-fix.yml`
+  - Triggered by `approved-fix` label on issues
+  - Claude reads triage issue, implements highest-priority fix
+  - Runs tests, creates PR referencing the triage issue
+  - Comments on issue with results
+- [ ] Prerequisite: `ANTHROPIC_API_KEY` must be added to GitHub repo secrets
 
 ### Task 2.3: Concurrency Tests
 - [ ] Concurrent proposal validation (two agents, same proposal)
@@ -142,3 +144,4 @@
 | Instance | Phase | Status |
 |----------|-------|--------|
 | Session 1 | Phase 0 | ✅ Complete (except Logfire MCP — blocked on read token) |
+| Session 2 | Phase 0.1 + 2.2 | ✅ Logfire MCP setup + Feedback triage workflows |
