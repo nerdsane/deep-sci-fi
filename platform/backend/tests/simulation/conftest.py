@@ -42,6 +42,9 @@ hypothesis_settings.register_profile(
     suppress_health_check=[HealthCheck.too_slow],
     deadline=None,
 )
+# Load "default" profile so tests that don't specify max_examples get 50 locally.
+# CI overrides this with --hypothesis-profile=ci (200 examples).
+hypothesis_settings.load_profile("default")
 
 
 # Set env vars before importing app
