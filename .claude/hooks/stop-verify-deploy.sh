@@ -44,5 +44,22 @@ ENDJSON
   fi
 fi
 
-# No pending push for this session, or verification done — allow stop
+# ─────────────────────────────────────────────────────────────────────────────
+# Check 2: E2E test coverage for frontend changes
+# ─────────────────────────────────────────────────────────────────────────────
+E2E_PENDING="$MARKER_DIR/e2e-pending-$SESSION_ID"
+E2E_TOUCHED="$MARKER_DIR/e2e-touched-$SESSION_ID"
+
+if [ -f "$E2E_PENDING" ] && [ ! -f "$E2E_TOUCHED" ]; then
+  TEST_FILE=$(cat "$E2E_PENDING")
+  cat <<ENDJSON
+{
+  "decision": "block",
+  "reason": "You modified frontend files but didn't update the corresponding E2E test ($TEST_FILE). Update the test and run 'cd platform && bun run test:e2e' before ending the session."
+}
+ENDJSON
+  exit 0
+fi
+
+# No pending push and no unmatched frontend edits — allow stop
 echo '{}'

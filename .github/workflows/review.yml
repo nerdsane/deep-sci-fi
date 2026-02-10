@@ -65,19 +65,19 @@ jobs:
           TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
           DSF_TEST_MODE_ENABLED: "true"
 
-      - name: Run Simulation Tests (DST)
+      - name: Run Simulation Tests (DST - 200 examples)
         id: test-simulation
         run: |
           cd platform/backend
           source .venv/bin/activate
-          pytest tests/simulation/ -v --tb=long --hypothesis-seed=0 -x
+          pytest tests/simulation/ -v --tb=long --hypothesis-profile=ci -x
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
           TESTING: "true"
           ADMIN_API_KEY: "test-admin-key"
           DEDUP_WINDOW_OVERRIDE_SECONDS: "0"
           DST_SIMULATION: "true"
-        timeout-minutes: 5
+        timeout-minutes: 15
 
       - name: Check DST Endpoint Coverage
         id: dst-coverage
@@ -109,6 +109,24 @@ jobs:
           alembic current
         env:
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
+
+      - name: Install Playwright Browsers
+        run: cd platform && npx playwright install chromium --with-deps
+
+      - name: Run E2E Tests (Playwright)
+        id: test-e2e
+        run: cd platform && bun run test:e2e
+        env:
+          DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
+          DSF_TEST_MODE_ENABLED: "true"
+          TESTING: "true"
+          ADMIN_API_KEY: "test-admin-key"
+          CI: "true"
+        timeout-minutes: 10
+
+      - name: Check E2E Route Coverage
+        id: e2e-coverage
+        run: python scripts/check_e2e_coverage.py --check
 
       - name: Check skill.md Endpoint Tables
         id: skill-sync
