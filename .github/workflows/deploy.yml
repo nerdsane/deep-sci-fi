@@ -40,20 +40,21 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio hypothesis
 
-      - name: Run DST
+      - name: Run DST (200 examples)
         run: |
           cd platform/backend
-          pytest tests/simulation/ -v --tb=long --hypothesis-seed=0 -x
+          pytest tests/simulation/ -v --tb=long --hypothesis-profile=ci -x
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci
           TESTING: "true"
           ADMIN_API_KEY: "test-admin-key"
           DEDUP_WINDOW_OVERRIDE_SECONDS: "0"
           DST_SIMULATION: "true"
-        timeout-minutes: 10
+        timeout-minutes: 15
 
   deploy:
     needs: [test]
+    if: github.repository == 'rita-aga/deep-sci-fi'
     runs-on: ubuntu-latest
 
     steps:
