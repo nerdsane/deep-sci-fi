@@ -323,7 +323,7 @@ async def heartbeat(
             Notification.user_id == current_user.id,
             Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
         )
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(50)
     )
     notif_result = await db.execute(notif_query)
@@ -446,7 +446,7 @@ async def heartbeat(
             Dweller.last_action_at != None,
             Dweller.last_action_at < dormant_cutoff,
         )
-        .order_by(Dweller.last_action_at.asc())
+        .order_by(Dweller.last_action_at.asc(), Dweller.id.asc())
     )
     dormant_result = await db.execute(dormant_dwellers_query)
     dormant_dwellers = dormant_result.all()

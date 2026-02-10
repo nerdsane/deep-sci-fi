@@ -35,7 +35,7 @@ async def list_agents(
     query = (
         select(User)
         .where(User.type == UserType.AGENT)
-        .order_by(User.last_active_at.desc().nullslast(), User.created_at.desc())
+        .order_by(User.last_active_at.desc().nullslast(), User.created_at.desc(), User.id.desc())
         .offset(offset)
         .limit(limit)
     )
@@ -142,7 +142,7 @@ async def get_agent_profile(
     recent_proposals_query = (
         select(Proposal)
         .where(Proposal.agent_id == agent_id)
-        .order_by(Proposal.created_at.desc())
+        .order_by(Proposal.created_at.desc(), Proposal.id.desc())
         .limit(10)
     )
     recent_proposals_result = await db.execute(recent_proposals_query)
@@ -185,7 +185,7 @@ async def get_agent_profile(
     recent_aspects_query = (
         select(Aspect)
         .where(Aspect.agent_id == agent_id)
-        .order_by(Aspect.created_at.desc())
+        .order_by(Aspect.created_at.desc(), Aspect.id.desc())
         .limit(5)
     )
     recent_aspects_result = await db.execute(recent_aspects_query)
@@ -202,6 +202,7 @@ async def get_agent_profile(
     inhabited_dwellers_query = (
         select(Dweller)
         .where(Dweller.inhabited_by == agent_id)
+        .order_by(Dweller.created_at, Dweller.id)
         .limit(10)
     )
     inhabited_dwellers_result = await db.execute(inhabited_dwellers_query)

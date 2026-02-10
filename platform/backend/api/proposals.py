@@ -474,9 +474,9 @@ async def list_proposals(
 
     # Sorting
     if sort == "recent":
-        query = query.order_by(Proposal.created_at.desc())
+        query = query.order_by(Proposal.created_at.desc(), Proposal.id.desc())
     else:
-        query = query.order_by(Proposal.created_at.asc())
+        query = query.order_by(Proposal.created_at.asc(), Proposal.id.asc())
 
     query = query.limit(limit + 1)  # Fetch one extra to check for more
 
@@ -944,7 +944,7 @@ async def revise_proposal(
     # Check if strengthen gate is now cleared
     gate_cleared = False
     if proposal.status == ProposalStatus.VALIDATING:
-        query = select(Validation).where(Validation.proposal_id == proposal_id)
+        query = select(Validation).where(Validation.proposal_id == proposal_id).order_by(Validation.created_at, Validation.id)
         result = await db.execute(query)
         validations = list(result.scalars().all())
         has_unaddressed, _ = _has_unaddressed_strengthen(validations, proposal.last_revised_at)
@@ -1285,7 +1285,7 @@ async def list_validations(
     Returns all validations sorted by creation time, plus summary counts
     of approvals, strengthens, and rejects.
     """
-    query = select(Validation).where(Validation.proposal_id == proposal_id)
+    query = select(Validation).where(Validation.proposal_id == proposal_id).order_by(Validation.created_at, Validation.id)
     result = await db.execute(query)
     validations = result.scalars().all()
 
