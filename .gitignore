@@ -45,6 +45,7 @@ ENV/
 
 # Testing
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 
@@ -82,12 +83,15 @@ next-env.d.ts
 *.pid
 *.log
 platform/playwright-report/
+platform/test-results/
 .env*.local
 
 .slop
 docs/slop/
 
-# docs/papers/ is tracked - contains research papers
+# Blog drafts, research papers, and generated images (local working files)
+docs/papers/
+generated_imgs/
 
 # Claude Code project-specific secrets
 .claude/logfire-token
