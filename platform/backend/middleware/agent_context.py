@@ -54,7 +54,7 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
                 Notification.user_id == user_id,
                 Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
             )
-            .order_by(Notification.created_at.desc())
+            .order_by(Notification.created_at.desc(), Notification.id.desc())
             .limit(10)
         )
         notif_result = await db.execute(notif_query)
@@ -278,7 +278,6 @@ class AgentContextMiddleware:
             return
 
         # Extract API key from headers
-        headers = dict(scope.get("headers", []))
         api_key = None
         for key, value in scope.get("headers", []):
             if key == b"x-api-key":
