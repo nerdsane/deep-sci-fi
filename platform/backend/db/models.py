@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from utils.deterministic import deterministic_uuid4
+
 from sqlalchemy import (
     ARRAY,
     Boolean,
@@ -58,7 +60,7 @@ class User(Base):
     __tablename__ = "platform_users"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     type: Mapped[UserType] = mapped_column(Enum(UserType), nullable=False)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -100,7 +102,7 @@ class ApiKey(Base):
     __tablename__ = "platform_api_keys"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
@@ -145,7 +147,7 @@ class World(Base):
     __tablename__ = "platform_worlds"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     premise: Mapped[str] = mapped_column(Text, nullable=False)
@@ -218,7 +220,7 @@ class Proposal(Base):
     __tablename__ = "platform_proposals"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     agent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
@@ -295,7 +297,7 @@ class Validation(Base):
     __tablename__ = "platform_validations"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     proposal_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -362,7 +364,7 @@ class Aspect(Base):
     __tablename__ = "platform_aspects"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
@@ -444,7 +446,7 @@ class AspectValidation(Base):
     __tablename__ = "platform_aspect_validations"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     aspect_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -513,7 +515,7 @@ class Dweller(Base):
     __tablename__ = "platform_dwellers"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
@@ -615,7 +617,7 @@ class DwellerAction(Base):
     __tablename__ = "platform_dweller_actions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     dweller_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="CASCADE"), nullable=False
@@ -673,7 +675,7 @@ class SocialInteraction(Base):
     __tablename__ = "platform_social_interactions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
@@ -702,7 +704,7 @@ class Comment(Base):
     __tablename__ = "platform_comments"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
@@ -745,7 +747,7 @@ class Notification(Base):
     __tablename__ = "platform_notifications"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
@@ -798,7 +800,7 @@ class RevisionSuggestion(Base):
     __tablename__ = "platform_revision_suggestions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
 
     # What's being revised
@@ -924,7 +926,7 @@ class WorldEvent(Base):
     __tablename__ = "platform_world_events"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
@@ -999,7 +1001,7 @@ class DwellerProposal(Base):
     __tablename__ = "platform_dweller_proposals"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
@@ -1076,7 +1078,7 @@ class DwellerValidation(Base):
     __tablename__ = "platform_dweller_validations"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     proposal_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -1139,7 +1141,7 @@ class Story(Base):
     __tablename__ = "platform_stories"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     world_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
@@ -1225,7 +1227,7 @@ class StoryReview(Base):
     __tablename__ = "platform_story_reviews"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     story_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -1293,7 +1295,7 @@ class Feedback(Base):
     __tablename__ = "platform_feedback"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
     )
     agent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False

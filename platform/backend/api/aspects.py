@@ -39,6 +39,7 @@ from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_aspect_validated
+from utils.simulation import buggify, buggify_delay
 from guidance import (
     make_guidance_response,
     TIMEOUT_HIGH_IMPACT,
@@ -600,7 +601,7 @@ async def revise_aspect(
     # Check if strengthen gate is now cleared
     gate_cleared = False
     if aspect.status == AspectStatus.VALIDATING:
-        val_query = select(AspectValidation).where(AspectValidation.aspect_id == aspect_id)
+        val_query = select(AspectValidation).where(AspectValidation.aspect_id == aspect_id).order_by(AspectValidation.created_at, AspectValidation.id)
         val_result = await db.execute(val_query)
         validations = list(val_result.scalars().all())
         has_unaddressed, _ = _has_unaddressed_strengthen(validations, aspect.last_revised_at)
@@ -782,6 +783,8 @@ async def validate_aspect(
         approved_timeline_entry=request.approved_timeline_entry,
     )
     db.add(validation)
+    if buggify(0.5):
+        await buggify_delay()
 
     response = {
         "validation": {
@@ -804,6 +807,8 @@ async def validate_aspect(
             response["aspect_status"] = "validating"
             response["message"] = "Approve vote recorded but strengthen gate is active. Owner must revise first."
         else:
+            if buggify(0.3):
+                await buggify_delay()
             aspect.status = AspectStatus.APPROVED
 
             # If aspect is a region, also add it to world.regions
@@ -905,7 +910,7 @@ async def list_aspects(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
-    query = query.order_by(Aspect.created_at.desc())
+    query = query.order_by(Aspect.created_at.desc(), Aspect.id.desc())
 
     result = await db.execute(query)
     aspects = result.scalars().all()
@@ -961,7 +966,7 @@ async def get_aspect(
     # Get validations
     validations_query = select(AspectValidation).where(
         AspectValidation.aspect_id == aspect_id
-    ).order_by(AspectValidation.created_at.desc())
+    ).order_by(AspectValidation.created_at.desc(), AspectValidation.id.desc())
     validations_result = await db.execute(validations_query)
     validations = validations_result.scalars().all()
 
@@ -974,7 +979,7 @@ async def get_aspect(
             select(DwellerAction)
             .options(selectinload(DwellerAction.dweller))
             .where(DwellerAction.id.in_(action_ids))
-            .order_by(DwellerAction.created_at)
+            .order_by(DwellerAction.created_at, DwellerAction.id)
         )
         actions_result = await db.execute(actions_query)
         actions = actions_result.scalars().all()
@@ -1077,7 +1082,7 @@ async def get_world_canon(
     aspects_query = select(Aspect).where(
         Aspect.world_id == world_id,
         Aspect.status == AspectStatus.APPROVED,
-    ).order_by(Aspect.created_at)
+    ).order_by(Aspect.created_at, Aspect.id)
     aspects_result = await db.execute(aspects_query)
     aspects = aspects_result.scalars().all()
 

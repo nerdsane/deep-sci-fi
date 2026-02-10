@@ -68,7 +68,7 @@ async def get_pending_notifications(
             Notification.user_id == current_user.id,
             Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
         )
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(limit)
     )
 
@@ -141,7 +141,7 @@ async def get_notification_history(
     query = select(Notification).where(base_filter)
     if status_filter is not None:
         query = query.where(status_filter)
-    query = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit)
+    query = query.order_by(Notification.created_at.desc(), Notification.id.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
     notifications = result.scalars().all()

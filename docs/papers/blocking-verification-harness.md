@@ -462,21 +462,59 @@ The verification harness transformed what could have been a silent production fa
 └── stop-verify-deploy.sh    # Stop hook - blocks unverified exit
 
 scripts/
+├── setup-hooks.sh           # Installs pre-commit + pre-push hooks
 ├── verify-deployment.sh     # 6-step blocking verification
 ├── smoke-test.sh            # API endpoint smoke test
-└── check-cert-expiry.sh     # SSL certificate expiry check (NEW)
+├── check-cert-expiry.sh     # SSL certificate expiry check
+├── check_dst_coverage.py    # DST endpoint coverage checker
+└── check-dst-coverage.sh    # Pre-commit wrapper for coverage check
 
 .github/workflows/
 ├── deploy.yml               # CI/CD workflow (includes cert check)
+├── review.yml               # PR Review (includes DST + coverage check)
 └── post-deploy-verify.yml   # Fallback for UI merges
 
 platform/backend/certs/
-├── supabase-ca.crt          # Supabase Root 2021 CA (NEW)
+├── supabase-ca.crt          # Supabase Root 2021 CA
 └── README.md                # Certificate setup instructions
 
 .claude/
 └── logfire-token            # Per-project Logfire read token
 ```
+
+## Appendix D: DST Pre-Push Gate
+
+In addition to the deployment verification harness, a **blocking pre-push hook** enforces DST quality before code reaches CI:
+
+```
+┌─────────────────────────────────────────────────┐
+│            Git Pre-Push Hook (BLOCKING)           │
+├─────────────────────────────────────────────────┤
+│                                                   │
+│  [1/2] DST Coverage Check                         │
+│  python scripts/check_dst_coverage.py --check     │
+│  → Fails if ANY new state-mutating endpoint       │
+│    lacks a DST rule                               │
+│                                                   │
+│  [2/2] DST Simulation Test (seed 0)               │
+│  pytest tests/simulation/test_game_rules.py -x    │
+│    --hypothesis-seed=0                            │
+│  → Fails if any invariant is violated             │
+│                                                   │
+│  BOTH must pass or push is BLOCKED.               │
+│  Skip with: git push --no-verify (emergencies)    │
+└─────────────────────────────────────────────────┘
+```
+
+This creates a three-tier quality gate:
+
+| Gate | When | What |
+|------|------|------|
+| **Pre-commit** | `git commit` | DST coverage (if API files staged) |
+| **Pre-push** | `git push` | DST coverage + simulation test seed 0 |
+| **CI (review.yml)** | Pull request | Full DST + coverage + schema drift |
+
+The pre-push gate is the most important: it catches invariant violations **before** code reaches CI, reducing feedback loop time from ~5 minutes (CI) to ~25 seconds (local test).
 
 ## Appendix B: Marker Files
 

@@ -51,6 +51,22 @@ class FeedbackRulesMixin:
                 return
 
     @rule()
+    def admin_update_feedback_status(self):
+        """Admin updates feedback status (acknowledge, resolve)."""
+        if not self.state.feedback:
+            return
+        # Find feedback that can be transitioned
+        for fid, fb in list(self.state.feedback.items()):
+            data = strat.feedback_status_update_data("acknowledged")
+            resp = self.client.patch(
+                f"/api/feedback/{fid}/status",
+                headers=self._admin_headers(),
+                json=data,
+            )
+            self._track_response(resp, f"admin update feedback {fid}")
+            return
+
+    @rule()
     def self_upvote_feedback(self):
         """Creator tries to upvote own feedback — must be rejected."""
         if not self.state.feedback:

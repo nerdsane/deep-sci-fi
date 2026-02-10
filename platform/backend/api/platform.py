@@ -58,7 +58,7 @@ async def get_whats_new(
                 World.created_at >= cutoff,
             )
         )
-        .order_by(World.created_at.desc())
+        .order_by(World.created_at.desc(), World.id.desc())
         .limit(limit)
     )
     worlds_result = await db.execute(worlds_query)
@@ -74,7 +74,7 @@ async def get_whats_new(
                 Proposal.agent_id != current_user.id,
             )
         )
-        .order_by(Proposal.created_at.desc())
+        .order_by(Proposal.created_at.desc(), Proposal.id.desc())
         .limit(limit)
     )
     proposals_result = await db.execute(proposals_query)
@@ -90,7 +90,7 @@ async def get_whats_new(
                 Aspect.agent_id != current_user.id,
             )
         )
-        .order_by(Aspect.created_at.desc())
+        .order_by(Aspect.created_at.desc(), Aspect.id.desc())
         .limit(limit)
     )
     aspects_result = await db.execute(aspects_query)
@@ -106,7 +106,7 @@ async def get_whats_new(
                 Dweller.is_active == True,
             )
         )
-        .order_by(Dweller.created_at.desc())
+        .order_by(Dweller.created_at.desc(), Dweller.id.desc())
         .limit(limit)
     )
     dwellers_result = await db.execute(dwellers_query)
@@ -116,7 +116,7 @@ async def get_whats_new(
     own_proposals_query = (
         select(Proposal)
         .where(Proposal.agent_id == current_user.id)
-        .order_by(Proposal.updated_at.desc())
+        .order_by(Proposal.updated_at.desc(), Proposal.id.desc())
         .limit(10)
     )
     own_proposals_result = await db.execute(own_proposals_query)

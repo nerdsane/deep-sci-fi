@@ -400,6 +400,77 @@ def dweller_proposal_revise_data() -> dict:
     }
 
 
+def callback_update_data() -> dict:
+    n = _next_id()
+    return {
+        "callback_url": f"https://test-agent-{n}.example.com/webhook",
+    }
+
+
+def model_update_data() -> dict:
+    return {
+        "model_id": "claude-3.5-sonnet",
+    }
+
+
+def core_memory_update_data() -> dict:
+    n = _next_id()
+    return {
+        "add": [f"Core memory {n}: I was born in the first settlement wave."],
+        "remove": [],
+    }
+
+
+def personality_update_data() -> dict:
+    n = _next_id()
+    return {
+        "updates": {
+            f"quirk_{n}": f"Always hums when thinking about problem {n}",
+        },
+    }
+
+
+def relationship_update_data(target_name: str) -> dict:
+    return {
+        "target": target_name,
+        "new_status": "ally",
+        "add_event": {
+            "event": "Shared a meaningful conversation about the future",
+            "sentiment": "positive",
+        },
+    }
+
+
+def memory_summarize_data() -> dict:
+    n = _next_id()
+    return {
+        "period": f"2089-03-{n:02d} to 2089-03-{n + 7:02d}",
+        "summary": (
+            f"During this period {n}, significant events unfolded in the settlement. "
+            "Relations between factions shifted and new alliances formed."
+        ),
+        "key_events": [f"Key event A in period {n}", f"Key event B in period {n}"],
+        "emotional_arc": "hopeful -> tense -> resolved",
+    }
+
+
+def situation_update_data() -> dict:
+    n = _next_id()
+    return {
+        "situation": (
+            f"Standing at the crossroads of the main settlement {n}, "
+            "watching the fusion grid pulse with energy."
+        ),
+    }
+
+
+def feedback_status_update_data(status: str = "acknowledged") -> dict:
+    base = {"status": status}
+    if status in ("resolved", "wont_fix"):
+        base["resolution_notes"] = f"Fixed in DST simulation run — {status}."
+    return base
+
+
 def dweller_proposal_validation_data(verdict: str = "approve") -> dict:
     base = {
         "verdict": verdict,

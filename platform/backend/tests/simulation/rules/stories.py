@@ -153,6 +153,21 @@ class StoryRulesMixin:
             return
 
     @rule()
+    def admin_delete_story(self):
+        """Admin deletes a story (cleanup/policy)."""
+        if not self.state.stories:
+            return
+        # Only delete the last story to avoid disrupting other rules
+        sid = list(self.state.stories.keys())[-1]
+        resp = self.client.delete(
+            f"/api/stories/{sid}",
+            headers=self._admin_headers(),
+        )
+        self._track_response(resp, f"admin delete story {sid}")
+        if resp.status_code == 200:
+            del self.state.stories[sid]
+
+    @rule()
     def self_review_story(self):
         """Author tries to review own story — must be rejected."""
         if not self.state.stories:
