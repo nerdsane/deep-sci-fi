@@ -6,9 +6,13 @@
 # Polls GitHub Actions, verifies both frontend and backend, checks Logfire.
 #
 # Usage:
-#   ./scripts/verify-deployment.sh              # Verify staging (default)
-#   ./scripts/verify-deployment.sh production   # Verify production
-#   ./scripts/verify-deployment.sh local        # Verify local (skip CI/Logfire)
+#   ./scripts/verify-deployment.sh                          # Verify staging (default)
+#   ./scripts/verify-deployment.sh production               # Verify production
+#   ./scripts/verify-deployment.sh staging --session 12345  # With session ID (from hooks)
+#   ./scripts/verify-deployment.sh local                    # Verify local (skip CI/Logfire)
+#
+# The --session flag ties the verified marker to a specific Claude Code session,
+# so parallel sessions don't interfere with each other's verification state.
 #
 # Exit codes:
 #   0 = all checks passed
@@ -16,9 +20,22 @@
 
 set -euo pipefail
 
-ENVIRONMENT="${1:-staging}"
+# Parse arguments
+ENVIRONMENT="staging"
+SESSION_ID=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --session) SESSION_ID="$2"; shift 2 ;;
+    staging|production|local) ENVIRONMENT="$1"; shift ;;
+    *) shift ;;
+  esac
+done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Get GitHub repo from origin remote (not upstream)
+# gh defaults to 'upstream' if it exists, but we want 'origin' for deployments
+GITHUB_REPO=$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null | sed -E 's|.*github.com[:/]||; s|\.git$||' || echo "")
 
 # Colors
 RED='\033[0;31m'
@@ -70,7 +87,7 @@ FAILED=0
 # Step 1: Wait for CI / Deploy workflow to complete
 # ─────────────────────────────────────────────────────────────────────────────
 if [ -n "$BRANCH" ]; then
-  echo -e "${CYAN}[Step 1/6] Waiting for GitHub Actions CI...${NC}"
+  echo -e "${CYAN}[Step 1/6] Waiting for GitHub Actions CI (ALL workflows)...${NC}"
 
   if ! command -v gh &> /dev/null; then
     echo -e "${RED}  ERROR: gh CLI not installed${NC}"
@@ -81,30 +98,50 @@ if [ -n "$BRANCH" ]; then
     CI_PASSED=false
 
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-      STATUS=$(gh run list --branch "$BRANCH" --limit 1 --json status,conclusion --jq '.[0]' 2>/dev/null || echo '{}')
-      RUN_STATUS=$(echo "$STATUS" | jq -r '.status // "unknown"')
-      RUN_CONCLUSION=$(echo "$STATUS" | jq -r '.conclusion // "unknown"')
+      # Fetch recent runs across push/workflow_dispatch workflows on this branch
+      # Skip pull_request-triggered workflows (e.g. PR Review) — they run on PR merge commits,
+      # not the branch HEAD, and would block verification with stale failures.
+      ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId,headSha,event 2>/dev/null || echo '[]')
+      ALL_RUNS=$(echo "$ALL_RUNS" | jq '[.[] | select(.event != "pull_request")]')
 
-      if [ "$RUN_STATUS" = "completed" ]; then
-        if [ "$RUN_CONCLUSION" = "success" ]; then
-          echo -e "${GREEN}  ✓ CI passed${NC}"
-          CI_PASSED=true
-          break
-        else
-          echo -e "${RED}  ✗ CI failed (${RUN_CONCLUSION})${NC}"
-          echo -e "${RED}    Fix CI before proceeding. Check: gh run view${NC}"
-          FAILED=1
-          break
-        fi
-      elif [ "$RUN_STATUS" = "in_progress" ] || [ "$RUN_STATUS" = "queued" ]; then
-        echo -e "  Workflow ${RUN_STATUS}... (${ELAPSED}s / ${MAX_CI_WAIT}s max)"
-        sleep $POLL_INTERVAL
-        ELAPSED=$((ELAPSED + POLL_INTERVAL))
-      else
-        echo -e "${YELLOW}  No workflow found for branch $BRANCH${NC}"
+      if [ "$ALL_RUNS" = "[]" ] || [ -z "$ALL_RUNS" ]; then
+        echo -e "${YELLOW}  No workflow runs found for branch $BRANCH${NC}"
         echo -e "${YELLOW}  Continuing with other checks...${NC}"
         break
       fi
+
+      # Get the most recent run per workflow (jq: group by workflow, take first of each)
+      LATEST_PER_WORKFLOW=$(echo "$ALL_RUNS" | jq '[group_by(.workflowName)[] | sort_by(.databaseId) | reverse | .[0]]')
+      TOTAL_WORKFLOWS=$(echo "$LATEST_PER_WORKFLOW" | jq 'length')
+
+      # Check if any are still running
+      PENDING_COUNT=$(echo "$LATEST_PER_WORKFLOW" | jq '[.[] | select(.status != "completed")] | length')
+
+      if [ "$PENDING_COUNT" -gt 0 ]; then
+        PENDING_NAMES=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.status != "completed") | "\(.workflowName) (\(.status))"] | join(", ")')
+        echo -e "  Waiting on $PENDING_COUNT/$TOTAL_WORKFLOWS workflows: $PENDING_NAMES (${ELAPSED}s / ${MAX_CI_WAIT}s max)"
+        sleep $POLL_INTERVAL
+        ELAPSED=$((ELAPSED + POLL_INTERVAL))
+        continue
+      fi
+
+      # All completed — check for failures
+      FAILED_WORKFLOWS=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+
+      if [ "$FAILED_WORKFLOWS" -gt 0 ]; then
+        FAILED_NAMES=$(echo "$LATEST_PER_WORKFLOW" | jq -r '[.[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.workflowName) (\(.conclusion)) @ \(.headSha[0:7])"] | join(", ")')
+        echo -e "${RED}  ✗ $FAILED_WORKFLOWS/$TOTAL_WORKFLOWS workflows failed: $FAILED_NAMES${NC}"
+        echo -e "${RED}    Fix ALL workflows before proceeding. Check: gh run list --branch $BRANCH${NC}"
+        FAILED=1
+      else
+        echo -e "${GREEN}  ✓ All $TOTAL_WORKFLOWS workflows passed${NC}"
+        # List each workflow for visibility
+        echo "$LATEST_PER_WORKFLOW" | jq -r '.[] | "    ✓ \(.workflowName): \(.conclusion) @ \(.headSha[0:7])"' | while read -r line; do
+          echo -e "${GREEN}$line${NC}"
+        done
+        CI_PASSED=true
+      fi
+      break
     done
 
     if [ $ELAPSED -ge $MAX_CI_WAIT ] && [ "$CI_PASSED" = false ]; then
@@ -298,9 +335,16 @@ else
   echo -e "${CYAN}======================================${NC}"
 
   # Signal to Stop hook that verification passed
-  MARKER_DIR="/tmp/claude-deepsci"
+  # Scope must match hooks — keyed by project directory hash + session ID
+  PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
+  MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
   mkdir -p "$MARKER_DIR"
-  touch "$MARKER_DIR/deploy-verified"
+  if [ -n "$SESSION_ID" ]; then
+    touch "$MARKER_DIR/deploy-verified-$SESSION_ID"
+  else
+    # Fallback for manual runs without --session
+    touch "$MARKER_DIR/deploy-verified"
+  fi
 
   exit 0
 fi

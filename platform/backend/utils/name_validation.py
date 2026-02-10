@@ -147,17 +147,13 @@ def check_name_quality(
             "error": f"Name '{name}' rejected — detected AI-generated naming patterns",
             "matched": issues,
             "how_to_fix": (
-                "Choose a name that reflects this world's culture 60+ years from now. "
-                "Names evolve: tech workers might name children after products, "
-                "third-gen immigrants might revive old names ironically, "
-                "floating city residents might use marine terminology. "
-                "Read the region's naming_conventions and create something that belongs."
+                "Do NOT tweak a blocked name or combine blocked parts. Start fresh. "
+                "Read the region's naming_conventions with GET /api/dwellers/worlds/{{world_id}}/regions "
+                "and derive a name from the cultural context described there. "
+                "Consider: How have naming patterns evolved 60+ years into this world's future? "
+                "What does the character's generation, profession, or subculture do to names? "
+                "The name_context field must explain your reasoning."
                 f"{region_hint}{generation_hint}"
             ),
-            "examples": [
-                "Undertow — Tide name, third-gen FC7 convention, single-name generational marker",
-                "7-Kahani — Anchor-born '7-' prefix, Hindi 'story', cultural preservationist parents",
-                "Asha de Vries — Bengali given + Dutch surname, common in founding generation",
-            ],
         },
     )

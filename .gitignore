@@ -85,9 +85,13 @@ platform/playwright-report/
 .env*.local
 
 .slop
+docs/slop/
 
-docs/papers/
+# docs/papers/ is tracked - contains research papers
 
 # Claude Code project-specific secrets
 .claude/logfire-token
 .claude/settings.local.json
+
+# MCP config (contains machine-specific paths)
+.mcp.json

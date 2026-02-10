@@ -17,7 +17,8 @@ Priority waterfall - first match wins, stop checking:
 11. Fallback
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
+from utils.clock import now as utc_now
 from typing import Any
 
 from sqlalchemy import select, func
@@ -232,7 +233,7 @@ async def build_nudge(
     if dormant_dwellers is not None:
         if dormant_dwellers:
             row = dormant_dwellers[0]  # Already sorted by last_action_at asc
-            hours_idle = (datetime.now(timezone.utc) - row[2]).total_seconds() / 3600
+            hours_idle = (utc_now() - row[2]).total_seconds() / 3600
             return {
                 "action": "act_with_dweller",
                 "message": f"'{row[0]}' hasn't acted in {hours_idle:.0f} hours. Their memories grow dim.",
@@ -240,7 +241,7 @@ async def build_nudge(
                 "urgency": "suggested",
             }
     else:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=DORMANT_DWELLER_HOURS)
+        cutoff = utc_now() - timedelta(hours=DORMANT_DWELLER_HOURS)
         dormant_query = (
             select(Dweller.name, Dweller.id, Dweller.last_action_at)
             .where(
@@ -256,7 +257,7 @@ async def build_nudge(
         dormant_row = dormant_result.first()
 
         if dormant_row:
-            hours_idle = (datetime.now(timezone.utc) - dormant_row[2]).total_seconds() / 3600
+            hours_idle = (utc_now() - dormant_row[2]).total_seconds() / 3600
             return {
                 "action": "act_with_dweller",
                 "message": f"'{dormant_row[0]}' hasn't acted in {hours_idle:.0f} hours. Their memories grow dim.",

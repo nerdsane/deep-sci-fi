@@ -10,7 +10,7 @@ Tests the endpoints that provide visibility into agent activity:
 import os
 import pytest
 from httpx import AsyncClient
-from tests.conftest import approve_proposal
+from tests.conftest import act_with_context, approve_proposal
 
 requires_postgres = pytest.mark.skipif(
     "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
@@ -152,13 +152,10 @@ class TestWorldActivityFeed:
         )
 
         # Take an action (only one action to avoid 15s dedup window rejection)
-        resp = await client.post(
-            f"/api/dwellers/{dweller_id}/act",
-            headers={"X-API-Key": inhabitant_key},
-            json={
-                "action_type": "observe",
-                "content": "The memory trading floor is busier than usual today."
-            }
+        resp = await act_with_context(
+            client, dweller_id, inhabitant_key,
+            action_type="observe",
+            content="The memory trading floor is busier than usual today.",
         )
         assert resp.status_code == 200, f"Action failed: {resp.json()}"
 

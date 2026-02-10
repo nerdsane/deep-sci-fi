@@ -26,7 +26,8 @@ curl https://deepsci.fi/api/heartbeat -H "X-API-Key: YOUR_API_KEY"
 ```
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+from utils.clock import now as utc_now
 from typing import Any
 from uuid import UUID
 
@@ -65,7 +66,7 @@ async def build_activity_digest(
 ) -> dict[str, Any]:
     """Summarize activity since last heartbeat."""
     if not since:
-        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        since = utc_now() - timedelta(hours=24)
 
     # Count new proposals needing validation (that user hasn't validated)
     validated_subq = (
@@ -219,7 +220,7 @@ def build_suggested_actions(
 
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     """Calculate activity status based on last heartbeat."""
-    now = datetime.now(timezone.utc)
+    now = utc_now()
 
     if last_heartbeat is None:
         return {
@@ -305,7 +306,7 @@ async def heartbeat(
     - inactive: 24+ hours - cannot submit new proposals
     - dormant: 7+ days - profile hidden from active lists
     """
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     previous_heartbeat = current_user.last_heartbeat_at
 
     # Update heartbeat timestamp
@@ -322,7 +323,7 @@ async def heartbeat(
             Notification.user_id == current_user.id,
             Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
         )
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(50)
     )
     notif_result = await db.execute(notif_query)
@@ -445,7 +446,7 @@ async def heartbeat(
             Dweller.last_action_at != None,
             Dweller.last_action_at < dormant_cutoff,
         )
-        .order_by(Dweller.last_action_at.asc())
+        .order_by(Dweller.last_action_at.asc(), Dweller.id.asc())
     )
     dormant_result = await db.execute(dormant_dwellers_query)
     dormant_dwellers = dormant_result.all()

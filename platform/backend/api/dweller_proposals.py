@@ -46,6 +46,7 @@ from db import (
 )
 from utils.dedup import check_recent_duplicate
 from utils.name_validation import check_name_quality
+from utils.simulation import buggify, buggify_delay
 from .auth import get_current_user
 from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
 
@@ -53,6 +54,19 @@ router = APIRouter(prefix="/dweller-proposals", tags=["dweller-proposals"])
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
+
+
+def _has_unaddressed_strengthen(validations, last_revised_at) -> tuple[bool, str]:
+    """Check if strengthen verdicts exist that haven't been addressed by revision."""
+    strengthen_verdicts = [v for v in validations if v.verdict == ValidationVerdict.STRENGTHEN]
+    if not strengthen_verdicts:
+        return False, ""
+    if last_revised_at is None:
+        return True, "Strengthen feedback exists but no revision made yet."
+    latest_strengthen = max(v.created_at for v in strengthen_verdicts)
+    if last_revised_at < latest_strengthen:
+        return True, "New strengthen feedback received after last revision."
+    return False, ""
 
 
 # ============================================================================
@@ -329,9 +343,9 @@ async def list_dweller_proposals(
 
     # Sorting
     if sort == "recent":
-        query = query.order_by(DwellerProposal.created_at.desc())
+        query = query.order_by(DwellerProposal.created_at.desc(), DwellerProposal.id.desc())
     else:
-        query = query.order_by(DwellerProposal.created_at.asc())
+        query = query.order_by(DwellerProposal.created_at.asc(), DwellerProposal.id.asc())
 
     query = query.limit(limit + 1)
 
@@ -401,6 +415,12 @@ async def get_dweller_proposal(
             None
         )
 
+    # Check strengthen gate status
+    strengthen_gate_active = False
+    if proposal.status == DwellerProposalStatus.VALIDATING:
+        has_unaddressed, _ = _has_unaddressed_strengthen(proposal.validations, proposal.last_revised_at)
+        strengthen_gate_active = has_unaddressed
+
     return {
         "proposal": {
             "id": str(proposal.id),
@@ -424,6 +444,9 @@ async def get_dweller_proposal(
             "current_situation": proposal.current_situation,
             # Status
             "status": proposal.status.value,
+            "revision_count": proposal.revision_count,
+            "last_revised_at": proposal.last_revised_at.isoformat() if proposal.last_revised_at else None,
+            "strengthen_gate_active": strengthen_gate_active,
             "resulting_dweller_id": str(proposal.resulting_dweller_id) if proposal.resulting_dweller_id else None,
             "created_at": proposal.created_at.isoformat(),
             "updated_at": proposal.updated_at.isoformat(),
@@ -595,15 +618,37 @@ async def revise_dweller_proposal(
     if request.current_situation is not None:
         proposal.current_situation = request.current_situation
 
+    # Track revision for strengthen gate
+    from utils.clock import now as utc_now
+    proposal.revision_count = (proposal.revision_count or 0) + 1
+    proposal.last_revised_at = utc_now()
+
     await db.commit()
     await db.refresh(proposal)
 
-    return {
+    # Check if strengthen gate is now cleared
+    gate_cleared = False
+    if proposal.status == DwellerProposalStatus.VALIDATING:
+        val_query = select(DwellerValidation).where(DwellerValidation.proposal_id == proposal_id).order_by(DwellerValidation.created_at, DwellerValidation.id)
+        val_result = await db.execute(val_query)
+        validations = list(val_result.scalars().all())
+        has_unaddressed, _ = _has_unaddressed_strengthen(validations, proposal.last_revised_at)
+        gate_cleared = not has_unaddressed and any(
+            v.verdict == ValidationVerdict.STRENGTHEN for v in validations
+        )
+
+    response_data = {
         "id": str(proposal.id),
         "status": proposal.status.value,
+        "revision_count": proposal.revision_count,
         "updated_at": proposal.updated_at.isoformat(),
         "message": "Dweller proposal revised.",
     }
+    if gate_cleared:
+        response_data["strengthen_gate"] = "cleared"
+        response_data["message"] = "Dweller proposal revised. Strengthen gate cleared — approval can now proceed with sufficient votes."
+
+    return response_data
 
 
 @router.post("/{proposal_id}/validate")
@@ -640,7 +685,7 @@ async def validate_dweller_proposal(
 
     You cannot validate your own proposal. Each agent validates once per proposal.
     """
-    # Get proposal with validations
+    # Get proposal with validations (with_for_update to serialize concurrent validators)
     query = (
         select(DwellerProposal)
         .options(
@@ -648,6 +693,7 @@ async def validate_dweller_proposal(
             selectinload(DwellerProposal.world),
         )
         .where(DwellerProposal.id == proposal_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     proposal = result.scalar_one_or_none()
@@ -716,6 +762,8 @@ async def validate_dweller_proposal(
         suggested_fixes=request.suggested_fixes,
     )
     db.add(validation)
+    if buggify(0.5):
+        await buggify_delay()
 
     # Check if proposal should be approved or rejected
 
@@ -731,14 +779,24 @@ async def validate_dweller_proposal(
     elif request.verdict == ValidationVerdict.REJECT:
         reject_count += 1
 
-    # 2 approvals with 0 rejections = approved
+    # 2 approvals with 0 rejections = approved (if strengthen gate passes)
+    strengthen_gate_active = False
+    strengthen_gate_reason = ""
     if approve_count >= APPROVAL_THRESHOLD and reject_count == 0:
-        new_status = DwellerProposalStatus.APPROVED
+        all_vals = list(proposal.validations) + [validation]
+        has_unaddressed, gate_reason = _has_unaddressed_strengthen(all_vals, proposal.last_revised_at)
+        if not has_unaddressed:
+            new_status = DwellerProposalStatus.APPROVED
+        else:
+            strengthen_gate_active = True
+            strengthen_gate_reason = gate_reason
     # 2 rejections = rejected
     elif reject_count >= REJECTION_THRESHOLD:
         new_status = DwellerProposalStatus.REJECTED
 
     if new_status == DwellerProposalStatus.APPROVED:
+        if buggify(0.3):
+            await buggify_delay()
         proposal.status = new_status
 
         # Get region canonical name
@@ -822,6 +880,13 @@ async def validate_dweller_proposal(
             "id": dweller_created,
             "message": "Dweller proposal approved! Dweller has been created and is available for claiming.",
             "claim_url": f"/api/dwellers/{dweller_created}/claim",
+        }
+
+    if strengthen_gate_active:
+        response["strengthen_gate"] = {
+            "active": True,
+            "reason": strengthen_gate_reason,
+            "how_to_fix": f"The proposal owner must revise at POST /api/dweller-proposals/{proposal_id}/revise to address strengthen feedback before it can be approved.",
         }
 
     return response

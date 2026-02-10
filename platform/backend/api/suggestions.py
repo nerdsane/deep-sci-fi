@@ -5,7 +5,8 @@ Any agent can suggest revisions. Owners have priority to respond,
 but community upvotes can override after timeout.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from db import (
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_revision_suggested
+from utils.simulation import buggify, buggify_delay
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
 
@@ -120,7 +122,7 @@ async def suggest_proposal_revision(
     current_value = getattr(proposal, request.field, None)
 
     # Create the suggestion
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     suggestion = RevisionSuggestion(
         target_type="proposal",
         target_id=proposal_id,
@@ -220,7 +222,7 @@ async def suggest_aspect_revision(
     current_value = getattr(aspect, request.field, None)
 
     # Create the suggestion
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     suggestion = RevisionSuggestion(
         target_type="aspect",
         target_id=aspect_id,
@@ -291,7 +293,7 @@ async def list_proposal_suggestions(
     if status:
         query = query.where(RevisionSuggestion.status == status)
 
-    query = query.order_by(RevisionSuggestion.created_at.desc())
+    query = query.order_by(RevisionSuggestion.created_at.desc(), RevisionSuggestion.id.desc())
 
     result = await db.execute(query)
     suggestions = result.scalars().all()
@@ -338,7 +340,7 @@ async def list_aspect_suggestions(
     if status:
         query = query.where(RevisionSuggestion.status == status)
 
-    query = query.order_by(RevisionSuggestion.created_at.desc())
+    query = query.order_by(RevisionSuggestion.created_at.desc(), RevisionSuggestion.id.desc())
 
     result = await db.execute(query)
     suggestions = result.scalars().all()
@@ -384,7 +386,13 @@ async def accept_suggestion(
     - The owner (any time before expiry)
     - Any validator (after owner timeout, with enough upvotes)
     """
-    suggestion = await db.get(RevisionSuggestion, suggestion_id)
+    query = (
+        select(RevisionSuggestion)
+        .where(RevisionSuggestion.id == suggestion_id)
+        .with_for_update()
+    )
+    result = await db.execute(query)
+    suggestion = result.scalar_one_or_none()
 
     if not suggestion:
         raise HTTPException(status_code=404, detail="Suggestion not found")
@@ -407,7 +415,7 @@ async def accept_suggestion(
             raise HTTPException(status_code=404, detail="Target aspect not found")
         owner_id = target.agent_id
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     is_owner = current_user.id == owner_id
     is_past_deadline = now > suggestion.owner_response_deadline
     has_enough_upvotes = len(suggestion.upvotes) >= UPVOTES_TO_OVERRIDE
@@ -437,6 +445,9 @@ async def accept_suggestion(
             status_code=403,
             detail="Only the owner can accept before the deadline"
         )
+
+    if buggify(0.3):
+        await buggify_delay()
 
     # Apply the revision
     setattr(target, suggestion.field, suggestion.suggested_value)
@@ -504,7 +515,7 @@ async def reject_suggestion(
     suggestion.status = RevisionSuggestionStatus.REJECTED
     suggestion.response_by = current_user.id
     suggestion.response_reason = request.reason
-    suggestion.resolved_at = datetime.now(timezone.utc)
+    suggestion.resolved_at = utc_now()
 
     await db.commit()
 
@@ -528,7 +539,13 @@ async def upvote_suggestion(
     Upvotes help suggestions get accepted after owner timeout.
     Cannot upvote your own suggestion.
     """
-    suggestion = await db.get(RevisionSuggestion, suggestion_id)
+    query = (
+        select(RevisionSuggestion)
+        .where(RevisionSuggestion.id == suggestion_id)
+        .with_for_update()
+    )
+    result = await db.execute(query)
+    suggestion = result.scalar_one_or_none()
 
     if not suggestion:
         raise HTTPException(status_code=404, detail="Suggestion not found")
@@ -554,6 +571,9 @@ async def upvote_suggestion(
             status_code=400,
             detail="You already upvoted this suggestion"
         )
+
+    if buggify(0.5):
+        await buggify_delay()
 
     # Add upvote
     suggestion.upvotes = suggestion.upvotes + [user_id_str]
@@ -599,7 +619,7 @@ async def withdraw_suggestion(
         )
 
     suggestion.status = RevisionSuggestionStatus.WITHDRAWN
-    suggestion.resolved_at = datetime.now(timezone.utc)
+    suggestion.resolved_at = utc_now()
 
     await db.commit()
 

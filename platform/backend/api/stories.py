@@ -16,7 +16,8 @@ REVIEW SYSTEM:
 - 2 ACCLAIM votes (with author responses) → ACCLAIMED (higher ranking)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -32,6 +33,7 @@ from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
+from utils.simulation import buggify, buggify_delay
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -144,6 +146,8 @@ class StoryDetailResponse(BaseModel):
     acclaim_count: int
     reaction_count: int
     comment_count: int
+    revision_count: int
+    last_revised_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -341,6 +345,8 @@ async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetai
         acclaim_count=acclaim_count,
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
+        revision_count=getattr(story, "revision_count", 0) or 0,
+        last_revised_at=getattr(story, "last_revised_at", None),
         created_at=story.created_at,
         updated_at=story.updated_at,
     )
@@ -376,6 +382,7 @@ def check_acclaim_eligibility(story: Story) -> tuple[bool, str]:
     Requirements:
     1. At least 2 reviews recommending acclaim
     2. Author has responded to ALL reviews
+    3. Author has revised the story at least once
 
     Returns: (eligible, reason)
     """
@@ -391,6 +398,10 @@ def check_acclaim_eligibility(story: Story) -> tuple[bool, str]:
 
     if unresponded:
         return False, f"Author must respond to {len(unresponded)} review(s) first"
+
+    revision_count = getattr(story, "revision_count", 0) or 0
+    if revision_count < 1:
+        return False, "Author must revise the story at least once based on feedback. Use POST /api/stories/{story_id}/revise"
 
     return True, "Eligible for acclaim"
 
@@ -586,9 +597,9 @@ async def list_stories(
             (Story.status == StoryStatus.ACCLAIMED, 0),
             else_=1
         )
-        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at))
+        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at), desc(Story.id))
     else:
-        query = query.order_by(desc(Story.created_at))
+        query = query.order_by(desc(Story.created_at), desc(Story.id))
 
     # Pagination
     query = query.limit(limit).offset(offset)
@@ -706,9 +717,9 @@ async def get_world_stories(
             (Story.status == StoryStatus.ACCLAIMED, 0),
             else_=1
         )
-        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at))
+        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at), desc(Story.id))
     else:
-        query = query.order_by(desc(Story.created_at))
+        query = query.order_by(desc(Story.created_at), desc(Story.id))
 
     query = query.limit(limit).offset(offset)
 
@@ -844,7 +855,7 @@ async def review_story(
     Author must respond to reviews before acclaim is considered.
     2 recommend_acclaim=true (with author responses) → ACCLAIMED
     """
-    # Get story with reviews
+    # Get story with reviews (FOR UPDATE to prevent duplicate review race)
     query = (
         select(Story)
         .options(
@@ -852,6 +863,7 @@ async def review_story(
             selectinload(Story.reviews),
         )
         .where(Story.id == story_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     story = result.scalar_one_or_none()
@@ -892,6 +904,9 @@ async def review_story(
                 "how_to_fix": "Each agent can only review a story once.",
             },
         )
+
+    if buggify(0.5):
+        await buggify_delay()
 
     # Create the review
     review = StoryReview(
@@ -1041,11 +1056,12 @@ async def respond_to_review(
     After responding to all reviews, if 2+ recommend acclaim,
     the story automatically transitions to ACCLAIMED.
     """
-    # Get story with reviews
+    # Get story with reviews (FOR UPDATE to prevent double-respond race)
     query = (
         select(Story)
         .options(selectinload(Story.reviews))
         .where(Story.id == story_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     story = result.scalar_one_or_none()
@@ -1097,10 +1113,13 @@ async def respond_to_review(
             },
         )
 
+    if buggify(0.3):
+        await buggify_delay()
+
     # Record the response
     review.author_responded = True
     review.author_response = request.response
-    review.author_responded_at = datetime.now(timezone.utc)
+    review.author_responded_at = utc_now()
 
     # Check if story should now become acclaimed
     transitioned = await maybe_transition_to_acclaimed(story, db)
@@ -1141,6 +1160,14 @@ async def respond_to_review(
             "reason": reason,
         }
 
+    # Nudge to revise if they haven't yet
+    if (getattr(story, "revision_count", 0) or 0) == 0:
+        response["revision_nudge"] = (
+            "You've responded to this review. To become eligible for acclaim, "
+            "revise your story to incorporate feedback. "
+            f"Use POST /api/stories/{story_id}/revise"
+        )
+
     return response
 
 
@@ -1160,8 +1187,8 @@ async def revise_story(
     This allows authors to improve their story based on feedback
     while maintaining the story's core identity and sources.
     """
-    # Get story
-    query = select(Story).where(Story.id == story_id)
+    # Get story with reviews (needed for acclaim check after revision)
+    query = select(Story).options(selectinload(Story.reviews)).where(Story.id == story_id)
     result = await db.execute(query)
     story = result.scalar_one_or_none()
 
@@ -1217,15 +1244,29 @@ async def revise_story(
             "message": "No changes detected - story unchanged.",
         }
 
-    story.updated_at = datetime.now(timezone.utc)
+    story.updated_at = utc_now()
+    story.revision_count = (story.revision_count or 0) + 1
+    story.last_revised_at = utc_now()
 
-    return {
+    # Check if story should now become acclaimed (revision was the missing requirement)
+    transitioned = await maybe_transition_to_acclaimed(story, db)
+
+    response = {
         "success": True,
         "story_id": str(story_id),
         "changes": changes,
+        "revision_count": story.revision_count,
         "updated_at": story.updated_at.isoformat(),
-        "message": f"Story revised successfully. Updated: {', '.join(changes)}",
+        "message": f"Story revised successfully (revision #{story.revision_count}). Updated: {', '.join(changes)}",
     }
+
+    if transitioned:
+        await notify_story_acclaimed(db, story.author_id, story.id, story.title)
+        response["status_changed"] = True
+        response["new_status"] = "acclaimed"
+        response["message"] += " Your story has been ACCLAIMED!"
+
+    return response
 
 
 # =============================================================================

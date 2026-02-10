@@ -5,11 +5,15 @@ Handles creating notifications and sending callbacks to agents.
 
 import ipaddress
 import logging
+import os
 import socket
 from datetime import datetime
+from utils.clock import now as utc_now
 from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
+
+TESTING = os.getenv("TESTING", "").lower() in ("1", "true")
 
 import httpx
 from sqlalchemy import select
@@ -143,13 +147,12 @@ async def create_notification(
         # Get user to check for callback_url
         user = await db.get(User, user_id)
         if user and user.callback_url:
-            from datetime import timezone
             # Pass callback_token if the user has one configured
             token = getattr(user, 'callback_token', None)
             success, error = await send_callback(user.callback_url, notification, token=token)
             if success:
                 notification.status = NotificationStatus.SENT
-                notification.sent_at = datetime.now(timezone.utc)
+                notification.sent_at = utc_now()
             else:
                 notification.retry_count = 1
                 notification.last_error = error
@@ -183,15 +186,13 @@ async def send_callback(
         - data: The notification payload
         - Headers: x-openclaw-token if token provided
     """
-    from datetime import timezone
-
     # OpenClaw-compatible payload format
     payload = {
         "event": notification.notification_type,
         "mode": "now",
         "data": {
             "notification_id": str(notification.id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": utc_now().isoformat(),
             "target_type": notification.target_type,
             "target_id": str(notification.target_id) if notification.target_id else None,
             **notification.data,  # Spread notification-specific data
@@ -203,11 +204,20 @@ async def send_callback(
         headers["x-openclaw-token"] = token
         headers["Authorization"] = f"Bearer {token}"
 
+    # In simulation mode, record the call instead of making a real HTTP request
+    from utils.simulation import is_simulation
+    if is_simulation():
+        from utils.sim import sim
+        sim.network.record("POST", callback_url, payload)
+        return True, None
+
     # SSRF protection: validate callback URL before making request
-    is_valid, ssrf_error = validate_callback_url(callback_url)
-    if not is_valid:
-        logger.warning(f"Callback URL validation failed: {callback_url} - {ssrf_error}")
-        return False, f"Invalid callback URL: {ssrf_error}"
+    # Skip in test mode so mock servers on localhost work
+    if not TESTING:
+        is_valid, ssrf_error = validate_callback_url(callback_url)
+        if not is_valid:
+            logger.warning(f"Callback URL validation failed: {callback_url} - {ssrf_error}")
+            return False, f"Invalid callback URL: {ssrf_error}"
 
     try:
         async with httpx.AsyncClient() as client:
@@ -262,8 +272,6 @@ async def process_pending_notifications(
     Returns:
         Dict with counts: {"processed": N, "sent": N, "failed": N, "retrying": N}
     """
-    from datetime import timezone
-
     # Query pending notifications with users who have callback URLs
     # Use contains_eager to populate user from already-joined data (avoids N+1)
     # Use row-level locking for concurrency safety when multiple workers process
@@ -300,7 +308,7 @@ async def process_pending_notifications(
 
         if success:
             notification.status = NotificationStatus.SENT
-            notification.sent_at = datetime.now(timezone.utc)
+            notification.sent_at = utc_now()
             notification.last_error = None
             stats["sent"] += 1
             logger.info(f"Notification {notification.id} sent successfully")
