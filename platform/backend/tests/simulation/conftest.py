@@ -22,8 +22,26 @@ import sqlalchemy as sa
 from starlette.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from utils.clock import SimulatedClock, set_clock, reset_clock
-from utils.simulation import init_simulation, reset_simulation
+from hypothesis import settings as hypothesis_settings, HealthCheck
+
+from utils.clock import reset_clock
+from utils.simulation import reset_simulation
+
+# Hypothesis profiles: "ci" for thorough CI exploration, "default" for fast local runs
+hypothesis_settings.register_profile(
+    "ci",
+    max_examples=200,
+    stateful_step_count=30,
+    suppress_health_check=[HealthCheck.too_slow],
+    deadline=None,
+)
+hypothesis_settings.register_profile(
+    "default",
+    max_examples=50,
+    stateful_step_count=30,
+    suppress_health_check=[HealthCheck.too_slow],
+    deadline=None,
+)
 
 
 # Set env vars before importing app
@@ -42,15 +60,9 @@ for mod_name in list(sys.modules.keys()):
 from db.database import Base
 from main import app, limiter as main_limiter
 from api.auth import limiter as auth_limiter
-from middleware.agent_context import AgentContextMiddleware
 
-
-# Remove AgentContextMiddleware entirely from the ASGI stack.
-# Patching dispatch is NOT enough — BaseHTTPMiddleware.__call__ still wraps
-# the handler in a TaskGroup, causing asyncpg "another operation in progress"
-# errors when the middleware's task orchestration conflicts with DB connections.
-app.user_middleware = [m for m in app.user_middleware if m.cls is not AgentContextMiddleware]
-app.middleware_stack = None  # Force rebuild on next request
+# AgentContextMiddleware is now pure ASGI (no BaseHTTPMiddleware), so it runs
+# in DST without TaskGroup conflicts. We test what we ship.
 
 # Disable rate limiters
 main_limiter.enabled = False
@@ -95,8 +107,11 @@ async def _teardown_db(engine):
     await engine.dispose()
 
 
-def create_dst_engine_and_client(seed: int = 0):
-    """Create a sync test client with simulation infrastructure.
+def create_dst_engine_and_client():
+    """Create a sync test client with DB wiring (no simulation seed/clock).
+
+    Simulation seed and clock are initialized separately in the @initialize
+    rule (setup_agents) so Hypothesis can vary the seed per example.
 
     All async operations (engine creation, DB setup, teardown) run inside the
     TestClient's portal — the same event loop that serves ASGI requests. This
@@ -109,18 +124,13 @@ def create_dst_engine_and_client(seed: int = 0):
     3. Wire session factory into dependency injection
 
     Returns:
-        (client, sim_clock, cleanup_fn)
+        (client, cleanup_fn)
     """
     from db import get_db
     import db as db_module
     import db.database as db_database_module
 
     original_session_local = db_database_module.SessionLocal
-
-    # Initialize simulation infrastructure (sync — no event loop needed)
-    sim_clock = SimulatedClock()
-    set_clock(sim_clock)
-    init_simulation(seed)
 
     # Enter TestClient context manager to get a persistent portal/event loop.
     # The lifespan's init_db() is a no-op when DST_SIMULATION is set (checked
@@ -164,7 +174,7 @@ def create_dst_engine_and_client(seed: int = 0):
             pass
         client.__exit__(None, None, None)
 
-    return client, sim_clock, cleanup
+    return client, cleanup
 
 
 # ---------------------------------------------------------------------------

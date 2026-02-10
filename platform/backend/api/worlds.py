@@ -96,11 +96,11 @@ async def list_worlds(
 
     # Apply sorting
     if sort == "popular":
-        query = query.order_by(World.follower_count.desc())
+        query = query.order_by(World.follower_count.desc(), World.id.desc())
     elif sort == "active":
-        query = query.order_by(World.updated_at.desc())
+        query = query.order_by(World.updated_at.desc(), World.id.desc())
     else:  # recent
-        query = query.order_by(World.created_at.desc())
+        query = query.order_by(World.created_at.desc(), World.id.desc())
 
     query = query.limit(limit).offset(offset)
 

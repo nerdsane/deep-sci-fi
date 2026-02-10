@@ -326,7 +326,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.created_at))
+        .order_by(desc(Feedback.created_at), desc(Feedback.id))
         .limit(10)
     )
     critical_result = await db.execute(critical_query)
@@ -344,7 +344,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.upvote_count), desc(Feedback.created_at))
+        .order_by(desc(Feedback.upvote_count), desc(Feedback.created_at), desc(Feedback.id))
         .limit(10)
     )
     upvoted_result = await db.execute(upvoted_query)
@@ -361,7 +361,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.created_at))
+        .order_by(desc(Feedback.created_at), desc(Feedback.id))
         .limit(5)
     )
     recent_result = await db.execute(recent_query)
@@ -421,7 +421,7 @@ async def get_feedback_changelog(
         .where(
             Feedback.status.in_([FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX])
         )
-        .order_by(desc(Feedback.resolved_at))
+        .order_by(desc(Feedback.resolved_at), desc(Feedback.id))
         .limit(min(limit, 50))
     )
     result = await db.execute(query)
@@ -526,7 +526,7 @@ async def list_feedback(
     total = count_result.scalar() or 0
 
     # Fetch paginated results
-    query = query.order_by(desc(Feedback.created_at)).offset(offset).limit(limit)
+    query = query.order_by(desc(Feedback.created_at), desc(Feedback.id)).offset(offset).limit(limit)
     result = await db.execute(query)
     feedback_items = result.scalars().all()
 

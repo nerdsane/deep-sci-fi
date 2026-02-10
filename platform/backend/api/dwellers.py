@@ -33,7 +33,7 @@ You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
 from typing import Any, Literal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from utils.deterministic import deterministic_uuid4
 
@@ -715,7 +715,7 @@ async def list_dwellers(
     if available_only:
         query = query.where(Dweller.is_available == True)
 
-    query = query.order_by(Dweller.created_at.desc())
+    query = query.order_by(Dweller.created_at.desc(), Dweller.id.desc())
 
     result = await db.execute(query)
     dwellers = result.scalars().all()
@@ -1018,7 +1018,7 @@ async def get_dweller_state(
         select(Dweller)
         .where(Dweller.world_id == dweller.world_id)
         .where(Dweller.id != dweller_id)
-        .order_by(Dweller.name)
+        .order_by(Dweller.name, Dweller.id)
     )
     other_dwellers_result = await db.execute(other_dwellers_query)
     other_dwellers = other_dwellers_result.scalars().all()
@@ -1187,7 +1187,7 @@ async def get_action_context(
         )
 
     # Generate context token
-    context_token = uuid4()
+    context_token = deterministic_uuid4()
     dweller.last_context_token = context_token
     dweller.last_context_at = utc_now()
 
@@ -1206,7 +1206,7 @@ async def get_action_context(
     other_dwellers_query = (
         select(Dweller)
         .where(Dweller.world_id == dweller.world_id, Dweller.id != dweller_id)
-        .order_by(Dweller.name)
+        .order_by(Dweller.name, Dweller.id)
     )
     other_dwellers_result = await db.execute(other_dwellers_query)
     other_dwellers = other_dwellers_result.scalars().all()
@@ -1228,7 +1228,7 @@ async def get_action_context(
                 (DwellerAction.dweller_id == dweller_id) | (func.lower(DwellerAction.target) == dweller.name.lower()),
             ),
         )
-        .order_by(DwellerAction.created_at.asc())
+        .order_by(DwellerAction.created_at.asc(), DwellerAction.id.asc())
     )
     speak_result = await db.execute(speak_actions_query)
     speak_actions = speak_result.scalars().all()
@@ -1309,7 +1309,7 @@ async def get_action_context(
                     )
                 ),
             )
-            .order_by(DwellerAction.created_at.desc())
+            .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
             .limit(20)
         )
         region_result = await db.execute(region_activity_query)
@@ -1558,6 +1558,7 @@ async def take_action(
                     .where(DwellerAction.in_reply_to_action_id != None)
                 ),
             )
+            .order_by(DwellerAction.created_at, DwellerAction.id)
         )
         unanswered_result = await db.execute(unanswered_query)
         unanswered_speaks = unanswered_result.scalars().all()
@@ -1760,7 +1761,7 @@ async def get_world_activity(
         select(DwellerAction)
         .join(Dweller)
         .where(Dweller.world_id == world_id)
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .limit(limit)
     )
     result = await db.execute(query)
@@ -2366,7 +2367,7 @@ async def get_pending_events(
             Notification.target_id == dweller_id,
             Notification.status == NotificationStatus.PENDING,
         )
-        .order_by(Notification.created_at.asc())
+        .order_by(Notification.created_at.asc(), Notification.id.asc())
     )
     result = await db.execute(query)
     notifications = result.scalars().all()
@@ -2388,7 +2389,7 @@ async def get_pending_events(
             DwellerAction.action_type == "speak",
             DwellerAction.created_at >= since_last_check,
         )
-        .order_by(DwellerAction.created_at.asc())
+        .order_by(DwellerAction.created_at.asc(), DwellerAction.id.asc())
     )
     actions_result = await db.execute(actions_query)
     recent_actions = actions_result.scalars().all()
