@@ -1,4 +1,5 @@
-import { test, expect, APIRequestContext } from '@playwright/test'
+import { test, expect } from '@playwright/test'
+import { API_BASE, setupTestWorld, TestSetup, SAMPLE_CAUSAL_CHAIN } from './fixtures/test-world'
 
 /**
  * E2E tests for agent visibility features.
@@ -7,161 +8,6 @@ import { test, expect, APIRequestContext } from '@playwright/test'
  * They combine API calls (simulating agent actions) with browser automation
  * (verifying human visibility).
  */
-
-const API_BASE = 'http://localhost:8000/api'
-
-// Test data - matches backend validation requirements
-const SAMPLE_CAUSAL_CHAIN = [
-  {
-    year: 2030,
-    event: 'First successful brain-computer interface for memory augmentation demonstrated',
-    reasoning: 'Building on Neuralink progress, academic research, and DARPA funding',
-  },
-  {
-    year: 2040,
-    event: 'Commercial memory backup services become available to wealthy consumers',
-    reasoning: 'Technology cost decreases follow typical adoption curves as seen with genomics',
-  },
-  {
-    year: 2050,
-    event: 'Memory trading emerges as underground economy in major tech hubs',
-    reasoning:
-      'Technology adoption leads to inevitable black markets as with any valuable digital asset',
-  },
-]
-
-const SAMPLE_REGION = {
-  name: 'Neo Tokyo',
-  location: 'East Asian Megacity',
-  population_origins: ['Japanese diaspora', 'Asian tech migrants'],
-  cultural_blend: 'Mix of traditional Japanese culture and cyberpunk innovation',
-  naming_conventions:
-    'Names blend Japanese and international traditions. First names often Japanese (Kenji, Yuki), while tech workers use handles.',
-  language: 'Japanese-English hybrid with technical jargon',
-}
-
-const SAMPLE_DWELLER = {
-  name: 'Kenji Tanaka',
-  origin_region: 'Neo Tokyo',
-  generation: 'Second-gen (born in world)',
-  name_context:
-    'Kenji is a traditional Japanese name meaning intelligent second son. Tanaka is one of the most common Japanese surnames.',
-  cultural_identity:
-    'Identifies as a Neo Tokyoite - embraces both traditional values and cutting-edge technology.',
-  role: 'Memory broker - facilitates memory trades in the grey market',
-  age: 28,
-  personality:
-    'Cautious but curious. Has a strong moral code despite working in grey areas. Values loyalty above profit.',
-  background:
-    'Grew up in the shadow of the memory economy. Started as a tech repair specialist before moving into brokerage.',
-}
-
-interface TestSetup {
-  agentKey: string
-  agentId: string
-  validatorKey: string
-  worldId: string
-  worldName: string
-  dwellerId: string
-}
-
-/**
- * Helper to create a complete test world with dweller.
- */
-async function setupTestWorld(request: APIRequestContext): Promise<TestSetup> {
-  // Use timestamp + random suffix for unique usernames
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2, 8)
-  const worldName = `E2E Test World ${timestamp}`
-
-  // Register creator agent
-  const creatorRes = await request.post(`${API_BASE}/auth/agent`, {
-    data: {
-      name: `E2E Test Creator ${timestamp}`,
-      username: `e2e-creator-${timestamp}-${random}`,
-    },
-  })
-  if (!creatorRes.ok()) {
-    const error = await creatorRes.text()
-    throw new Error(`Failed to create agent: ${error}`)
-  }
-  const creatorData = await creatorRes.json()
-  const agentKey = creatorData.api_key.key
-  const agentId = creatorData.agent.id
-
-  // Register validator agent
-  const validatorRes = await request.post(`${API_BASE}/auth/agent`, {
-    data: {
-      name: `E2E Test Validator ${timestamp}`,
-      username: `e2e-validator-${timestamp}-${random}`,
-    },
-  })
-  if (!validatorRes.ok()) {
-    const error = await validatorRes.text()
-    throw new Error(`Failed to create validator: ${error}`)
-  }
-  const validatorKey = (await validatorRes.json()).api_key.key
-
-  // Create proposal
-  const proposalRes = await request.post(`${API_BASE}/proposals`, {
-    headers: { 'X-API-Key': agentKey },
-    data: {
-      name: worldName,
-      premise:
-        'A world where memories can be extracted, stored, and traded as commodities in an underground market.',
-      year_setting: 2060,
-      causal_chain: SAMPLE_CAUSAL_CHAIN,
-      scientific_basis:
-        'Based on neuroscience research into memory formation and retrieval. Builds on optogenetics and neural interface research.',
-    },
-  })
-  expect(proposalRes.ok()).toBeTruthy()
-  const proposalId = (await proposalRes.json()).id
-
-  // Submit proposal
-  await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
-    headers: { 'X-API-Key': agentKey },
-  })
-
-  // Validate proposal (creates world)
-  const validateRes = await request.post(`${API_BASE}/proposals/${proposalId}/validate`, {
-    headers: { 'X-API-Key': validatorKey },
-    data: {
-      verdict: 'approve',
-      critique:
-        'Solid scientific foundation with clear causal chain. The memory trading concept is well-grounded in current neuroscience.',
-      scientific_issues: [],
-      suggested_fixes: [],
-    },
-  })
-  expect(validateRes.ok()).toBeTruthy()
-
-  // Get world ID
-  const worldRes = await request.get(`${API_BASE}/proposals/${proposalId}`)
-  const worldId = (await worldRes.json()).proposal.resulting_world_id
-  expect(worldId).toBeTruthy()
-
-  // Add region
-  await request.post(`${API_BASE}/dwellers/worlds/${worldId}/regions`, {
-    headers: { 'X-API-Key': agentKey },
-    data: SAMPLE_REGION,
-  })
-
-  // Create dweller
-  const dwellerRes = await request.post(`${API_BASE}/dwellers/worlds/${worldId}/dwellers`, {
-    headers: { 'X-API-Key': agentKey },
-    data: SAMPLE_DWELLER,
-  })
-  expect(dwellerRes.ok()).toBeTruthy()
-  const dwellerId = (await dwellerRes.json()).dweller.id
-
-  // Claim dweller
-  await request.post(`${API_BASE}/dwellers/${dwellerId}/claim`, {
-    headers: { 'X-API-Key': agentKey },
-  })
-
-  return { agentKey, agentId, validatorKey, worldId, worldName, dwellerId }
-}
 
 test.describe('Agent Visibility - World Activity Feed', () => {
   let setup: TestSetup
@@ -188,13 +34,13 @@ test.describe('Agent Visibility - World Activity Feed', () => {
     })
   })
 
-  test('world page shows activity tab', async ({ page }) => {
+  test('world page shows live tab', async ({ page }) => {
     await page.goto(`/world/${setup.worldId}`)
 
-    // Find and click the activity tab (button with text "activity")
-    const activityTab = page.locator('button', { hasText: /^activity$/i })
-    await expect(activityTab).toBeVisible()
-    await activityTab.click()
+    // Tab was renamed from "activity" to "live"
+    const liveTab = page.locator('button', { hasText: /^live$/i })
+    await expect(liveTab).toBeVisible()
+    await liveTab.click()
 
     // Verify activity feed content
     await expect(page.getByText('The memory trading floor buzzes')).toBeVisible()
@@ -203,8 +49,8 @@ test.describe('Agent Visibility - World Activity Feed', () => {
   test('activity feed shows dweller actions', async ({ page }) => {
     await page.goto(`/world/${setup.worldId}`)
 
-    const activityTab = page.locator('button', { hasText: /^activity$/i })
-    await activityTab.click()
+    const liveTab = page.locator('button', { hasText: /^live$/i })
+    await liveTab.click()
 
     // Check for speech action
     await expect(page.getByText('memory encryption protocols')).toBeVisible()
@@ -215,8 +61,8 @@ test.describe('Agent Visibility - World Activity Feed', () => {
   test('activity feed links to dweller profiles', async ({ page }) => {
     await page.goto(`/world/${setup.worldId}`)
 
-    const activityTab = page.locator('button', { hasText: /^activity$/i })
-    await activityTab.click()
+    const liveTab = page.locator('button', { hasText: /^live$/i })
+    await liveTab.click()
 
     // Click on dweller name to navigate to profile (use first() since there are multiple actions)
     const dwellerLink = page.locator(`[data-testid="dweller-${setup.dwellerId}"]`).first()
@@ -267,7 +113,7 @@ test.describe('Agent Visibility - Aspects List', () => {
   test.beforeAll(async ({ request }) => {
     setup = await setupTestWorld(request)
 
-    // Create an aspect (uses different fields than proposals)
+    // Create an aspect
     const aspectRes = await request.post(`${API_BASE}/aspects/worlds/${setup.worldId}/aspects`, {
       headers: { 'X-API-Key': setup.agentKey },
       data: {
@@ -357,7 +203,7 @@ test.describe('Agent Visibility - Agent Profile', () => {
     await page.goto(`/agent/${setup.agentId}`)
 
     await expect(page.getByText(/e2e test creator/i)).toBeVisible()
-    await expect(page.getByText(/@e2e-creator/i)).toBeVisible()
+    await expect(page.getByText(/@e2e-test-creator/i)).toBeVisible()
   })
 
   test('agent profile shows proposals', async ({ page }) => {
@@ -377,9 +223,6 @@ test.describe('Agent Visibility - Agent Profile', () => {
 
 /**
  * Critical API Tests - Platform Health and Configuration
- *
- * These tests verify the API is properly configured for agent use.
- * They catch deployment/configuration issues BEFORE agents encounter them.
  */
 test.describe('API - Platform Configuration', () => {
   test('platform health reports test_mode as enabled', async ({ request }) => {
@@ -403,9 +246,6 @@ test.describe('API - Platform Configuration', () => {
 
 /**
  * Critical API Tests - Test Mode Self-Validation
- *
- * These tests ensure the agent-facing API works correctly.
- * They catch issues BEFORE agents discover them in production.
  */
 test.describe('API - Test Mode Self-Validation', () => {
   test('agent can self-validate proposal with test_mode=true', async ({ request }) => {

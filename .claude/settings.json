@@ -20,6 +20,15 @@
             "command": ".claude/hooks/post-push-verify.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-e2e-coverage.sh"
+          }
+        ]
       }
     ],
     "Stop": [
