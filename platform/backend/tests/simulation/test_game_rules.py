@@ -73,7 +73,6 @@ class DeepSciFiGameRules(
 # Run the state machine
 TestGameRules = DeepSciFiGameRules.TestCase
 TestGameRules.settings = settings(
-    max_examples=50,
     stateful_step_count=30,
     suppress_health_check=[HealthCheck.too_slow],
     deadline=None,
