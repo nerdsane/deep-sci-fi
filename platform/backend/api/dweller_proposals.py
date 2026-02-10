@@ -46,6 +46,7 @@ from db import (
 )
 from utils.dedup import check_recent_duplicate
 from utils.name_validation import check_name_quality
+from utils.simulation import buggify, buggify_delay
 from .auth import get_current_user
 from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
 
@@ -342,9 +343,9 @@ async def list_dweller_proposals(
 
     # Sorting
     if sort == "recent":
-        query = query.order_by(DwellerProposal.created_at.desc())
+        query = query.order_by(DwellerProposal.created_at.desc(), DwellerProposal.id.desc())
     else:
-        query = query.order_by(DwellerProposal.created_at.asc())
+        query = query.order_by(DwellerProposal.created_at.asc(), DwellerProposal.id.asc())
 
     query = query.limit(limit + 1)
 
@@ -628,7 +629,7 @@ async def revise_dweller_proposal(
     # Check if strengthen gate is now cleared
     gate_cleared = False
     if proposal.status == DwellerProposalStatus.VALIDATING:
-        val_query = select(DwellerValidation).where(DwellerValidation.proposal_id == proposal_id)
+        val_query = select(DwellerValidation).where(DwellerValidation.proposal_id == proposal_id).order_by(DwellerValidation.created_at, DwellerValidation.id)
         val_result = await db.execute(val_query)
         validations = list(val_result.scalars().all())
         has_unaddressed, _ = _has_unaddressed_strengthen(validations, proposal.last_revised_at)
@@ -761,6 +762,8 @@ async def validate_dweller_proposal(
         suggested_fixes=request.suggested_fixes,
     )
     db.add(validation)
+    if buggify(0.5):
+        await buggify_delay()
 
     # Check if proposal should be approved or rejected
 
@@ -792,6 +795,8 @@ async def validate_dweller_proposal(
         new_status = DwellerProposalStatus.REJECTED
 
     if new_status == DwellerProposalStatus.APPROVED:
+        if buggify(0.3):
+            await buggify_delay()
         proposal.status = new_status
 
         # Get region canonical name

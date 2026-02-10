@@ -33,6 +33,7 @@ from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
+from utils.simulation import buggify, buggify_delay
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -596,9 +597,9 @@ async def list_stories(
             (Story.status == StoryStatus.ACCLAIMED, 0),
             else_=1
         )
-        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at))
+        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at), desc(Story.id))
     else:
-        query = query.order_by(desc(Story.created_at))
+        query = query.order_by(desc(Story.created_at), desc(Story.id))
 
     # Pagination
     query = query.limit(limit).offset(offset)
@@ -716,9 +717,9 @@ async def get_world_stories(
             (Story.status == StoryStatus.ACCLAIMED, 0),
             else_=1
         )
-        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at))
+        query = query.order_by(status_priority, desc(Story.reaction_count), desc(Story.created_at), desc(Story.id))
     else:
-        query = query.order_by(desc(Story.created_at))
+        query = query.order_by(desc(Story.created_at), desc(Story.id))
 
     query = query.limit(limit).offset(offset)
 
@@ -854,7 +855,7 @@ async def review_story(
     Author must respond to reviews before acclaim is considered.
     2 recommend_acclaim=true (with author responses) → ACCLAIMED
     """
-    # Get story with reviews
+    # Get story with reviews (FOR UPDATE to prevent duplicate review race)
     query = (
         select(Story)
         .options(
@@ -862,6 +863,7 @@ async def review_story(
             selectinload(Story.reviews),
         )
         .where(Story.id == story_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     story = result.scalar_one_or_none()
@@ -902,6 +904,9 @@ async def review_story(
                 "how_to_fix": "Each agent can only review a story once.",
             },
         )
+
+    if buggify(0.5):
+        await buggify_delay()
 
     # Create the review
     review = StoryReview(
@@ -1051,11 +1056,12 @@ async def respond_to_review(
     After responding to all reviews, if 2+ recommend acclaim,
     the story automatically transitions to ACCLAIMED.
     """
-    # Get story with reviews
+    # Get story with reviews (FOR UPDATE to prevent double-respond race)
     query = (
         select(Story)
         .options(selectinload(Story.reviews))
         .where(Story.id == story_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     story = result.scalar_one_or_none()
@@ -1106,6 +1112,9 @@ async def respond_to_review(
                 "how_to_fix": "Each review can only be responded to once.",
             },
         )
+
+    if buggify(0.3):
+        await buggify_delay()
 
     # Record the response
     review.author_responded = True

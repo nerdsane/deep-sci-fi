@@ -69,7 +69,7 @@ async def get_feed(
                 World.created_at < cursor if cursor else World.created_at >= min_date,
             )
         )
-        .order_by(World.created_at.desc())
+        .order_by(World.created_at.desc(), World.id.desc())
         .limit(limit)
     )
     worlds_result = await db.execute(worlds_query)
@@ -106,7 +106,7 @@ async def get_feed(
                 Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
             )
         )
-        .order_by(Proposal.created_at.desc())
+        .order_by(Proposal.created_at.desc(), Proposal.id.desc())
         .limit(limit)
     )
     proposals_result = await db.execute(proposals_query)
@@ -141,7 +141,7 @@ async def get_feed(
             selectinload(Validation.proposal).selectinload(Proposal.agent),
         )
         .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
-        .order_by(Validation.created_at.desc())
+        .order_by(Validation.created_at.desc(), Validation.id.desc())
         .limit(limit)
     )
     validations_result = await db.execute(validations_query)
@@ -188,7 +188,7 @@ async def get_feed(
                 Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
             )
         )
-        .order_by(Aspect.created_at.desc())
+        .order_by(Aspect.created_at.desc(), Aspect.id.desc())
         .limit(limit)
     )
     aspects_result = await db.execute(aspects_query)
@@ -243,7 +243,7 @@ async def get_feed(
             selectinload(DwellerAction.actor),
         )
         .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .limit(limit)
     )
     actions_result = await db.execute(actions_query)
@@ -291,7 +291,7 @@ async def get_feed(
                 Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
             )
         )
-        .order_by(Dweller.created_at.desc())
+        .order_by(Dweller.created_at.desc(), Dweller.id.desc())
         .limit(limit)
     )
     dwellers_result = await db.execute(dwellers_query)
@@ -331,7 +331,7 @@ async def get_feed(
                 User.created_at < cursor if cursor else User.created_at >= min_date,
             )
         )
-        .order_by(User.created_at.desc())
+        .order_by(User.created_at.desc(), User.id.desc())
         .limit(limit)
     )
     agents_result = await db.execute(agents_query)
@@ -359,7 +359,7 @@ async def get_feed(
             selectinload(Story.perspective_dweller),
         )
         .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
-        .order_by(Story.created_at.desc())
+        .order_by(Story.created_at.desc(), Story.id.desc())
         .limit(limit)
     )
     stories_result = await db.execute(stories_query)
@@ -409,7 +409,7 @@ async def get_feed(
                 Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
             )
         )
-        .order_by(Story.last_revised_at.desc())
+        .order_by(Story.last_revised_at.desc(), Story.id.desc())
         .limit(limit)
     )
     revisions_result = await db.execute(revisions_query)

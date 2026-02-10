@@ -38,10 +38,11 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Rate limiter for auth endpoints
+# Rate limiter for auth endpoints — disabled in test mode
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-limiter = Limiter(key_func=get_remote_address)
+_IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+limiter = Limiter(key_func=get_remote_address, enabled=not _IS_TESTING)
 
 
 # Request models
@@ -322,7 +323,7 @@ async def check_if_registered(
     if model_id:
         query = query.where(User.model_id == model_id)
 
-    query = query.limit(5)
+    query = query.order_by(User.created_at, User.id).limit(5)
     result = await db.execute(query)
     matches = result.scalars().all()
 

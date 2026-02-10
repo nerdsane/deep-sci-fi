@@ -10,9 +10,6 @@ This ensures agents always know what to do next, regardless of which endpoint th
 import json
 import logging
 from typing import Any
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 from sqlalchemy import select, func
 
 from db import (
@@ -57,7 +54,7 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
                 Notification.user_id == user_id,
                 Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
             )
-            .order_by(Notification.created_at.desc())
+            .order_by(Notification.created_at.desc(), Notification.id.desc())
             .limit(10)
         )
         notif_result = await db.execute(notif_query)
@@ -257,78 +254,110 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
         return context
 
 
-class AgentContextMiddleware(BaseHTTPMiddleware):
-    """Middleware to inject agent context into all authenticated JSON responses."""
+class AgentContextMiddleware:
+    """Pure ASGI middleware to inject agent context into authenticated JSON responses.
 
-    # Paths to skip (don't inject context)
+    Replaces BaseHTTPMiddleware to avoid TaskGroup conflicts with asyncpg in DST.
+    Raw ASGI: captures response body via send wrapper, injects _agent_context.
+    """
+
     SKIP_PATHS = {"/", "/health", "/docs", "/openapi.json", "/skill.md", "/heartbeat.md"}
 
-    async def dispatch(self, request: Request, call_next):
-        # Skip non-API paths and specific endpoints
-        path = request.url.path
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Parse path from scope
+        path = scope.get("path", "")
         if path in self.SKIP_PATHS or not path.startswith("/api"):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Get API key from header (X-API-Key or Authorization: Bearer)
-        api_key = request.headers.get("x-api-key")
+        # Extract API key from headers
+        api_key = None
+        for key, value in scope.get("headers", []):
+            if key == b"x-api-key":
+                api_key = value.decode()
+                break
+            elif key == b"authorization":
+                auth_value = value.decode()
+                if auth_value.lower().startswith("bearer "):
+                    api_key = auth_value[7:].strip()
+                    break
+
         if not api_key:
-            auth_header = request.headers.get("authorization")
-            if auth_header and auth_header.lower().startswith("bearer "):
-                api_key = auth_header[7:].strip()
-        if not api_key:
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Get the response first
-        response = await call_next(request)
+        # Capture response via send wrapper
+        response_started = False
+        status_code = 200
+        response_headers = []
+        body_parts = []
 
-        # Only process successful JSON responses
-        content_type = response.headers.get("content-type", "")
-        if response.status_code >= 400 or "application/json" not in content_type:
-            return response
+        async def capture_send(message):
+            nonlocal response_started, status_code, response_headers
 
-        # Get user from API key
-        user = await get_user_from_api_key(api_key)
-        if not user:
-            return response
+            if message["type"] == "http.response.start":
+                response_started = True
+                status_code = message.get("status", 200)
+                response_headers = list(message.get("headers", []))
+                # Don't send yet — buffer until we see the body
+            elif message["type"] == "http.response.body":
+                body_parts.append(message.get("body", b""))
 
-        # Read and modify the response body
-        body = b""
-        async for chunk in response.body_iterator:
-            body += chunk
+        await self.app(scope, receive, capture_send)
 
-        try:
-            data = json.loads(body)
+        body = b"".join(body_parts)
 
-            # Only inject if response is a dict (not a list)
-            if isinstance(data, dict):
-                # Build agent context (pass callback_url to check for warning)
-                agent_context = await build_agent_context(
-                    user.id, callback_url=user.callback_url
-                )
-                data["_agent_context"] = agent_context
+        # Only modify successful JSON responses
+        content_type = ""
+        for key, value in response_headers:
+            if key == b"content-type":
+                content_type = value.decode()
+                break
 
-                # Create new response with modified body
-                new_body = json.dumps(data).encode()
+        if status_code < 400 and "application/json" in content_type:
+            try:
+                data = json.loads(body)
+                if isinstance(data, dict):
+                    try:
+                        user = await get_user_from_api_key(api_key)
+                        if user:
+                            agent_context = await build_agent_context(
+                                user.id, callback_url=user.callback_url
+                            )
+                            data["_agent_context"] = agent_context
+                            body = json.dumps(data).encode()
 
-                # Copy headers but update content-length
-                headers = dict(response.headers)
-                headers["content-length"] = str(len(new_body))
+                            # Update content-length
+                            response_headers = [
+                                (k, v) for k, v in response_headers
+                                if k != b"content-length"
+                            ]
+                            response_headers.append(
+                                (b"content-length", str(len(body)).encode())
+                            )
+                    except Exception:
+                        logging.getLogger(__name__).debug(
+                            "Could not inject agent context (DB contention or session issue)"
+                        )
+            except json.JSONDecodeError:
+                pass
+            except Exception:
+                logging.getLogger(__name__).exception("Failed to inject agent context")
 
-                return Response(
-                    content=new_body,
-                    status_code=response.status_code,
-                    headers=headers,
-                    media_type="application/json",
-                )
-        except json.JSONDecodeError:
-            pass  # Response body is not valid JSON
-        except Exception:
-            logging.getLogger(__name__).exception("Failed to inject agent context")
-
-        # Return original response if modification failed
-        return Response(
-            content=body,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-            media_type=response.media_type,
-        )
+        # Send the (possibly modified) response
+        await send({
+            "type": "http.response.start",
+            "status": status_code,
+            "headers": response_headers,
+        })
+        await send({
+            "type": "http.response.body",
+            "body": body,
+        })

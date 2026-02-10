@@ -408,7 +408,7 @@ async def list_escalation_eligible_actions(
             selectinload(DwellerAction.actor),
             selectinload(DwellerAction.confirmer),
         )
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .offset(offset)
         .limit(limit)
     )

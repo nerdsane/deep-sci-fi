@@ -5,11 +5,14 @@ All domain-specific rule mixins inherit from this.
 
 from datetime import timedelta
 
+from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, rule
 
 from tests.simulation.conftest import create_dst_engine_and_client
 from tests.simulation.state_mirror import SimulationState, AgentState
 from tests.simulation import strategies as strat
+from utils.clock import SimulatedClock, set_clock
+from utils.simulation import init_simulation
 
 
 # Time jumps for advance_time rule
@@ -28,11 +31,13 @@ class DeepSciFiBaseRules(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
         strat.reset_counter()
-        self.client, self.clock, self._cleanup = create_dst_engine_and_client(seed=0)
+        self.client, self._cleanup = create_dst_engine_and_client()
         self.state = SimulationState()
         self._agent_keys: list[str] = []  # ordered list of agent IDs
         self._time_jump_index = 0
         self._agent_counter = 0
+        self._seed: int | None = None
+        self.clock: SimulatedClock | None = None
 
     def teardown(self):
         self._cleanup()
@@ -58,6 +63,9 @@ class DeepSciFiBaseRules(RuleBasedStateMachine):
 
     def _headers(self, agent: AgentState) -> dict:
         return {"X-API-Key": agent.api_key}
+
+    def _admin_headers(self) -> dict:
+        return {"X-API-Key": "test-admin-key"}
 
     def _track_response(self, resp, context: str = ""):
         if resp.status_code >= 500:
@@ -89,9 +97,13 @@ class DeepSciFiBaseRules(RuleBasedStateMachine):
     # Rules: Setup and Time
     # -------------------------------------------------------------------------
 
-    @initialize()
-    def setup_agents(self):
-        """Register 4 agents."""
+    @initialize(seed=st.integers(min_value=0, max_value=2**32 - 1))
+    def setup_agents(self, seed):
+        """Initialize simulation seed and register 4 agents."""
+        self.clock = SimulatedClock()
+        set_clock(self.clock)
+        init_simulation(seed)
+        self._seed = seed
         for i in range(4):
             resp = self.client.post(
                 "/api/auth/agent",

@@ -1,11 +1,14 @@
 """Core DST state machine: Can any sequence of valid API calls violate game rules?
 
-45 rules, 17 safety invariants (every step), 3 liveness invariants (teardown).
-Uses Hypothesis RuleBasedStateMachine with domain-specific rule mixins.
+45+ rules across 14 domain mixins, 20 safety invariants (every step),
+7 liveness invariants (teardown). Uses Hypothesis RuleBasedStateMachine.
 
 Architecture: DeepSciFiBaseRules provides setup + helpers.
 Each mixin adds rules for one domain. SafetyInvariantsMixin checks invariants
 every step. LivenessInvariantsMixin checks at teardown.
+
+CI profile (--hypothesis-profile=ci) runs 200 examples for thorough exploration.
+Default profile runs 50 examples for fast local iteration.
 """
 
 from hypothesis import settings, HealthCheck
@@ -25,6 +28,7 @@ from tests.simulation.rules.events import EventRulesMixin
 from tests.simulation.rules.actions import ActionRulesMixin
 from tests.simulation.rules.dweller_proposals import DwellerProposalRulesMixin
 from tests.simulation.rules.notifications import NotificationRulesMixin
+from tests.simulation.rules.auth import AuthRulesMixin
 from tests.simulation.rules.heartbeat import HeartbeatRulesMixin
 from tests.simulation.rules.read_only import ReadOnlyRulesMixin
 
@@ -49,6 +53,7 @@ class DeepSciFiGameRules(
     ActionRulesMixin,
     DwellerProposalRulesMixin,
     NotificationRulesMixin,
+    AuthRulesMixin,
     HeartbeatRulesMixin,
     ReadOnlyRulesMixin,
     # Base (must be last — provides RuleBasedStateMachine)

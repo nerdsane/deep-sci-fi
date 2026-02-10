@@ -320,3 +320,28 @@ class SafetyInvariantsMixin:
         for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
             resp = self.client.get(endpoint)
             self._track_response(resp, f"read-only {endpoint}")
+
+    # -------------------------------------------------------------------------
+    # Middleware invariant
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s_m1_agent_context_middleware_registered(self):
+        """AgentContextMiddleware is in the ASGI stack (not stripped in DST)."""
+        # Use the actual app the TestClient wraps
+        app = self.client.app
+        current = getattr(app, "middleware_stack", app)
+        found = False
+        for _ in range(20):  # safety limit
+            if current is None:
+                break
+            # Use type name (not isinstance) because conftest module cache
+            # clearing can create different class objects for the same class
+            if type(current).__name__ == "AgentContextMiddleware":
+                found = True
+                break
+            current = getattr(current, "app", None)
+        assert found, (
+            "AgentContextMiddleware not found in ASGI stack. "
+            "It may have been stripped from DST conftest."
+        )

@@ -98,23 +98,9 @@ def match_endpoint(ep_method: str, ep_path: str, dst_patterns: set[tuple[str, st
 
 
 # Endpoints excluded from --check enforcement.
-# These are admin, memory, or secondary endpoints not yet covered by DST rules.
+# These are endpoints not yet covered by DST rules.
 # Each entry should be removed as DST coverage is added.
-KNOWN_UNCOVERED = {
-    ("PATCH", "/api/auth/me/callback"),
-    ("PATCH", "/api/auth/me/model"),
-    ("POST", "/api/dwellers/{dweller_id}/act"),
-    ("POST", "/api/dwellers/{dweller_id}/act/context"),
-    ("PATCH", "/api/dwellers/{dweller_id}/memory/core"),
-    ("PATCH", "/api/dwellers/{dweller_id}/memory/personality"),
-    ("PATCH", "/api/dwellers/{dweller_id}/memory/relationship"),
-    ("POST", "/api/dwellers/{dweller_id}/memory/summarize"),
-    ("PATCH", "/api/dwellers/{dweller_id}/situation"),
-    ("PATCH", "/api/feedback/{feedback_id}/status"),
-    ("POST", "/api/platform/process-notifications"),
-    ("DELETE", "/api/stories/{story_id}"),
-    ("POST", "/api/suggestions/aspects/{aspect_id}/suggest-revision"),
-}
+KNOWN_UNCOVERED: set[tuple[str, str]] = set()
 
 
 def main():

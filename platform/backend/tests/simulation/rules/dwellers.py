@@ -172,6 +172,174 @@ class DwellerRulesMixin:
             return
 
     @rule()
+    def get_action_context(self):
+        """Agent gets action context for a claimed dweller (direct call)."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            resp = self.client.post(
+                f"/api/dwellers/{did}/act/context",
+                headers=self._headers(agent),
+                json=None,
+            )
+            self._track_response(resp, f"get context for {did}")
+            return
+
+    @rule()
+    def take_direct_action(self):
+        """Agent takes action using direct two-phase calls (self.client.post)."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            # Phase 1: get context token
+            ctx_resp = self.client.post(
+                f"/api/dwellers/{did}/act/context",
+                headers=self._headers(agent),
+                json=None,
+            )
+            self._track_response(ctx_resp, f"direct context for {did}")
+            if ctx_resp.status_code != 200:
+                return
+            token = ctx_resp.json().get("context_token")
+            if not token:
+                return
+            # Phase 2: act
+            data = strat.action_data()
+            data["context_token"] = token
+            resp = self.client.post(
+                f"/api/dwellers/{did}/act",
+                headers=self._headers(agent),
+                json=data,
+            )
+            self._track_response(resp, f"direct action on {did}")
+            if resp.status_code == 200:
+                body = resp.json()
+                action_info = body.get("action", {})
+                aid = action_info.get("id")
+                if aid:
+                    self.state.actions[aid] = ActionRef(
+                        action_id=aid,
+                        dweller_id=did,
+                        actor_id=agent.agent_id,
+                        importance=data["importance"],
+                    )
+            return
+
+    @rule()
+    def update_core_memory(self):
+        """Agent updates core memories of a claimed dweller."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            data = strat.core_memory_update_data()
+            resp = self.client.patch(
+                f"/api/dwellers/{did}/memory/core",
+                headers=self._headers(agent),
+                json=data,
+            )
+            self._track_response(resp, f"update core memory {did}")
+            return
+
+    @rule()
+    def update_personality(self):
+        """Agent updates personality blocks of a claimed dweller."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            data = strat.personality_update_data()
+            resp = self.client.patch(
+                f"/api/dwellers/{did}/memory/personality",
+                headers=self._headers(agent),
+                json=data,
+            )
+            self._track_response(resp, f"update personality {did}")
+            return
+
+    @rule()
+    def update_relationship(self):
+        """Agent updates relationship memory with another dweller."""
+        if not self.state.dwellers:
+            return
+        claimed = [(did, ds) for did, ds in self.state.dwellers.items() if ds.claimed_by]
+        if not claimed:
+            return
+        did, ds = claimed[0]
+        agent = self.state.agents.get(ds.claimed_by)
+        if not agent:
+            return
+        # Find another dweller in the same world for the target
+        for other_did, other_ds in self.state.dwellers.items():
+            if other_did != did and other_ds.world_id == ds.world_id:
+                data = strat.relationship_update_data(target_name=f"Dweller-{other_did[:8]}")
+                resp = self.client.patch(
+                    f"/api/dwellers/{did}/memory/relationship",
+                    headers=self._headers(agent),
+                    json=data,
+                )
+                self._track_response(resp, f"update relationship {did}")
+                return
+
+    @rule()
+    def summarize_memory(self):
+        """Agent creates a memory summary for a claimed dweller."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            data = strat.memory_summarize_data()
+            resp = self.client.post(
+                f"/api/dwellers/{did}/memory/summarize",
+                headers=self._headers(agent),
+                json=data,
+            )
+            self._track_response(resp, f"summarize memory {did}")
+            return
+
+    @rule()
+    def update_situation(self):
+        """Agent updates the current situation of a claimed dweller."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            data = strat.situation_update_data()
+            resp = self.client.patch(
+                f"/api/dwellers/{did}/situation",
+                headers=self._headers(agent),
+                json=data,
+            )
+            self._track_response(resp, f"update situation {did}")
+            return
+
+    @rule()
     def claim_sixth_dweller(self):
         """Agent with 5 claimed dwellers tries to claim a 6th — must be rejected."""
         claims = Counter()

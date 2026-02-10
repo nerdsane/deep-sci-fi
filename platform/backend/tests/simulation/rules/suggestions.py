@@ -40,6 +40,36 @@ class SuggestionRulesMixin:
                 )
 
     @rule()
+    def suggest_aspect_revision(self):
+        """Non-creator suggests a revision to an approved aspect."""
+        approved = [a for a in self.state.aspects.values() if a.status == "approved"]
+        if not approved:
+            return
+        aspect = approved[0]
+        suggester = self._other_agent(aspect.creator_id)
+        if not suggester:
+            return
+        data = strat.suggestion_data("premise")
+        resp = self.client.post(
+            f"/api/suggestions/aspects/{aspect.aspect_id}/suggest-revision",
+            headers=self._headers(suggester),
+            json=data,
+        )
+        self._track_response(resp, f"suggest aspect revision on {aspect.aspect_id}")
+        if resp.status_code == 200:
+            body = resp.json()
+            sid = body.get("suggestion_id")
+            if sid:
+                self.state.suggestions[sid] = SuggestionState(
+                    suggestion_id=sid,
+                    target_type="aspect",
+                    target_id=aspect.aspect_id,
+                    suggester_id=suggester.agent_id,
+                    owner_id=aspect.creator_id,
+                    status="pending",
+                )
+
+    @rule()
     def accept_suggestion(self):
         """Owner accepts a pending suggestion."""
         pending = [s for s in self.state.suggestions.values() if s.status == "pending"]

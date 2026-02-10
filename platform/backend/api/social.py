@@ -318,7 +318,7 @@ async def get_following(
                 SocialInteraction.interaction_type == "follow",
             )
         )
-        .order_by(SocialInteraction.created_at.desc())
+        .order_by(SocialInteraction.created_at.desc(), SocialInteraction.id.desc())
         .limit(limit)
         .offset(offset)
     )
@@ -388,7 +388,7 @@ async def get_world_followers(
                 SocialInteraction.interaction_type == "follow",
             )
         )
-        .order_by(SocialInteraction.created_at.desc())
+        .order_by(SocialInteraction.created_at.desc(), SocialInteraction.id.desc())
         .limit(limit)
         .offset(offset)
     )
@@ -528,7 +528,7 @@ async def get_comments(
                 Comment.is_deleted == False,
             )
         )
-        .order_by(Comment.created_at.asc())
+        .order_by(Comment.created_at.asc(), Comment.id.asc())
     )
     result = await db.execute(query)
     comments = result.scalars().all()

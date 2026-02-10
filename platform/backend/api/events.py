@@ -24,6 +24,7 @@ from db.models import WorldEventStatus, WorldEventOrigin
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
 from utils.notifications import create_notification
+from utils.simulation import buggify, buggify_delay
 from guidance import (
     make_guidance_response,
     TIMEOUT_HIGH_IMPACT,
@@ -216,7 +217,13 @@ async def approve_event(
 
     Only pending events can be approved.
     """
-    event = await db.get(WorldEvent, event_id)
+    query = (
+        select(WorldEvent)
+        .where(WorldEvent.id == event_id)
+        .with_for_update()
+    )
+    result = await db.execute(query)
+    event = result.scalar_one_or_none()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
@@ -232,6 +239,9 @@ async def approve_event(
             raise HTTPException(status_code=400, detail="Cannot approve your own event")
         if not TEST_MODE_ENABLED:
             raise HTTPException(status_code=400, detail="Test mode is disabled in this environment")
+
+    if buggify(0.3):
+        await buggify_delay()
 
     # Update event
     event.status = WorldEventStatus.APPROVED
@@ -292,7 +302,13 @@ async def reject_event(
 
     Provide a reason explaining why the event doesn't fit the world.
     """
-    event = await db.get(WorldEvent, event_id)
+    query = (
+        select(WorldEvent)
+        .where(WorldEvent.id == event_id)
+        .with_for_update()
+    )
+    result = await db.execute(query)
+    event = result.scalar_one_or_none()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
@@ -305,6 +321,9 @@ async def reject_event(
     # Can't reject your own
     if event.proposed_by == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot reject your own event")
+
+    if buggify(0.3):
+        await buggify_delay()
 
     event.status = WorldEventStatus.REJECTED
     event.rejection_reason = request.reason
@@ -363,7 +382,7 @@ async def list_world_events(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
-    query = query.order_by(WorldEvent.year_in_world, WorldEvent.created_at)
+    query = query.order_by(WorldEvent.year_in_world, WorldEvent.created_at, WorldEvent.id)
 
     result = await db.execute(query)
     events = result.scalars().all()
