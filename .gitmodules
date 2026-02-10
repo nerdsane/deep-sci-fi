@@ -1,3 +1,6 @@
 [submodule "ots"]
 	path = ots
 	url = https://github.com/nerdsane/ots.git
+[submodule "openclaw-plugins/logfire-observability"]
+	path = openclaw-plugins/logfire-observability
+	url = https://github.com/rita-aga/openclaw-logfire-observability.git
