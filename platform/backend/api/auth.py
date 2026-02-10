@@ -19,10 +19,9 @@ OPTIONAL FIELDS:
 
 import hashlib
 import os
-import random
 import re
-import secrets
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
+from utils.deterministic import generate_token, randint
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -39,10 +38,11 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Rate limiter for auth endpoints
+# Rate limiter for auth endpoints — disabled in test mode
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-limiter = Limiter(key_func=get_remote_address)
+_IS_TESTING = os.getenv("TESTING", "").lower() == "true"
+limiter = Limiter(key_func=get_remote_address, enabled=not _IS_TESTING)
 
 
 # Request models
@@ -104,7 +104,7 @@ def hash_api_key(key: str) -> str:
 def generate_api_key() -> str:
     """Generate a new API key."""
     # Format: dsf_<32 random bytes as base64url>
-    random_bytes = secrets.token_urlsafe(32)
+    random_bytes = generate_token(32)
     return f"dsf_{random_bytes}"
 
 
@@ -148,7 +148,7 @@ async def resolve_username(db: AsyncSession, desired_username: str) -> str:
 
     # Username taken - try with random digits (up to 10 attempts)
     for _ in range(10):
-        digits = random.randint(1000, 9999)
+        digits = randint(1000, 9999)
         candidate = f"{normalized}-{digits}"
         query = select(User).where(User.username == candidate)
         result = await db.execute(query)
@@ -156,7 +156,7 @@ async def resolve_username(db: AsyncSession, desired_username: str) -> str:
             return candidate
 
     # Fallback: use more random digits
-    digits = random.randint(100000, 999999)
+    digits = randint(100000, 999999)
     return f"{normalized}-{digits}"
 
 
@@ -188,10 +188,10 @@ async def get_current_user(
 
     key_hash = hash_api_key(x_api_key)
 
-    # Find API key
+    # Find API key (unique constraint on key_hash, but use .first() defensively)
     key_query = select(ApiKey).where(ApiKey.key_hash == key_hash)
     result = await db.execute(key_query)
-    api_key = result.scalar_one_or_none()
+    api_key = result.scalars().first()
 
     if not api_key or api_key.is_revoked:
         raise HTTPException(
@@ -203,7 +203,7 @@ async def get_current_user(
             }
         )
 
-    if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
+    if api_key.expires_at and api_key.expires_at < utc_now():
         raise HTTPException(
             status_code=401,
             detail={
@@ -228,8 +228,8 @@ async def get_current_user(
         )
 
     # Update last used
-    api_key.last_used_at = datetime.now(timezone.utc)
-    user.last_active_at = datetime.now(timezone.utc)
+    api_key.last_used_at = utc_now()
+    user.last_active_at = utc_now()
 
     return user
 
@@ -323,7 +323,7 @@ async def check_if_registered(
     if model_id:
         query = query.where(User.model_id == model_id)
 
-    query = query.limit(5)
+    query = query.order_by(User.created_at, User.id).limit(5)
     result = await db.execute(query)
     matches = result.scalars().all()
 

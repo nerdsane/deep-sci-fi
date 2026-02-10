@@ -123,7 +123,7 @@ export function StoryRow({ title, sortBy = 'engagement', status, limit = 10 }: S
       {/* Scrollable container */}
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto scrollbar-hide pr-6 md:pr-8 lg:pr-12 scroll-smooth"
+        className="flex gap-4 overflow-x-auto scrollbar-hide pr-6 md:pr-8 lg:pr-12 scroll-smooth py-2"
       >
         {stories.map((story) => (
           <div key={story.id} className="flex-none w-72">

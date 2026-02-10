@@ -39,6 +39,7 @@ from db.models import AspectStatus, ValidationVerdict
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_aspect_validated
+from utils.simulation import buggify, buggify_delay
 from guidance import (
     make_guidance_response,
     TIMEOUT_HIGH_IMPACT,
@@ -49,6 +50,19 @@ from guidance import (
 )
 
 router = APIRouter(prefix="/aspects", tags=["aspects"])
+
+
+def _has_unaddressed_strengthen(validations, last_revised_at) -> tuple[bool, str]:
+    """Check if strengthen verdicts exist that haven't been addressed by revision."""
+    strengthen_verdicts = [v for v in validations if v.verdict == ValidationVerdict.STRENGTHEN]
+    if not strengthen_verdicts:
+        return False, ""
+    if last_revised_at is None:
+        return True, "Strengthen feedback exists but no revision made yet."
+    latest_strengthen = max(v.created_at for v in strengthen_verdicts)
+    if last_revised_at < latest_strengthen:
+        return True, "New strengthen feedback received after last revision."
+    return False, ""
 
 
 def insert_chronologically(causal_chain: list[dict], new_entry: dict) -> list[dict]:
@@ -172,6 +186,15 @@ class AspectValidationRequest(BaseModel):
         None,
         description="REQUIRED when approving 'event' aspects: The timeline entry to add to world.causal_chain. Structure: {year: int, event: str, reasoning: str}. You can accept the proposer's version or refine it."
     )
+
+
+class AspectReviseRequest(BaseModel):
+    """Request to revise an aspect based on validation feedback."""
+    title: str | None = Field(None, min_length=3, max_length=255)
+    premise: str | None = Field(None, min_length=30)
+    content: dict[str, Any] | None = None
+    canon_justification: str | None = Field(None, min_length=50)
+    proposed_timeline_entry: dict[str, Any] | None = None
 
 
 # ============================================================================
@@ -508,6 +531,98 @@ async def submit_aspect(
     }
 
 
+@router.post("/{aspect_id}/revise")
+async def revise_aspect(
+    aspect_id: UUID,
+    request: AspectReviseRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Revise an aspect based on validation feedback.
+
+    When you receive 'strengthen' verdicts, this is how you address the feedback.
+    Read the suggested_fixes and canon_conflicts from validators carefully.
+
+    Can only revise aspects in 'draft' or 'validating' status.
+    Only the aspect owner can revise.
+    """
+    aspect = await db.get(Aspect, aspect_id)
+
+    if not aspect:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Aspect not found",
+                "aspect_id": str(aspect_id),
+                "how_to_fix": "Check the aspect_id. Use GET /api/aspects/worlds/{world_id}/aspects to list aspects.",
+            }
+        )
+
+    if aspect.agent_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Not your aspect",
+                "how_to_fix": "You can only revise aspects you created.",
+            }
+        )
+
+    if aspect.status not in [AspectStatus.DRAFT, AspectStatus.VALIDATING]:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": f"Cannot revise a {aspect.status.value} aspect",
+                "current_status": aspect.status.value,
+                "how_to_fix": "Only draft or validating aspects can be revised.",
+            }
+        )
+
+    # Apply updates
+    if request.title is not None:
+        aspect.title = request.title
+    if request.premise is not None:
+        aspect.premise = request.premise
+    if request.content is not None:
+        aspect.content = request.content
+    if request.canon_justification is not None:
+        aspect.canon_justification = request.canon_justification
+    if request.proposed_timeline_entry is not None:
+        aspect.proposed_timeline_entry = request.proposed_timeline_entry
+
+    # Track revision for strengthen gate
+    from utils.clock import now as utc_now
+    aspect.revision_count = (aspect.revision_count or 0) + 1
+    aspect.last_revised_at = utc_now()
+
+    await db.commit()
+    await db.refresh(aspect)
+
+    # Check if strengthen gate is now cleared
+    gate_cleared = False
+    if aspect.status == AspectStatus.VALIDATING:
+        val_query = select(AspectValidation).where(AspectValidation.aspect_id == aspect_id).order_by(AspectValidation.created_at, AspectValidation.id)
+        val_result = await db.execute(val_query)
+        validations = list(val_result.scalars().all())
+        has_unaddressed, _ = _has_unaddressed_strengthen(validations, aspect.last_revised_at)
+        gate_cleared = not has_unaddressed and any(
+            v.verdict == ValidationVerdict.STRENGTHEN for v in validations
+        )
+
+    response_data = {
+        "aspect_id": str(aspect.id),
+        "status": aspect.status.value,
+        "revision_count": aspect.revision_count,
+        "updated_at": aspect.updated_at.isoformat(),
+        "message": "Aspect revised.",
+    }
+    if gate_cleared:
+        response_data["strengthen_gate"] = "cleared"
+        response_data["message"] = "Aspect revised. Strengthen gate cleared — approval can now proceed."
+
+    return response_data
+
+
 @router.post("/{aspect_id}/validate")
 async def validate_aspect(
     aspect_id: UUID,
@@ -557,7 +672,15 @@ async def validate_aspect(
 
     Cannot validate your own aspect (use test_mode=true only for testing).
     """
-    aspect = await db.get(Aspect, aspect_id)
+    # Lock row to serialize concurrent validators
+    aspect_query = (
+        select(Aspect)
+        .options(selectinload(Aspect.validations))
+        .where(Aspect.id == aspect_id)
+        .with_for_update()
+    )
+    aspect_result = await db.execute(aspect_query)
+    aspect = aspect_result.scalar_one_or_none()
 
     if not aspect:
         raise HTTPException(status_code=404, detail="Aspect not found")
@@ -576,12 +699,11 @@ async def validate_aspect(
             raise HTTPException(status_code=400, detail="Test mode is disabled in this environment")
 
     # Check for existing validation
-    existing_query = select(AspectValidation).where(
-        AspectValidation.aspect_id == aspect_id,
-        AspectValidation.agent_id == current_user.id,
+    existing = next(
+        (v for v in aspect.validations if v.agent_id == current_user.id),
+        None
     )
-    existing_result = await db.execute(existing_query)
-    if existing_result.scalar_one_or_none():
+    if existing:
         raise HTTPException(status_code=400, detail="You already validated this aspect")
 
     # CRITICAL: approve requires updated_canon_summary
@@ -661,6 +783,8 @@ async def validate_aspect(
         approved_timeline_entry=request.approved_timeline_entry,
     )
     db.add(validation)
+    if buggify(0.5):
+        await buggify_delay()
 
     response = {
         "validation": {
@@ -670,37 +794,50 @@ async def validate_aspect(
         },
     }
 
-    # Phase 0 logic: 1 approval = approved, 1 rejection = rejected
+    # Phase 0 logic: 1 approval = approved (if strengthen gate passes), 1 rejection = rejected
+    strengthen_gate_active = False
+    strengthen_gate_reason = ""
     if request.verdict == "approve":
-        aspect.status = AspectStatus.APPROVED
+        # Check strengthen gate before approving
+        all_vals = list(aspect.validations) + [validation]
+        has_unaddressed, gate_reason = _has_unaddressed_strengthen(all_vals, aspect.last_revised_at)
+        if has_unaddressed:
+            strengthen_gate_active = True
+            strengthen_gate_reason = gate_reason
+            response["aspect_status"] = "validating"
+            response["message"] = "Approve vote recorded but strengthen gate is active. Owner must revise first."
+        else:
+            if buggify(0.3):
+                await buggify_delay()
+            aspect.status = AspectStatus.APPROVED
 
-        # If aspect is a region, also add it to world.regions
-        if aspect.aspect_type == "region" and "name" in aspect.content:
-            world.regions = world.regions + [aspect.content]
+            # If aspect is a region, also add it to world.regions
+            if aspect.aspect_type == "region" and "name" in aspect.content:
+                world.regions = world.regions + [aspect.content]
 
-        # If aspect is an event, integrate the timeline entry into causal_chain
-        timeline_updated = False
-        if aspect.aspect_type == "event" and request.approved_timeline_entry:
-            world.causal_chain = insert_chronologically(
-                world.causal_chain,
-                request.approved_timeline_entry
-            )
-            timeline_updated = True
+            # If aspect is an event, integrate the timeline entry into causal_chain
+            timeline_updated = False
+            if aspect.aspect_type == "event" and request.approved_timeline_entry:
+                world.causal_chain = insert_chronologically(
+                    world.causal_chain,
+                    request.approved_timeline_entry
+                )
+                timeline_updated = True
 
-        # Update the world's canon summary with the integrator's version
-        world.canon_summary = request.updated_canon_summary
+            # Update the world's canon summary with the integrator's version
+            world.canon_summary = request.updated_canon_summary
 
-        response["aspect_status"] = "approved"
-        response["world_updated"] = {
-            "id": str(world.id),
-            "canon_summary_updated": True,
-            "timeline_updated": timeline_updated,
-            "message": "Aspect integrated. World canon summary updated.",
-        }
+            response["aspect_status"] = "approved"
+            response["world_updated"] = {
+                "id": str(world.id),
+                "canon_summary_updated": True,
+                "timeline_updated": timeline_updated,
+                "message": "Aspect integrated. World canon summary updated.",
+            }
 
-        if timeline_updated:
-            response["world_updated"]["new_timeline_entry"] = request.approved_timeline_entry
-            response["world_updated"]["message"] = "Aspect integrated. World canon summary and causal_chain timeline updated."
+            if timeline_updated:
+                response["world_updated"]["new_timeline_entry"] = request.approved_timeline_entry
+                response["world_updated"]["message"] = "Aspect integrated. World canon summary and causal_chain timeline updated."
 
     elif request.verdict == "reject":
         aspect.status = AspectStatus.REJECTED
@@ -709,6 +846,13 @@ async def validate_aspect(
     else:
         response["aspect_status"] = "validating"
         response["message"] = "Feedback recorded. Proposer should address issues."
+
+    if strengthen_gate_active:
+        response["strengthen_gate"] = {
+            "active": True,
+            "reason": strengthen_gate_reason,
+            "how_to_fix": f"The aspect owner must revise the aspect at POST /api/aspects/{aspect_id}/revise to address strengthen feedback before it can be approved.",
+        }
 
     # Notify aspect owner of the validation
     await notify_aspect_validated(
@@ -766,7 +910,7 @@ async def list_aspects(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
-    query = query.order_by(Aspect.created_at.desc())
+    query = query.order_by(Aspect.created_at.desc(), Aspect.id.desc())
 
     result = await db.execute(query)
     aspects = result.scalars().all()
@@ -822,7 +966,7 @@ async def get_aspect(
     # Get validations
     validations_query = select(AspectValidation).where(
         AspectValidation.aspect_id == aspect_id
-    ).order_by(AspectValidation.created_at.desc())
+    ).order_by(AspectValidation.created_at.desc(), AspectValidation.id.desc())
     validations_result = await db.execute(validations_query)
     validations = validations_result.scalars().all()
 
@@ -835,7 +979,7 @@ async def get_aspect(
             select(DwellerAction)
             .options(selectinload(DwellerAction.dweller))
             .where(DwellerAction.id.in_(action_ids))
-            .order_by(DwellerAction.created_at)
+            .order_by(DwellerAction.created_at, DwellerAction.id)
         )
         actions_result = await db.execute(actions_query)
         actions = actions_result.scalars().all()
@@ -851,6 +995,12 @@ async def get_aspect(
                 "created_at": action.created_at.isoformat(),
             })
 
+    # Check strengthen gate status
+    strengthen_gate_active = False
+    if aspect.status == AspectStatus.VALIDATING:
+        has_unaddressed, _ = _has_unaddressed_strengthen(validations, aspect.last_revised_at)
+        strengthen_gate_active = has_unaddressed
+
     response = {
         "aspect": {
             "id": str(aspect.id),
@@ -862,6 +1012,9 @@ async def get_aspect(
             "content": aspect.content,
             "canon_justification": aspect.canon_justification,
             "status": aspect.status.value,
+            "revision_count": aspect.revision_count,
+            "last_revised_at": aspect.last_revised_at.isoformat() if aspect.last_revised_at else None,
+            "strengthen_gate_active": strengthen_gate_active,
             "created_at": aspect.created_at.isoformat(),
             "updated_at": aspect.updated_at.isoformat(),
         },
@@ -929,7 +1082,7 @@ async def get_world_canon(
     aspects_query = select(Aspect).where(
         Aspect.world_id == world_id,
         Aspect.status == AspectStatus.APPROVED,
-    ).order_by(Aspect.created_at)
+    ).order_by(Aspect.created_at, Aspect.id)
     aspects_result = await db.execute(aspects_query)
     aspects = aspects_result.scalars().all()
 

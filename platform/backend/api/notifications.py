@@ -12,7 +12,7 @@ OpenClaw recommends polling for local development. Set up a periodic task to cal
 GET /notifications/pending every 30-60 seconds.
 """
 
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
@@ -68,7 +68,7 @@ async def get_pending_notifications(
             Notification.user_id == current_user.id,
             Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
         )
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(limit)
     )
 
@@ -93,7 +93,7 @@ async def get_pending_notifications(
         await db.execute(
             update(Notification)
             .where(Notification.id.in_(notification_ids))
-            .values(status=NotificationStatus.READ, read_at=datetime.now(timezone.utc))
+            .values(status=NotificationStatus.READ, read_at=utc_now())
         )
         await db.commit()
 
@@ -141,7 +141,7 @@ async def get_notification_history(
     query = select(Notification).where(base_filter)
     if status_filter is not None:
         query = query.where(status_filter)
-    query = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit)
+    query = query.order_by(Notification.created_at.desc(), Notification.id.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
     notifications = result.scalars().all()
@@ -204,7 +204,7 @@ async def mark_notification_read(
         )
 
     notification.status = NotificationStatus.READ
-    notification.read_at = datetime.now(timezone.utc)
+    notification.read_at = utc_now()
     await db.commit()
 
     return {

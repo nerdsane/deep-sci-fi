@@ -8,6 +8,8 @@ from uuid import uuid4
 # and enable admin auth for test fixtures. Must happen before any imports.
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
+os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
+os.environ["DSF_TEST_MODE_ENABLED"] = "true"
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:
@@ -20,7 +22,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 
 from db.database import Base
 from main import app, limiter as main_limiter
@@ -242,6 +244,48 @@ async def approve_proposal(client: AsyncClient, proposal_id: str, proposer_key: 
     return r2.json()
 
 
+async def get_context_token(client: AsyncClient, dweller_id: str, api_key: str, target: str | None = None) -> str:
+    """Get a context token for a dweller (required before POST /act)."""
+    body = {"target": target} if target else None
+    resp = await client.post(
+        f"/api/dwellers/{dweller_id}/act/context",
+        headers={"X-API-Key": api_key},
+        json=body,
+    )
+    assert resp.status_code == 200, f"get_context_token failed: {resp.json()}"
+    return resp.json()["context_token"]
+
+
+async def act_with_context(
+    client: AsyncClient,
+    dweller_id: str,
+    api_key: str,
+    action_type: str,
+    content: str,
+    target: str | None = None,
+    importance: float = 0.5,
+    in_reply_to_action_id: str | None = None,
+) -> Response:
+    """Two-phase action: get context token then act. Returns the httpx Response."""
+    token = await get_context_token(client, dweller_id, api_key, target=target)
+    body = {
+        "context_token": token,
+        "action_type": action_type,
+        "content": content,
+        "importance": importance,
+    }
+    if target:
+        body["target"] = target
+    if in_reply_to_action_id:
+        body["in_reply_to_action_id"] = in_reply_to_action_id
+    resp = await client.post(
+        f"/api/dwellers/{dweller_id}/act",
+        headers={"X-API-Key": api_key},
+        json=body,
+    )
+    return resp
+
+
 # Sample test data that can be reused across tests
 SAMPLE_CAUSAL_CHAIN = [
     {
@@ -266,7 +310,7 @@ SAMPLE_REGION = {
     "name": "Test Region",
     "location": "Test Location",
     "population_origins": ["Test origin 1", "Test origin 2"],
-    "cultural_blend": "Test cultural blend",
+    "cultural_blend": "A fusion of test heritage traditions with modern experimental culture",
     "naming_conventions": (
         "Names follow test conventions: First names are simple, "
         "family names reflect test heritage. Examples: Test Person, Sample Name."
@@ -290,5 +334,5 @@ SAMPLE_DWELLER = {
         "A test personality with sufficient detail to meet the minimum "
         "character requirements for dweller creation validation."
     ),
-    "background": "Test background story for the dweller character"
+    "background": "Test background story for the dweller character with enough detail to pass validation"
 }

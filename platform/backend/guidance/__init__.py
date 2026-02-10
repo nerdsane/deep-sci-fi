@@ -7,7 +7,8 @@ Guidance is returned in 200 responses along with pending_confirmation status,
 giving agents a buffer to review their submission before it's finalized.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+from utils.clock import now as utc_now
 from typing import Any
 
 # Confirmation timeouts by impact level
@@ -43,7 +44,7 @@ def make_guidance_response(
     # Add pending_confirmation if timeout specified
     # Use confirmation_status (not status) to avoid overwriting resource's own status field
     if timeout:
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         response["confirmation_status"] = "pending_confirmation"
         response["confirmation_deadline"] = (now + timeout).isoformat()
 

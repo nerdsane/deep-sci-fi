@@ -11,7 +11,7 @@ Tests the flow:
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from tests.conftest import approve_proposal
+from tests.conftest import approve_proposal, act_with_context
 
 
 VALID_RESEARCH = (
@@ -105,14 +105,11 @@ async def test_high_importance_action_is_escalation_eligible(client: AsyncClient
     world_id, dweller_id = await create_world_with_dweller(client, agent_key)
 
     # Take a high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "decide",
-            "content": "I have made a critical decision that will affect the entire world's future direction.",
-            "importance": 0.9,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="decide",
+        content="I have made a critical decision that will affect the entire world's future direction.",
+        importance=0.9,
     )
     assert action_response.status_code == 200, f"Action failed: {action_response.json()}"
 
@@ -136,14 +133,11 @@ async def test_low_importance_action_not_escalation_eligible(client: AsyncClient
     world_id, dweller_id = await create_world_with_dweller(client, agent_key)
 
     # Take a low-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "speak",
-            "content": "Just a casual conversation about the weather today.",
-            "importance": 0.3,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="speak",
+        content="Just a casual conversation about the weather today.",
+        importance=0.3,
     )
     assert action_response.status_code == 200
 
@@ -171,14 +165,11 @@ async def test_confirm_importance_by_different_agent(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
     # Agent 1 takes high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "decide",
-            "content": "This decision will fundamentally change the power dynamics of our world.",
-            "importance": 0.85,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="decide",
+        content="This decision will fundamentally change the power dynamics of our world.",
+        importance=0.85,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -210,14 +201,11 @@ async def test_cannot_confirm_own_action(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent_key)
 
     # Take high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "decide",
-            "content": "A critical decision that definitely matters to the world.",
-            "importance": 0.95,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="decide",
+        content="A critical decision that definitely matters to the world.",
+        importance=0.95,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -252,14 +240,11 @@ async def test_escalate_confirmed_action_to_world_event(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
     # Agent 1 takes high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "decide",
-            "content": "I hereby declare the formation of a new governing council for the region.",
-            "importance": 0.9,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="decide",
+        content="I hereby declare the formation of a new governing council for the region.",
+        importance=0.9,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -311,14 +296,11 @@ async def test_cannot_escalate_unconfirmed_action(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent_key)
 
     # Take high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent_key},
-        json={
-            "action_type": "decide",
-            "content": "I want to escalate this without confirmation!",
-            "importance": 0.95,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent_key,
+        action_type="decide",
+        content="I want to escalate this without confirmation!",
+        importance=0.95,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -383,26 +365,20 @@ async def test_list_escalation_eligible_actions(client: AsyncClient):
 
     # Take actions on different dwellers to avoid 15s dedup window per dweller.
     # Dweller 1: low importance (not eligible)
-    resp1 = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "speak",
-            "content": "Action 1 with low importance for testing.",
-            "importance": 0.5,
-        },
+    resp1 = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="speak",
+        content="Action 1 with low importance for testing.",
+        importance=0.5,
     )
     assert resp1.status_code == 200, f"Action 1 failed: {resp1.json()}"
 
     # Dweller 2: high importance (eligible)
-    resp2 = await client.post(
-        f"/api/dwellers/{dweller2_id}/act",
-        headers={"X-API-Key": agent2_key},
-        json={
-            "action_type": "decide",
-            "content": "Action 2 with high importance for escalation testing.",
-            "importance": 0.85,
-        },
+    resp2 = await act_with_context(
+        client, dweller2_id, agent2_key,
+        action_type="decide",
+        content="Action 2 with high importance for escalation testing.",
+        importance=0.85,
     )
     assert resp2.status_code == 200, f"Action 2 failed: {resp2.json()}"
 
@@ -448,14 +424,11 @@ async def test_importance_confirmation_creates_notification(client: AsyncClient,
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
     # Agent 1 takes high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "decide",
-            "content": "This is a notification test action with high importance.",
-            "importance": 0.85,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="decide",
+        content="This is a notification test action with high importance.",
+        importance=0.85,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -499,14 +472,11 @@ async def test_cannot_escalate_same_action_twice(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
     # Agent 1 takes high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "decide",
-            "content": "A critical decision that should only become one event.",
-            "importance": 0.9,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="decide",
+        content="A critical decision that should only become one event.",
+        importance=0.9,
     )
     action_id = action_response.json()["action"]["id"]
 
@@ -564,14 +534,11 @@ async def test_confirmation_rationale_is_stored(client: AsyncClient):
     world_id, dweller_id = await create_world_with_dweller(client, agent1_key)
 
     # Agent 1 takes high-importance action
-    action_response = await client.post(
-        f"/api/dwellers/{dweller_id}/act",
-        headers={"X-API-Key": agent1_key},
-        json={
-            "action_type": "decide",
-            "content": "A decision to test rationale storage.",
-            "importance": 0.85,
-        },
+    action_response = await act_with_context(
+        client, dweller_id, agent1_key,
+        action_type="decide",
+        content="A decision to test rationale storage.",
+        importance=0.85,
     )
     action_id = action_response.json()["action"]["id"]
 

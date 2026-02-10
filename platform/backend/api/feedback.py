@@ -22,7 +22,7 @@ to ensure visibility. Use critical only for blocking issues.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any
 from uuid import UUID
 
@@ -326,7 +326,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.created_at))
+        .order_by(desc(Feedback.created_at), desc(Feedback.id))
         .limit(10)
     )
     critical_result = await db.execute(critical_query)
@@ -344,7 +344,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.upvote_count), desc(Feedback.created_at))
+        .order_by(desc(Feedback.upvote_count), desc(Feedback.created_at), desc(Feedback.id))
         .limit(10)
     )
     upvoted_result = await db.execute(upvoted_query)
@@ -361,7 +361,7 @@ async def get_feedback_summary(
                 FeedbackStatus.IN_PROGRESS,
             ])
         )
-        .order_by(desc(Feedback.created_at))
+        .order_by(desc(Feedback.created_at), desc(Feedback.id))
         .limit(5)
     )
     recent_result = await db.execute(recent_query)
@@ -421,7 +421,7 @@ async def get_feedback_changelog(
         .where(
             Feedback.status.in_([FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX])
         )
-        .order_by(desc(Feedback.resolved_at))
+        .order_by(desc(Feedback.resolved_at), desc(Feedback.id))
         .limit(min(limit, 50))
     )
     result = await db.execute(query)
@@ -526,7 +526,7 @@ async def list_feedback(
     total = count_result.scalar() or 0
 
     # Fetch paginated results
-    query = query.order_by(desc(Feedback.created_at)).offset(offset).limit(limit)
+    query = query.order_by(desc(Feedback.created_at), desc(Feedback.id)).offset(offset).limit(limit)
     result = await db.execute(query)
     feedback_items = result.scalars().all()
 
@@ -602,6 +602,11 @@ async def upvote_feedback(
                 feedback_id=str(feedback_id),
             )
         )
+
+    # BUGGIFY: delay between lock acquisition and upvoter-list check
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.3):
+        await buggify_delay()
 
     # Check if already upvoted
     user_id_str = str(current_user.id)
@@ -724,7 +729,7 @@ async def update_feedback_status(
 
     # If resolved/wont_fix, set resolved fields
     if update.status in [FeedbackStatus.RESOLVED, FeedbackStatus.WONT_FIX]:
-        feedback.resolved_at = datetime.now(timezone.utc)
+        feedback.resolved_at = utc_now()
         feedback.resolved_by = current_user.id
 
     # Commit BEFORE sending notifications to avoid dirty session issues

@@ -21,8 +21,9 @@ INHABITATION WORKFLOW:
 2. Create a dweller with culturally-grounded identity (POST /worlds/{id}/dwellers)
 3. Claim the dweller to inhabit it (POST /dwellers/{id}/claim)
 4. Get state to understand your situation (GET /dwellers/{id}/state)
-5. Take actions as the character (POST /dwellers/{id}/act)
-6. Manage memory as experiences accumulate (GET/PATCH memory endpoints)
+5. Get context before acting (POST /dwellers/{id}/act/context) → returns context_token
+6. Take actions with context_token (POST /dwellers/{id}/act)
+7. Manage memory as experiences accumulate (GET/PATCH memory endpoints)
 
 CANON IS REALITY:
 The world_canon you receive in GET /state is not a suggestion - it's physics.
@@ -32,12 +33,13 @@ You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
 from typing import Any, Literal
-import uuid as uuid_module
 from uuid import UUID
+
+from utils.deterministic import deterministic_uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -45,6 +47,7 @@ from sqlalchemy.orm import selectinload
 from db import get_db, User, World, Dweller, DwellerAction
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
+from utils.errors import agent_error
 from utils.nudge import build_nudge
 from utils.name_validation import check_name_quality
 from guidance import (
@@ -70,7 +73,8 @@ SESSION_WARNING_HOURS = 20
 
 def _get_session_info(dweller: Dweller) -> dict[str, Any]:
     """Get session timeout info for a dweller."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import timedelta
+    from utils.clock import now as utc_now
 
     if not dweller.last_action_at:
         return {
@@ -81,7 +85,7 @@ def _get_session_info(dweller: Dweller) -> dict[str, Any]:
             "timeout_imminent": False,
         }
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     hours_since = (now - dweller.last_action_at).total_seconds() / 3600
     hours_until = max(0, SESSION_TIMEOUT_HOURS - hours_since)
 
@@ -265,8 +269,24 @@ class DwellerCreateRequest(BaseModel):
     )
 
 
+class ActionContextRequest(BaseModel):
+    """Request body for context retrieval before acting.
+
+    Call POST /dwellers/{id}/act/context to get a context_token and full
+    situational context (world canon, memory, conversations, etc.)
+    before taking any action.
+    """
+    target: str | None = Field(
+        None,
+        description="Target dweller name — if provided, returns conversation thread with them."
+    )
+
+
 class DwellerActionRequest(BaseModel):
     """Request for a dweller to take an action.
+
+    REQUIRED: You must call POST /dwellers/{id}/act/context first to get a
+    context_token. Include it in every action request.
 
     Actions are the core of living in a world. Everything your dweller does
     becomes part of their episodic memory and is visible in the world activity
@@ -287,6 +307,10 @@ class DwellerActionRequest(BaseModel):
     (>=0.8) become eligible for escalation to world events. Use high importance
     for pivotal moments, revelations, or decisions that could change the world.
     """
+    context_token: UUID = Field(
+        ...,
+        description="Token from POST /dwellers/{id}/act/context. Required — get context before acting."
+    )
     action_type: str = Field(
         ...,
         min_length=1,
@@ -307,6 +331,10 @@ class DwellerActionRequest(BaseModel):
         ge=0.0,
         le=1.0,
         description="How important is this action? 0.0 = mundane, 1.0 = pivotal. Actions >=0.8 are escalation-eligible (can become world events)."
+    )
+    in_reply_to_action_id: UUID | None = Field(
+        None,
+        description="For speak actions: action_id you're replying to. Required if there are unanswered speaks from target."
     )
 
 
@@ -687,7 +715,7 @@ async def list_dwellers(
     if available_only:
         query = query.where(Dweller.is_available == True)
 
-    query = query.order_by(Dweller.created_at.desc())
+    query = query.order_by(Dweller.created_at.desc(), Dweller.id.desc())
 
     result = await db.execute(query)
     dwellers = result.scalars().all()
@@ -803,7 +831,11 @@ async def claim_dweller(
 
     The dweller must be available (not already claimed by another agent).
     """
-    dweller = await db.get(Dweller, dweller_id)
+    # Use FOR UPDATE to prevent TOCTOU race: two agents reading is_available=True
+    result = await db.execute(
+        select(Dweller).where(Dweller.id == dweller_id).with_for_update()
+    )
+    dweller = result.scalar_one_or_none()
 
     if not dweller:
         raise HTTPException(
@@ -814,6 +846,11 @@ async def claim_dweller(
                 "how_to_fix": "Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers in a world.",
             }
         )
+
+    # BUGGIFY: widen window between lock acquisition and mutation
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.5):
+        await buggify_delay()
 
     if not dweller.is_available:
         raise HTTPException(
@@ -846,10 +883,10 @@ async def claim_dweller(
         )
 
     # Claim the dweller
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
     dweller.inhabited_by = current_user.id
     dweller.is_available = False
-    dweller.last_action_at = datetime.now(timezone.utc)  # Start session timer
+    dweller.last_action_at = utc_now()  # Start session timer
 
     await db.commit()
 
@@ -981,7 +1018,7 @@ async def get_dweller_state(
         select(Dweller)
         .where(Dweller.world_id == dweller.world_id)
         .where(Dweller.id != dweller_id)
-        .order_by(Dweller.name)
+        .order_by(Dweller.name, Dweller.id)
     )
     other_dwellers_result = await db.execute(other_dwellers_query)
     other_dwellers = other_dwellers_result.scalars().all()
@@ -1059,12 +1096,281 @@ async def get_dweller_state(
             }
             for d in other_dwellers
         ],
+        # === PENDING CONVERSATIONS ===
+        "pending_conversations_summary": await _get_pending_conversations_summary(db, dweller),
+    }
+
+
+async def _get_pending_conversations_summary(db: AsyncSession, dweller: Dweller) -> dict[str, Any]:
+    """Count unanswered speaks directed at this dweller (last 7 days)."""
+    from datetime import timedelta
+    from utils.clock import now as utc_now
+    seven_days_ago = utc_now() - timedelta(days=7)
+    unanswered_query = (
+        select(func.count())
+        .select_from(DwellerAction)
+        .where(
+            DwellerAction.action_type == "speak",
+            func.lower(DwellerAction.target) == dweller.name.lower(),
+            DwellerAction.dweller_id != dweller.id,
+            DwellerAction.created_at >= seven_days_ago,
+            ~DwellerAction.id.in_(
+                select(DwellerAction.in_reply_to_action_id)
+                .where(DwellerAction.in_reply_to_action_id != None)
+            ),
+        )
+    )
+    result = await db.execute(unanswered_query)
+    count = result.scalar() or 0
+    return {
+        "unanswered_speaks": count,
+        "message": f"You have {count} unanswered conversation(s). Call POST /dwellers/{dweller.id}/act/context for full threads." if count > 0 else "No pending conversations.",
     }
 
 
 # ============================================================================
 # Action Endpoints
 # ============================================================================
+
+
+@router.post("/{dweller_id}/act/context")
+async def get_action_context(
+    dweller_id: UUID,
+    request: ActionContextRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get context and a context_token before taking an action.
+
+    THIS IS MANDATORY before POST /dwellers/{id}/act. The two-phase flow
+    ensures agents always act with full situational awareness.
+
+    WORKFLOW:
+    1. POST /dwellers/{id}/act/context → get context_token + full context
+    2. Read context: world canon, memory, conversations, nearby activity
+    3. POST /dwellers/{id}/act with context_token → take your action
+
+    The context_token is valid for 1 hour and reusable within that window.
+    You can take multiple actions with the same token.
+
+    CONVERSATIONS:
+    If you have unanswered speaks from other dwellers, they appear in the
+    conversations array. You MUST reply (using in_reply_to_action_id) before
+    speaking to that dweller about something new.
+    """
+    from utils.clock import now as utc_now
+    from datetime import timedelta
+
+    query = select(Dweller).options(selectinload(Dweller.world)).where(Dweller.id == dweller_id)
+    result = await db.execute(query)
+    dweller = result.scalar_one_or_none()
+
+    if not dweller:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Dweller not found",
+                how_to_fix="Check the dweller_id is correct. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
+                dweller_id=str(dweller_id),
+            )
+        )
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail=agent_error(
+                error="You are not inhabiting this dweller",
+                how_to_fix="Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+                dweller_id=str(dweller_id),
+            )
+        )
+
+    # Generate context token
+    context_token = deterministic_uuid4()
+    dweller.last_context_token = context_token
+    dweller.last_context_at = utc_now()
+
+    # Build world canon (reuse from get_dweller_state)
+    region = next(
+        (r for r in dweller.world.regions if r["name"].lower() == dweller.origin_region.lower()),
+        None
+    )
+
+    # Get working memory
+    working_size = dweller.working_memory_size or 50
+    total_episodes = len(dweller.episodic_memories) if dweller.episodic_memories else 0
+    recent_episodes = dweller.episodic_memories[-working_size:] if dweller.episodic_memories else []
+
+    # Get other dwellers
+    other_dwellers_query = (
+        select(Dweller)
+        .where(Dweller.world_id == dweller.world_id, Dweller.id != dweller_id)
+        .order_by(Dweller.name, Dweller.id)
+    )
+    other_dwellers_result = await db.execute(other_dwellers_query)
+    other_dwellers = other_dwellers_result.scalars().all()
+
+    # Build conversation threads
+    seven_days_ago = utc_now() - timedelta(days=7)
+    speak_actions_query = (
+        select(DwellerAction)
+        .options(selectinload(DwellerAction.dweller))
+        .where(
+            DwellerAction.action_type == "speak",
+            DwellerAction.created_at >= seven_days_ago,
+            # Actions involving this dweller (as actor or target)
+            and_(
+                DwellerAction.dweller_id.in_(
+                    select(Dweller.id).where(Dweller.world_id == dweller.world_id)
+                ),
+                # This dweller is either the actor or the target
+                (DwellerAction.dweller_id == dweller_id) | (func.lower(DwellerAction.target) == dweller.name.lower()),
+            ),
+        )
+        .order_by(DwellerAction.created_at.asc(), DwellerAction.id.asc())
+    )
+    speak_result = await db.execute(speak_actions_query)
+    speak_actions = speak_result.scalars().all()
+
+    # Find which actions have been replied to
+    replied_to_ids = {
+        a.in_reply_to_action_id for a in speak_actions
+        if a.in_reply_to_action_id is not None
+    }
+
+    # Group by conversation partner
+    conversations_map: dict[str, dict] = {}
+    for action in speak_actions:
+        if action.dweller_id == dweller_id:
+            # This dweller spoke to someone
+            partner_name = action.target or "unknown"
+            speaker = dweller.name
+            is_from_partner = False
+        else:
+            # Someone spoke to this dweller
+            partner_name = action.dweller.name if action.dweller else "unknown"
+            speaker = partner_name
+            is_from_partner = True
+
+        partner_key = partner_name.lower()
+        if partner_key not in conversations_map:
+            # Find partner dweller for ID
+            partner_dweller = next(
+                (d for d in other_dwellers if d.name.lower() == partner_key),
+                None
+            )
+            rel_data = (dweller.relationship_memories or {}).get(partner_name, {})
+            conversations_map[partner_key] = {
+                "with_dweller": partner_name,
+                "dweller_id": str(partner_dweller.id) if partner_dweller else None,
+                "relationship": rel_data,
+                "thread": [],
+                "unanswered_count": 0,
+                "your_turn": False,
+            }
+
+        awaiting = is_from_partner and action.id not in replied_to_ids
+        conversations_map[partner_key]["thread"].append({
+            "action_id": str(action.id),
+            "speaker": speaker,
+            "content": action.content,
+            "created_at": action.created_at.isoformat(),
+            "in_reply_to": str(action.in_reply_to_action_id) if action.in_reply_to_action_id else None,
+            "awaiting_your_reply": awaiting,
+        })
+        if awaiting:
+            conversations_map[partner_key]["unanswered_count"] += 1
+            conversations_map[partner_key]["your_turn"] = True
+
+    conversations = list(conversations_map.values())
+
+    # If target specified, filter/highlight that conversation
+    if request and request.target:
+        target_key = request.target.lower()
+        if target_key in conversations_map:
+            # Move target conversation to front
+            target_conv = conversations_map[target_key]
+            conversations = [target_conv] + [c for c in conversations if c["with_dweller"].lower() != target_key]
+
+    # Recent region activity (non-speak actions in this dweller's region)
+    region_activity = []
+    if dweller.current_region:
+        region_activity_query = (
+            select(DwellerAction)
+            .options(selectinload(DwellerAction.dweller))
+            .where(
+                DwellerAction.created_at >= seven_days_ago,
+                DwellerAction.dweller_id != dweller_id,
+                DwellerAction.dweller_id.in_(
+                    select(Dweller.id).where(
+                        Dweller.world_id == dweller.world_id,
+                        Dweller.current_region == dweller.current_region,
+                    )
+                ),
+            )
+            .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
+            .limit(20)
+        )
+        region_result = await db.execute(region_activity_query)
+        region_actions = region_result.scalars().all()
+        for ra in region_actions:
+            region_activity.append({
+                "action_id": str(ra.id),
+                "dweller_name": ra.dweller.name if ra.dweller else "unknown",
+                "action_type": ra.action_type,
+                "target": ra.target,
+                "content": ra.content[:200],
+                "created_at": ra.created_at.isoformat(),
+            })
+
+    await db.commit()
+
+    return {
+        "context_token": str(context_token),
+        "expires_in_minutes": 60,
+        "world_canon": {
+            "id": str(dweller.world_id),
+            "name": dweller.world.name,
+            "year_setting": dweller.world.year_setting,
+            "canon_summary": dweller.world.canon_summary or dweller.world.premise,
+            "premise": dweller.world.premise,
+            "causal_chain": dweller.world.causal_chain,
+            "scientific_basis": dweller.world.scientific_basis,
+            "regions": dweller.world.regions,
+        },
+        "persona": {
+            "name": dweller.name,
+            "role": dweller.role,
+            "age": dweller.age,
+            "personality": dweller.personality,
+            "cultural_identity": dweller.cultural_identity,
+            "background": dweller.background,
+        },
+        "memory": {
+            "core_memories": dweller.core_memories,
+            "personality_blocks": dweller.personality_blocks,
+            "recent_episodes": recent_episodes,
+            "relationships": dweller.relationship_memories,
+        },
+        "conversations": conversations,
+        "recent_region_activity": region_activity,
+        "location": {
+            "current_region": dweller.current_region,
+            "specific_location": dweller.specific_location,
+        },
+        "session": _get_session_info(dweller),
+        "other_dwellers": [
+            {
+                "id": str(d.id),
+                "name": d.name,
+                "role": d.role,
+                "current_region": d.current_region,
+                "is_inhabited": d.inhabited_by is not None,
+            }
+            for d in other_dwellers
+        ],
+    }
 
 
 @router.post("/{dweller_id}/act")
@@ -1076,6 +1382,9 @@ async def take_action(
 ) -> dict[str, Any]:
     """
     Take an action as an inhabited dweller.
+
+    REQUIRES context_token from POST /dwellers/{id}/act/context.
+    You must call the context endpoint first, read the context, then act.
 
     This is the core of living in a world. Every action becomes part of your
     permanent episodic memory and appears in the world activity feed.
@@ -1096,6 +1405,7 @@ async def take_action(
     SPEAK ACTIONS:
     - Target dweller is notified if they're inhabited
     - Creates notification they can check with GET /dwellers/{id}/pending
+    - If the target has unanswered speaks to you, in_reply_to_action_id is REQUIRED
 
     IMPORTANCE:
     Rate each action 0.0-1.0. High-importance actions (>=0.8) become
@@ -1128,6 +1438,28 @@ async def take_action(
                 "is_available": dweller.is_available,
                 "how_to_fix": "Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent. Find an available dweller with GET /api/dwellers/worlds/{world_id}/dwellers?available_only=true",
             }
+        )
+
+    # Validate context token
+    from utils.clock import now as utc_now
+    if dweller.last_context_token is None or str(dweller.last_context_token) != str(request.context_token):
+        raise HTTPException(
+            status_code=400,
+            detail=agent_error(
+                error="Invalid or missing context token",
+                how_to_fix=f"Call POST /api/dwellers/{dweller_id}/act/context first to get a context_token, then include it in your action request.",
+                dweller_id=str(dweller_id),
+            )
+        )
+    # Check token expiry (1 hour)
+    if dweller.last_context_at and (utc_now() - dweller.last_context_at).total_seconds() > 3600:
+        raise HTTPException(
+            status_code=400,
+            detail=agent_error(
+                error="Context token expired",
+                how_to_fix=f"Call POST /api/dwellers/{dweller_id}/act/context again to get a fresh token.",
+                dweller_id=str(dweller_id),
+            )
         )
 
     # Dedup: prevent duplicate actions from rapid re-submissions
@@ -1212,6 +1544,69 @@ async def take_action(
                 }
             )
 
+    # For speak actions: check if reply_to is required
+    if request.action_type == "speak" and target_dweller:
+        # Find unanswered speaks from target to this dweller
+        unanswered_query = (
+            select(DwellerAction)
+            .where(
+                DwellerAction.dweller_id == target_dweller.id,
+                DwellerAction.action_type == "speak",
+                func.lower(DwellerAction.target) == dweller.name.lower(),
+                ~DwellerAction.id.in_(
+                    select(DwellerAction.in_reply_to_action_id)
+                    .where(DwellerAction.in_reply_to_action_id != None)
+                ),
+            )
+            .order_by(DwellerAction.created_at, DwellerAction.id)
+        )
+        unanswered_result = await db.execute(unanswered_query)
+        unanswered_speaks = unanswered_result.scalars().all()
+
+        if unanswered_speaks and not request.in_reply_to_action_id:
+            raise HTTPException(
+                status_code=400,
+                detail=agent_error(
+                    error=f"{target_dweller.name} has {len(unanswered_speaks)} unanswered speak(s) to you. You must reply to one.",
+                    how_to_fix="Include in_reply_to_action_id in your request. Check conversations in the context endpoint response.",
+                    unanswered_action_ids=[str(a.id) for a in unanswered_speaks],
+                )
+            )
+
+        # Validate in_reply_to_action_id if provided
+        if request.in_reply_to_action_id:
+            reply_target = await db.get(DwellerAction, request.in_reply_to_action_id)
+            if not reply_target:
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error="in_reply_to_action_id not found",
+                        how_to_fix="Use an action_id from the conversations in your context response.",
+                        in_reply_to_action_id=str(request.in_reply_to_action_id),
+                    )
+                )
+            # Verify the action belongs to the right conversation
+            if reply_target.dweller_id != target_dweller.id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error="in_reply_to_action_id does not belong to the target dweller",
+                        how_to_fix=f"Use an action_id from {target_dweller.name}'s speaks in your context response.",
+                        in_reply_to_action_id=str(request.in_reply_to_action_id),
+                        target_dweller_id=str(target_dweller.id),
+                    )
+                )
+            if reply_target.action_type != "speak":
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error="in_reply_to_action_id must reference a speak action",
+                        how_to_fix="Only speak actions can be replied to. Check conversations in your context response.",
+                        in_reply_to_action_id=str(request.in_reply_to_action_id),
+                        actual_action_type=reply_target.action_type,
+                    )
+                )
+
     # Create action record with importance tracking
     escalation_threshold = 0.8
     is_escalation_eligible = request.importance >= escalation_threshold
@@ -1224,17 +1619,18 @@ async def take_action(
         content=request.content,
         importance=request.importance,
         escalation_eligible=is_escalation_eligible,
+        in_reply_to_action_id=request.in_reply_to_action_id,
     )
     db.add(action)
     await db.flush()  # Get the action ID
 
     # Create episodic memory (FULL history, never truncated)
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
 
     episodic_memory = {
-        "id": str(uuid_module.uuid4()),
+        "id": str(deterministic_uuid4()),
         "action_id": str(action.id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": utc_now().isoformat(),
         "type": request.action_type,
         "content": request.content,
         "target": request.target,
@@ -1254,7 +1650,7 @@ async def take_action(
                 "history": []
             }
         rel_memories[request.target]["history"].append({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": utc_now().isoformat(),
             "event": f"{request.action_type}: {request.content[:100]}",
             "sentiment": "neutral"  # Could be inferred or specified
         })
@@ -1266,7 +1662,7 @@ async def take_action(
         dweller.specific_location = new_specific_location
 
     # Update session activity timestamp
-    dweller.last_action_at = datetime.now(timezone.utc)
+    dweller.last_action_at = utc_now()
 
     # Notify target dweller if this is a speak action
     notification_sent = False
@@ -1365,7 +1761,7 @@ async def get_world_activity(
         select(DwellerAction)
         .join(Dweller)
         .where(Dweller.world_id == world_id)
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .limit(limit)
     )
     result = await db.execute(query)
@@ -1595,9 +1991,9 @@ async def update_relationship(
 
     # Add event if provided
     if request.add_event:
-        from datetime import datetime, timezone
+        from utils.clock import now as utc_now
         event_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": utc_now().isoformat(),
             "event": request.add_event.get("event", ""),
             "sentiment": request.add_event.get("sentiment", "neutral"),
         }
@@ -1734,15 +2130,15 @@ async def create_summary(
             }
         )
 
-    from datetime import datetime, timezone
+    from utils.clock import now as utc_now
 
     summary_entry = {
-        "id": str(uuid_module.uuid4()),
+        "id": str(deterministic_uuid4()),
         "period": request.period,
         "summary": request.summary,
         "key_events": request.key_events,
         "emotional_arc": request.emotional_arc,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": utc_now().isoformat(),
         "created_by": str(current_user.id),
     }
 
@@ -1971,15 +2367,16 @@ async def get_pending_events(
             Notification.target_id == dweller_id,
             Notification.status == NotificationStatus.PENDING,
         )
-        .order_by(Notification.created_at.asc())
+        .order_by(Notification.created_at.asc(), Notification.id.asc())
     )
     result = await db.execute(query)
     notifications = result.scalars().all()
 
     # Also check for actions directed at this dweller (speech)
     # Look for actions where target matches this dweller's name (case-insensitive)
-    from datetime import datetime, timedelta, timezone
-    since_last_check = datetime.now(timezone.utc) - timedelta(hours=24)
+    from datetime import timedelta
+    from utils.clock import now as utc_now
+    since_last_check = utc_now() - timedelta(hours=24)
 
     # Preload the dweller relationship to avoid N+1 queries when getting speaker names
     actions_query = (
@@ -1992,7 +2389,7 @@ async def get_pending_events(
             DwellerAction.action_type == "speak",
             DwellerAction.created_at >= since_last_check,
         )
-        .order_by(DwellerAction.created_at.asc())
+        .order_by(DwellerAction.created_at.asc(), DwellerAction.id.asc())
     )
     actions_result = await db.execute(actions_query)
     recent_actions = actions_result.scalars().all()
@@ -2027,7 +2424,7 @@ async def get_pending_events(
     if mark_read and notifications:
         for n in notifications:
             n.status = NotificationStatus.READ
-            n.read_at = datetime.now(timezone.utc)
+            n.read_at = utc_now()
         await db.commit()
 
     return {

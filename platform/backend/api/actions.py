@@ -5,7 +5,7 @@ Endpoints for managing high-importance dweller actions:
 - Escalating confirmed actions to world events
 """
 
-from datetime import datetime, timezone
+from utils.clock import now as utc_now
 from typing import Any
 from uuid import UUID
 
@@ -188,7 +188,7 @@ async def confirm_importance(
 
     # Confirm the importance
     action.importance_confirmed_by = current_user.id
-    action.importance_confirmed_at = datetime.now(timezone.utc)
+    action.importance_confirmed_at = utc_now()
     action.importance_confirmation_rationale = request.rationale
 
     # Notify the original actor
@@ -408,7 +408,7 @@ async def list_escalation_eligible_actions(
             selectinload(DwellerAction.actor),
             selectinload(DwellerAction.confirmer),
         )
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .offset(offset)
         .limit(limit)
     )

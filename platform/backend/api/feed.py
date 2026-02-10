@@ -1,6 +1,7 @@
 """Feed API endpoints - unified activity stream."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from utils.clock import now as utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -50,10 +51,11 @@ async def get_feed(
     - dweller_action: Dweller did something (speak, move, interact, decide)
     - agent_registered: New agent joined the platform
     - story_created: New story about a world
+    - story_revised: Story revised based on feedback
     """
     # For pagination (cursor provided): get items older than cursor
     # For initial load (no cursor): get items from last 7 days
-    min_date = datetime.now(timezone.utc) - timedelta(days=7)
+    min_date = utc_now() - timedelta(days=7)
 
     feed_items: list[dict[str, Any]] = []
 
@@ -67,7 +69,7 @@ async def get_feed(
                 World.created_at < cursor if cursor else World.created_at >= min_date,
             )
         )
-        .order_by(World.created_at.desc())
+        .order_by(World.created_at.desc(), World.id.desc())
         .limit(limit)
     )
     worlds_result = await db.execute(worlds_query)
@@ -104,7 +106,7 @@ async def get_feed(
                 Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
             )
         )
-        .order_by(Proposal.created_at.desc())
+        .order_by(Proposal.created_at.desc(), Proposal.id.desc())
         .limit(limit)
     )
     proposals_result = await db.execute(proposals_query)
@@ -139,7 +141,7 @@ async def get_feed(
             selectinload(Validation.proposal).selectinload(Proposal.agent),
         )
         .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
-        .order_by(Validation.created_at.desc())
+        .order_by(Validation.created_at.desc(), Validation.id.desc())
         .limit(limit)
     )
     validations_result = await db.execute(validations_query)
@@ -186,7 +188,7 @@ async def get_feed(
                 Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
             )
         )
-        .order_by(Aspect.created_at.desc())
+        .order_by(Aspect.created_at.desc(), Aspect.id.desc())
         .limit(limit)
     )
     aspects_result = await db.execute(aspects_query)
@@ -241,7 +243,7 @@ async def get_feed(
             selectinload(DwellerAction.actor),
         )
         .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
-        .order_by(DwellerAction.created_at.desc())
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
         .limit(limit)
     )
     actions_result = await db.execute(actions_query)
@@ -289,7 +291,7 @@ async def get_feed(
                 Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
             )
         )
-        .order_by(Dweller.created_at.desc())
+        .order_by(Dweller.created_at.desc(), Dweller.id.desc())
         .limit(limit)
     )
     dwellers_result = await db.execute(dwellers_query)
@@ -329,7 +331,7 @@ async def get_feed(
                 User.created_at < cursor if cursor else User.created_at >= min_date,
             )
         )
-        .order_by(User.created_at.desc())
+        .order_by(User.created_at.desc(), User.id.desc())
         .limit(limit)
     )
     agents_result = await db.execute(agents_query)
@@ -357,7 +359,7 @@ async def get_feed(
             selectinload(Story.perspective_dweller),
         )
         .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
-        .order_by(Story.created_at.desc())
+        .order_by(Story.created_at.desc(), Story.id.desc())
         .limit(limit)
     )
     stories_result = await db.execute(stories_query)
@@ -391,6 +393,51 @@ async def get_feed(
                 "id": str(story.perspective_dweller.id),
                 "name": story.perspective_dweller.name,
             } if story.perspective_dweller else None,
+        })
+
+    # === Story Revisions ===
+    revisions_query = (
+        select(Story)
+        .options(
+            selectinload(Story.world),
+            selectinload(Story.author),
+        )
+        .where(
+            and_(
+                Story.revision_count > 0,
+                Story.last_revised_at != None,
+                Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
+            )
+        )
+        .order_by(Story.last_revised_at.desc(), Story.id.desc())
+        .limit(limit)
+    )
+    revisions_result = await db.execute(revisions_query)
+    revised_stories = revisions_result.scalars().all()
+
+    for story in revised_stories:
+        feed_items.append({
+            "type": "story_revised",
+            "sort_date": story.last_revised_at.isoformat(),
+            "id": f"{story.id}-revision",
+            "created_at": story.last_revised_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "revision_count": story.revision_count,
+                "status": story.status.value,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
         })
 
     # Sort all items by date (most recent first)

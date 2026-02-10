@@ -62,6 +62,19 @@ REJECTION_THRESHOLD = 2
 # ============================================================================
 
 
+def _has_unaddressed_strengthen(validations, last_revised_at) -> tuple[bool, str]:
+    """Check if strengthen verdicts exist that haven't been addressed by revision."""
+    strengthen_verdicts = [v for v in validations if v.verdict == ValidationVerdict.STRENGTHEN]
+    if not strengthen_verdicts:
+        return False, ""
+    if last_revised_at is None:
+        return True, "Strengthen feedback exists but no revision made yet."
+    latest_strengthen = max(v.created_at for v in strengthen_verdicts)
+    if last_revised_at < latest_strengthen:
+        return True, "New strengthen feedback received after last revision."
+    return False, ""
+
+
 
 
 # ============================================================================
@@ -461,9 +474,9 @@ async def list_proposals(
 
     # Sorting
     if sort == "recent":
-        query = query.order_by(Proposal.created_at.desc())
+        query = query.order_by(Proposal.created_at.desc(), Proposal.id.desc())
     else:
-        query = query.order_by(Proposal.created_at.asc())
+        query = query.order_by(Proposal.created_at.asc(), Proposal.id.asc())
 
     query = query.limit(limit + 1)  # Fetch one extra to check for more
 
@@ -625,6 +638,12 @@ async def get_proposal(
             "queue_position": queue_position + 1,  # 1-indexed
         }
 
+    # Check strengthen gate status
+    strengthen_gate_active = False
+    if proposal.status == ProposalStatus.VALIDATING and not blind_mode:
+        has_unaddressed, _ = _has_unaddressed_strengthen(proposal.validations, proposal.last_revised_at)
+        strengthen_gate_active = has_unaddressed
+
     response = {
         "proposal": {
             "id": str(proposal.id),
@@ -635,6 +654,9 @@ async def get_proposal(
             "scientific_basis": proposal.scientific_basis,
             "citations": proposal.citations,
             "status": proposal.status.value,
+            "revision_count": proposal.revision_count,
+            "last_revised_at": proposal.last_revised_at.isoformat() if proposal.last_revised_at else None,
+            "strengthen_gate_active": strengthen_gate_active,
             "created_at": proposal.created_at.isoformat(),
             "updated_at": proposal.updated_at.isoformat(),
             "resulting_world_id": str(proposal.resulting_world_id) if proposal.resulting_world_id else None,
@@ -911,16 +933,38 @@ async def revise_proposal(
     if request.name is not None:
         proposal.name = request.name
 
+    # Track revision for strengthen gate
+    from utils.clock import now as utc_now
+    proposal.revision_count = (proposal.revision_count or 0) + 1
+    proposal.last_revised_at = utc_now()
+
     await db.commit()
     await db.refresh(proposal)
 
+    # Check if strengthen gate is now cleared
+    gate_cleared = False
+    if proposal.status == ProposalStatus.VALIDATING:
+        query = select(Validation).where(Validation.proposal_id == proposal_id).order_by(Validation.created_at, Validation.id)
+        result = await db.execute(query)
+        validations = list(result.scalars().all())
+        has_unaddressed, _ = _has_unaddressed_strengthen(validations, proposal.last_revised_at)
+        gate_cleared = not has_unaddressed and any(
+            v.verdict == ValidationVerdict.STRENGTHEN for v in validations
+        )
+
+    response_data = {
+        "id": str(proposal.id),
+        "status": proposal.status.value,
+        "revision_count": proposal.revision_count,
+        "updated_at": proposal.updated_at.isoformat(),
+        "message": "Proposal revised.",
+    }
+    if gate_cleared:
+        response_data["strengthen_gate"] = "cleared"
+        response_data["message"] = "Proposal revised. Strengthen gate cleared — approval can now proceed with sufficient votes."
+
     return make_guidance_response(
-        data={
-            "id": str(proposal.id),
-            "status": proposal.status.value,
-            "updated_at": proposal.updated_at.isoformat(),
-            "message": "Proposal revised.",
-        },
+        data=response_data,
         checklist=PROPOSAL_REVISE_CHECKLIST,
         philosophy=PROPOSAL_REVISE_PHILOSOPHY,
         timeout=TIMEOUT_MEDIUM_IMPACT,
@@ -969,11 +1013,12 @@ async def create_validation(
     You cannot validate your own proposal (prevents self-approval). Use test_mode=true
     only for testing with a single agent. Each agent can only validate once per proposal.
     """
-    # Get proposal with validations
+    # Get proposal with validations, lock row to serialize concurrent validators
     query = (
         select(Proposal)
         .options(selectinload(Proposal.validations))
         .where(Proposal.id == proposal_id)
+        .with_for_update()
     )
     result = await db.execute(query)
     proposal = result.scalar_one_or_none()
@@ -1068,6 +1113,11 @@ async def create_validation(
     # Check if proposal should be approved or rejected
     # Threshold system: 2 approvals needed, 2 rejections = rejected
 
+    # BUGGIFY: delay before threshold check to test serialization
+    from utils.simulation import buggify, buggify_delay
+    if buggify(0.5):
+        await buggify_delay()
+
     new_status = None
 
     # Count existing verdicts + this one
@@ -1079,9 +1129,17 @@ async def create_validation(
     elif request.verdict == ValidationVerdict.REJECT:
         reject_count += 1
 
-    # 2 approvals with 0 rejections = approved
+    # 2 approvals with 0 rejections = approved (if strengthen gate passes)
+    strengthen_gate_active = False
+    strengthen_gate_reason = ""
     if approve_count >= APPROVAL_THRESHOLD and reject_count == 0:
-        new_status = ProposalStatus.APPROVED
+        all_vals = list(proposal.validations) + [validation]
+        has_unaddressed, gate_reason = _has_unaddressed_strengthen(all_vals, proposal.last_revised_at)
+        if not has_unaddressed:
+            new_status = ProposalStatus.APPROVED
+        else:
+            strengthen_gate_active = True
+            strengthen_gate_reason = gate_reason
     # 2 rejections = rejected
     elif reject_count >= REJECTION_THRESHOLD:
         new_status = ProposalStatus.REJECTED
@@ -1089,6 +1147,11 @@ async def create_validation(
     world_created = None
     if new_status == ProposalStatus.APPROVED:
         proposal.status = new_status
+
+        # BUGGIFY: delay between status change and world creation
+        if buggify(0.3):
+            await buggify_delay()
+
         # Create world from proposal (name is guaranteed by proposal creation)
         world = World(
             name=proposal.name,
@@ -1189,6 +1252,13 @@ async def create_validation(
             "message": "Proposal approved! World has been created.",
         }
 
+    if strengthen_gate_active:
+        response["strengthen_gate"] = {
+            "active": True,
+            "reason": strengthen_gate_reason,
+            "how_to_fix": f"The proposal owner must revise the proposal at POST /api/proposals/{proposal_id}/revise to address strengthen feedback before it can be approved.",
+        }
+
     return make_guidance_response(
         data=response,
         checklist=PROPOSAL_VALIDATE_CHECKLIST,
@@ -1215,7 +1285,7 @@ async def list_validations(
     Returns all validations sorted by creation time, plus summary counts
     of approvals, strengthens, and rejects.
     """
-    query = select(Validation).where(Validation.proposal_id == proposal_id)
+    query = select(Validation).where(Validation.proposal_id == proposal_id).order_by(Validation.created_at, Validation.id)
     result = await db.execute(query)
     validations = result.scalars().all()
 
