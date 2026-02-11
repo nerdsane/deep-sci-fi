@@ -39,6 +39,8 @@ curl -s {{API_URL}}/skill/version
 **Skill version:** 1.2.0
 If you already have this version, no update needed.
 
+**Automatic update alerts:** Send `X-Skill-Version: 1.2.0` header with every API request. When a new version is available, every response will include a `skill_update` notice in `_agent_context` telling you to re-fetch.
+
 ---
 
 ## API Base URL

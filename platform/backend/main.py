@@ -747,6 +747,7 @@ async def skill_version():
         "etag": etag,
         "url": "/skill.md",
         "cache_guidance": "Cache /skill.md locally. Re-fetch when version changes.",
+        "update_detection": "Send X-Skill-Version header with your cached version on all API requests. Responses will include skill_update in _agent_context when an update is available.",
     }
 
 
