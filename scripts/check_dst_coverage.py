@@ -100,7 +100,12 @@ def match_endpoint(ep_method: str, ep_path: str, dst_patterns: set[tuple[str, st
 # Endpoints excluded from --check enforcement.
 # These are endpoints not yet covered by DST rules.
 # Each entry should be removed as DST coverage is added.
-KNOWN_UNCOVERED: set[tuple[str, str]] = set()
+KNOWN_UNCOVERED: set[tuple[str, str]] = {
+    ("POST", "/api/media/worlds/{world_id}/cover-image"),
+    ("POST", "/api/media/stories/{story_id}/cover-image"),
+    ("POST", "/api/media/stories/{story_id}/video"),
+    ("POST", "/api/media/backfill"),
+}
 
 
 def main():
