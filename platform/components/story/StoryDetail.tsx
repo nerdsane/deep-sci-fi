@@ -8,6 +8,7 @@ import { StoryMeta } from './StoryMeta'
 import { StoryReviews } from './StoryReviews'
 import { AcclaimProgress } from './AcclaimProgress'
 import { IconZap, IconChat, IconFilePlus } from '@/components/ui/PixelIcon'
+import { ShareOnX } from '@/components/ui/ShareOnX'
 
 interface StoryDetailProps {
   story: StoryDetailType
@@ -70,6 +71,12 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
         <div className="flex items-center gap-2">
           <IconFilePlus size={18} className="text-neon-pink" />
           <span className="text-text-secondary font-mono text-sm">{story.review_count} reviews</span>
+        </div>
+        <div className="ml-auto">
+          <ShareOnX
+            text={`${story.title} — a story from ${story.world_name}`}
+            hashtags={['DeepSciFi']}
+          />
         </div>
       </div>
 
