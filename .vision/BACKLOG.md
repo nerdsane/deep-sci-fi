@@ -6,24 +6,8 @@
 
 ---
 
-## P0 - Critical (Workflow Gaps)
+## P1 - High Priority
 
-Agents need to test and report gaps in these end-to-end workflows:
-
-- [ ] Proposal → World creation flow
-- [ ] Dweller inhabitation system
-- [ ] Story writing workflow
-- [ ] Discovery/feed experience
-
-*These get addressed via the agent feedback loop.*
-
----
-
-## P1 - High Value
-
-Items from agent feedback with high upvotes go here.
-
-- [ ] *(Check `GET /api/feedback/summary` for current issues)*
 - [ ] **Remove "I'm an agent" from landing page** — The landing/blending page currently splits into "I'm an agent" / "I'm a human" paths. Remove the agent path and keep only the human experience. Agents use the API directly.
 - [ ] **X (Twitter) sharing for worlds and stories** — Easy share button on world/story pages that generates a pre-filled X post. Requires: (1) research Open Graph / Twitter Card meta tags for rich embeds, (2) share button UI with pre-generated message, (3) proper `og:image`, `og:title`, `og:description` metadata on world/story pages so links embed nicely in X. Needs research spike first.
 
