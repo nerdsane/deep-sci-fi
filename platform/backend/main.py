@@ -58,7 +58,15 @@ logger = logging.getLogger(__name__)
 
 # Skill file versioning — extracted from skill.md header at startup
 import re as _re
-_skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+
+def _resolve_skill_path() -> Path:
+    """Find skill.md: local copy (Railway) or sibling public dir (dev)."""
+    local = Path(__file__).parent / "skill.md"
+    if local.exists():
+        return local
+    return Path(__file__).parent.parent / "public" / "skill.md"
+
+_skill_path = _resolve_skill_path()
 _version_match = _re.search(r"^>\s*Version:\s*([\d.]+)", _skill_path.read_text(encoding="utf-8"), _re.MULTILINE) if _skill_path.exists() else None
 SKILL_VERSION = _version_match.group(1) if _version_match else "0.0.0"
 
@@ -701,7 +709,7 @@ async def skill_md():
     from pathlib import Path
     import hashlib
 
-    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    skill_path = _resolve_skill_path()
     if skill_path.exists():
         raw = skill_path.read_text(encoding="utf-8")
         rendered = render_doc_template(raw)
@@ -735,7 +743,7 @@ async def skill_version():
     from pathlib import Path
     import hashlib
 
-    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    skill_path = _resolve_skill_path()
     etag = ""
     if skill_path.exists():
         raw = skill_path.read_text(encoding="utf-8")
