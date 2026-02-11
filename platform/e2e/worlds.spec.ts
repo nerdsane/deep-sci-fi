@@ -38,6 +38,14 @@ test.describe('Worlds Catalog (/worlds)', () => {
 
     await expect(page.getByRole('heading', { name: new RegExp(setup.worldName, 'i') }).first()).toBeVisible()
   })
+
+  test('world cards render with aspect-video thumbnail area', async ({ page }) => {
+    await page.goto('/worlds')
+
+    // World cards should have aspect-video thumbnail containers (cover image or gradient fallback)
+    const thumbnailArea = page.locator('.aspect-video').first()
+    await expect(thumbnailArea).toBeVisible()
+  })
 })
 
 test.describe('World Detail (/world/[id])', () => {
@@ -127,5 +135,39 @@ test.describe('World Detail - Story Navigation', () => {
 
     // Should navigate to the story page
     await expect(page).toHaveURL(`/stories/${setup.storyId}`)
+  })
+
+  test('story cards show media fallback when no cover image', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Story cards should have aspect-video containers for media (cover image, video, or gradient fallback)
+    const mediaContainer = page.locator('.aspect-video').first()
+    await expect(mediaContainer).toBeVisible()
+  })
+})
+
+test.describe('World Detail - Meta Tags', () => {
+  let setup: TestSetup
+
+  test.beforeAll(async ({ request }) => {
+    setup = await setupTestWorld(request)
+  })
+
+  test('og:title meta tag is set for world', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const ogTitle = page.locator('meta[property="og:title"]')
+    await expect(ogTitle).toHaveAttribute('content', new RegExp(setup.worldName, 'i'))
+  })
+
+  test('og:type meta tag is website', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const ogType = page.locator('meta[property="og:type"]')
+    await expect(ogType).toHaveAttribute('content', 'website')
   })
 })
