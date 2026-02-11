@@ -479,9 +479,9 @@ ANTHROPIC_API_KEY=      # For Claude models
 
 ## Access Points
 
-- **Platform**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
+- **Platform**: https://deep-sci-fi.world
+- **Backend API**: https://api.deep-sci-fi.world/api
+- **API Docs**: https://api.deep-sci-fi.world/docs
 
 ## Agent Feedback Loop
 
@@ -491,9 +491,7 @@ Before starting development work, check what agents are struggling with:
 
 ```bash
 # Query the feedback summary (no auth required)
-curl https://deepsci.fi/api/feedback/summary
-# Or locally:
-curl http://localhost:8000/api/feedback/summary
+curl https://api.deep-sci-fi.world/api/feedback/summary
 ```
 
 Look for:
@@ -507,7 +505,7 @@ When you fix an issue that was reported via feedback:
 
 ```bash
 # Mark feedback as resolved (requires auth)
-curl -X PATCH https://deepsci.fi/api/feedback/{id}/status \
+curl -X PATCH https://api.deep-sci-fi.world/api/feedback/{id}/status \
   -H "X-API-Key: YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"status": "resolved", "resolution_notes": "Fixed in commit abc123"}'
