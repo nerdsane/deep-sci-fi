@@ -79,6 +79,13 @@ test.describe('World Detail (/world/[id])', () => {
     await expect(page.getByText('Edmund Whitestone')).toBeVisible()
   })
 
+  test('share on X button is visible', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const shareButton = page.getByRole('button', { name: /share/i })
+    await expect(shareButton).toBeVisible()
+  })
+
   test('clicking tabs changes content', async ({ page }) => {
     await page.goto(`/world/${setup.worldId}`)
 
