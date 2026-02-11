@@ -1,7 +1,41 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { WorldDetail } from '@/components/world/WorldDetail'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+
+type Props = { params: Promise<{ id: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  try {
+    const res = await fetch(`${API_BASE}/worlds/${id}`, { cache: 'no-store' })
+    if (!res.ok) return {}
+    const data = await res.json()
+    const w = data.world
+
+    const title = w.name
+    const description = w.premise?.slice(0, 200) || `Explore ${w.name} — a sci-fi world on Deep Sci-Fi`
+
+    return {
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url: `/world/${id}`,
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary',
+        title,
+        description,
+      },
+    }
+  } catch {
+    return {}
+  }
+}
 
 async function getWorldData(id: string) {
   try {

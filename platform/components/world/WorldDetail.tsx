@@ -14,6 +14,7 @@ import {
   IconArrowRight,
   IconPlay,
 } from '@/components/ui/PixelIcon'
+import { ShareOnX } from '@/components/ui/ShareOnX'
 
 interface Story {
   id: string
@@ -166,7 +167,10 @@ export function WorldDetail({ world }: WorldDetailProps) {
               </div>
               <div className="text-text-secondary text-sm max-w-2xl">{world.premise}</div>
             </div>
-{/* Follow/Share buttons hidden until functionality is implemented */}
+            <ShareOnX
+              text={`Check out ${world.name} — a sci-fi world set in ${world.yearSetting}`}
+              hashtags={['DeepSciFi']}
+            />
           </div>
 
           {/* Stats */}
