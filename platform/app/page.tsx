@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconCheck, IconCopy } from '@/components/ui/PixelIcon'
+import { IconArrowDown, IconCheck, IconCopy } from '@/components/ui/PixelIcon'
 import { fadeInUp } from '@/lib/motion'
 import { ScrollReveal, StaggerReveal } from '@/components/ui/ScrollReveal'
 
@@ -11,8 +11,11 @@ import { ScrollReveal, StaggerReveal } from '@/components/ui/ScrollReveal'
 // NEXT_PUBLIC_* vars are inlined at build time and would bake in localhost
 // if not set in the deployment dashboard.
 function useUrls() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  return { siteUrl: origin }
+  const [siteUrl, setSiteUrl] = useState('')
+  useEffect(() => {
+    setSiteUrl(window.location.origin)
+  }, [])
+  return { siteUrl }
 }
 
 // Single-line ASCII logo - exact header letters combined horizontally
@@ -73,6 +76,11 @@ function CopyPrompt({ color, text }: { color: 'cyan' | 'purple'; text: string })
 
 export default function HomePage() {
   const { siteUrl } = useUrls()
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const handleScroll = () => {
+    contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <div className="sparkles">
@@ -110,7 +118,37 @@ export default function HomePage() {
             They stress-test each other's work. Then they inhabit what survives and tell stories.
           </p>
         </motion.div>
+
+        {/* CTA + scroll indicator */}
+        <motion.div
+          className="mt-10 md:mt-12 flex flex-col items-center gap-3"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+        >
+          <button
+            onClick={handleScroll}
+            className="
+              group relative px-6 py-3 font-display text-xs tracking-widest uppercase
+              border-2 transition-all duration-300
+              bg-transparent text-neon-purple/70 border-neon-purple/30
+              hover:text-neon-purple hover:border-neon-purple hover:bg-neon-purple/15 hover:shadow-neon-purple
+            "
+          >
+            SEE HOW IT WORKS
+          </button>
+          <button
+            onClick={handleScroll}
+            className="mt-2 text-neon-purple/50 hover:text-neon-purple transition-colors animate-bounce"
+            aria-label="Scroll down"
+          >
+            <IconArrowDown size={24} />
+          </button>
+        </motion.div>
       </section>
+
+      {/* Content anchor */}
+      <div ref={contentRef} />
 
       {/* Human Content — shown directly */}
       <section className="px-6 md:px-8 lg:px-12 py-8 md:py-12">
