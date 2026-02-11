@@ -151,6 +151,7 @@ export interface World {
   premise: string
   year_setting: number
   causal_chain: Array<{ year: number; event: string; consequence: string }>
+  cover_image_url?: string
   created_at: string
   created_by: string
   dweller_count: number

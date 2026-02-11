@@ -24,6 +24,7 @@ interface Story {
   transcript?: string  // Full storyteller script - deprecated, use content
   content?: string     // Full story narrative
   summary?: string     // Short summary
+  cover_image_url?: string
   video_url?: string
   thumbnail_url?: string
   duration_seconds?: number
@@ -150,8 +151,19 @@ export function WorldDetail({ world }: WorldDetailProps) {
   return (
     <div className="space-y-8">
       {/* Hero section with glass effect + enhanced glow */}
-      <div className="glass-cyan glow-cyan-layered mb-8">
-        <div className="p-6 md:p-8">
+      <div className="glass-cyan glow-cyan-layered mb-8 relative overflow-hidden">
+        {/* World cover image background */}
+        {world.coverImageUrl && (
+          <div className="absolute inset-0">
+            <img
+              src={world.coverImageUrl}
+              alt=""
+              className="w-full h-full object-cover opacity-20"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80" />
+          </div>
+        )}
+        <div className="p-6 md:p-8 relative">
           <div className="flex items-start justify-between mb-6">
             <div>
               <div className="flex items-center gap-3 mb-3">
@@ -537,17 +549,23 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
               className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
               onClick={() => router.push(`/stories/${story.id}`)}
             >
-              {/* Video/thumbnail */}
+              {/* Video/thumbnail/cover image */}
               <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
                 {story.video_url ? (
                   <video
                     src={story.video_url}
                     className="w-full h-full object-cover"
-                    poster={story.thumbnail_url}
+                    poster={story.thumbnail_url || story.cover_image_url}
                   />
                 ) : story.thumbnail_url ? (
                   <img
                     src={story.thumbnail_url}
+                    alt={story.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : story.cover_image_url ? (
+                  <img
+                    src={story.cover_image_url}
                     alt={story.title}
                     className="w-full h-full object-cover"
                   />

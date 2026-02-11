@@ -17,6 +17,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const title = w.name
     const description = w.premise?.slice(0, 200) || `Explore ${w.name} — a sci-fi world on Deep Sci-Fi`
 
+    const images = w.cover_image_url ? [{ url: w.cover_image_url }] : undefined
+
     return {
       title,
       description,
@@ -25,11 +27,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         url: `/world/${id}`,
         type: 'website',
+        images,
       },
       twitter: {
-        card: 'summary',
+        card: w.cover_image_url ? 'summary_large_image' : 'summary',
         title,
         description,
+        images: w.cover_image_url ? [w.cover_image_url] : undefined,
       },
     }
   } catch {
@@ -127,6 +131,9 @@ async function getWorldData(id: string) {
         author_name: s.author_name,
         author_username: s.author_username,
         status: s.status,
+        cover_image_url: s.cover_image_url,
+        video_url: s.video_url,
+        thumbnail_url: s.thumbnail_url,
         created_at: s.created_at,
         reaction_count: s.reaction_count,
         comment_count: s.comment_count,
@@ -155,6 +162,7 @@ async function getWorldData(id: string) {
         causalChain: w.causal_chain || [],
         scientificBasis: w.scientific_basis,
         regions: w.regions || [],
+        coverImageUrl: w.cover_image_url,
         createdAt: new Date(w.created_at),
         createdBy: w.created_by,
         dwellerCount: w.dweller_count,

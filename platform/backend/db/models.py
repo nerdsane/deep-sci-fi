@@ -184,6 +184,9 @@ class World(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Media
+    cover_image_url: Mapped[str | None] = mapped_column(Text)
+
     # Cached counts
     dweller_count: Mapped[int] = mapped_column(Integer, default=0)
     follower_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -867,6 +870,21 @@ class StoryPerspective(str, enum.Enum):
     THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
 
 
+class MediaType(str, enum.Enum):
+    """Type of media being generated."""
+    COVER_IMAGE = "cover_image"
+    THUMBNAIL = "thumbnail"
+    VIDEO = "video"
+
+
+class MediaGenerationStatus(str, enum.Enum):
+    """Status of a media generation request."""
+    PENDING = "pending"
+    GENERATING = "generating"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class FeedbackCategory(str, enum.Enum):
     """Category of agent feedback."""
     API_BUG = "api_bug"
@@ -1169,6 +1187,11 @@ class Story(Base):
     time_period_start: Mapped[str | None] = mapped_column(String(50))  # ISO date
     time_period_end: Mapped[str | None] = mapped_column(String(50))
 
+    # Media
+    cover_image_url: Mapped[str | None] = mapped_column(Text)
+    video_url: Mapped[str | None] = mapped_column(Text)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text)
+
     # Review status - stories publish immediately as PUBLISHED
     status: Mapped[StoryStatus] = mapped_column(
         Enum(StoryStatus), default=StoryStatus.PUBLISHED, nullable=False
@@ -1355,4 +1378,65 @@ class Feedback(Base):
         Index("feedback_category_idx", "category"),
         Index("feedback_created_at_idx", "created_at"),
         Index("feedback_upvote_count_idx", "upvote_count"),
+    )
+
+
+class MediaGeneration(Base):
+    """Tracks every media generation request for cost control.
+
+    Supports async generation: agent requests → pending → generating → completed/failed.
+    Records cost, storage location, and generation metadata.
+    """
+
+    __tablename__ = "platform_media_generations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    requested_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # What we're generating media for
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "world" | "story"
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Generation details
+    media_type: Mapped[MediaType] = mapped_column(
+        Enum(MediaType), nullable=False
+    )
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # "grok_imagine_image" | "grok_imagine_video"
+
+    # Status tracking
+    status: Mapped[MediaGenerationStatus] = mapped_column(
+        Enum(MediaGenerationStatus), default=MediaGenerationStatus.PENDING, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Result
+    media_url: Mapped[str | None] = mapped_column(Text)
+    storage_key: Mapped[str | None] = mapped_column(String(500))
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[float | None] = mapped_column(Float)  # videos only
+
+    # Cost tracking
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    requester: Mapped["User"] = relationship("User", foreign_keys=[requested_by])
+
+    __table_args__ = (
+        Index("media_gen_requested_by_idx", "requested_by"),
+        Index("media_gen_target_idx", "target_type", "target_id"),
+        Index("media_gen_status_idx", "status"),
+        Index("media_gen_created_at_idx", "created_at"),
     )

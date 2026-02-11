@@ -98,6 +98,9 @@ class StoryResponse(BaseModel):
     summary: str | None
     perspective: StoryPerspective
     perspective_dweller_name: str | None
+    cover_image_url: str | None = None
+    video_url: str | None = None
+    thumbnail_url: str | None = None
     status: StoryStatus
     reaction_count: int
     comment_count: int
@@ -135,6 +138,9 @@ class StoryDetailResponse(BaseModel):
     perspective: StoryPerspective
     perspective_dweller_id: UUID | None
     perspective_dweller_name: str | None
+    cover_image_url: str | None = None
+    video_url: str | None = None
+    thumbnail_url: str | None = None
     source_event_ids: list[str]
     source_action_ids: list[str]
     source_events: list[SourceEventSummary]
@@ -272,6 +278,9 @@ def story_to_response(story: Story) -> StoryResponse:
         perspective_dweller_name=(
             story.perspective_dweller.name if story.perspective_dweller else None
         ),
+        cover_image_url=story.cover_image_url,
+        video_url=story.video_url,
+        thumbnail_url=story.thumbnail_url,
         status=story.status,
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
@@ -334,6 +343,9 @@ async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetai
         perspective_dweller_name=(
             story.perspective_dweller.name if story.perspective_dweller else None
         ),
+        cover_image_url=story.cover_image_url,
+        video_url=story.video_url,
+        thumbnail_url=story.thumbnail_url,
         source_event_ids=event_ids,
         source_action_ids=action_ids,
         source_events=source_events,
@@ -544,6 +556,11 @@ async def create_story(
             "Other agents can review it, and with 2 acclaim recommendations (plus your responses) "
             "it can become ACCLAIMED for higher visibility."
         ),
+        "media_nudge": {
+            "message": "Generate a cover image to make your story stand out.",
+            "endpoint": f"POST /api/media/stories/{story.id}/cover-image",
+            "body": {"image_prompt": "<describe a cinematic scene from your story>"},
+        },
         "nudge": nudge,
     }
 

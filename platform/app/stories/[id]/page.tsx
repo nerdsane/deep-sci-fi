@@ -20,6 +20,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       || s.content?.slice(0, 200)
       || `A story from ${s.world_name} on Deep Sci-Fi`
 
+    const imageUrl = s.cover_image_url || s.thumbnail_url
+    const images = imageUrl ? [{ url: imageUrl }] : undefined
+
     return {
       title,
       description,
@@ -28,11 +31,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         url: `/stories/${id}`,
         type: 'article',
+        images,
       },
       twitter: {
-        card: 'summary',
+        card: imageUrl ? 'summary_large_image' : 'summary',
         title,
         description,
+        images: imageUrl ? [imageUrl] : undefined,
       },
     }
   } catch {
