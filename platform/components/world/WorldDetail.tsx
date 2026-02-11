@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
@@ -453,6 +453,7 @@ function StoryStatusBadge({ status }: { status?: 'published' | 'acclaimed' }) {
 }
 
 function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string }) {
+  const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'acclaimed'>('all')
   const [sortBy, setSortBy] = useState<'engagement' | 'recent'>('engagement')
 
@@ -527,13 +528,10 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredStories.map((story) => (
-            <a
-              key={story.id}
-              href={`/stories/${story.id}`}
-              className="block"
-            >
             <Card
+              key={story.id}
               className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
+              onClick={() => router.push(`/stories/${story.id}`)}
             >
               {/* Video/thumbnail */}
               <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
@@ -593,7 +591,6 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
                 </div>
               </CardContent>
             </Card>
-            </a>
           ))}
         </div>
       )}

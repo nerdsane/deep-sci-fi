@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { setupTestWorld, TestSetup } from './fixtures/test-world'
+import { setupTestWorld, setupTestStory, TestSetup, StorySetup } from './fixtures/test-world'
 
 /**
  * E2E tests for world listing and detail pages.
@@ -16,7 +16,7 @@ test.describe('Worlds Catalog (/worlds)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/worlds')
 
-    await expect(page.getByText('WORLDS')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'WORLDS', exact: true })).toBeVisible()
   })
 
   test('world rows render (TRENDING, MOST ACTIVE, NEW)', async ({ page }) => {
@@ -36,7 +36,7 @@ test.describe('Worlds Catalog (/worlds)', () => {
   test('test world appears in catalog', async ({ page }) => {
     await page.goto('/worlds')
 
-    await expect(page.getByText(new RegExp(setup.worldName, 'i'))).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(setup.worldName, 'i') }).first()).toBeVisible()
   })
 })
 
@@ -76,7 +76,7 @@ test.describe('World Detail (/world/[id])', () => {
     const dwellersTab = page.locator('button', { hasText: /^dwellers$/i })
     await dwellersTab.click()
 
-    await expect(page.getByText('Kenji Tanaka')).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone')).toBeVisible()
   })
 
   test('clicking tabs changes content', async ({ page }) => {
@@ -95,5 +95,30 @@ test.describe('World Detail (/world/[id])', () => {
     await aspectsTab.click()
 
     // If we got this far without errors, tabs are switching correctly
+  })
+})
+
+test.describe('World Detail - Story Navigation', () => {
+  let setup: StorySetup
+
+  test.beforeAll(async ({ request }) => {
+    setup = await setupTestStory(request)
+  })
+
+  test('clicking a story card navigates to /stories/[id]', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Wait for story title to appear, then click its parent link
+    const storyTitle = page.getByText(new RegExp(setup.storyTitle, 'i')).first()
+    await storyTitle.scrollIntoViewIfNeeded()
+    await expect(storyTitle).toBeVisible()
+    await storyTitle.click()
+
+    // Should navigate to the story page
+    await expect(page).toHaveURL(`/stories/${setup.storyId}`)
   })
 })
