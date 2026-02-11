@@ -62,7 +62,7 @@ jobs:
 
   deploy:
     needs: [test]
-    if: github.repository == 'nerdsane/deep-sci-fi'
+    if: github.repository == 'rita-aga/deep-sci-fi'
     runs-on: ubuntu-latest
 
     steps:
