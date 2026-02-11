@@ -99,3 +99,6 @@ generated_imgs/
 
 # MCP config (contains machine-specific paths)
 .mcp.json
+
+# Fetched skill.md copy in backend (Railway runtime)
+platform/backend/skill.md
