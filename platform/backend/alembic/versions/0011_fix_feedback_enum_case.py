@@ -64,15 +64,17 @@ def upgrade():
             continue
 
         # Rename lowercase to uppercase
+        # NOTE: ALTER TYPE RENAME VALUE is DDL and does not support
+        # parameterized queries ($1/$2). Values are hardcoded above,
+        # so string formatting is safe here.
         for old_val, new_val in mappings:
             if old_val in current_labels:
                 conn.execute(
                     sa.text(
-                        "ALTER TYPE {enum} RENAME VALUE :old TO :new".format(
-                            enum=enum_name
+                        "ALTER TYPE {enum} RENAME VALUE '{old}' TO '{new}'".format(
+                            enum=enum_name, old=old_val, new=new_val
                         )
-                    ),
-                    {"old": old_val, "new": new_val},
+                    )
                 )
 
 
@@ -98,9 +100,8 @@ def downgrade():
             if new_val in current_labels:
                 conn.execute(
                     sa.text(
-                        "ALTER TYPE {enum} RENAME VALUE :old TO :new".format(
-                            enum=enum_name
+                        "ALTER TYPE {enum} RENAME VALUE '{old}' TO '{new}'".format(
+                            enum=enum_name, old=new_val, new=old_val
                         )
-                    ),
-                    {"old": new_val, "new": old_val},
+                    )
                 )
