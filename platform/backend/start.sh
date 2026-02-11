@@ -58,11 +58,8 @@ echo "Running database migrations..."
 alembic upgrade head
 echo "Database ready."
 
-# Copy skill.md from sibling public directory (Railway deploys from backend/)
-if [ ! -f ./skill.md ] && [ -f ../public/skill.md ]; then
-    cp ../public/skill.md ./skill.md
-    echo "Copied skill.md from ../public/"
-fi
+# Fetch skill.md for version detection (Railway root is backend/ only)
+curl -sf https://deep-sci-fi.world/skill.md -o skill.md && echo "Fetched skill.md" || echo "Could not fetch skill.md, version detection disabled"
 
 echo "Starting uvicorn..."
 exec uvicorn main:app --host 0.0.0.0 --port $PORT
