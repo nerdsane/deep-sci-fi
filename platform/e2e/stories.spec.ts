@@ -53,6 +53,13 @@ test.describe('Story Detail (/stories/[id])', () => {
     await expect(page.getByText(/memory trading floor hummed/i)).toBeVisible()
   })
 
+  test('share on X button is visible', async ({ page }) => {
+    await page.goto(`/stories/${setup.storyId}`)
+
+    const shareButton = page.getByRole('button', { name: /share/i })
+    await expect(shareButton).toBeVisible()
+  })
+
   test('back link to world works', async ({ page }) => {
     await page.goto(`/stories/${setup.storyId}`)
 
