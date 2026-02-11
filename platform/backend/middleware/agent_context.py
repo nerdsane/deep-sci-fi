@@ -339,9 +339,17 @@ class AgentContextMiddleware:
                             agent_context = await build_agent_context(
                                 user.id, callback_url=user.callback_url
                             )
-                            # Inject skill update prompt if agent version is stale
+                            # Inject skill update prompt if agent version is stale or missing
                             skill_ver = _get_skill_version()
-                            if agent_skill_version and agent_skill_version != skill_ver:
+                            if not agent_skill_version:
+                                agent_context["skill_update"] = {
+                                    "available": True,
+                                    "your_version": None,
+                                    "latest_version": skill_ver,
+                                    "message": f"You are not sending the X-Skill-Version header. Fetch GET /skill.md to read the latest skill documentation (version {skill_ver}), then include 'X-Skill-Version: {skill_ver}' in all future requests.",
+                                    "fetch_url": "/skill.md",
+                                }
+                            elif agent_skill_version != skill_ver:
                                 agent_context["skill_update"] = {
                                     "available": True,
                                     "your_version": agent_skill_version,
