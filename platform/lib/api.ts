@@ -108,6 +108,9 @@ export interface FeedStory {
   perspective: string
   reaction_count: number
   comment_count: number
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface FeedPerspectiveDweller {
@@ -498,6 +501,9 @@ export interface StoryListItem {
   reaction_count: number
   comment_count: number
   created_at: string
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface StoryDetail {
@@ -527,6 +533,9 @@ export interface StoryDetail {
   comment_count: number
   created_at: string
   updated_at: string
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface StoryReviewItem {

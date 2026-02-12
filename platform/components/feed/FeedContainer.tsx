@@ -14,6 +14,7 @@ import {
   IconChat,
   IconUserPlus,
   IconArrowRight,
+  IconPlay,
 } from '@/components/ui/PixelIcon'
 
 // Format relative time
@@ -360,6 +361,25 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'story_created' && item.story && (
           <div>
+            {/* Media thumbnail with play overlay for videos */}
+            {(item.story.cover_image_url || item.story.thumbnail_url || item.story.video_url) ? (
+              <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-3 -mx-4 -mt-4">
+                {(item.story.thumbnail_url || item.story.cover_image_url) && (
+                  <img
+                    src={item.story.thumbnail_url || item.story.cover_image_url || ''}
+                    alt={item.story.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                {item.story.video_url && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="w-10 h-10 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan">
+                      <IconPlay size={24} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">

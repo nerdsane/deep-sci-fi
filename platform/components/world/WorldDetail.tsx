@@ -152,15 +152,15 @@ export function WorldDetail({ world }: WorldDetailProps) {
     <div className="space-y-8">
       {/* Hero section with glass effect + enhanced glow */}
       <div className="glass-cyan glow-cyan-layered mb-8 relative overflow-hidden">
-        {/* World cover image background */}
+        {/* Prominent cover image */}
         {world.coverImageUrl && (
-          <div className="absolute inset-0">
+          <div className="relative aspect-[21/9] w-full overflow-hidden m-[1px]">
             <img
               src={world.coverImageUrl}
-              alt=""
-              className="w-full h-full object-cover opacity-20"
+              alt={world.name}
+              className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           </div>
         )}
         <div className="p-6 md:p-8 relative">

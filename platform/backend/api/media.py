@@ -428,11 +428,18 @@ async def backfill_media(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ) -> dict[str, Any]:
-    """Admin: batch-generate cover images for worlds/stories without them.
+    """Admin: batch-generate media for worlds/stories without them.
 
-    Auto-generates prompts from world premise and story content.
+    Uses LLM-powered prompt generation to craft content-specific prompts from
+    story text and world premises. Generates cover images for worlds, and
+    cover images + videos for stories.
     """
     from sqlalchemy.orm import selectinload
+    from media.prompt_generator import (
+        generate_world_cover_prompt,
+        generate_image_prompt,
+        generate_video_prompt,
+    )
 
     # Get worlds without cover images
     worlds_query = select(World).where(World.cover_image_url == None, World.is_active == True)
@@ -445,7 +452,12 @@ async def backfill_media(
     generations = []
 
     for world in worlds:
-        prompt = f"A cinematic, atmospheric sci-fi landscape depicting: {world.premise[:200]}. Set in year {world.year_setting}. Dramatic lighting, muted color palette, photorealistic."
+        prompt = await generate_world_cover_prompt(
+            name=world.name,
+            premise=world.premise,
+            year_setting=world.year_setting,
+            scientific_basis=world.scientific_basis,
+        )
         gen = MediaGeneration(
             requested_by=current_user.id,
             target_type="world",
@@ -455,13 +467,17 @@ async def backfill_media(
             provider="grok_imagine_image",
         )
         db.add(gen)
-        generations.append({"type": "world", "name": world.name, "gen": gen, "target_id": world.id})
+        generations.append({
+            "type": "world",
+            "name": world.name,
+            "gen": gen,
+            "target_id": world.id,
+            "media_type": MediaType.COVER_IMAGE,
+        })
 
-    # Backfill stories
+    # Backfill stories (cover images + videos)
     if request.include_stories:
-        stories_query = select(Story).where(
-            Story.cover_image_url == None,
-        ).options(selectinload(Story.world))
+        stories_query = select(Story).options(selectinload(Story.world))
         if request.world_ids:
             stories_query = stories_query.where(Story.world_id.in_(request.world_ids))
 
@@ -470,36 +486,92 @@ async def backfill_media(
 
         for story in stories:
             world_name = story.world.name if story.world else "unknown world"
-            prompt = f"A cinematic sci-fi scene illustrating: {story.title}. Set in {world_name}. Atmospheric, dramatic composition, storytelling imagery."
-            gen = MediaGeneration(
-                requested_by=current_user.id,
-                target_type="story",
-                target_id=story.id,
-                media_type=MediaType.COVER_IMAGE,
-                prompt=prompt,
-                provider="grok_imagine_image",
-            )
-            db.add(gen)
-            generations.append({"type": "story", "title": story.title, "gen": gen, "target_id": story.id})
+            world_premise = story.world.premise if story.world else ""
+            year_setting = str(story.world.year_setting) if story.world else None
+            dweller_name = None
+            perspective_str = story.perspective.name if story.perspective else None
+
+            # Generate cover image if missing
+            if not story.cover_image_url:
+                img_prompt = await generate_image_prompt(
+                    title=story.title,
+                    content=story.content,
+                    world_name=world_name,
+                    world_premise=world_premise,
+                    year_setting=year_setting,
+                    perspective=perspective_str,
+                    dweller_name=dweller_name,
+                )
+                img_gen = MediaGeneration(
+                    requested_by=current_user.id,
+                    target_type="story",
+                    target_id=story.id,
+                    media_type=MediaType.COVER_IMAGE,
+                    prompt=img_prompt,
+                    provider="grok_imagine_image",
+                )
+                db.add(img_gen)
+                generations.append({
+                    "type": "story",
+                    "title": story.title,
+                    "gen": img_gen,
+                    "target_id": story.id,
+                    "media_type": MediaType.COVER_IMAGE,
+                })
+
+            # Generate video if missing
+            if not story.video_url:
+                vid_prompt = await generate_video_prompt(
+                    title=story.title,
+                    content=story.content,
+                    world_name=world_name,
+                    world_premise=world_premise,
+                    year_setting=year_setting,
+                    perspective=perspective_str,
+                    dweller_name=dweller_name,
+                )
+                vid_gen = MediaGeneration(
+                    requested_by=current_user.id,
+                    target_type="story",
+                    target_id=story.id,
+                    media_type=MediaType.VIDEO,
+                    prompt=vid_prompt,
+                    provider="grok_imagine_video",
+                    duration_seconds=10.0,
+                )
+                db.add(vid_gen)
+                generations.append({
+                    "type": "story",
+                    "title": story.title,
+                    "gen": vid_gen,
+                    "target_id": story.id,
+                    "media_type": MediaType.VIDEO,
+                })
 
     # Commit all records before starting background tasks
     await db.commit()
 
     # Now schedule background tasks (records are committed and visible)
     result_generations = []
+    estimated_cost = 0.0
     for item in generations:
         gen = item["gen"]
         target_type = item["type"]
         target_id = item["target_id"]
-        background_tasks.add_task(_run_generation, gen.id, target_type, target_id, MediaType.COVER_IMAGE)
-        entry = {"type": target_type, "generation_id": str(gen.id)}
+        media_type = item["media_type"]
+        background_tasks.add_task(_run_generation, gen.id, target_type, target_id, media_type)
+        entry = {
+            "type": target_type,
+            "media_type": media_type.value,
+            "generation_id": str(gen.id),
+        }
         if target_type == "world":
             entry["name"] = item["name"]
         else:
             entry["title"] = item["title"]
         result_generations.append(entry)
+        estimated_cost += 0.50 if media_type == MediaType.VIDEO else 0.02
 
-    estimated_cost = len(result_generations) * 0.02
     return {
         "queued": len(result_generations),
         "generations": result_generations,
