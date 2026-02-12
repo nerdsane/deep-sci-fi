@@ -198,11 +198,11 @@ class TestGetGenerationStatus:
         )
         gen_id = resp.json()["generation_id"]
 
-        # Check status (enum values are uppercase in DB but .value returns name)
+        # Check status — background task may complete before we poll
         status_resp = await client.get(f"/api/media/{gen_id}/status")
         assert status_resp.status_code == 200
         data = status_resp.json()
-        assert data["status"].upper() in ("PENDING", "GENERATING")
+        assert data["status"].upper() in ("PENDING", "GENERATING", "COMPLETED")
         assert data["target_type"] == "world"
 
     async def test_returns_404_for_invalid_id(self, client: AsyncClient):

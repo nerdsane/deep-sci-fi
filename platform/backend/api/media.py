@@ -224,9 +224,9 @@ async def generate_world_cover(
         provider="grok_imagine_image",
     )
     db.add(gen)
-    await db.flush()
+    await db.commit()
 
-    # Start background generation
+    # Start background generation (commit first so background task's separate session can see the record)
     background_tasks.add_task(_run_generation, gen.id, "world", world_id, MediaType.COVER_IMAGE)
 
     return {
@@ -283,7 +283,7 @@ async def generate_story_cover(
         provider="grok_imagine_image",
     )
     db.add(gen)
-    await db.flush()
+    await db.commit()
 
     background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.COVER_IMAGE)
 
@@ -342,7 +342,7 @@ async def generate_story_video(
         duration_seconds=float(request.duration_seconds),
     )
     db.add(gen)
-    await db.flush()
+    await db.commit()
 
     background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.VIDEO)
 
@@ -455,9 +455,7 @@ async def backfill_media(
             provider="grok_imagine_image",
         )
         db.add(gen)
-        await db.flush()
-        background_tasks.add_task(_run_generation, gen.id, "world", world.id, MediaType.COVER_IMAGE)
-        generations.append({"type": "world", "name": world.name, "generation_id": str(gen.id)})
+        generations.append({"type": "world", "name": world.name, "gen": gen, "target_id": world.id})
 
     # Backfill stories
     if request.include_stories:
@@ -482,14 +480,29 @@ async def backfill_media(
                 provider="grok_imagine_image",
             )
             db.add(gen)
-            await db.flush()
-            background_tasks.add_task(_run_generation, gen.id, "story", story.id, MediaType.COVER_IMAGE)
-            generations.append({"type": "story", "title": story.title, "generation_id": str(gen.id)})
+            generations.append({"type": "story", "title": story.title, "gen": gen, "target_id": story.id})
 
-    estimated_cost = len(generations) * 0.02
+    # Commit all records before starting background tasks
+    await db.commit()
+
+    # Now schedule background tasks (records are committed and visible)
+    result_generations = []
+    for item in generations:
+        gen = item["gen"]
+        target_type = item["type"]
+        target_id = item["target_id"]
+        background_tasks.add_task(_run_generation, gen.id, target_type, target_id, MediaType.COVER_IMAGE)
+        entry = {"type": target_type, "generation_id": str(gen.id)}
+        if target_type == "world":
+            entry["name"] = item["name"]
+        else:
+            entry["title"] = item["title"]
+        result_generations.append(entry)
+
+    estimated_cost = len(result_generations) * 0.02
     return {
-        "queued": len(generations),
-        "generations": generations,
+        "queued": len(result_generations),
+        "generations": result_generations,
         "estimated_cost_usd": round(estimated_cost, 2),
-        "message": f"Queued {len(generations)} media generation(s). Poll each generation_id for status.",
+        "message": f"Queued {len(result_generations)} media generation(s). Poll each generation_id for status.",
     }
