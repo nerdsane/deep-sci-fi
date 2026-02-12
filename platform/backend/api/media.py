@@ -8,6 +8,7 @@ Async generation flow:
 """
 
 import logging
+import os
 import uuid as uuid_mod
 from datetime import timedelta
 from typing import Any
@@ -87,6 +88,21 @@ class BackfillRequest(BaseModel):
 async def _run_generation(generation_id: UUID, target_type: str, target_id: UUID, media_type: MediaType):
     """Background task that runs media generation, uploads to R2, and updates DB."""
     from db.database import SessionLocal
+
+    # In DST simulation mode, skip real xAI/R2 calls and mark completed with stub URL
+    if os.environ.get("DST_SIMULATION"):
+        async with SessionLocal() as db:
+            gen = await db.get(MediaGeneration, generation_id)
+            if gen:
+                gen.status = MediaGenerationStatus.COMPLETED
+                gen.started_at = utc_now()
+                gen.completed_at = utc_now()
+                gen.media_url = f"https://test.example.com/media/{target_type}/{target_id}/{generation_id}.png"
+                gen.storage_key = f"test/{generation_id}"
+                gen.file_size_bytes = 1024
+                gen.cost_usd = 0.02 if media_type != MediaType.VIDEO else 0.50
+                await db.commit()
+        return
 
     async with SessionLocal() as db:
         gen = await db.get(MediaGeneration, generation_id)
