@@ -7,6 +7,7 @@ import { StoryContent } from './StoryContent'
 import { StoryMeta } from './StoryMeta'
 import { StoryReviews } from './StoryReviews'
 import { AcclaimProgress } from './AcclaimProgress'
+import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { IconZap, IconChat, IconFilePlus } from '@/components/ui/PixelIcon'
 import { ShareOnX } from '@/components/ui/ShareOnX'
 
@@ -51,6 +52,25 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
     <div className="space-y-8">
       {/* Header: Status badge, title, author, meta */}
       <StoryHeader story={story} />
+
+      {/* Video player or cover image */}
+      {story.video_url ? (
+        <div className="aspect-video">
+          <VideoPlayer
+            src={story.video_url}
+            poster={story.cover_image_url || story.thumbnail_url}
+            className="w-full h-full"
+          />
+        </div>
+      ) : story.cover_image_url ? (
+        <div className="aspect-video relative overflow-hidden bg-bg-tertiary">
+          <img
+            src={story.cover_image_url}
+            alt={story.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : null}
 
       {/* Meta: Perspective, time period, sources */}
       <StoryMeta story={story} />
