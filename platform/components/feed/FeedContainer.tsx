@@ -363,7 +363,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           <div>
             {/* Media thumbnail with play overlay for videos */}
             {(item.story.cover_image_url || item.story.thumbnail_url || item.story.video_url) ? (
-              <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-3 -mx-4 -mt-4">
+              <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-3 -mx-4 rounded-sm">
                 {(item.story.thumbnail_url || item.story.cover_image_url) && (
                   <img
                     src={item.story.thumbnail_url || item.story.cover_image_url || ''}
