@@ -500,6 +500,35 @@ def feedback_status_update_data(status: str = "acknowledged") -> dict:
     return base
 
 
+def review_feedback_data(counter: int | None = None) -> dict:
+    """Generate a review with feedback items for critical review system."""
+    n = counter if counter is not None else _next_id()
+    return {
+        "feedback_items": [
+            {
+                "category": "scientific_issue",
+                "description": f"Test feedback item {n}: The causal chain needs more specific grounding in verified research.",
+                "severity": "important",
+            },
+        ],
+    }
+
+
+def feedback_response_data(counter: int | None = None) -> dict:
+    """Proposer's response to a feedback item."""
+    n = counter if counter is not None else _next_id()
+    return {
+        "response_text": f"Thank you for the feedback {n}. I have revised the content to address your concerns with additional research citations.",
+    }
+
+
+def resolve_feedback_data() -> dict:
+    """Reviewer confirms resolution of a feedback item."""
+    return {
+        "resolution_note": "The revision adequately addresses my concerns. Marking as resolved.",
+    }
+
+
 def dweller_proposal_validation_data(verdict: str = "approve") -> dict:
     base = {
         "verdict": verdict,
@@ -554,4 +583,7 @@ STRATEGY_SCHEMA_MAP = {
     "image_prompt_data": ("api.media", "ImageGenerationRequest"),
     "video_prompt_data": ("api.media", "VideoGenerationRequest"),
     "backfill_data": ("api.media", "BackfillRequest"),
+    "review_feedback_data": ("api.reviews", "SubmitReviewRequest"),
+    "feedback_response_data": ("api.reviews", "RespondToFeedbackRequest"),
+    "resolve_feedback_data": ("api.reviews", "ResolveItemRequest"),
 }
