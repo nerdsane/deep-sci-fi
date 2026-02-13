@@ -345,3 +345,117 @@ class SafetyInvariantsMixin:
             "AgentContextMiddleware not found in ASGI stack. "
             "It may have been stripped from DST conftest."
         )
+
+    # -------------------------------------------------------------------------
+    # Critical review system invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s_r1_proposer_always_sees_own_feedback(self):
+        """Proposers can always retrieve ALL feedback on their content (blind mode bypass)."""
+        # Check proposals with reviews
+        for review in list(self.state.reviews.values())[:3]:  # spot-check
+            if review.content_type != "proposal":
+                continue
+
+            proposer = self.state.agents[review.proposer_id]
+            resp = self.client.get(
+                f"/api/review/proposal/{review.content_id}/feedback",
+                headers=self._headers(proposer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Count how many reviews exist for this content
+            expected_count = sum(
+                1 for r in self.state.reviews.values()
+                if r.content_type == "proposal" and r.content_id == review.content_id
+            )
+
+            assert len(reviews_returned) == expected_count, (
+                f"Proposer {review.proposer_id} for proposal {review.content_id}: "
+                f"expected {expected_count} reviews but got {len(reviews_returned)}. "
+                "Proposers must see ALL feedback (blind mode bypass)."
+            )
+
+    @invariant()
+    def s_r2_blind_mode_isolates_reviewers(self):
+        """Reviewers who haven't submitted cannot see other reviewers' feedback."""
+        # Find proposals with multiple reviews
+        content_reviews = {}
+        for r in self.state.reviews.values():
+            key = (r.content_type, r.content_id)
+            if key not in content_reviews:
+                content_reviews[key] = []
+            content_reviews[key].append(r)
+
+        # Check blind mode for content with 2+ reviews
+        for (content_type, content_id), reviews in list(content_reviews.items())[:2]:
+            if len(reviews) < 2 or content_type != "proposal":
+                continue
+
+            # Pick an agent who hasn't reviewed this content
+            non_reviewer = None
+            for agent_id in self._agent_keys:
+                if not any(r.reviewer_id == agent_id for r in reviews):
+                    # Also make sure they're not the proposer
+                    if agent_id != reviews[0].proposer_id:
+                        non_reviewer = self.state.agents[agent_id]
+                        break
+
+            if not non_reviewer:
+                continue
+
+            resp = self.client.get(
+                f"/api/review/{content_type}/{content_id}/feedback",
+                headers=self._headers(non_reviewer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Non-reviewer should see 0 reviews (blind mode)
+            assert len(reviews_returned) == 0, (
+                f"Non-reviewer {non_reviewer.agent_id} for {content_type} {content_id}: "
+                f"expected 0 reviews but got {len(reviews_returned)}. "
+                "Blind mode must block non-reviewers from seeing others' feedback."
+            )
+
+    @invariant()
+    def s_r3_reviewer_sees_all_after_submit(self):
+        """Once a reviewer submits, they can see all reviews."""
+        # Check reviewers who have submitted
+        for review in list(self.state.reviews.values())[:3]:  # spot-check
+            if review.content_type != "proposal":
+                continue
+
+            reviewer = self.state.agents[review.reviewer_id]
+            resp = self.client.get(
+                f"/api/review/proposal/{review.content_id}/feedback",
+                headers=self._headers(reviewer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Count how many reviews exist for this content
+            expected_count = sum(
+                1 for r in self.state.reviews.values()
+                if r.content_type == "proposal" and r.content_id == review.content_id
+            )
+
+            assert len(reviews_returned) == expected_count, (
+                f"Reviewer {review.reviewer_id} for proposal {review.content_id}: "
+                f"expected {expected_count} reviews but got {len(reviews_returned)}. "
+                "Reviewers who submitted must see ALL reviews."
+            )
