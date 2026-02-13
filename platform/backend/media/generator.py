@@ -111,7 +111,8 @@ async def generate_video(prompt: str, duration: int = 10) -> bytes:
                     status_response.raise_for_status()
                     status_data = status_response.json()
 
-                    if status_data.get("status") == "done":
+                    # xAI returns 202 while processing, 200 with video.url when done
+                    if status_response.status_code == 200 and "video" in status_data:
                         video_url = status_data["video"]["url"]
                         video_response = await client.get(video_url)
                         video_response.raise_for_status()

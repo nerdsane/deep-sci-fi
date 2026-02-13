@@ -1,7 +1,7 @@
 # Staging Cleanup + LLM-Powered Media Backfill
 
 **Created**: 2026-02-12
-**Status**: DEPLOYED — env vars set, awaiting backfill
+**Status**: DEPLOYED — CI green, E2E verified, env vars set, awaiting backfill
 
 ## Phases
 
