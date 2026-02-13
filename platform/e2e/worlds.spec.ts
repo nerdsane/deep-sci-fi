@@ -148,6 +148,21 @@ test.describe('World Detail - Story Navigation', () => {
     const mediaContainer = page.locator('.aspect-video').first()
     await expect(mediaContainer).toBeVisible()
   })
+
+  test('no hardcoded test media URLs in page', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab to load story cards
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Verify no TEMP placeholder media URLs leak into the page
+    // (Unsplash test images and Big Buck Bunny video were removed)
+    const html = await page.content()
+    expect(html).not.toContain('images.unsplash.com')
+    expect(html).not.toContain('Big_Buck_Bunny')
+    expect(html).not.toContain('test-videos.example.com')
+  })
 })
 
 test.describe('World Detail - Meta Tags', () => {
