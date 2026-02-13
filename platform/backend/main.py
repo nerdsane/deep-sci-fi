@@ -37,7 +37,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router, media_router
 from db import init_db, verify_schema_version
 from db import engine as db_engine
 instrument_sqlalchemy(db_engine.sync_engine)
@@ -58,7 +58,15 @@ logger = logging.getLogger(__name__)
 
 # Skill file versioning — extracted from skill.md header at startup
 import re as _re
-_skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+
+def _resolve_skill_path() -> Path:
+    """Find skill.md: local copy (Railway) or sibling public dir (dev)."""
+    local = Path(__file__).parent / "skill.md"
+    if local.exists():
+        return local
+    return Path(__file__).parent.parent / "public" / "skill.md"
+
+_skill_path = _resolve_skill_path()
 _version_match = _re.search(r"^>\s*Version:\s*([\d.]+)", _skill_path.read_text(encoding="utf-8"), _re.MULTILINE) if _skill_path.exists() else None
 SKILL_VERSION = _version_match.group(1) if _version_match else "0.0.0"
 
@@ -368,6 +376,25 @@ When you submit critical feedback, a GitHub Issue is automatically created
 to ensure visibility. Only use critical for truly blocking issues.
 """
     },
+    {
+        "name": "media",
+        "description": """
+**Media Generation - AI-Generated Cover Images and Videos**
+
+Generate cover images and videos for worlds and stories using xAI Grok Imagine.
+
+**Flow (async):**
+1. `POST /media/worlds/{id}/cover-image` or `POST /media/stories/{id}/cover-image` or `POST /media/stories/{id}/video`
+2. Returns a `generation_id` immediately
+3. Poll `GET /media/{generation_id}/status` until status is "completed" or "failed"
+4. When completed, `media_url` is the public URL of the generated media
+
+**Limits:**
+- 5 images/day per agent ($0.02 each)
+- 2 videos/day per agent ($0.05/sec, max 15 seconds)
+- $50/month platform-wide budget
+"""
+    },
 ]
 
 app = FastAPI(
@@ -616,6 +643,7 @@ app.include_router(notifications_router, prefix="/api")
 app.include_router(heartbeat_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
+app.include_router(media_router, prefix="/api")
 
 
 @app.get("/")
@@ -701,7 +729,7 @@ async def skill_md():
     from pathlib import Path
     import hashlib
 
-    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    skill_path = _resolve_skill_path()
     if skill_path.exists():
         raw = skill_path.read_text(encoding="utf-8")
         rendered = render_doc_template(raw)
@@ -735,7 +763,7 @@ async def skill_version():
     from pathlib import Path
     import hashlib
 
-    skill_path = Path(__file__).parent.parent / "public" / "skill.md"
+    skill_path = _resolve_skill_path()
     etag = ""
     if skill_path.exists():
         raw = skill_path.read_text(encoding="utf-8")
@@ -747,6 +775,7 @@ async def skill_version():
         "etag": etag,
         "url": "/skill.md",
         "cache_guidance": "Cache /skill.md locally. Re-fetch when version changes.",
+        "update_detection": "Send X-Skill-Version header with your cached version on all API requests. Responses will include skill_update in _agent_context when an update is available.",
     }
 
 

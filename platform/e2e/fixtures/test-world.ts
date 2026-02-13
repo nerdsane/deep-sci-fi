@@ -22,27 +22,26 @@ export const SAMPLE_CAUSAL_CHAIN = [
 ]
 
 export const SAMPLE_REGION = {
-  name: 'Neo Tokyo',
-  location: 'East Asian Megacity',
-  population_origins: ['Japanese diaspora', 'Asian tech migrants'],
-  cultural_blend: 'Mix of traditional Japanese culture and cyberpunk innovation',
+  name: 'Test Region',
+  location: 'Test Location',
+  population_origins: ['Test origin 1', 'Test origin 2'],
+  cultural_blend: 'A fusion of test heritage traditions with modern experimental culture',
   naming_conventions:
-    'Names blend Japanese and international traditions. First names often Japanese (Kenji, Yuki), while tech workers use handles.',
-  language: 'Japanese-English hybrid with technical jargon',
+    'Names follow test conventions: First names are simple, family names reflect test heritage. Examples: Test Person, Sample Name.',
+  language: 'Test English',
 }
 
 export const SAMPLE_DWELLER = {
-  name: 'Kenji Tanaka',
-  origin_region: 'Neo Tokyo',
-  generation: 'Second-gen (born in world)',
+  name: 'Edmund Whitestone',
+  origin_region: 'Test Region',
+  generation: 'First-generation',
   name_context:
-    'Kenji is a traditional Japanese name meaning intelligent second son. Tanaka is one of the most common Japanese surnames.',
-  cultural_identity:
-    'Identifies as a Neo Tokyoite - embraces both traditional values and cutting-edge technology.',
+    'Edmund is a traditional name preserved by first-generation settlers; Whitestone references the limestone cliffs of this region\'s early settlements.',
+  cultural_identity: 'Test cultural identity for the dweller',
   role: 'Memory broker - facilitates memory trades in the grey market',
-  age: 28,
+  age: 30,
   personality:
-    'Cautious but curious. Has a strong moral code despite working in grey areas. Values loyalty above profit.',
+    'A cautious but curious character with a strong moral code despite working in grey areas. Values loyalty above profit.',
   background:
     'Grew up in the shadow of the memory economy. Started as a tech repair specialist before moving into brokerage.',
 }
@@ -121,23 +120,48 @@ export async function setupTestWorld(request: APIRequestContext): Promise<TestSe
   expect(proposalRes.ok()).toBeTruthy()
   const proposalId = (await proposalRes.json()).id
 
-  // Submit proposal
-  await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+  // Submit proposal (force=true to bypass similarity check from prior test runs)
+  const submitRes = await request.post(`${API_BASE}/proposals/${proposalId}/submit?force=true`, {
     headers: { 'X-API-Key': creator.key },
   })
+  if (!submitRes.ok()) {
+    const submitErr = await submitRes.text()
+    throw new Error(`Submit failed (${submitRes.status()}): ${submitErr}`)
+  }
 
-  // Validate proposal (creates world)
+  const validationPayload = {
+    verdict: 'approve',
+    critique:
+      'Solid scientific foundation with clear causal chain. The memory trading concept is well-grounded in current neuroscience.',
+    scientific_issues: [],
+    suggested_fixes: [],
+    research_conducted:
+      'Reviewed neuroscience research on memory formation and retrieval, optogenetics progress, and neural interface developments. The causal chain aligns with current BCI research timelines.',
+    weaknesses: ['Timeline optimism in intermediate steps'],
+  }
+
+  // First validation (creator self-validates with test_mode)
+  const val1Res = await request.post(
+    `${API_BASE}/proposals/${proposalId}/validate?test_mode=true`,
+    {
+      headers: { 'X-API-Key': creator.key },
+      data: validationPayload,
+    }
+  )
+  if (!val1Res.ok()) {
+    const val1Err = await val1Res.text()
+    throw new Error(`First validation failed (${val1Res.status()}): ${val1Err}`)
+  }
+
+  // Second validation (different agent approves → creates world)
   const validateRes = await request.post(`${API_BASE}/proposals/${proposalId}/validate`, {
     headers: { 'X-API-Key': validator.key },
-    data: {
-      verdict: 'approve',
-      critique:
-        'Solid scientific foundation with clear causal chain. The memory trading concept is well-grounded in current neuroscience.',
-      scientific_issues: [],
-      suggested_fixes: [],
-    },
+    data: validationPayload,
   })
-  expect(validateRes.ok()).toBeTruthy()
+  if (!validateRes.ok()) {
+    const valErr = await validateRes.text()
+    throw new Error(`Second validation failed (${validateRes.status()}): ${valErr}`)
+  }
 
   // Get world ID
   const worldRes = await request.get(`${API_BASE}/proposals/${proposalId}`)
@@ -145,17 +169,24 @@ export async function setupTestWorld(request: APIRequestContext): Promise<TestSe
   expect(worldId).toBeTruthy()
 
   // Add region
-  await request.post(`${API_BASE}/dwellers/worlds/${worldId}/regions`, {
+  const regionRes = await request.post(`${API_BASE}/dwellers/worlds/${worldId}/regions`, {
     headers: { 'X-API-Key': creator.key },
     data: SAMPLE_REGION,
   })
+  if (!regionRes.ok()) {
+    const regionErr = await regionRes.text()
+    throw new Error(`Region creation failed (${regionRes.status()}): ${regionErr}`)
+  }
 
   // Create dweller
   const dwellerRes = await request.post(`${API_BASE}/dwellers/worlds/${worldId}/dwellers`, {
     headers: { 'X-API-Key': creator.key },
     data: SAMPLE_DWELLER,
   })
-  expect(dwellerRes.ok()).toBeTruthy()
+  if (!dwellerRes.ok()) {
+    const dwellerErr = await dwellerRes.text()
+    throw new Error(`Dweller creation failed (${dwellerRes.status()}): ${dwellerErr}`)
+  }
   const dwellerId = (await dwellerRes.json()).dweller.id
 
   // Claim dweller
@@ -198,7 +229,7 @@ export async function setupTestProposal(request: APIRequestContext): Promise<Pro
   const proposalId = (await proposalRes.json()).id
 
   // Submit to make it PENDING (visible in proposals list)
-  await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+  await request.post(`${API_BASE}/proposals/${proposalId}/submit?force=true`, {
     headers: { 'X-API-Key': creator.key },
   })
 
@@ -272,7 +303,7 @@ export async function setupTestStory(request: APIRequestContext): Promise<StoryS
   const storyTitle = `E2E Story ${Date.now()}`
 
   const storyContent =
-    'The memory trading floor hummed with neural static as Kenji Tanaka adjusted his interface. ' +
+    'The memory trading floor hummed with neural static as Edmund Whitestone adjusted his interface. ' +
     'Each transaction left traces — fragments of someone else\'s childhood, a lover\'s whisper, ' +
     'the taste of a meal eaten decades ago. Today was different. A new seller had arrived with ' +
     'something unprecedented: a complete set of memories from a quantum physicist who had glimpsed ' +
@@ -286,7 +317,7 @@ export async function setupTestStory(request: APIRequestContext): Promise<StoryS
       title: storyTitle,
       content: storyContent,
       summary: 'A memory broker encounters an unprecedented set of memories on the trading floor.',
-      perspective: 'THIRD_PERSON_LIMITED',
+      perspective: 'third_person_limited',
       perspective_dweller_id: setup.dwellerId,
     },
   })

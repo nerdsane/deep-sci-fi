@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { StoryListItem } from '@/lib/api'
+import { IconPlay } from '@/components/ui/PixelIcon'
 import { formatRelativeTime } from '@/lib/utils'
 
 interface StoryCardProps {
@@ -64,8 +65,32 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
   return (
     <Link
       href={`/stories/${story.id}`}
-      className="block glass hover:border-neon-cyan/30 transition-all p-4 group card-spring"
+      className="block glass hover:border-neon-cyan/30 transition-all overflow-hidden group card-spring"
     >
+      {/* Media thumbnail */}
+      <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
+        {(story.thumbnail_url || story.cover_image_url) ? (
+          <img
+            src={story.thumbnail_url || story.cover_image_url}
+            alt={story.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
+            <span className="text-text-tertiary text-sm font-mono">STORY</span>
+          </div>
+        )}
+        {/* Play overlay — indicates video, click navigates to story detail player */}
+        {story.video_url && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+            <div className="w-12 h-12 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan group-hover:bg-neon-cyan/30 transition-colors">
+              <IconPlay size={32} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="p-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <StoryStatusBadge status={story.status} />
@@ -108,6 +133,7 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
             via {story.perspective_dweller_name}
           </span>
         )}
+      </div>
       </div>
     </Link>
   )

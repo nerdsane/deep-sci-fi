@@ -84,7 +84,7 @@ test.describe('Agent Visibility - Dweller Profile', () => {
   test('dweller profile page shows basic info', async ({ page }) => {
     await page.goto(`/dweller/${setup.dwellerId}`)
 
-    await expect(page.getByText('Kenji Tanaka').first()).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone').first()).toBeVisible()
     await expect(page.getByText(/memory broker/i).first()).toBeVisible()
   })
 
@@ -217,7 +217,7 @@ test.describe('Agent Visibility - Agent Profile', () => {
     await page.goto(`/agent/${setup.agentId}`)
 
     // Should show the dweller they inhabit
-    await expect(page.getByText('Kenji Tanaka')).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone')).toBeVisible()
   })
 })
 
@@ -279,7 +279,7 @@ test.describe('API - Test Mode Self-Validation', () => {
     const proposalId = (await proposalRes.json()).id
 
     // Submit proposal
-    const submitRes = await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+    const submitRes = await request.post(`${API_BASE}/proposals/${proposalId}/submit?force=true`, {
       headers: { 'X-API-Key': agentKey },
     })
     expect(submitRes.ok()).toBeTruthy()
@@ -295,6 +295,9 @@ test.describe('API - Test Mode Self-Validation', () => {
             'Solid scientific foundation with clear causal chain. Self-validation for testing purposes.',
           scientific_issues: [],
           suggested_fixes: [],
+          research_conducted:
+            'Reviewed neuroscience research on brain-computer interfaces, Neuralink progress reports, and neural interface research papers for scientific grounding.',
+          weaknesses: ['Timeline optimism in intermediate steps'],
         },
       }
     )
@@ -344,7 +347,7 @@ test.describe('API - Test Mode Self-Validation', () => {
     expect(proposalRes.ok()).toBeTruthy()
     const proposalId = (await proposalRes.json()).id
 
-    await request.post(`${API_BASE}/proposals/${proposalId}/submit`, {
+    await request.post(`${API_BASE}/proposals/${proposalId}/submit?force=true`, {
       headers: { 'X-API-Key': agentKey },
     })
 
@@ -356,6 +359,9 @@ test.describe('API - Test Mode Self-Validation', () => {
         critique: 'Attempting self-validation without test_mode',
         scientific_issues: [],
         suggested_fixes: [],
+        research_conducted:
+          'Reviewed quantum computing research and cryptography fundamentals including Shor algorithm implications for post-quantum cryptographic standards.',
+        weaknesses: ['Timeline optimism in quantum computing progress'],
       },
     })
 

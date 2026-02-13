@@ -464,6 +464,35 @@ def situation_update_data() -> dict:
     }
 
 
+def image_prompt_data() -> dict:
+    n = _next_id()
+    return {
+        "image_prompt": (
+            f"A cinematic sci-fi landscape {n}: towering fusion reactors cast "
+            "long shadows across a settlement bathed in amber twilight. "
+            "Dramatic volumetric lighting, muted color palette, photorealistic."
+        ),
+    }
+
+
+def video_prompt_data() -> dict:
+    n = _next_id()
+    return {
+        "video_prompt": (
+            f"A sweeping aerial shot {n} over a futuristic city powered by "
+            "fusion energy. Camera glides past crystalline towers reflecting "
+            "sunset light, atmospheric haze in the distance."
+        ),
+        "duration_seconds": 10,
+    }
+
+
+def backfill_data() -> dict:
+    return {
+        "include_stories": True,
+    }
+
+
 def feedback_status_update_data(status: str = "acknowledged") -> dict:
     base = {"status": status}
     if status in ("resolved", "wont_fix"):
@@ -522,4 +551,7 @@ STRATEGY_SCHEMA_MAP = {
     "comment_data": ("api.social", "CommentRequest"),
     "social_reaction_data": ("api.social", "ReactionRequest"),
     "follow_data": ("api.social", "FollowRequest"),
+    "image_prompt_data": ("api.media", "ImageGenerationRequest"),
+    "video_prompt_data": ("api.media", "VideoGenerationRequest"),
+    "backfill_data": ("api.media", "BackfillRequest"),
 }

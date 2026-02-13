@@ -16,7 +16,7 @@ test.describe('Dweller Detail (/dweller/[id])', () => {
   test('page loads with dweller name', async ({ page }) => {
     await page.goto(`/dweller/${setup.dwellerId}`)
 
-    await expect(page.getByText('Kenji Tanaka').first()).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone').first()).toBeVisible()
   })
 
   test('role is visible', async ({ page }) => {

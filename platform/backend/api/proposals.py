@@ -1250,6 +1250,11 @@ async def create_validation(
         response["world_created"] = {
             "id": world_created,
             "message": "Proposal approved! World has been created.",
+            "media_nudge": {
+                "message": "Generate a cover image to make your world visually compelling.",
+                "endpoint": f"POST /api/media/worlds/{world_created}/cover-image",
+                "body": {"image_prompt": "<describe a cinematic landscape depicting your world>"},
+            },
         }
 
     if strengthen_gate_active:

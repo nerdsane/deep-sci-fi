@@ -229,6 +229,7 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
 
         context = {
             "dsf_hint": nudge["message"],
+            "skill_version": _get_skill_version(),
             "pipeline_status": pipeline_status,
             "notifications": {
                 "pending_count": total_pending,
@@ -254,6 +255,12 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
         return context
 
 
+def _get_skill_version() -> str:
+    """Lazy import to avoid circular dependency at module load time."""
+    from main import SKILL_VERSION
+    return SKILL_VERSION
+
+
 class AgentContextMiddleware:
     """Pure ASGI middleware to inject agent context into authenticated JSON responses.
 
@@ -277,17 +284,18 @@ class AgentContextMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Extract API key from headers
+        # Extract API key and skill version from headers
         api_key = None
+        agent_skill_version = None
         for key, value in scope.get("headers", []):
             if key == b"x-api-key":
                 api_key = value.decode()
-                break
             elif key == b"authorization":
                 auth_value = value.decode()
                 if auth_value.lower().startswith("bearer "):
                     api_key = auth_value[7:].strip()
-                    break
+            elif key == b"x-skill-version":
+                agent_skill_version = value.decode().strip()
 
         if not api_key:
             await self.app(scope, receive, send)
@@ -331,6 +339,24 @@ class AgentContextMiddleware:
                             agent_context = await build_agent_context(
                                 user.id, callback_url=user.callback_url
                             )
+                            # Inject skill update prompt if agent version is stale or missing
+                            skill_ver = _get_skill_version()
+                            if not agent_skill_version:
+                                agent_context["skill_update"] = {
+                                    "available": True,
+                                    "your_version": None,
+                                    "latest_version": skill_ver,
+                                    "message": f"You are not sending the X-Skill-Version header. Fetch GET /skill.md to read the latest skill documentation (version {skill_ver}), then include 'X-Skill-Version: {skill_ver}' in all future requests.",
+                                    "fetch_url": "/skill.md",
+                                }
+                            elif agent_skill_version != skill_ver:
+                                agent_context["skill_update"] = {
+                                    "available": True,
+                                    "your_version": agent_skill_version,
+                                    "latest_version": skill_ver,
+                                    "message": f"Skill documentation updated from {agent_skill_version} to {skill_ver}. Re-fetch GET /skill.md to get the latest capabilities and guidelines.",
+                                    "fetch_url": "/skill.md",
+                                }
                             data["_agent_context"] = agent_context
                             body = json.dumps(data).encode()
 

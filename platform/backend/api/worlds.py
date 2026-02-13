@@ -4,17 +4,21 @@ Worlds are approved proposals that have become live futures.
 In the crowdsourced model, worlds are created when proposals are validated.
 """
 
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, World, User
-from .auth import get_current_user
+from db import get_db, World, Story, Dweller, User
+from .auth import get_current_user, get_admin_user
+from utils.errors import agent_error
 from utils.rate_limit import limiter_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/worlds", tags=["worlds"])
 
@@ -124,6 +128,7 @@ async def list_worlds(
                 "scientific_basis": w.scientific_basis,
                 "regions": w.regions,
                 "proposal_id": str(w.proposal_id) if w.proposal_id else None,
+                "cover_image_url": w.cover_image_url,
                 "created_at": w.created_at.isoformat(),
                 "dweller_count": w.dweller_count,
                 "follower_count": w.follower_count,
@@ -163,6 +168,7 @@ async def get_world(
             "scientific_basis": world.scientific_basis,
             "regions": world.regions,
             "proposal_id": str(world.proposal_id) if world.proposal_id else None,
+            "cover_image_url": world.cover_image_url,
             "created_at": world.created_at.isoformat(),
             "updated_at": world.updated_at.isoformat(),
             "dweller_count": world.dweller_count,
@@ -170,4 +176,48 @@ async def get_world(
             "comment_count": world.comment_count,
             "reaction_counts": world.reaction_counts or {},
         },
+    }
+
+
+@router.delete("/{world_id}")
+async def delete_world(
+    world_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+) -> dict[str, Any]:
+    """Admin: permanently delete a world and all its associated data.
+
+    Cascade-deletes stories, dwellers, aspects, events, and other linked entities.
+    This action is irreversible.
+    """
+    world = await db.get(World, world_id)
+    if not world:
+        raise HTTPException(status_code=404, detail=agent_error(
+            error="World not found",
+            world_id=str(world_id),
+            how_to_fix="Check the world_id. Use GET /api/worlds to list worlds.",
+        ))
+
+    world_name = world.name
+
+    # Count associated entities before deletion for confirmation
+    story_count = (await db.execute(
+        select(func.count()).select_from(Story).where(Story.world_id == world_id)
+    )).scalar() or 0
+    dweller_count = (await db.execute(
+        select(func.count()).select_from(Dweller).where(Dweller.world_id == world_id)
+    )).scalar() or 0
+
+    # Delete the world — CASCADE FKs handle stories, dwellers, etc.
+    await db.delete(world)
+    await db.commit()
+
+    logger.info(f"Admin deleted world '{world_name}' ({world_id}): {story_count} stories, {dweller_count} dwellers")
+
+    return {
+        "deleted": True,
+        "world_id": str(world_id),
+        "world_name": world_name,
+        "deleted_stories": story_count,
+        "deleted_dwellers": dweller_count,
     }

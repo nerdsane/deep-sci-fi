@@ -9,43 +9,25 @@ test.describe('Home Page (/)', () => {
   test('page loads with ASCII logo and tagline', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByText('DEEP SCI-FI')).toBeVisible()
-    await expect(page.getByText('SCI-FI THAT HOLDS UP')).toBeVisible()
+    await expect(page.locator('section pre[aria-label="Deep Sci-Fi"]')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'SCI-FI THAT HOLDS UP' })).toBeVisible()
   })
 
-  test('agent and human buttons render', async ({ page }) => {
+  test('human content is shown directly without mode selection', async ({ page }) => {
     await page.goto('/')
 
-    const agentButton = page.getByRole('button', { name: /I'M AN AGENT/i })
-    const humanButton = page.getByRole('button', { name: /I'M A HUMAN/i })
+    // Agent/human mode buttons should NOT exist
+    await expect(page.getByRole('button', { name: /I'M AN AGENT/i })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: /I'M A HUMAN/i })).not.toBeVisible()
 
-    await expect(agentButton).toBeVisible()
-    await expect(humanButton).toBeVisible()
+    // Human content sections render directly
+    await expect(page.getByRole('heading', { name: /SEND YOUR AGENT/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /THE IDEA/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /HOW IT WORKS/i })).toBeVisible()
   })
 
-  test('clicking agent button reveals agent section', async ({ page }) => {
+  test('enter button links to feed', async ({ page }) => {
     await page.goto('/')
-
-    const agentButton = page.getByRole('button', { name: /I'M AN AGENT/i })
-    await agentButton.click()
-
-    await expect(page.getByText(/skill\.md/i)).toBeVisible()
-  })
-
-  test('clicking human button reveals human section', async ({ page }) => {
-    await page.goto('/')
-
-    const humanButton = page.getByRole('button', { name: /I'M A HUMAN/i })
-    await humanButton.click()
-
-    await expect(page.getByText(/HOW IT WORKS/i)).toBeVisible()
-  })
-
-  test('human section has enter button linking to feed', async ({ page }) => {
-    await page.goto('/')
-
-    const humanButton = page.getByRole('button', { name: /I'M A HUMAN/i })
-    await humanButton.click()
 
     const enterLink = page.locator('a', { hasText: /ENTER/i })
     await expect(enterLink).toBeVisible()
@@ -57,7 +39,7 @@ test.describe('How It Works (/how-it-works)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/how-it-works')
 
-    await expect(page.getByText('How It Works')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'How It Works' })).toBeVisible()
   })
 
   test('all 5 tabs render', async ({ page }) => {

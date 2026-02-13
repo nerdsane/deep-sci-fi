@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { World } from '@/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
@@ -11,10 +11,10 @@ import { AspectsList } from './AspectsList'
 import { fadeInUp } from '@/lib/motion'
 import { ScrollReveal, StaggerReveal } from '@/components/ui/ScrollReveal'
 import {
-  IconArrowLeft,
   IconArrowRight,
   IconPlay,
 } from '@/components/ui/PixelIcon'
+import { ShareOnX } from '@/components/ui/ShareOnX'
 
 interface Story {
   id: string
@@ -24,6 +24,7 @@ interface Story {
   transcript?: string  // Full storyteller script - deprecated, use content
   content?: string     // Full story narrative
   summary?: string     // Short summary
+  cover_image_url?: string
   video_url?: string
   thumbnail_url?: string
   duration_seconds?: number
@@ -150,8 +151,19 @@ export function WorldDetail({ world }: WorldDetailProps) {
   return (
     <div className="space-y-8">
       {/* Hero section with glass effect + enhanced glow */}
-      <div className="glass-cyan glow-cyan-layered mb-8">
-        <div className="p-6 md:p-8">
+      <div className="glass-cyan glow-cyan-layered mb-8 relative overflow-hidden">
+        {/* Prominent cover image */}
+        {world.coverImageUrl && (
+          <div className="relative aspect-[21/9] w-full overflow-hidden m-[1px]">
+            <img
+              src={world.coverImageUrl}
+              alt={world.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          </div>
+        )}
+        <div className="p-6 md:p-8 relative">
           <div className="flex items-start justify-between mb-6">
             <div>
               <div className="flex items-center gap-3 mb-3">
@@ -167,7 +179,10 @@ export function WorldDetail({ world }: WorldDetailProps) {
               </div>
               <div className="text-text-secondary text-sm max-w-2xl">{world.premise}</div>
             </div>
-{/* Follow/Share buttons hidden until functionality is implemented */}
+            <ShareOnX
+              text={`Check out ${world.name} — a sci-fi world set in ${world.yearSetting}`}
+              hashtags={['DeepSciFi']}
+            />
           </div>
 
           {/* Stats */}
@@ -454,7 +469,7 @@ function StoryStatusBadge({ status }: { status?: 'published' | 'acclaimed' }) {
 }
 
 function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string }) {
-  const [expandedStory, setExpandedStory] = useState<string | null>(null)
+  const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'acclaimed'>('all')
   const [sortBy, setSortBy] = useState<'engagement' | 'recent'>('engagement')
 
@@ -484,129 +499,6 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
   } else {
     filteredStories.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-  }
-
-  const expanded = expandedStory ? stories.find(s => s.id === expandedStory) : null
-
-  // Expanded story view - now links to dedicated story page
-  if (expanded) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setExpandedStory(null)}
-            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
-          >
-            <IconArrowLeft size={16} /> STORIES
-          </button>
-          <a
-            href={`/stories/${expanded.id}`}
-            className="text-neon-cyan hover:text-neon-cyan/80 font-mono text-sm flex items-center gap-2"
-          >
-            VIEW FULL PAGE <IconArrowRight size={16} />
-          </a>
-        </div>
-
-        <div className="max-w-3xl">
-          {/* Status badge */}
-          <div className="flex items-center gap-3 mb-4">
-            <StoryStatusBadge status={expanded.status} />
-            {expanded.perspective && (
-              <span className="text-[10px] font-mono text-text-tertiary">
-                {expanded.perspective.replace(/_/g, ' ').toUpperCase()}
-                {expanded.perspective_dweller_name && ` (via ${expanded.perspective_dweller_name})`}
-              </span>
-            )}
-          </div>
-
-          {/* Video/thumbnail */}
-          <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-6">
-            {expanded.video_url ? (
-              <video
-                src={expanded.video_url}
-                className="w-full h-full object-cover"
-                controls
-                autoPlay
-                poster={expanded.thumbnail_url}
-              />
-            ) : expanded.thumbnail_url ? (
-              <img
-                src={expanded.thumbnail_url}
-                alt={expanded.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
-                <span className="text-text-tertiary font-mono">
-                  {expanded.type?.toUpperCase() || 'STORY'}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <h1 className="text-lg text-neon-cyan mb-2">{expanded.title}</h1>
-
-          {expanded.author_username && (
-            <div className="text-text-secondary text-sm mb-4">
-              By <span className="text-neon-cyan">{expanded.author_username}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-4 text-text-tertiary text-xs font-mono mb-6">
-            <span>{new Date(expanded.created_at).toLocaleDateString()}</span>
-            {expanded.duration_seconds && expanded.duration_seconds > 0 && (
-              <span>{Math.floor(expanded.duration_seconds / 60)}:{String(expanded.duration_seconds % 60).padStart(2, '0')}</span>
-            )}
-            {expanded.view_count !== undefined && expanded.view_count > 0 && (
-              <span>{expanded.view_count} views</span>
-            )}
-            {expanded.review_count !== undefined && expanded.review_count > 0 && (
-              <span>{expanded.review_count} reviews</span>
-            )}
-          </div>
-
-          {/* Summary or description */}
-          {(expanded.summary || expanded.description) && (
-            <div className="text-text-secondary leading-relaxed mb-6">
-              {expanded.summary || expanded.description}
-            </div>
-          )}
-
-          {/* Full story content */}
-          {(expanded.content || expanded.transcript) ? (
-            <div className="mt-4 p-6 border border-white/10 bg-bg-tertiary">
-              <p className="text-neon-cyan text-sm font-mono mb-4">STORY</p>
-              <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm">
-                {expanded.content || expanded.transcript}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-8 p-4 border border-white/10 bg-bg-tertiary">
-              <p className="text-text-tertiary text-sm font-mono mb-2">STORY</p>
-              <p className="text-text-secondary text-sm italic">
-                No content available.
-              </p>
-            </div>
-          )}
-
-          {/* Engagement stats */}
-          {(expanded.reaction_count !== undefined || expanded.comment_count !== undefined) && (
-            <div className="mt-6 flex items-center gap-6 text-xs font-mono">
-              {expanded.reaction_count !== undefined && (
-                <span className="text-text-secondary">
-                  {expanded.reaction_count} reactions
-                </span>
-              )}
-              {expanded.comment_count !== undefined && (
-                <span className="text-text-secondary">
-                  {expanded.comment_count} comments
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     )
   }
 
@@ -655,19 +547,25 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
             <Card
               key={story.id}
               className="cursor-pointer hover:border-neon-cyan/30 transition-colors"
-              onClick={() => setExpandedStory(story.id)}
+              onClick={() => router.push(`/stories/${story.id}`)}
             >
-              {/* Video/thumbnail */}
+              {/* Video/thumbnail/cover image */}
               <div className="aspect-video bg-bg-tertiary relative overflow-hidden">
                 {story.video_url ? (
                   <video
                     src={story.video_url}
                     className="w-full h-full object-cover"
-                    poster={story.thumbnail_url}
+                    poster={story.thumbnail_url || story.cover_image_url}
                   />
                 ) : story.thumbnail_url ? (
                   <img
                     src={story.thumbnail_url}
+                    alt={story.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : story.cover_image_url ? (
+                  <img
+                    src={story.cover_image_url}
                     alt={story.title}
                     className="w-full h-full object-cover"
                   />

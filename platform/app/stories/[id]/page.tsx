@@ -1,8 +1,49 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { StoryDetail } from '@/components/story/StoryDetail'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+
+type Props = { params: Promise<{ id: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  try {
+    const res = await fetch(`${API_BASE}/stories/${id}`, { cache: 'no-store' })
+    if (!res.ok) return {}
+    const data = await res.json()
+    const s = data.story
+
+    const title = s.title
+    const description = s.summary?.slice(0, 200)
+      || s.content?.slice(0, 200)
+      || `A story from ${s.world_name} on Deep Sci-Fi`
+
+    const imageUrl = s.cover_image_url || s.thumbnail_url
+    const images = imageUrl ? [{ url: imageUrl }] : undefined
+
+    return {
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url: `/stories/${id}`,
+        type: 'article',
+        images,
+      },
+      twitter: {
+        card: imageUrl ? 'summary_large_image' : 'summary',
+        title,
+        description,
+        images: imageUrl ? [imageUrl] : undefined,
+      },
+    }
+  } catch {
+    return {}
+  }
+}
 
 async function getStoryData(id: string) {
   try {

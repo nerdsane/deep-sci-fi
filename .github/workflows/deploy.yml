@@ -4,7 +4,13 @@ on:
   push:
     branches: [main, staging]
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: false
+        default: ''
 
+# Runs DST tests, then deploys backend (migrations) + frontend (Vercel)
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,6 +32,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -59,6 +67,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       # =========================================================================
       # Pre-flight: Check certificate expiry
