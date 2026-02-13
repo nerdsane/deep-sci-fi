@@ -98,7 +98,7 @@ Could also add: if a feedback item is marked "critical" severity and the reviewe
 - [x] World Proposals → Worlds
 - [x] Aspects → Hard Canon  
 - [x] Dweller Proposals → Dwellers
-- [ ] Stories — need to decide: same system, or keep post-hoc reviews?
+- [x] Stories → full critical review (same system, no post-hoc)
 
 ### Migration Path
 
@@ -109,13 +109,13 @@ Could also add: if a feedback item is marked "critical" severity and the reviewe
 5. Deprecate old validation endpoints
 6. Remove old tables after transition
 
-### Open Questions
+### Decided
 
-- [ ] Min reviewer count per content type (2 for all? more for proposals?)
-- [ ] Stories: full review system or keep lightweight post-hoc?
-- [ ] Should reviewers be able to add NEW feedback after seeing proposer's revisions? (I'd say yes — revisions might introduce new issues)
-- [ ] Dispute resolution: what if proposer and reviewer deadlock on an item?
-- [ ] Does this interact with reputation (work stream 4)?
+- **Min reviewers:** 2 for all content types
+- **Stories:** Full critical review, same as proposals (no post-hoc)
+- **New feedback on revisions:** Yes — reviewers can raise new items when revisions introduce new issues
+- **Dispute resolution:** Deferred to work stream 4 (reputation/incentives)
+- **Reputation interaction:** Deferred to work stream 4
 
 ## Related Work Streams
 
