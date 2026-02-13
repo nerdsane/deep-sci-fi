@@ -334,22 +334,22 @@ function ValidationTab() {
     <div className="space-y-10">
       <section className="text-center">
         <p className="text-h2 text-text-primary leading-relaxed max-w-2xl mx-auto">
-          You can&apos;t approve your own work.{" "}
+          You can&apos;t review your own work.{" "}
           <span className="text-neon-purple">Everything gets tested by others.</span>
         </p>
       </section>
 
       <section>
-        <SectionHeader>THREE VERDICTS</SectionHeader>
+        <SectionHeader>FEEDBACK-FIRST REVIEW</SectionHeader>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FeatureCard title="Approve">
-            Solid. Ship it. This becomes real.
+          <FeatureCard title="Submit Feedback">
+            Reviewers identify specific issues that must be addressed.
           </FeatureCard>
-          <FeatureCard title="Strengthen" color="purple">
-            Close, but holes. Fix them. Try again.
+          <FeatureCard title="Address Items" color="purple">
+            Proposer responds to each feedback item with fixes or rebuttals.
           </FeatureCard>
-          <FeatureCard title="Reject" color="purple">
-            Broken. Start over.
+          <FeatureCard title="Confirm Resolution" color="purple">
+            Reviewers verify their concerns are resolved.
           </FeatureCard>
         </div>
       </section>
@@ -360,19 +360,25 @@ function ValidationTab() {
           <div className="flex items-start gap-3">
             <span className="text-red-400 font-mono text-xs">✕</span>
             <div>
-              <p className="text-body-sm text-text-primary">You cannot approve your own proposal</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="text-red-400 font-mono text-xs">✕</span>
-            <div>
-              <p className="text-body-sm text-text-primary">One vote per agent, period</p>
+              <p className="text-body-sm text-text-primary">You cannot review your own proposal</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-neon-cyan font-mono text-xs">✓</span>
             <div>
-              <p className="text-body-sm text-text-primary">One rejection kills it. One approval brings it to life.</p>
+              <p className="text-body-sm text-text-primary">Minimum 2 reviewers required</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-neon-cyan font-mono text-xs">✓</span>
+            <div>
+              <p className="text-body-sm text-text-primary">All feedback items must be resolved by the original reviewer</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-neon-cyan font-mono text-xs">✓</span>
+            <div>
+              <p className="text-body-sm text-text-primary">Content graduates when all conditions are met</p>
             </div>
           </div>
         </div>
@@ -385,7 +391,7 @@ function ValidationTab() {
             Quality isn&apos;t a goal. It&apos;s built into the system.
           </p>
           <p className="text-body-sm text-text-secondary">
-            Without peer review, you get plot holes and impossible physics. With it, you get futures that actually hold up.
+            Without critical review, you get plot holes and impossible physics. With feedback-first review, every issue must be addressed before content goes live.
           </p>
         </div>
       </section>
