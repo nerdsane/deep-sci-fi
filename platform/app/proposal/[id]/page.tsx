@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { getProposal, type ProposalDetail, type ValidationVerdict } from '@/lib/api'
+import { getProposal, type ProposalDetail, type ValidationVerdict, getReviewStatus, type ReviewStatusResponse } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconArrowLeft, IconArrowRight } from '@/components/ui/PixelIcon'
@@ -40,6 +40,7 @@ export default function ProposalDetailPage() {
   const proposalId = params.id as string
 
   const [data, setData] = useState<ProposalDetail | null>(null)
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +50,12 @@ export default function ProposalDetailPage() {
         setLoading(true)
         const result = await getProposal(proposalId)
         setData(result)
+
+        // Fetch review status if using critical_review system
+        if (result.proposal.review_system === 'critical_review' && result.proposal.status === 'validating') {
+          const status = await getReviewStatus('proposal', proposalId)
+          setReviewStatus(status)
+        }
       } catch (err) {
         console.error('Failed to load proposal:', err)
         setError(err instanceof Error ? err.message : 'Failed to load proposal')
@@ -185,31 +192,65 @@ export default function ProposalDetailPage() {
         </Card>
       )}
 
-      {/* Validation Summary */}
-      <Card className="mb-4">
-        <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-3">
-            VALIDATION
-          </div>
-          <div className="flex gap-4 text-sm">
-            <div>
-              <span className="text-neon-green font-mono">{summary.approve_count}</span>
-              <span className="text-text-tertiary ml-1">Approvals</span>
+      {/* Review Status (Critical Review System) */}
+      {proposal.review_system === 'critical_review' && reviewStatus && (
+        <Card className="mb-4">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">
+              REVIEW STATUS
             </div>
-            <div>
-              <span className="text-neon-cyan font-mono">{summary.strengthen_count}</span>
-              <span className="text-text-tertiary ml-1">Strengthen</span>
+            <div className="flex gap-4 text-sm mb-3">
+              <div>
+                <span className="text-neon-cyan font-mono">{reviewStatus.reviewer_count}/{reviewStatus.min_reviewers}</span>
+                <span className="text-text-tertiary ml-1">Reviewers</span>
+              </div>
+              <div>
+                <span className="text-neon-pink font-mono">{reviewStatus.feedback_items.by_status.open}</span>
+                <span className="text-text-tertiary ml-1">Open Items</span>
+              </div>
+              <div>
+                <span className="text-neon-cyan font-mono">{reviewStatus.feedback_items.by_status.addressed}</span>
+                <span className="text-text-tertiary ml-1">Addressed</span>
+              </div>
+              <div>
+                <span className="text-neon-green font-mono">{reviewStatus.feedback_items.by_status.resolved}</span>
+                <span className="text-text-tertiary ml-1">Resolved</span>
+              </div>
             </div>
-            <div>
-              <span className="text-neon-pink font-mono">{summary.reject_count}</span>
-              <span className="text-text-tertiary ml-1">Rejections</span>
+            <div className={`text-xs font-mono ${reviewStatus.can_graduate ? 'text-neon-green' : 'text-text-tertiary'}`}>
+              {reviewStatus.graduation_status}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Validations */}
-      {validations.length > 0 && (
+      {/* Validation Summary (Legacy) */}
+      {proposal.review_system !== 'critical_review' && (
+        <Card className="mb-4">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">
+              VALIDATION
+            </div>
+            <div className="flex gap-4 text-sm">
+              <div>
+                <span className="text-neon-green font-mono">{summary.approve_count}</span>
+                <span className="text-text-tertiary ml-1">Approvals</span>
+              </div>
+              <div>
+                <span className="text-neon-cyan font-mono">{summary.strengthen_count}</span>
+                <span className="text-text-tertiary ml-1">Strengthen</span>
+              </div>
+              <div>
+                <span className="text-neon-pink font-mono">{summary.reject_count}</span>
+                <span className="text-text-tertiary ml-1">Rejections</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validations (Legacy) */}
+      {proposal.review_system !== 'critical_review' && validations.length > 0 && (
         <div className="mb-4">
           <div className="text-xs font-mono text-text-tertiary mb-3">VALIDATIONS</div>
           <div className="space-y-3">
