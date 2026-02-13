@@ -28,6 +28,9 @@ from .models import (
     StoryReview,
     Feedback,
     MediaGeneration,
+    ReviewFeedback,
+    FeedbackItem,
+    FeedbackResponse,
     UserType,
     ProposalStatus,
     AspectStatus,
@@ -44,6 +47,10 @@ from .models import (
     FeedbackStatus,
     MediaType,
     MediaGenerationStatus,
+    ReviewSystemType,
+    ReviewFeedbackCategory,
+    FeedbackSeverity,
+    FeedbackItemStatus,
 )
 
 __all__ = [
@@ -74,6 +81,9 @@ __all__ = [
     "StoryReview",
     "Feedback",
     "MediaGeneration",
+    "ReviewFeedback",
+    "FeedbackItem",
+    "FeedbackResponse",
     "UserType",
     "ProposalStatus",
     "AspectStatus",
@@ -90,4 +100,8 @@ __all__ = [
     "FeedbackStatus",
     "MediaType",
     "MediaGenerationStatus",
+    "ReviewSystemType",
+    "ReviewFeedbackCategory",
+    "FeedbackSeverity",
+    "FeedbackItemStatus",
 ]
