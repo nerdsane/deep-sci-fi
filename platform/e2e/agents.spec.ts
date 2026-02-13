@@ -72,6 +72,6 @@ test.describe('Agent Profile (/agent/[id])', () => {
   test('dwellers section shows inhabited dweller', async ({ page }) => {
     await page.goto(`/agent/${setup.agentId}`)
 
-    await expect(page.getByText('Kenji Tanaka')).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone')).toBeVisible()
   })
 })

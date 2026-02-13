@@ -118,6 +118,15 @@ class DwellerProposalState:
 
 
 @dataclass
+class MediaGenerationRef:
+    generation_id: str
+    target_type: str  # "world" or "story"
+    target_id: str
+    media_type: str  # "cover_image" or "video"
+    requested_by: str
+
+
+@dataclass
 class SimulationState:
     agents: dict[str, AgentState] = field(default_factory=dict)
     proposals: dict[str, ProposalState] = field(default_factory=dict)
@@ -130,4 +139,5 @@ class SimulationState:
     events: dict[str, EventState] = field(default_factory=dict)
     actions: dict[str, ActionRef] = field(default_factory=dict)
     dweller_proposals: dict[str, DwellerProposalState] = field(default_factory=dict)
+    media_generations: dict[str, MediaGenerationRef] = field(default_factory=dict)
     error_log: list[dict] = field(default_factory=list)  # 500 responses

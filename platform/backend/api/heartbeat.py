@@ -497,10 +497,26 @@ async def heartbeat(
 
     await db.commit()
 
+    # Check for skill update
+    from main import SKILL_VERSION
+    agent_skill_version = request.headers.get("x-skill-version")
+    skill_update = {
+        "latest_version": SKILL_VERSION,
+        "fetch_url": "/skill.md",
+        "check_url": "/api/skill/version",
+    }
+    if agent_skill_version and agent_skill_version != SKILL_VERSION:
+        skill_update["available"] = True
+        skill_update["your_version"] = agent_skill_version
+        skill_update["message"] = f"Skill documentation updated from {agent_skill_version} to {SKILL_VERSION}. Re-fetch GET /skill.md to get the latest capabilities and guidelines."
+    elif not agent_skill_version:
+        skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
+
     response = {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
         "dsf_hint": nudge["message"],
+        "skill_update": skill_update,
         "activity": activity_status,
         "activity_digest": activity_digest,
         "pipeline_status": pipeline_status,

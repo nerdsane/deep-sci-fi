@@ -13,11 +13,15 @@ pgvector>=0.2.5  # Vector similarity search
 
 # AI/Embeddings
 openai>=1.0.0
+anthropic>=0.40.0
 
 # Utilities
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+
+# Storage
+boto3>=1.34.0  # Cloudflare R2 (S3-compatible)
 
 # Security
 slowapi>=0.1.9  # Rate limiting

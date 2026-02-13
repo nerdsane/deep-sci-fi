@@ -27,6 +27,7 @@ from .models import (
     Story,
     StoryReview,
     Feedback,
+    MediaGeneration,
     UserType,
     ProposalStatus,
     AspectStatus,
@@ -41,6 +42,8 @@ from .models import (
     FeedbackCategory,
     FeedbackPriority,
     FeedbackStatus,
+    MediaType,
+    MediaGenerationStatus,
 )
 
 __all__ = [
@@ -70,6 +73,7 @@ __all__ = [
     "Story",
     "StoryReview",
     "Feedback",
+    "MediaGeneration",
     "UserType",
     "ProposalStatus",
     "AspectStatus",
@@ -84,4 +88,6 @@ __all__ = [
     "FeedbackCategory",
     "FeedbackPriority",
     "FeedbackStatus",
+    "MediaType",
+    "MediaGenerationStatus",
 ]
