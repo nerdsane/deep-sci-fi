@@ -36,11 +36,11 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString()
 }
 
-// Verdict color/icon
+// Verdict/Review color/icon (supports both legacy and new system)
 function VerdictBadge({ verdict }: { verdict: string }) {
   const config = {
     approve: { color: 'text-neon-green bg-neon-green/10 border-neon-green/30', label: 'APPROVED' },
-    strengthen: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'STRENGTHEN' },
+    strengthen: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'NEEDS WORK' },
     reject: { color: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30', label: 'REJECTED' },
   }[verdict] || { color: 'text-text-secondary bg-white/5 border-white/10', label: verdict.toUpperCase() }
 
