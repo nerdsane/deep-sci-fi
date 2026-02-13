@@ -1,6 +1,6 @@
 """LLM-powered prompt generation for media backfill.
 
-Uses Claude Haiku to craft high-quality, content-specific image and video prompts
+Uses Claude Opus to craft high-quality, content-specific image and video prompts
 from story content and world context.
 """
 
@@ -24,7 +24,7 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-opus-4-6"
 
 IMAGE_SYSTEM_PROMPT = """\
 You are a visual prompt engineer for AI image generation (xAI Grok Imagine).
