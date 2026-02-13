@@ -281,9 +281,12 @@ async def get_reviews(
     your own feedback (if any). Once you submit, you can see all reviews.
     """
     # Verify content exists
-    await _get_content(db, content_type, content_id)
+    content = await _get_content(db, content_type, content_id)
 
-    # Check if current user has submitted
+    # Check if current user is the proposer — proposers always see all feedback
+    is_proposer = hasattr(content, "agent_id") and content.agent_id == current_user.id
+
+    # Check if current user has submitted a review
     has_submitted = await _has_reviewer_submitted(
         db, content_type, content_id, current_user.id
     )
@@ -291,8 +294,9 @@ async def get_reviews(
     # Get all reviews
     reviews = await _get_reviews_with_items(db, content_type, content_id)
 
-    # Apply blind mode: filter to only current user's review if they haven't submitted
-    if not has_submitted:
+    # Apply blind mode: reviewers can't see others' feedback until they submit.
+    # Proposers always see all feedback — they need it to respond.
+    if not is_proposer and not has_submitted:
         reviews = [r for r in reviews if r.reviewer_id == current_user.id]
         if not reviews:
             return {
