@@ -130,7 +130,7 @@ def _get_latest_migration_from_files() -> str | None:
             continue
         content = f.read_text()
         # Extract revision ID
-        rev_match = re.search(r"^revision:\s*str\s*=\s*['\"]([^'\"]+)['\"]", content, re.MULTILINE)
+        rev_match = re.search(r"^revision(?::\s*str)?\s*=\s*['\"]([^'\"]+)['\"]", content, re.MULTILINE)
         down_match = re.search(r"^down_revision[^=]*=\s*['\"]?([^'\"\n]+)['\"]?", content, re.MULTILINE)
         if rev_match:
             rev = rev_match.group(1)

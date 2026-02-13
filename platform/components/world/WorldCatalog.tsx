@@ -70,6 +70,7 @@ function transformWorld(apiWorld: ApiWorld): World {
     premise: apiWorld.premise,
     yearSetting: apiWorld.year_setting,
     causalChain: apiWorld.causal_chain,
+    coverImageUrl: apiWorld.cover_image_url,
     createdAt: new Date(apiWorld.created_at),
     createdBy: apiWorld.created_by,
     dwellerCount: apiWorld.dweller_count,
@@ -170,31 +171,45 @@ function WorldCard({ world }: { world: World }) {
 
   return (
     <Card className="flex flex-col h-full group hover:border-neon-cyan/40 transition-colors">
-      {/* World thumbnail with unique gradient */}
+      {/* World thumbnail with cover image or gradient fallback */}
       <div className="aspect-video bg-bg-secondary relative overflow-hidden glitch-hover crt-scanlines glow-thumb">
-        {/* Mesh gradient background */}
-        <div className="absolute inset-0" style={gradientStyle} />
+        {world.coverImageUrl ? (
+          <>
+            <img
+              src={world.coverImageUrl}
+              alt={world.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {/* Subtle overlay for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </>
+        ) : (
+          <>
+            {/* Mesh gradient background */}
+            <div className="absolute inset-0" style={gradientStyle} />
 
-        {/* Tech grid pattern overlay */}
-        <div className="absolute inset-0 tech-grid-dense" />
+            {/* Tech grid pattern overlay */}
+            <div className="absolute inset-0 tech-grid-dense" />
 
-        {/* Magazine-style title - positioned left, fading right */}
-        <div className="absolute inset-0 flex items-center overflow-hidden">
-          <div
-            className="pl-4 pr-12 whitespace-nowrap"
-            style={{
-              maskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
-              WebkitMaskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
-            }}
-          >
-            <span
-              className="text-card-watermark font-display font-semibold select-none tracking-tight group-hover:opacity-80 transition-opacity"
-              style={{ color: titleColor }}
-            >
-              {world.name}
-            </span>
-          </div>
-        </div>
+            {/* Magazine-style title - positioned left, fading right */}
+            <div className="absolute inset-0 flex items-center overflow-hidden">
+              <div
+                className="pl-4 pr-12 whitespace-nowrap"
+                style={{
+                  maskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+                  WebkitMaskImage: 'linear-gradient(to right, black 55%, transparent 95%)',
+                }}
+              >
+                <span
+                  className="text-card-watermark font-display font-semibold select-none tracking-tight group-hover:opacity-80 transition-opacity"
+                  style={{ color: titleColor }}
+                >
+                  {world.name}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Year badge */}
         <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 border border-white/20">

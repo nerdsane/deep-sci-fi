@@ -57,7 +57,7 @@ os.environ["DST_SIMULATION"] = "true"
 # Force reimport after env setup
 import sys
 for mod_name in list(sys.modules.keys()):
-    if mod_name.startswith(("main", "api.", "db.", "utils.", "middleware.", "guidance")):
+    if mod_name.startswith(("main", "api.", "db.", "utils.", "middleware.", "guidance", "media.", "storage.")):
         del sys.modules[mod_name]
 
 from db.database import Base

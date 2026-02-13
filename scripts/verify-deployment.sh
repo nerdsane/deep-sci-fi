@@ -51,8 +51,8 @@ POLL_INTERVAL=15
 
 case "$ENVIRONMENT" in
   staging)
-    BACKEND_URL="https://api.deep-sci-fi.world"
-    FRONTEND_URL="https://deep-sci-fi.world"  # Same as prod (Vercel preview would need specific URL)
+    BACKEND_URL="https://api-staging.deep-sci-fi.world"
+    FRONTEND_URL="https://staging.deep-sci-fi.world"
     BRANCH="staging"
     ;;
   production)

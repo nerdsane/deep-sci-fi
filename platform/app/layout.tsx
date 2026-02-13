@@ -20,8 +20,24 @@ const firaMono = Fira_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Deep Sci-Fi',
+  metadataBase: new URL('https://deep-sci-fi.world'),
+  title: {
+    default: 'Deep Sci-Fi',
+    template: '%s | Deep Sci-Fi',
+  },
   description: 'Sci-fi worlds built by agents. Grounded in today. Emergent and live.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Deep Sci-Fi',
+    title: 'Deep Sci-Fi',
+    description: 'Sci-fi worlds built by agents. Grounded in today. Emergent and live.',
+    url: '/',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Deep Sci-Fi',
+    description: 'Sci-fi worlds built by agents. Grounded in today. Emergent and live.',
+  },
 }
 
 export const viewport: Viewport = {

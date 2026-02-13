@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { setupTestWorld, TestSetup } from './fixtures/test-world'
+import { setupTestWorld, setupTestStory, TestSetup, StorySetup } from './fixtures/test-world'
 
 /**
  * E2E tests for world listing and detail pages.
@@ -16,7 +16,7 @@ test.describe('Worlds Catalog (/worlds)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/worlds')
 
-    await expect(page.getByText('WORLDS')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'WORLDS', exact: true })).toBeVisible()
   })
 
   test('world rows render (TRENDING, MOST ACTIVE, NEW)', async ({ page }) => {
@@ -36,7 +36,15 @@ test.describe('Worlds Catalog (/worlds)', () => {
   test('test world appears in catalog', async ({ page }) => {
     await page.goto('/worlds')
 
-    await expect(page.getByText(new RegExp(setup.worldName, 'i'))).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(setup.worldName, 'i') }).first()).toBeVisible()
+  })
+
+  test('world cards render with aspect-video thumbnail area', async ({ page }) => {
+    await page.goto('/worlds')
+
+    // World cards should have aspect-video thumbnail containers (cover image or gradient fallback)
+    const thumbnailArea = page.locator('.aspect-video').first()
+    await expect(thumbnailArea).toBeVisible()
   })
 })
 
@@ -76,7 +84,14 @@ test.describe('World Detail (/world/[id])', () => {
     const dwellersTab = page.locator('button', { hasText: /^dwellers$/i })
     await dwellersTab.click()
 
-    await expect(page.getByText('Kenji Tanaka')).toBeVisible()
+    await expect(page.getByText('Edmund Whitestone')).toBeVisible()
+  })
+
+  test('share on X button is visible', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const shareButton = page.getByRole('button', { name: /share/i })
+    await expect(shareButton).toBeVisible()
   })
 
   test('clicking tabs changes content', async ({ page }) => {
@@ -95,5 +110,79 @@ test.describe('World Detail (/world/[id])', () => {
     await aspectsTab.click()
 
     // If we got this far without errors, tabs are switching correctly
+  })
+})
+
+test.describe('World Detail - Story Navigation', () => {
+  let setup: StorySetup
+
+  test.beforeAll(async ({ request }) => {
+    setup = await setupTestStory(request)
+  })
+
+  test('clicking a story card navigates to /stories/[id]', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Wait for story title to appear, then click its parent link
+    const storyTitle = page.getByText(new RegExp(setup.storyTitle, 'i')).first()
+    await storyTitle.scrollIntoViewIfNeeded()
+    await expect(storyTitle).toBeVisible()
+    await storyTitle.click()
+
+    // Should navigate to the story page
+    await expect(page).toHaveURL(`/stories/${setup.storyId}`)
+  })
+
+  test('story cards show media fallback when no cover image', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Story cards should have aspect-video containers for media (cover image, video, or gradient fallback)
+    const mediaContainer = page.locator('.aspect-video').first()
+    await expect(mediaContainer).toBeVisible()
+  })
+
+  test('no hardcoded test media URLs in page', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    // Click stories tab to load story cards
+    const storiesTab = page.locator('button', { hasText: /^stories$/i })
+    await storiesTab.click()
+
+    // Verify no TEMP placeholder media URLs leak into the page
+    // (Unsplash test images and Big Buck Bunny video were removed)
+    const html = await page.content()
+    expect(html).not.toContain('images.unsplash.com')
+    expect(html).not.toContain('Big_Buck_Bunny')
+    expect(html).not.toContain('test-videos.example.com')
+  })
+})
+
+test.describe('World Detail - Meta Tags', () => {
+  let setup: TestSetup
+
+  test.beforeAll(async ({ request }) => {
+    setup = await setupTestWorld(request)
+  })
+
+  test('og:title meta tag is set for world', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const ogTitle = page.locator('meta[property="og:title"]')
+    await expect(ogTitle).toHaveAttribute('content', new RegExp(setup.worldName, 'i'))
+  })
+
+  test('og:type meta tag is website', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const ogType = page.locator('meta[property="og:type"]')
+    await expect(ogType).toHaveAttribute('content', 'website')
   })
 })
