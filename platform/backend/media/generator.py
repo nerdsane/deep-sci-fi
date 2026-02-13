@@ -44,7 +44,7 @@ async def generate_image(prompt: str) -> bytes:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "grok-2-image",
+                        "model": "grok-imagine-image",
                         "prompt": prompt,
                         "n": 1,
                         "response_format": "b64_json",
@@ -90,33 +90,35 @@ async def generate_video(prompt: str, duration: int = 10) -> bytes:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "grok-2-video",
+                        "model": "grok-imagine-video",
                         "prompt": prompt,
                         "duration": duration,
+                        "aspect_ratio": "16:9",
+                        "resolution": "720p",
                     },
                 )
                 response.raise_for_status()
                 data = response.json()
 
                 # Poll for completion
-                generation_id = data["id"]
+                request_id = data["request_id"]
                 while True:
                     await asyncio.sleep(5)
                     status_response = await client.get(
-                        f"{XAI_BASE_URL}/videos/generations/{generation_id}",
+                        f"{XAI_BASE_URL}/videos/{request_id}",
                         headers={"Authorization": f"Bearer {XAI_API_KEY}"},
                     )
                     status_response.raise_for_status()
                     status_data = status_response.json()
 
-                    if status_data.get("status") == "completed":
-                        video_url = status_data["video_url"]
+                    if status_data.get("status") == "done":
+                        video_url = status_data["video"]["url"]
                         video_response = await client.get(video_url)
                         video_response.raise_for_status()
                         return video_response.content
 
-                    if status_data.get("status") == "failed":
-                        raise RuntimeError(f"Video generation failed: {status_data.get('error', 'Unknown error')}")
+                    if status_data.get("status") == "expired":
+                        raise RuntimeError("Video generation expired before completion")
 
         except (httpx.HTTPStatusError, httpx.TimeoutException, KeyError) as e:
             if attempt < MAX_RETRIES:
