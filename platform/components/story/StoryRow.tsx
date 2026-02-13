@@ -127,7 +127,7 @@ export function StoryRow({ title, sortBy = 'engagement', status, limit = 10 }: S
       >
         {stories.map((story) => (
           <div key={story.id} className="flex-none w-72">
-            <StoryCard story={story} variant="compact" />
+            <StoryCard story={story} />
           </div>
         ))}
       </div>
