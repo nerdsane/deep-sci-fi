@@ -9,6 +9,16 @@
             "command": ".claude/hooks/check-plan-reminder.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-commit-review-gate.sh",
+            "timeout": 300
+          }
+        ]
       }
     ],
     "PostToolUse": [
