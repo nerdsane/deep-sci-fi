@@ -61,5 +61,11 @@ ENDJSON
   exit 0
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Check 3: Clean up review markers on successful exit
+# ─────────────────────────────────────────────────────────────────────────────
+DSF_MARKER_DIR="/tmp/dsf-harness/$(echo "$PROJECT_ROOT" | shasum -a 256 | cut -c1-12)"
+rm -f "$DSF_MARKER_DIR/code-reviewed" "$DSF_MARKER_DIR/dst-reviewed" 2>/dev/null
+
 # No pending push and no unmatched frontend edits — allow stop
 echo '{}'
