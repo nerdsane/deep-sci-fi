@@ -345,34 +345,95 @@ async def get_feed(
             } if root.dweller and root.dweller.world else None,
         })
 
-    # Add solo actions as individual items
+    # Group solo actions by same dweller within 30-minute window
+    GROUPING_WINDOW = timedelta(minutes=30)
+    solo_actions.sort(key=lambda a: (str(a.dweller_id), a.created_at))
+
+    dweller_groups: list[list] = []
+    current_group: list = []
+
     for action in solo_actions:
-        feed_items.append({
-            "type": "dweller_action",
-            "sort_date": action.created_at.isoformat(),
-            "id": str(action.id),
-            "created_at": action.created_at.isoformat(),
-            "action": {
-                "type": action.action_type,
-                "content": action.content,
-                "target": action.target,
-            },
-            "dweller": {
-                "id": str(action.dweller.id),
-                "name": action.dweller.name,
-                "role": action.dweller.role,
-            } if action.dweller else None,
-            "world": {
-                "id": str(action.dweller.world.id),
-                "name": action.dweller.world.name,
-                "year_setting": action.dweller.world.year_setting,
-            } if action.dweller and action.dweller.world else None,
-            "agent": {
-                "id": str(action.actor.id),
-                "username": f"@{action.actor.username}",
-                "name": action.actor.name,
-            } if action.actor else None,
-        })
+        if not current_group:
+            current_group = [action]
+        elif (
+            str(action.dweller_id) == str(current_group[0].dweller_id)
+            and (action.created_at - current_group[-1].created_at) <= GROUPING_WINDOW
+        ):
+            current_group.append(action)
+        else:
+            dweller_groups.append(current_group)
+            current_group = [action]
+    if current_group:
+        dweller_groups.append(current_group)
+
+    for group in dweller_groups:
+        if len(group) == 1:
+            # Single action — render as before
+            action = group[0]
+            feed_items.append({
+                "type": "dweller_action",
+                "sort_date": action.created_at.isoformat(),
+                "id": str(action.id),
+                "created_at": action.created_at.isoformat(),
+                "action": {
+                    "type": action.action_type,
+                    "content": action.content,
+                    "target": action.target,
+                },
+                "dweller": {
+                    "id": str(action.dweller.id),
+                    "name": action.dweller.name,
+                    "role": action.dweller.role,
+                } if action.dweller else None,
+                "world": {
+                    "id": str(action.dweller.world.id),
+                    "name": action.dweller.world.name,
+                    "year_setting": action.dweller.world.year_setting,
+                } if action.dweller and action.dweller.world else None,
+                "agent": {
+                    "id": str(action.actor.id),
+                    "username": f"@{action.actor.username}",
+                    "name": action.actor.name,
+                } if action.actor else None,
+            })
+        else:
+            # Multiple actions from same dweller — group as activity_group
+            most_recent = max(a.created_at for a in group)
+            first = group[0]
+            actions_data = [
+                {
+                    "id": str(a.id),
+                    "type": a.action_type,
+                    "content": a.content,
+                    "target": a.target,
+                    "created_at": a.created_at.isoformat(),
+                }
+                for a in sorted(group, key=lambda x: x.created_at)
+            ]
+            feed_items.append({
+                "type": "activity_group",
+                "sort_date": most_recent.isoformat(),
+                "id": f"group-{first.dweller.id}-{first.id}",
+                "created_at": first.created_at.isoformat(),
+                "updated_at": most_recent.isoformat(),
+                "actions": actions_data,
+                "action_count": len(actions_data),
+                "dweller": {
+                    "id": str(first.dweller.id),
+                    "name": first.dweller.name,
+                    "role": first.dweller.role,
+                } if first.dweller else None,
+                "world": {
+                    "id": str(first.dweller.world.id),
+                    "name": first.dweller.world.name,
+                    "year_setting": first.dweller.world.year_setting,
+                } if first.dweller and first.dweller.world else None,
+                "agent": {
+                    "id": str(first.actor.id),
+                    "username": f"@{first.actor.username}",
+                    "name": first.actor.name,
+                } if first.actor else None,
+            })
 
     # === Dwellers Created ===
     dwellers_query = (

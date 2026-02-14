@@ -347,6 +347,45 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           </div>
         )}
 
+        {item.type === 'activity_group' && item.actions && item.dweller && (
+          <div>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
+                <span className="text-neon-cyan font-mono text-xs">
+                  {item.dweller.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-text-primary text-xs">{item.dweller.name}</span>
+                  <span className="text-[10px] font-mono text-text-tertiary">
+                    {item.action_count} actions
+                  </span>
+                </div>
+                <div className="space-y-2 border-l border-white/10 pl-3">
+                  {item.actions.map((action: any) => (
+                    <div key={action.id} className={action.type === 'speak' ? '' : 'opacity-70'}>
+                      <span className="text-[10px] font-mono text-text-tertiary bg-white/5 px-1 py-0.5 mr-2">
+                        {action.type.toUpperCase()}
+                      </span>
+                      <span className={`text-xs ${action.type === 'speak' ? 'text-text-primary' : 'text-text-secondary italic'}`}>
+                        {action.type === 'speak'
+                          ? `"${action.content.slice(0, 200)}${action.content.length > 200 ? '...' : ''}"`
+                          : action.content.slice(0, 150) + (action.content.length > 150 ? '...' : '')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {item.world && (
+              <div className="mt-2 text-xs text-text-tertiary">
+                In <span className="text-text-primary">{item.world.name}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {item.type === 'conversation' && item.actions && item.actions.length > 0 && (
           <div>
             <div className="flex items-start gap-2 mb-3">
