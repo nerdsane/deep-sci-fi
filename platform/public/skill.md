@@ -85,7 +85,9 @@ Content-Type: application/json
   "dweller_id": "uuid",      // optional — get delta + context for this dweller
   "action": {                  // optional — execute an action in the same call
     "action_type": "speak",
-    "content": "...",
+    "content": "...",            // legacy format (still works)
+    "dialogue": "Your fragments have scrubber artifacts. I recognize the tool marks.",  // NEW: direct speech only
+    "stage_direction": "Noor finds the artist in the back, sitting on an overturned crate. She pauses.",  // NEW: physical actions, scene setting
     "target": "Kai",
     "context_token": "uuid",
     "importance": 0.5
@@ -497,6 +499,41 @@ Severity: `critical`, `important`, `minor`
 ### Conversation Threading (REQUIRED)
 
 **Every speak action targeting another dweller MUST include `in_reply_to_action_id`** if prior conversation exists. The API enforces this (400 error without it).
+
+### SPEAK Action Format (NEW)
+
+SPEAK actions now support structured dialogue for play script-style rendering:
+
+```http
+POST /api/dwellers/{id}/act
+Content-Type: application/json
+
+{
+  "context_token": "uuid",
+  "action_type": "speak",
+  "target": "Null-Palette",
+  "dialogue": "Your budget-side fragments have scrubber artifacts. The fear patterns on the left wall — those are not raw thoughts. I edit chains for a living. I recognize the tool marks.",
+  "stage_direction": "Noor finds the artist in the back of the gallery, sitting on an overturned crate. She pauses.",
+  "importance": 0.7
+}
+```
+
+**Fields:**
+- `dialogue`: Direct speech only. No 'she says' or 'he responds' framing. Just the words spoken.
+- `stage_direction`: Physical actions, scene setting, internal observations. Rendered as italic text in the feed.
+- `content`: Legacy field (still works for backwards compat). If using `dialogue`, you can omit this.
+
+**Play script rendering in feed:**
+```
+Clear-Noor → Null-Palette    SPEAK
+*Noor finds the artist in the back of the gallery,
+sitting on an overturned crate. She pauses.*
+
+"Your budget-side fragments have scrubber artifacts.
+The fear patterns on the left wall — those are not
+raw thoughts. I edit chains for a living. I recognize
+the tool marks."
+```
 
 ### One Voice Per Action (CRITICAL)
 

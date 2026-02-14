@@ -36,6 +36,26 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString()
 }
 
+// Render SPEAK action content in play script format
+function renderSpeakAction(action: { content: string; dialogue?: string | null; stage_direction?: string | null }): JSX.Element {
+  // New structured format
+  if (action.dialogue || action.stage_direction) {
+    return (
+      <div className="text-xs space-y-1">
+        {action.stage_direction && (
+          <p className="text-text-tertiary italic">*{action.stage_direction}*</p>
+        )}
+        {action.dialogue && (
+          <p className="text-text-primary">"{action.dialogue}"</p>
+        )}
+      </div>
+    )
+  }
+
+  // Legacy format - just content
+  return <p className="text-text-secondary text-xs">"{action.content}"</p>
+}
+
 // Verdict/Review color/icon (supports both legacy and new system)
 function VerdictBadge({ verdict }: { verdict: string }) {
   const config = {
@@ -329,9 +349,11 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                     {item.action.type.toUpperCase()}
                   </span>
                 </div>
-                <p className="text-text-secondary text-xs">
-                  {item.action.type === 'speak' ? `"${item.action.content}"` : item.action.content}
-                </p>
+                {item.action.type === 'speak' ? (
+                  renderSpeakAction(item.action)
+                ) : (
+                  <p className="text-text-secondary text-xs">{item.action.content}</p>
+                )}
                 {item.action.target && (
                   <div className="text-text-tertiary text-xs mt-1 flex items-center gap-1">
                     <IconArrowRight size={12} /> {item.action.target}
@@ -363,18 +385,32 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   </span>
                 </div>
                 <div className="space-y-2 border-l border-white/10 pl-3">
-                  {item.actions.map((action: any) => (
-                    <div key={action.id} className={action.type === 'speak' ? '' : 'opacity-70'}>
-                      <span className="text-[10px] font-mono text-text-tertiary bg-white/5 px-1 py-0.5 mr-2">
-                        {action.type.toUpperCase()}
-                      </span>
-                      <span className={`text-xs ${action.type === 'speak' ? 'text-text-primary' : 'text-text-secondary italic'}`}>
-                        {action.type === 'speak'
-                          ? `"${action.content.slice(0, 200)}${action.content.length > 200 ? '...' : ''}"`
-                          : action.content.slice(0, 150) + (action.content.length > 150 ? '...' : '')}
-                      </span>
-                    </div>
-                  ))}
+                  {item.actions.map((action: any) => {
+                    const isSpeak = action.type === 'speak'
+                    let displayText = ''
+
+                    if (isSpeak && action.dialogue) {
+                      // New format - show truncated dialogue
+                      displayText = `"${action.dialogue.slice(0, 200)}${action.dialogue.length > 200 ? '...' : ''}"`
+                    } else if (isSpeak) {
+                      // Legacy format
+                      displayText = `"${action.content.slice(0, 200)}${action.content.length > 200 ? '...' : ''}"`
+                    } else {
+                      // Non-speak action
+                      displayText = action.content.slice(0, 150) + (action.content.length > 150 ? '...' : '')
+                    }
+
+                    return (
+                      <div key={action.id} className={isSpeak ? '' : 'opacity-70'}>
+                        <span className="text-[10px] font-mono text-text-tertiary bg-white/5 px-1 py-0.5 mr-2">
+                          {action.type.toUpperCase()}
+                        </span>
+                        <span className={`text-xs ${isSpeak ? 'text-text-primary' : 'text-text-secondary italic'}`}>
+                          {displayText}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -438,13 +474,13 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                       </div>
 
                       {/* Content */}
-                      <p className={`text-xs ${
-                        isSpeak
-                          ? 'text-text-secondary'
-                          : 'text-text-tertiary italic opacity-75'
-                      }`}>
-                        {isSpeak ? `"${action.content}"` : action.content}
-                      </p>
+                      {isSpeak ? (
+                        renderSpeakAction(action)
+                      ) : (
+                        <p className="text-xs text-text-tertiary italic opacity-75">
+                          {action.content}
+                        </p>
+                      )}
 
                       {/* Target indicator */}
                       {action.target && (
