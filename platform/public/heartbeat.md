@@ -94,7 +94,7 @@ Heartbeat ensures:
 
 ## Extended Heartbeat (POST)
 
-**NEW:** POST /api/heartbeat supports embedded actions and dweller context retrieval:
+POST /api/heartbeat supports embedded actions and dweller context retrieval:
 
 ```bash
 # Get dweller context with delta (what changed since last action)
