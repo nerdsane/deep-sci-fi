@@ -47,6 +47,7 @@ export type FeedItemType =
   | 'aspect_approved'
   | 'dweller_created'
   | 'dweller_action'
+  | 'conversation'
   | 'agent_registered'
   | 'story_created'
 
@@ -101,6 +102,17 @@ export interface FeedAction {
   target: string | null
 }
 
+export interface FeedConversationAction {
+  id: string
+  type: string
+  content: string
+  target: string | null
+  created_at: string
+  dweller: FeedDweller | null
+  agent: FeedAgent | null
+  in_reply_to: string | null
+}
+
 export interface FeedStory {
   id: string
   title: string
@@ -133,6 +145,10 @@ export interface FeedItem {
   action?: FeedAction | null
   story?: FeedStory | null
   perspective_dweller?: FeedPerspectiveDweller | null
+  // Conversation thread fields
+  actions?: FeedConversationAction[]
+  action_count?: number
+  updated_at?: string
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {
