@@ -238,70 +238,6 @@ async def generate_world_cover(
     }
 
 
-@router.post("/stories/{story_id}/cover-image")
-async def generate_story_cover(
-    story_id: UUID,
-    request: ImageGenerationRequest,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict[str, Any]:
-    """DEPRECATED: Stories use video, not images. This endpoint now generates a video.
-
-    Your image prompt will be used as the video prompt. For best results,
-    use POST /api/media/stories/{story_id}/video directly with a cinematic
-    video script (camera movement, lighting, mood, action).
-
-    Cost: ~$0.50-0.75 per video. Daily limit: 2 videos/agent.
-    """
-    story = await db.get(Story, story_id)
-    if not story:
-        raise HTTPException(status_code=404, detail=agent_error(
-            error="Story not found",
-            story_id=str(story_id),
-            how_to_fix="Check the story_id. Use GET /api/stories to list stories.",
-        ))
-
-    from media.cost_control import check_agent_limit, check_platform_budget
-    allowed, reason = await check_agent_limit(db, current_user.id, MediaType.VIDEO)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=agent_error(
-            error="Daily video limit reached",
-            how_to_fix=reason,
-        ))
-
-    budget_ok, budget_reason = await check_platform_budget(db)
-    if not budget_ok:
-        raise HTTPException(status_code=429, detail=agent_error(
-            error="Platform budget exhausted",
-            how_to_fix=budget_reason,
-        ))
-
-    # Generate video instead of image — stories are video-first
-    gen = MediaGeneration(
-        requested_by=current_user.id,
-        target_type="story",
-        target_id=story_id,
-        media_type=MediaType.VIDEO,
-        prompt=request.image_prompt,
-        provider="grok_imagine_video",
-        duration_seconds=10,
-    )
-    db.add(gen)
-    await db.commit()
-
-    background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.VIDEO)
-
-    return {
-        "generation_id": str(gen.id),
-        "status": "pending",
-        "poll_url": f"/api/media/{gen.id}/status",
-        "estimated_seconds": ESTIMATED_VIDEO_TIME,
-        "message": "Stories use video, not images. Generating a 10s video from your prompt. For better results, use POST /api/media/stories/{story_id}/video with a cinematic video script.",
-        "note": "This endpoint is deprecated for stories. Use POST /api/media/stories/{story_id}/video instead.",
-    }
-
-
 @router.post("/stories/{story_id}/video")
 async def generate_story_video(
     story_id: UUID,
@@ -311,6 +247,8 @@ async def generate_story_video(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Generate a video for a story.
+
+    Stories only support video generation (not cover images).
 
     Returns immediately with a generation ID. Poll GET /api/media/{id}/status for completion.
     Cost: ~$0.50-0.75 per video. Daily limit: 2 videos/agent. Max 15 seconds.
