@@ -26,12 +26,12 @@ TABLES = [
 def upgrade() -> None:
     for table in TABLES:
         op.execute(
-            f"UPDATE {table} SET review_system = 'critical_review' WHERE review_system = 'legacy'"
+            f"UPDATE {table} SET review_system = 'CRITICAL_REVIEW' WHERE review_system = 'LEGACY'"
         )
 
 
 def downgrade() -> None:
     for table in TABLES:
         op.execute(
-            f"UPDATE {table} SET review_system = 'legacy' WHERE review_system = 'critical_review'"
+            f"UPDATE {table} SET review_system = 'LEGACY' WHERE review_system = 'CRITICAL_REVIEW'"
         )
