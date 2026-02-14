@@ -49,6 +49,15 @@
             "command": ".claude/hooks/check-e2e-coverage.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-skill-version.sh"
+          }
+        ]
       }
     ],
     "Stop": [
