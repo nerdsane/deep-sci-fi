@@ -1325,7 +1325,7 @@ async def revise_story(
 # =============================================================================
 
 
-@router.delete("/{story_id}")
+@router.delete("/{story_id}", include_in_schema=False)
 async def delete_story(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
