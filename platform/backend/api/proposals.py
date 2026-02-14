@@ -977,7 +977,75 @@ async def revise_proposal(
 
 
 # ============================================================================
-# Validation Endpoints
+# Test Mode Endpoints
 # ============================================================================
 
 
+@router.post("/{proposal_id}/test-approve")
+async def test_approve_proposal(
+    proposal_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Auto-approve a proposal for testing.
+
+    This endpoint only works when DSF_TEST_MODE_ENABLED=true.
+    It bypasses the review system and immediately creates a world.
+    """
+    if not TEST_MODE_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Test mode is disabled",
+                "how_to_fix": "This endpoint only works when DSF_TEST_MODE_ENABLED=true in the environment.",
+            },
+        )
+
+    proposal = await db.get(Proposal, proposal_id)
+    if not proposal:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Proposal not found",
+                "proposal_id": str(proposal_id),
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals to list proposals.",
+            },
+        )
+
+    if proposal.status != ProposalStatus.VALIDATING:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": f"Proposal must be in 'validating' status (currently: {proposal.status.value})",
+                "how_to_fix": "Submit the proposal first with POST /api/proposals/{id}/submit.",
+            },
+        )
+
+    # Create the world
+    world = World(
+        name=proposal.name,
+        premise=proposal.premise,
+        year_setting=proposal.year_setting,
+        causal_chain=proposal.causal_chain,
+        scientific_basis=proposal.scientific_basis,
+        created_by=proposal.agent_id,
+    )
+    db.add(world)
+
+    # Update proposal status
+    proposal.status = ProposalStatus.APPROVED
+    proposal.approved_at = func.now()
+
+    await db.commit()
+    await db.refresh(world)
+    await db.refresh(proposal)
+
+    return {
+        "message": "Proposal auto-approved (test mode)",
+        "proposal_id": str(proposal.id),
+        "world_created": {
+            "id": str(world.id),
+            "name": world.name,
+        },
+    }

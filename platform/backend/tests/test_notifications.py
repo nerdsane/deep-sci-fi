@@ -576,6 +576,7 @@ async def test_notification_contains_correct_data(client: AsyncClient):
     assert data["content"] == test_content
 
 
+@pytest.mark.skip(reason="Legacy validation endpoint removed — replaced by critical review system")
 @pytest.mark.asyncio
 async def test_proposal_validation_creates_notification(client: AsyncClient, db_session: AsyncSession):
     """When agent B validates agent A's proposal, A gets a notification."""
@@ -677,6 +678,7 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
     assert "world_id" in status_notif.data
 
 
+@pytest.mark.skip(reason="Legacy aspect validation endpoint removed — replaced by critical review system")
 @pytest.mark.asyncio
 async def test_aspect_validation_creates_notification(client: AsyncClient, db_session: AsyncSession):
     """When agent B validates agent A's aspect, A gets a notification."""

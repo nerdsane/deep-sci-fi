@@ -1,4 +1,4 @@
-"""Aspect rules mixin — propose, submit, validate aspects."""
+"""Aspect rules mixin — propose, submit, review aspects."""
 
 from hypothesis.stateful import rule
 
@@ -53,8 +53,8 @@ class AspectRulesMixin:
             aspect.status = "validating"
 
     @rule()
-    def validate_aspect(self):
-        """Non-creator validates an aspect."""
+    def submit_aspect_review_feedback(self):
+        """Non-creator submits review feedback for an aspect."""
         validating = [a for a in self.state.aspects.values() if a.status == "validating"]
         if not validating:
             return
@@ -62,52 +62,26 @@ class AspectRulesMixin:
         validator = self._other_agent(aspect.creator_id)
         if not validator:
             return
-        # Skip if this validator already validated
+        # Skip if this validator already submitted feedback
         if validator.agent_id in aspect.validators:
             return
-        data = strat.aspect_validation_data("approve")
+        data = strat.review_feedback_data()
         resp = self.client.post(
-            f"/api/aspects/{aspect.aspect_id}/validate",
+            f"/api/review/aspect/{aspect.aspect_id}/feedback",
             headers=self._headers(validator),
             json=data,
         )
-        self._track_response(resp, f"validate aspect {aspect.aspect_id}")
-        if resp.status_code == 200:
-            aspect.validators[validator.agent_id] = "approve"
-            body = resp.json()
-            new_status = body.get("aspect_status")
-            if new_status:
-                aspect.status = new_status
-
-    @rule()
-    def strengthen_aspect(self):
-        """Non-creator strengthens a validating aspect."""
-        validating = [a for a in self.state.aspects.values() if a.status == "validating"]
-        if not validating:
-            return
-        aspect = validating[0]
-        validator = self._other_agent(aspect.creator_id)
-        if not validator:
-            return
-        if validator.agent_id in aspect.validators:
-            return
-        data = strat.aspect_validation_data_strengthen()
-        resp = self.client.post(
-            f"/api/aspects/{aspect.aspect_id}/validate",
-            headers=self._headers(validator),
-            json=data,
-        )
-        self._track_response(resp, f"strengthen aspect {aspect.aspect_id}")
-        if resp.status_code == 200:
-            aspect.validators[validator.agent_id] = "strengthen"
+        self._track_response(resp, f"review aspect {aspect.aspect_id}")
+        if resp.status_code in (200, 201):
+            aspect.validators[validator.agent_id] = "reviewed"
 
     @rule()
     def revise_aspect(self):
-        """Creator revises an aspect that has strengthen feedback."""
+        """Creator revises an aspect that has feedback."""
         validating = [
             a for a in self.state.aspects.values()
             if a.status == "validating"
-            and any(v == "strengthen" for v in a.validators.values())
+            and len(a.validators) > 0
         ]
         if not validating:
             return
@@ -124,47 +98,22 @@ class AspectRulesMixin:
             aspect.revision_count += 1
 
     @rule()
-    def reject_aspect(self):
-        """Non-creator rejects a validating aspect."""
-        validating = [a for a in self.state.aspects.values() if a.status == "validating"]
-        if not validating:
-            return
-        aspect = validating[-1]
-        validator = self._other_agent(aspect.creator_id)
-        if not validator:
-            return
-        if validator.agent_id in aspect.validators:
-            return
-        data = strat.aspect_validation_data("reject")
-        resp = self.client.post(
-            f"/api/aspects/{aspect.aspect_id}/validate",
-            headers=self._headers(validator),
-            json=data,
-        )
-        self._track_response(resp, f"reject aspect {aspect.aspect_id}")
-        if resp.status_code == 200:
-            aspect.validators[validator.agent_id] = "reject"
-            body = resp.json()
-            new_status = body.get("aspect_status")
-            if new_status:
-                aspect.status = new_status
-
-    @rule()
-    def self_validate_aspect(self):
-        """Creator tries to validate own aspect — must be rejected."""
+    def self_review_aspect(self):
+        """Creator tries to review own aspect — must be rejected."""
         validating = [a for a in self.state.aspects.values() if a.status == "validating"]
         if not validating:
             return
         aspect = validating[-1]
         creator = self.state.agents[aspect.creator_id]
-        data = strat.aspect_validation_data("approve")
+        data = strat.review_feedback_data()
         resp = self.client.post(
-            f"/api/aspects/{aspect.aspect_id}/validate",
+            f"/api/review/aspect/{aspect.aspect_id}/feedback",
             headers=self._headers(creator),
             json=data,
         )
-        self._track_response(resp, f"self-validate aspect {aspect.aspect_id}")
-        assert resp.status_code == 400, (
-            f"Self-validation should return 400 but got {resp.status_code}: "
+        self._track_response(resp, f"self-review aspect {aspect.aspect_id}")
+        # Self-review should be rejected (400 or 403)
+        assert resp.status_code in (400, 403), (
+            f"Self-review should return 400/403 but got {resp.status_code}: "
             f"{resp.text[:200]}"
         )
