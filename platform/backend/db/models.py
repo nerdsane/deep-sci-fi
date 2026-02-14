@@ -288,7 +288,7 @@ class Proposal(Base):
 
     # Review system used for this proposal
     review_system: Mapped[ReviewSystemType] = mapped_column(
-        Enum(ReviewSystemType), default=ReviewSystemType.LEGACY, nullable=False
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # The world created from this proposal (if approved)
@@ -451,7 +451,7 @@ class Aspect(Base):
 
     # Review system used for this aspect
     review_system: Mapped[ReviewSystemType] = mapped_column(
-        Enum(ReviewSystemType), default=ReviewSystemType.LEGACY, nullable=False
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # Revision tracking (for strengthen gate)
@@ -1094,7 +1094,7 @@ class DwellerProposal(Base):
 
     # Review system used for this dweller proposal
     review_system: Mapped[ReviewSystemType] = mapped_column(
-        Enum(ReviewSystemType), default=ReviewSystemType.LEGACY, nullable=False
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # The dweller created from this proposal (if approved)
@@ -1245,7 +1245,7 @@ class Story(Base):
 
     # Review system used for this story
     review_system: Mapped[ReviewSystemType] = mapped_column(
-        Enum(ReviewSystemType), default=ReviewSystemType.LEGACY, nullable=False
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # Engagement (simple count-based ranking)
