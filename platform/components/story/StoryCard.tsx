@@ -75,6 +75,14 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
             alt={story.title}
             className="w-full h-full object-cover"
           />
+        ) : story.video_url ? (
+          <video
+            src={story.video_url}
+            preload="metadata"
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20">
             <span className="text-text-tertiary text-sm font-mono">STORY</span>
