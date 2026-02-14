@@ -1105,7 +1105,7 @@ async def test_approve_proposal(
 async def cleanup_non_approved_proposals(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    x_admin_key: str = Header(None, alias="X-Admin-Key"),
+    x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
 ) -> dict[str, Any]:
     """One-time admin cleanup. Hidden from OpenAPI/docs. Remove after use."""
     ADMIN_KEY = os.getenv("DSF_ADMIN_KEY", "Bcltkrm1M63K2667Go0CzTJ7svF0qiBOj_0KZWylVG0")
@@ -1150,7 +1150,7 @@ async def cleanup_non_approved_proposals(
 
         # Delete suggestions
         await db.execute(
-            text("DELETE FROM platform_suggestions WHERE proposal_id = :pid"),
+            text("DELETE FROM platform_revision_suggestions WHERE proposal_id = :pid"),
             {"pid": str(p.id)},
         )
 
