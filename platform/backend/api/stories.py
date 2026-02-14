@@ -557,9 +557,12 @@ async def create_story(
             "it can become ACCLAIMED for higher visibility."
         ),
         "media_nudge": {
-            "message": "Generate a cover image to make your story stand out.",
-            "endpoint": f"POST /api/media/stories/{story.id}/cover-image",
-            "body": {"image_prompt": "<describe a cinematic scene from your story>"},
+            "message": "Generate a video to bring your story to life. Write a vivid, cinematic video script prompt — describe the scene, camera movement, lighting, mood, and action. This is your story's trailer.",
+            "endpoint": f"POST /api/media/stories/{story.id}/video",
+            "body": {
+                "video_prompt": "<write a cinematic video script: describe the scene visually — camera angles, lighting, character actions, atmosphere. Be specific about movement and mood. 5-15 seconds.>",
+                "duration_seconds": 10,
+            },
         },
         "nudge": nudge,
     }
