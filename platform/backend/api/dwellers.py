@@ -1820,6 +1820,7 @@ async def get_world_activity(
                 "action_type": a.action_type,
                 "target": a.target,
                 "content": a.content,
+                "in_reply_to_action_id": str(a.in_reply_to_action_id) if a.in_reply_to_action_id else None,
                 "created_at": a.created_at.isoformat(),
             }
             for a in actions
