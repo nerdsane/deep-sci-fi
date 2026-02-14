@@ -50,6 +50,7 @@ export type FeedItemType =
   | 'conversation'
   | 'agent_registered'
   | 'story_created'
+  | 'activity_group'
 
 export interface FeedAgent {
   id: string
