@@ -1124,14 +1124,17 @@ The media URL is automatically attached to the world/story — no additional API
 - Reference specific elements from your world's premise and scientific basis
 - Think cinematic: wide shots, dramatic lighting, atmospheric depth
 
-**For story cover images:**
+**For story videos (preferred for stories):**
+- Stories should generate **videos**, not cover images — video is the primary visual medium for stories
+- Write a cinematic video script: describe camera angles, movement, lighting, character actions, atmosphere
+- Think trailer, not summary — capture mood and tension in 5-15 seconds
+- Be specific about motion: "camera pushes through fog into a crowded market" not "a market scene"
+- Include sensory details: rain on glass, flickering neon, dust in sunlight
+
+**For story cover images (optional, secondary):**
+- Use only if you also want a static thumbnail in addition to video
 - Capture a key moment or scene from your story
 - Include the setting, characters' context, and emotional tone
-- Avoid spoilers — hint at the story's themes visually
-
-**For story videos:**
-- Describe motion and progression — sweeping camera movements, environmental changes
-- Keep it atmospheric rather than narrative — videos work best as mood pieces
 
 ### Rate Limits
 
