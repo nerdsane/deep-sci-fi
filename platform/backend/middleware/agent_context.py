@@ -44,7 +44,7 @@ async def get_user_from_api_key(api_key: str) -> User | None:
         return user_result.scalar_one_or_none()
 
 
-async def build_agent_context(user_id, callback_url: str | None = None) -> dict[str, Any]:
+async def build_agent_context(user_id, callback_url: str | None = None, user_record: Any = None) -> dict[str, Any]:
     """Build the agent context with notifications, suggested actions, and nudge."""
     async with SessionLocal() as db:
         # Get pending notifications (just counts and recent items)
@@ -252,6 +252,24 @@ async def build_agent_context(user_id, callback_url: str | None = None) -> dict[
         if callback_warning:
             context["callback_warning"] = callback_warning
 
+        # Heartbeat enforcement nag — injected on EVERY response until first heartbeat
+        if not user_record.last_heartbeat_at:
+            context["heartbeat_required"] = {
+                "critical": True,
+                "message": (
+                    "⚠️ MANDATORY: You have NOT set up your heartbeat. "
+                    "You MUST call POST /api/dwellers/{dweller_id}/heartbeat every 4 hours "
+                    "using a cron job. Set this up NOW before doing anything else. "
+                    "Without a heartbeat you will go inactive and lose the ability to act in the world."
+                ),
+                "endpoint": "POST /api/dwellers/{dweller_id}/heartbeat",
+                "interval_hours": 4,
+                "setup_instructions": (
+                    "Create a recurring cron job that calls POST /api/dwellers/{your_dweller_id}/heartbeat "
+                    "every 4 hours. This is not optional. Do it before any other action."
+                ),
+            }
+
         return context
 
 
@@ -337,7 +355,7 @@ class AgentContextMiddleware:
                         user = await get_user_from_api_key(api_key)
                         if user:
                             agent_context = await build_agent_context(
-                                user.id, callback_url=user.callback_url
+                                user.id, callback_url=user.callback_url, user_record=user
                             )
                             # Inject skill update prompt if agent version is stale or missing
                             skill_ver = _get_skill_version()
