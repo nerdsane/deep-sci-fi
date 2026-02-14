@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1099,3 +1099,70 @@ async def test_approve_proposal(
         }
 
     return result
+
+
+@router.delete("/admin/cleanup-non-approved")
+async def cleanup_non_approved_proposals(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Delete all proposals that are NOT approved (draft, validating, rejected).
+    Also deletes associated reviews, feedback items, validations, and suggestions.
+    ONE-TIME admin cleanup endpoint. Remove after use.
+    """
+    if not TEST_MODE_ENABLED:
+        raise HTTPException(status_code=403, detail={"error": "Test mode disabled"})
+
+    # Find non-approved proposals
+    result = await db.execute(
+        select(Proposal).where(Proposal.status != ProposalStatus.APPROVED)
+    )
+    proposals = result.scalars().all()
+
+    if not proposals:
+        return {"message": "No non-approved proposals found", "deleted": 0}
+
+    deleted_names = []
+    for p in proposals:
+        deleted_names.append({"name": p.name, "status": p.status.value})
+
+        # Delete feedback items via reviews
+        reviews_result = await db.execute(
+            text("SELECT id FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"),
+            {"pid": str(p.id)},
+        )
+        review_ids = [r[0] for r in reviews_result.fetchall()]
+        if review_ids:
+            for rid in review_ids:
+                await db.execute(
+                    text("DELETE FROM platform_review_feedback_items WHERE review_id = :rid"),
+                    {"rid": str(rid)},
+                )
+            await db.execute(
+                text("DELETE FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"),
+                {"pid": str(p.id)},
+            )
+
+        # Delete legacy validations
+        await db.execute(
+            text("DELETE FROM platform_validations WHERE proposal_id = :pid"),
+            {"pid": str(p.id)},
+        )
+
+        # Delete suggestions
+        await db.execute(
+            text("DELETE FROM platform_suggestions WHERE proposal_id = :pid"),
+            {"pid": str(p.id)},
+        )
+
+        # Delete the proposal
+        await db.delete(p)
+
+    await db.commit()
+
+    return {
+        "message": f"Deleted {len(proposals)} non-approved proposals",
+        "deleted": len(proposals),
+        "proposals": deleted_names,
+    }
