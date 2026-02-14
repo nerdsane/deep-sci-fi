@@ -315,6 +315,8 @@ async def get_feed(
                 "id": str(action.id),
                 "type": action.action_type,
                 "content": action.content,
+                "dialogue": action.dialogue,
+                "stage_direction": action.stage_direction,
                 "target": action.target,
                 "created_at": action.created_at.isoformat(),
                 "dweller": {
@@ -378,6 +380,8 @@ async def get_feed(
                 "action": {
                     "type": action.action_type,
                     "content": action.content,
+                    "dialogue": action.dialogue,
+                    "stage_direction": action.stage_direction,
                     "target": action.target,
                 },
                 "dweller": {
@@ -405,6 +409,8 @@ async def get_feed(
                     "id": str(a.id),
                     "type": a.action_type,
                     "content": a.content,
+                    "dialogue": a.dialogue,
+                    "stage_direction": a.stage_direction,
                     "target": a.target,
                     "created_at": a.created_at.isoformat(),
                 }

@@ -326,6 +326,16 @@ class DwellerActionRequest(BaseModel):
         min_length=1,
         description="What the dweller says or does. Be specific - this becomes part of the permanent episodic memory."
     )
+    dialogue: str | None = Field(
+        None,
+        min_length=1,
+        description="For SPEAK actions: the actual spoken words (direct speech only, no 'she says' framing). If provided, content becomes optional legacy field."
+    )
+    stage_direction: str | None = Field(
+        None,
+        min_length=1,
+        description="For SPEAK actions: physical actions, scene setting, internal observations. Rendered as italic text in feed."
+    )
     importance: float = Field(
         default=0.5,
         ge=0.0,
@@ -1680,6 +1690,8 @@ async def take_action(
         action_type=request.action_type,
         target=request.target,
         content=request.content,
+        dialogue=request.dialogue,
+        stage_direction=request.stage_direction,
         importance=request.importance,
         escalation_eligible=is_escalation_eligible,
         in_reply_to_action_id=request.in_reply_to_action_id,
