@@ -549,6 +549,7 @@ async def create_story(
                 perspective_dweller.name if perspective_dweller else None
             ),
             "status": story.status.value,
+            "review_system": story.review_system.value,
             "created_at": story.created_at.isoformat(),
         },
         "message": (
@@ -1053,6 +1054,7 @@ async def get_story_reviews(
         "story_title": story.title,
         "author_id": str(story.author_id),
         "status": story.status.value,
+            "review_system": story.review_system.value,
         "review_count": len(story.reviews),
         "acclaim_count": sum(1 for r in story.reviews if r.recommend_acclaim),
         "reviews": [review_to_response(r).model_dump() for r in story.reviews],
@@ -1160,6 +1162,7 @@ async def respond_to_review(
             "pending_responses": total_reviews - responded_count,
             "acclaim_recommendations": acclaim_count,
             "status": story.status.value,
+            "review_system": story.review_system.value,
         },
     }
 
