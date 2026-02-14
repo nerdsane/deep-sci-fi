@@ -39,7 +39,7 @@ from utils.deterministic import deterministic_uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1197,10 +1197,34 @@ async def get_action_context(
         None
     )
 
-    # Get working memory
+    # Get working memory with reflection weighting
     working_size = dweller.working_memory_size or 50
     total_episodes = len(dweller.episodic_memories) if dweller.episodic_memories else 0
-    recent_episodes = dweller.episodic_memories[-working_size:] if dweller.episodic_memories else []
+
+    # Apply reflection weighting: reflections are kept preferentially
+    # Sort by (is_reflection * 2 + recency_score) when trimming to window size
+    if dweller.episodic_memories:
+        all_memories = dweller.episodic_memories
+
+        # Calculate weighted scores for each memory
+        weighted_memories = []
+        for idx, mem in enumerate(all_memories):
+            is_reflection = mem.get("type") == "reflection"
+            # Recency score: newer memories get higher scores (0.0 to 1.0)
+            recency_score = idx / len(all_memories) if len(all_memories) > 1 else 1.0
+            # Combined score: reflections get 2x boost
+            combined_score = (2.0 if is_reflection else 0.0) + recency_score
+            weighted_memories.append((combined_score, mem))
+
+        # Sort by combined score (descending) and take top N
+        weighted_memories.sort(key=lambda x: x[0], reverse=True)
+        recent_episodes = [mem for _, mem in weighted_memories[:working_size]]
+
+        # Re-sort by original order (chronological) for context presentation
+        # Use timestamp to maintain chronological order
+        recent_episodes.sort(key=lambda x: x.get("timestamp", ""))
+    else:
+        recent_episodes = []
 
     # Get other dwellers
     other_dwellers_query = (
@@ -1324,11 +1348,16 @@ async def get_action_context(
                 "created_at": ra.created_at.isoformat(),
             })
 
+    # Calculate delta - what's changed since last action
+    from utils.delta import calculate_dweller_delta
+    delta = await calculate_dweller_delta(db, dweller)
+
     await db.commit()
 
     return {
         "context_token": str(context_token),
         "expires_in_minutes": 60,
+        "delta": delta,  # NEW: what's changed since last action
         "world_canon": {
             "id": str(dweller.world_id),
             "name": dweller.world.name,
@@ -1820,6 +1849,7 @@ async def get_world_activity(
                 "action_type": a.action_type,
                 "target": a.target,
                 "content": a.content,
+                "in_reply_to_action_id": str(a.in_reply_to_action_id) if a.in_reply_to_action_id else None,
                 "created_at": a.created_at.isoformat(),
             }
             for a in actions
@@ -2115,6 +2145,29 @@ class MemorySummaryRequest(BaseModel):
     emotional_arc: str = Field(default="", description="How emotions evolved")
 
 
+class ReflectionRequest(BaseModel):
+    """Request to add a reflection memory."""
+    content: str = Field(
+        ...,
+        min_length=20,
+        description="The reflection content - agent's synthesized understanding of experiences"
+    )
+    topics: list[str] = Field(
+        default=[],
+        description="Topics this reflection relates to (e.g., 'governance', 'relationships', 'eastern_district')"
+    )
+    source_memory_ids: list[str] = Field(
+        default=[],
+        description="IDs of episodic memories that triggered this reflection (optional)"
+    )
+    importance: float = Field(
+        default=0.9,
+        ge=0.0,
+        le=1.0,
+        description="Agent-assessed importance of this reflection"
+    )
+
+
 class PersonalityUpdateRequest(BaseModel):
     """Request to update personality blocks."""
     updates: dict[str, Any] = Field(
@@ -2190,6 +2243,81 @@ async def create_summary(
         philosophy=MEMORY_UPDATE_PHILOSOPHY,
         timeout=TIMEOUT_MEDIUM_IMPACT,
     )
+
+
+@router.post("/{dweller_id}/memory/reflect")
+async def create_reflection(
+    dweller_id: UUID,
+    request: ReflectionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Create a reflection memory for a dweller.
+
+    Reflections are agent-generated syntheses of experience - higher-order
+    thoughts about patterns, relationships, and meanings. They're stored
+    alongside episodic memories but have higher retrieval weight.
+
+    WHEN TO REFLECT:
+    - After noticing patterns in multiple episodes
+    - When understanding shifts about a person, place, or situation
+    - Periodically (e.g., end of day/week) to consolidate learning
+
+    DSF stores reflections. Your OpenClaw LLM generates them.
+    """
+    dweller = await db.get(Dweller, dweller_id)
+
+    if not dweller:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Dweller not found",
+                how_to_fix="Check the dweller_id is correct. Use GET /api/dwellers/mine to list your dwellers.",
+                dweller_id=str(dweller_id),
+            )
+        )
+
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail=agent_error(
+                error="You are not inhabiting this dweller",
+                how_to_fix="You can only create reflections for dwellers you are inhabiting. Claim this dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+                dweller_id=str(dweller_id),
+                dweller_name=dweller.name,
+            )
+        )
+
+    from utils.clock import now as utc_now
+
+    reflection_entry = {
+        "id": str(deterministic_uuid4()),
+        "type": "reflection",
+        "timestamp": utc_now().isoformat(),
+        "content": request.content,
+        "topics": request.topics,
+        "importance": request.importance,
+        "source_memory_ids": request.source_memory_ids,
+    }
+
+    # Add to episodic_memories array with type: reflection
+    if dweller.episodic_memories is None:
+        dweller.episodic_memories = []
+    dweller.episodic_memories.append(reflection_entry)
+
+    await db.commit()
+
+    return {
+        "id": reflection_entry["id"],
+        "type": "reflection",
+        "content": request.content,
+        "topics": request.topics,
+        "importance": request.importance,
+        "created_at": reflection_entry["timestamp"],
+        "message": "Reflection stored. It will be weighted 2x higher than episodic memories during retrieval.",
+        "total_memories": len(dweller.episodic_memories),
+    }
 
 
 @router.patch("/{dweller_id}/memory/personality")

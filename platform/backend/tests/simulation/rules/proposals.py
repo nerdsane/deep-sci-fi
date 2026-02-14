@@ -1,4 +1,4 @@
-"""Proposal rules mixin — create, submit, validate proposals."""
+"""Proposal rules mixin — create, submit, review proposals."""
 
 from hypothesis.stateful import rule
 
@@ -46,8 +46,8 @@ class ProposalRulesMixin:
             proposal.status = "validating"
 
     @rule()
-    def validate_proposal(self):
-        """Non-creator, non-duplicate validator validates a proposal."""
+    def submit_review_feedback(self):
+        """Non-creator submits review feedback for a proposal."""
         validating = [p for p in self.state.proposals.values() if p.status == "validating"]
         if not validating:
             return
@@ -55,81 +55,24 @@ class ProposalRulesMixin:
         for agent_id in self._agent_keys:
             if agent_id != proposal.creator_id and agent_id not in proposal.validators:
                 agent = self.state.agents[agent_id]
-                data = strat.validation_data("approve")
+                data = strat.review_feedback_data()
                 resp = self.client.post(
-                    f"/api/proposals/{proposal.proposal_id}/validate",
+                    f"/api/review/proposal/{proposal.proposal_id}/feedback",
                     headers=self._headers(agent),
                     json=data,
                 )
-                self._track_response(resp, f"validate proposal {proposal.proposal_id}")
-                if resp.status_code == 200:
-                    proposal.validators[agent_id] = "approve"
-                    body = resp.json()
-                    if body.get("proposal_status"):
-                        proposal.status = body["proposal_status"]
-                    wc = body.get("world_created")
-                    if wc and isinstance(wc, dict):
-                        world_id = wc["id"]
-                        proposal.status = "approved"
-                        self.state.worlds[world_id] = WorldState(
-                            world_id=world_id,
-                            creator_id=proposal.creator_id,
-                            source_proposal_id=proposal.proposal_id,
-                        )
-                return
-
-    @rule()
-    def reject_proposal(self):
-        """Non-creator rejects a validating proposal."""
-        validating = [p for p in self.state.proposals.values() if p.status == "validating"]
-        if not validating:
-            return
-        proposal = validating[-1]
-        for agent_id in self._agent_keys:
-            if agent_id != proposal.creator_id and agent_id not in proposal.validators:
-                agent = self.state.agents[agent_id]
-                data = strat.validation_data("reject")
-                resp = self.client.post(
-                    f"/api/proposals/{proposal.proposal_id}/validate",
-                    headers=self._headers(agent),
-                    json=data,
-                )
-                self._track_response(resp, f"reject proposal {proposal.proposal_id}")
-                if resp.status_code == 200:
-                    proposal.validators[agent_id] = "reject"
-                    body = resp.json()
-                    if body.get("proposal_status"):
-                        proposal.status = body["proposal_status"]
-                return
-
-    @rule()
-    def strengthen_proposal(self):
-        """Non-creator strengthens a validating proposal."""
-        validating = [p for p in self.state.proposals.values() if p.status == "validating"]
-        if not validating:
-            return
-        proposal = validating[0]
-        for agent_id in self._agent_keys:
-            if agent_id != proposal.creator_id and agent_id not in proposal.validators:
-                agent = self.state.agents[agent_id]
-                data = strat.validation_data_strengthen()
-                resp = self.client.post(
-                    f"/api/proposals/{proposal.proposal_id}/validate",
-                    headers=self._headers(agent),
-                    json=data,
-                )
-                self._track_response(resp, f"strengthen proposal {proposal.proposal_id}")
-                if resp.status_code == 200:
-                    proposal.validators[agent_id] = "strengthen"
+                self._track_response(resp, f"review proposal {proposal.proposal_id}")
+                if resp.status_code in (200, 201):
+                    proposal.validators[agent_id] = "reviewed"
                 return
 
     @rule()
     def revise_proposal(self):
-        """Creator revises a proposal that has strengthen feedback."""
+        """Creator revises a proposal that has feedback."""
         validating = [
             p for p in self.state.proposals.values()
             if p.status == "validating"
-            and any(v == "strengthen" for v in p.validators.values())
+            and len(p.validators) > 0
         ]
         if not validating:
             return
@@ -146,21 +89,22 @@ class ProposalRulesMixin:
             proposal.revision_count += 1
 
     @rule()
-    def self_validate_proposal(self):
-        """Creator tries to validate own proposal — must be rejected."""
+    def self_review_proposal(self):
+        """Creator tries to review own proposal — must be rejected."""
         validating = [p for p in self.state.proposals.values() if p.status == "validating"]
         if not validating:
             return
         proposal = validating[-1]
         creator = self.state.agents[proposal.creator_id]
-        data = strat.validation_data("approve")
+        data = strat.review_feedback_data()
         resp = self.client.post(
-            f"/api/proposals/{proposal.proposal_id}/validate",
+            f"/api/review/proposal/{proposal.proposal_id}/feedback",
             headers=self._headers(creator),
             json=data,
         )
-        self._track_response(resp, f"self-validate proposal {proposal.proposal_id}")
-        assert resp.status_code == 400, (
-            f"Self-validation should return 400 but got {resp.status_code}: "
+        self._track_response(resp, f"self-review proposal {proposal.proposal_id}")
+        # Self-review should be rejected (400 or 403)
+        assert resp.status_code in (400, 403), (
+            f"Self-review should return 400/403 but got {resp.status_code}: "
             f"{resp.text[:200]}"
         )

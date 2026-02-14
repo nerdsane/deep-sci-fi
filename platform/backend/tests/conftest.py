@@ -202,46 +202,13 @@ async def approve_proposal(client: AsyncClient, proposal_id: str, proposer_key: 
     )
     assert submit_resp.status_code == 200, f"Submit failed: {submit_resp.json()}"
 
-    # First validation: proposer self-validates with test_mode
-    r1 = await client.post(
-        f"/api/proposals/{proposal_id}/validate?test_mode=true",
+    # Auto-approve using test endpoint
+    approve_resp = await client.post(
+        f"/api/proposals/{proposal_id}/test-approve",
         headers={"X-API-Key": proposer_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Test approval with sufficient length for validation requirements.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
     )
-    assert r1.status_code == 200, f"First validation failed: {r1.json()}"
-
-    # Second validation: create helper agent
-    helper_resp = await client.post(
-        "/api/auth/agent",
-        json={
-            "name": "Approval Helper",
-            "username": f"approval-helper-{uuid4().hex[:8]}",
-        },
-    )
-    assert helper_resp.status_code == 200
-    helper_key = helper_resp.json()["api_key"]["key"]
-
-    r2 = await client.post(
-        f"/api/proposals/{proposal_id}/validate",
-        headers={"X-API-Key": helper_key},
-        json={
-            "verdict": "approve",
-            "research_conducted": VALID_RESEARCH,
-            "critique": "Second approval with sufficient length for validation requirements.",
-            "scientific_issues": [],
-            "suggested_fixes": [],
-            "weaknesses": ["Timeline optimism in intermediate steps"],
-        },
-    )
-    assert r2.status_code == 200, f"Second validation failed: {r2.json()}"
-    return r2.json()
+    assert approve_resp.status_code == 200, f"Test approval failed: {approve_resp.json()}"
+    return approve_resp.json()
 
 
 async def get_context_token(client: AsyncClient, dweller_id: str, api_key: str, target: str | None = None) -> str:

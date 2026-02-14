@@ -97,12 +97,35 @@ if [ -n "$BRANCH" ]; then
     ELAPSED=0
     CI_PASSED=false
 
+    # Get the HEAD commit SHA that was just pushed — CI must match THIS commit
+    EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null | cut -c1-7 || echo "")
+    FULL_EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "")
+    if [ -n "$EXPECTED_SHA" ]; then
+      echo -e "  Expected commit: ${EXPECTED_SHA}"
+    fi
+
     while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
       # Fetch recent runs across push/workflow_dispatch workflows on this branch
       # Skip pull_request-triggered workflows (e.g. PR Review) — they run on PR merge commits,
       # not the branch HEAD, and would block verification with stale failures.
       ALL_RUNS=$(gh run list --repo "$GITHUB_REPO" --branch "$BRANCH" --limit 20 --json workflowName,status,conclusion,databaseId,headSha,event 2>/dev/null || echo '[]')
       ALL_RUNS=$(echo "$ALL_RUNS" | jq '[.[] | select(.event != "pull_request")]')
+
+      # Filter to only runs matching the expected commit SHA (if we have it)
+      if [ -n "$FULL_EXPECTED_SHA" ]; then
+        MATCHING_RUNS=$(echo "$ALL_RUNS" | jq --arg sha "$FULL_EXPECTED_SHA" '[.[] | select(.headSha == $sha)]')
+        MATCHING_COUNT=$(echo "$MATCHING_RUNS" | jq 'length')
+
+        if [ "$MATCHING_COUNT" -eq 0 ]; then
+          echo -e "  No CI runs yet for commit ${EXPECTED_SHA}... waiting (${ELAPSED}s / ${MAX_CI_WAIT}s)"
+          sleep $POLL_INTERVAL
+          ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          continue
+        fi
+
+        # Use only runs matching our commit
+        ALL_RUNS="$MATCHING_RUNS"
+      fi
 
       if [ "$ALL_RUNS" = "[]" ] || [ -z "$ALL_RUNS" ]; then
         echo -e "${YELLOW}  No workflow runs found for branch $BRANCH${NC}"

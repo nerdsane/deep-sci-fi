@@ -130,6 +130,7 @@ class TestGenerateWorldCover:
 class TestGenerateStoryCover:
     """Tests for POST /api/media/stories/{story_id}/cover-image"""
 
+    @pytest.mark.skip(reason="Story cover-image endpoint removed")
     async def test_generates_story_cover(self, client: AsyncClient, test_agent: dict, test_story: dict):
         """Should create a pending generation for story cover."""
         resp = await client.post(
