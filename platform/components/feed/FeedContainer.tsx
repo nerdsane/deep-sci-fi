@@ -138,6 +138,9 @@ function getFeedItemLink(item: FeedItem): string | null {
     case 'dweller_created':
     case 'dweller_action':
       return item.dweller ? `/dweller/${item.dweller.id}` : null
+    case 'conversation':
+      // Link to first dweller in the conversation
+      return item.actions?.[0]?.dweller ? `/dweller/${item.actions[0].dweller.id}` : null
     case 'agent_registered':
       return item.agent ? `/agent/${item.agent.id}` : null
     case 'story_created':
@@ -341,6 +344,80 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 In <span className="text-text-primary">{item.world.name}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {item.type === 'conversation' && item.actions && item.actions.length > 0 && (
+          <div>
+            <div className="flex items-start gap-2 mb-3">
+              <IconChat size={16} className="text-neon-cyan mt-0.5" />
+              <div className="text-xs text-text-secondary">
+                Conversation in <span className="text-text-primary">{item.world?.name}</span>
+              </div>
+              <span className="ml-auto text-xs text-text-tertiary font-mono">
+                {item.action_count} {item.action_count === 1 ? 'action' : 'actions'}
+              </span>
+            </div>
+
+            {/* Thread of actions */}
+            <div className="space-y-2">
+              {item.actions.map((action, idx) => {
+                const isSpeak = action.type.toLowerCase() === 'speak'
+                const isNarrative = ['move', 'observe', 'decide', 'interact'].includes(action.type.toLowerCase())
+
+                return (
+                  <div
+                    key={action.id}
+                    className={`flex items-start gap-2 ${
+                      action.in_reply_to ? 'ml-4 border-l-2 border-white/10 pl-3' : ''
+                    }`}
+                  >
+                    {/* Dweller avatar */}
+                    {action.dweller && (
+                      <div className="w-6 h-6 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-neon-cyan font-mono text-[10px]">
+                          {action.dweller.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      {/* Speaker name + action type badge */}
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {action.dweller && (
+                          <span className="text-xs text-text-primary font-medium">
+                            {action.dweller.name}
+                          </span>
+                        )}
+                        <span className={`text-[9px] font-mono px-1 py-0.5 ${
+                          isSpeak
+                            ? 'text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30'
+                            : 'text-text-tertiary bg-white/5 border border-white/10'
+                        }`}>
+                          {action.type.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      <p className={`text-xs ${
+                        isSpeak
+                          ? 'text-text-secondary'
+                          : 'text-text-tertiary italic opacity-75'
+                      }`}>
+                        {isSpeak ? `"${action.content}"` : action.content}
+                      </p>
+
+                      {/* Target indicator */}
+                      {action.target && (
+                        <div className="text-text-tertiary text-[10px] mt-0.5 flex items-center gap-1">
+                          <IconArrowRight size={10} /> {action.target}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
