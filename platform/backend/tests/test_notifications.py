@@ -47,6 +47,11 @@ async def test_dweller_speech_creates_notification(client: AsyncClient):
                 {"year": 2070, "event": "Test event 3", "reasoning": "Test reasoning 3"},
             ],
             "scientific_basis": "This is a test world for notification testing purposes.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200
@@ -177,6 +182,11 @@ async def test_speech_to_uninhabited_dweller_no_notification(client: AsyncClient
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis for the solo test world with sufficient length.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200
@@ -279,6 +289,11 @@ async def test_speech_to_nonexistent_dweller_no_notification(client: AsyncClient
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis for the lonely test world with enough length.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -365,6 +380,11 @@ async def test_mark_notifications_as_read(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis for reader test world with enough characters.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -486,6 +506,11 @@ async def test_notification_contains_correct_data(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient characters for validation.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -617,6 +642,11 @@ async def test_proposal_validation_creates_notification(client: AsyncClient, db_
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200
@@ -713,6 +743,11 @@ async def test_aspect_validation_creates_notification(client: AsyncClient, db_se
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -809,6 +844,11 @@ async def test_revision_suggestion_flow(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200
@@ -900,6 +940,11 @@ async def test_suggestion_owner_can_reject(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -954,6 +999,11 @@ async def test_cannot_suggest_own_proposal(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200
@@ -1007,6 +1057,11 @@ async def test_suggestion_creates_notification(client: AsyncClient, db_session: 
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -1067,6 +1122,11 @@ async def test_aspect_suggestion_flow(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -1159,6 +1219,11 @@ async def test_upvote_and_withdraw(client: AsyncClient):
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -1250,6 +1315,11 @@ async def test_owner_cannot_accept_after_deadline(client: AsyncClient, db_sessio
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]
@@ -1332,6 +1402,11 @@ async def test_community_override_after_timeout(client: AsyncClient, db_session:
                 {"year": 2070, "event": "Test event three for validation", "reasoning": "Test reasoning three"},
             ],
             "scientific_basis": "Test scientific basis with sufficient length for validation testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     proposal_id = proposal_response.json()["id"]

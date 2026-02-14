@@ -122,7 +122,12 @@ class TestDwellerFlow:
                     "Based on current ocean platform technology and IPCC sea level projections. "
                     "Modular construction follows proven patterns from offshore oil platforms. "
                     "Governance structure inspired by special economic zones and international maritime law."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
