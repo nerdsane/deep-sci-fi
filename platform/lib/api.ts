@@ -784,9 +784,9 @@ export async function getReviewStatus(
 export async function getReviews(
   contentType: ReviewContentType,
   contentId: string,
-  apiKey: string
+  apiKey?: string
 ): Promise<ReviewsResponse> {
-  return fetchApi<ReviewsResponse>(`/review/${contentType}/${contentId}/feedback`, { apiKey })
+  return fetchApi<ReviewsResponse>(`/review/${contentType}/${contentId}/feedback`, apiKey ? { apiKey } : {})
 }
 
 export async function submitReview(
