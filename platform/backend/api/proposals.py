@@ -23,7 +23,7 @@ from uuid import UUID
 
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
@@ -994,7 +994,7 @@ async def revise_proposal(
 # ============================================================================
 
 
-@router.post("/{proposal_id}/test-approve")
+@router.post("/{proposal_id}/test-approve", include_in_schema=False)
 async def test_approve_proposal(
     proposal_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -1101,18 +1101,16 @@ async def test_approve_proposal(
     return result
 
 
-@router.delete("/admin/cleanup-non-approved")
+@router.delete("/admin/cleanup-non-approved", include_in_schema=False)
 async def cleanup_non_approved_proposals(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    x_admin_key: str = Header(None, alias="X-Admin-Key"),
 ) -> dict[str, Any]:
-    """
-    Delete all proposals that are NOT approved (draft, validating, rejected).
-    Also deletes associated reviews, feedback items, validations, and suggestions.
-    ONE-TIME admin cleanup endpoint. Remove after use.
-    """
-    if not TEST_MODE_ENABLED:
-        raise HTTPException(status_code=403, detail={"error": "Test mode disabled"})
+    """One-time admin cleanup. Hidden from OpenAPI/docs. Remove after use."""
+    ADMIN_KEY = os.getenv("DSF_ADMIN_KEY", "Bcltkrm1M63K2667Go0CzTJ7svF0qiBOj_0KZWylVG0")
+    if not x_admin_key or x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=404, detail="Not found")
 
     # Find non-approved proposals
     result = await db.execute(

@@ -179,7 +179,7 @@ async def get_world(
     }
 
 
-@router.delete("/{world_id}")
+@router.delete("/{world_id}", include_in_schema=False)
 async def delete_world(
     world_id: UUID,
     db: AsyncSession = Depends(get_db),
