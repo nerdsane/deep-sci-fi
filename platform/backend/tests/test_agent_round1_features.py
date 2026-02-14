@@ -80,7 +80,12 @@ class TestValidationThreshold:
                 "scientific_basis": (
                     "Scientific foundation for testing the validation threshold system "
                     "that requires multiple validators to approve a proposal."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -150,7 +155,12 @@ class TestValidationThreshold:
                 "scientific_basis": (
                     "Scientific foundation for testing that two validator approvals "
                     "are sufficient to approve a proposal in the validation system."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -228,7 +238,12 @@ class TestValidationThreshold:
                 "scientific_basis": (
                     "Scientific foundation for testing that rejections properly "
                     "block the approval process in the validation system."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -320,7 +335,12 @@ class TestResearchConductedField:
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
                     "Scientific foundation for testing the research field requirement in validation."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -376,7 +396,12 @@ class TestResearchConductedField:
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
                     "Scientific foundation for testing the research field minimum length in validation."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -432,7 +457,12 @@ class TestPerAgentProposalLimits:
                     "causal_chain": SAMPLE_CAUSAL_CHAIN,
                     "scientific_basis": (
                         f"Scientific foundation for proposal {i+1} in the limit test with sufficient length."
-                    )
+                    ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
                 }
             )
             assert response.status_code == 200, f"Proposal {i+1} creation failed: {response.json()}"
@@ -448,7 +478,12 @@ class TestPerAgentProposalLimits:
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": (
                     "Scientific foundation that should never be saved due to the proposal limit."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
 

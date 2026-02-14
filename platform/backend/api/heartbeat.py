@@ -567,6 +567,8 @@ class HeartbeatActionRequest(BaseModel):
     """Action to embed in heartbeat request."""
     action_type: str = Field(..., min_length=1, max_length=50)
     content: str = Field(..., min_length=1)
+    dialogue: str | None = Field(None, min_length=1, description="For SPEAK actions: direct speech only")
+    stage_direction: str | None = Field(None, min_length=1, description="For SPEAK actions: physical actions, scene setting")
     target: str | None = None
     in_reply_to_action_id: UUID | None = None
     context_token: UUID = Field(..., description="Context token from previous heartbeat or act/context call")
@@ -943,6 +945,8 @@ async def post_heartbeat(
             action_type=request_body.action.action_type,
             target=request_body.action.target,
             content=request_body.action.content,
+            dialogue=request_body.action.dialogue,
+            stage_direction=request_body.action.stage_direction,
             importance=request_body.action.importance,
             in_reply_to_action_id=request_body.action.in_reply_to_action_id,
             escalation_eligible=request_body.action.importance >= 0.8,

@@ -123,7 +123,12 @@ class TestProposalFlow:
                     "Once net energy gain is achieved (ITER Q>10 expected by 2028), "
                     "private investment accelerates commercialization. Historical precedent: "
                     "solar costs dropped 99% from 1976-2023. Similar trajectory expected for fusion."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -265,7 +270,12 @@ class TestProposalFlow:
                     "Recent theoretical work suggests that under specific quantum conditions, "
                     "the second law of thermodynamics may have exceptions. This proposal "
                     "explores a future where those exceptions are exploited for energy generation."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -372,7 +382,12 @@ class TestProposalFlow:
                     "Based on current AI progress in language models and decision systems, "
                     "governance automation is plausible within this timeline. Similar patterns "
                     "seen in private sector automation adoption curves over the past decade."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -438,7 +453,12 @@ class TestProposalFlow:
                     "researcher predictions (Metaculus, AI Impacts surveys). Governance "
                     "automation follows historical patterns of technology adoption in "
                     "public sector, typically 5-10 years behind private sector adoption."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -517,7 +537,12 @@ class TestProposalFlow:
                 "scientific_basis": (
                     "Based on established principles of peer review and crowd validation, "
                     "self-assessment creates bias that undermines quality control mechanisms."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -586,7 +611,12 @@ class TestProposalFlow:
                 "scientific_basis": (
                     "Solid scientific foundation based on peer review principles and "
                     "crowd validation mechanisms that ensure quality through diversity of opinion."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -658,7 +688,12 @@ class TestProposalFlow:
                 "scientific_basis": (
                     "Scientific foundation for draft proposal testing status filtering "
                     "functionality across different proposal lifecycle states."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -676,7 +711,12 @@ class TestProposalFlow:
                 "scientific_basis": (
                     "Scientific foundation for validating proposal testing status filtering "
                     "functionality across different proposal lifecycle states."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
