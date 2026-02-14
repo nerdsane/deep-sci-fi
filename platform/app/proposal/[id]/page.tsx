@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { getProposal, type ProposalDetail, type ValidationVerdict, getReviewStatus, type ReviewStatusResponse } from '@/lib/api'
+import { getProposal, type ProposalDetail, type ValidationVerdict, getReviewStatus, type ReviewStatusResponse, getReviews, type ReviewsResponse } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconArrowLeft, IconArrowRight } from '@/components/ui/PixelIcon'
@@ -41,6 +41,7 @@ export default function ProposalDetailPage() {
 
   const [data, setData] = useState<ProposalDetail | null>(null)
   const [reviewStatus, setReviewStatus] = useState<ReviewStatusResponse | null>(null)
+  const [reviewsData, setReviewsData] = useState<ReviewsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,10 +52,14 @@ export default function ProposalDetailPage() {
         const result = await getProposal(proposalId)
         setData(result)
 
-        // Fetch review status if using critical_review system
-        if (result.proposal.review_system === 'critical_review' && result.proposal.status === 'validating') {
-          const status = await getReviewStatus('proposal', proposalId)
-          setReviewStatus(status)
+        // Fetch review status and feedback if using critical_review system
+        if (result.proposal.review_system === 'critical_review') {
+          const [status, reviews] = await Promise.all([
+            getReviewStatus('proposal', proposalId).catch(() => null),
+            getReviews('proposal', proposalId).catch(() => null),
+          ])
+          if (status) setReviewStatus(status)
+          if (reviews) setReviewsData(reviews)
         }
       } catch (err) {
         console.error('Failed to load proposal:', err)
@@ -222,6 +227,65 @@ export default function ProposalDetailPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Feedback Items (Critical Review) */}
+      {proposal.review_system === 'critical_review' && reviewsData && reviewsData.reviews.length > 0 && (
+        <div className="mb-4 space-y-3">
+          <div className="text-xs font-mono text-text-tertiary">FEEDBACK</div>
+          {reviewsData.reviews.map((review) => (
+            <Card key={review.review_id}>
+              <CardContent>
+                <div className="text-xs text-text-tertiary font-mono mb-3">
+                  Reviewer · {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                </div>
+                <div className="space-y-3">
+                  {review.feedback_items.map((item) => {
+                    const statusColor = item.status === 'resolved' ? 'text-neon-green' :
+                      item.status === 'addressed' ? 'text-neon-cyan' :
+                      item.status === 'open' ? 'text-neon-pink' : 'text-text-tertiary'
+                    const severityColor = item.severity === 'critical' ? 'text-neon-pink' :
+                      item.severity === 'major' ? 'text-neon-cyan' : 'text-text-tertiary'
+
+                    return (
+                      <div key={item.id} className="border border-white/5 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-mono uppercase ${statusColor}`}>
+                            {item.status}
+                          </span>
+                          <span className={`text-[10px] font-mono uppercase ${severityColor}`}>
+                            {item.severity}
+                          </span>
+                          <span className="text-[10px] font-mono text-text-tertiary uppercase">
+                            {item.category}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text-primary">{item.description}</p>
+                        {item.responses && item.responses.length > 0 && (
+                          <div className="mt-2 pl-3 border-l border-neon-cyan/20 space-y-2">
+                            {item.responses.map((resp) => (
+                              <div key={resp.id}>
+                                <div className="text-[10px] text-text-tertiary font-mono mb-1">
+                                  Response · {formatDistanceToNow(new Date(resp.created_at), { addSuffix: true })}
+                                </div>
+                                <p className="text-sm text-text-secondary">{resp.response_text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {item.resolution_note && (
+                          <div className="mt-2 text-xs text-neon-green/80 font-mono">
+                            ✓ {item.resolution_note}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Validation Summary (Legacy) */}

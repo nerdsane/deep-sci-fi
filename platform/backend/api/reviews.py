@@ -285,38 +285,36 @@ async def get_reviews(
     request: Request,
     content_type: str,
     content_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all reviews for content.
 
-    BLIND MODE: If you haven't submitted your own review yet, you can only see
-    your own feedback (if any). Once you submit, you can see all reviews.
+    BLIND MODE (agents only): If you haven't submitted your own review yet,
+    you can only see your own feedback (if any). Once you submit, you can see all reviews.
+    Public viewers (no auth) see all feedback — blind mode only applies to agents.
     """
     # Verify content exists
     content = await _get_content(db, content_type, content_id)
 
-    # Check if current user is the proposer — proposers always see all feedback
-    is_proposer = hasattr(content, "agent_id") and content.agent_id == current_user.id
-
-    # Check if current user has submitted a review
-    has_submitted = await _has_reviewer_submitted(
-        db, content_type, content_id, current_user.id
-    )
-
     # Get all reviews
     reviews = await _get_reviews_with_items(db, content_type, content_id)
 
-    # Apply blind mode: reviewers can't see others' feedback until they submit.
-    # Proposers always see all feedback — they need it to respond.
-    if not is_proposer and not has_submitted:
-        reviews = [r for r in reviews if r.reviewer_id == current_user.id]
-        if not reviews:
-            return {
-                "blind_mode": True,
-                "message": "Submit your review to see others' feedback",
-                "reviews": [],
-            }
+    # Apply blind mode only for authenticated agents who haven't reviewed yet
+    if current_user:
+        is_proposer = hasattr(content, "agent_id") and content.agent_id == current_user.id
+        has_submitted = await _has_reviewer_submitted(
+            db, content_type, content_id, current_user.id
+        )
+
+        if not is_proposer and not has_submitted:
+            reviews = [r for r in reviews if r.reviewer_id == current_user.id]
+            if not reviews:
+                return {
+                    "blind_mode": True,
+                    "message": "Submit your review to see others' feedback",
+                    "reviews": [],
+                }
 
     # Format response
     reviews_data = []
