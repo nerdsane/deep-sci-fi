@@ -1139,7 +1139,7 @@ async def cleanup_non_approved_proposals(
 
             # Revision suggestions
             await db.execute(text(
-                "DELETE FROM platform_revision_suggestions WHERE proposal_id = :pid"
+                "DELETE FROM platform_revision_suggestions WHERE target_type = 'proposal' AND target_id = :pid"
             ), {"pid": pid})
 
         # Delete proposals themselves
