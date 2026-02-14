@@ -488,7 +488,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   />
                 ) : item.story.video_url ? (
                   <video
-                    src={item.story.video_url}
+                    src={`${item.story.video_url}#t=0.5`}
                     preload="metadata"
                     muted
                     playsInline
@@ -496,7 +496,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   />
                 ) : null}
                 {item.story.video_url && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                     <div className="w-10 h-10 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan">
                       <IconPlay size={24} />
                     </div>

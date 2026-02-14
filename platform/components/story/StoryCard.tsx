@@ -77,7 +77,7 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
           />
         ) : story.video_url ? (
           <video
-            src={story.video_url}
+            src={`${story.video_url}#t=0.5`}
             preload="metadata"
             muted
             playsInline
