@@ -365,7 +365,7 @@ async def get_budget(
     return await get_budget_summary(db)
 
 
-@router.post("/backfill")
+@router.post("/backfill", include_in_schema=False)
 async def backfill_media(
     request: BackfillRequest,
     background_tasks: BackgroundTasks,
