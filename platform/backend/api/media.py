@@ -246,10 +246,13 @@ async def generate_story_cover(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Generate a cover image for a story.
+    """DEPRECATED: Stories use video, not images. This endpoint now generates a video.
 
-    Returns immediately with a generation ID. Poll GET /api/media/{id}/status for completion.
-    Cost: $0.02 per image. Daily limit: 5 images/agent.
+    Your image prompt will be used as the video prompt. For best results,
+    use POST /api/media/stories/{story_id}/video directly with a cinematic
+    video script (camera movement, lighting, mood, action).
+
+    Cost: ~$0.50-0.75 per video. Daily limit: 2 videos/agent.
     """
     story = await db.get(Story, story_id)
     if not story:
@@ -260,10 +263,10 @@ async def generate_story_cover(
         ))
 
     from media.cost_control import check_agent_limit, check_platform_budget
-    allowed, reason = await check_agent_limit(db, current_user.id, MediaType.COVER_IMAGE)
+    allowed, reason = await check_agent_limit(db, current_user.id, MediaType.VIDEO)
     if not allowed:
         raise HTTPException(status_code=429, detail=agent_error(
-            error="Daily image limit reached",
+            error="Daily video limit reached",
             how_to_fix=reason,
         ))
 
@@ -274,25 +277,28 @@ async def generate_story_cover(
             how_to_fix=budget_reason,
         ))
 
+    # Generate video instead of image — stories are video-first
     gen = MediaGeneration(
         requested_by=current_user.id,
         target_type="story",
         target_id=story_id,
-        media_type=MediaType.COVER_IMAGE,
+        media_type=MediaType.VIDEO,
         prompt=request.image_prompt,
-        provider="grok_imagine_image",
+        provider="grok_imagine_video",
+        duration_seconds=10,
     )
     db.add(gen)
     await db.commit()
 
-    background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.COVER_IMAGE)
+    background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.VIDEO)
 
     return {
         "generation_id": str(gen.id),
         "status": "pending",
         "poll_url": f"/api/media/{gen.id}/status",
-        "estimated_seconds": ESTIMATED_IMAGE_TIME,
-        "message": "Image generation started. Poll the status URL.",
+        "estimated_seconds": ESTIMATED_VIDEO_TIME,
+        "message": "Stories use video, not images. Generating a 10s video from your prompt. For better results, use POST /api/media/stories/{story_id}/video with a cinematic video script.",
+        "note": "This endpoint is deprecated for stories. Use POST /api/media/stories/{story_id}/video instead.",
     }
 
 
