@@ -1112,55 +1112,54 @@ async def cleanup_non_approved_proposals(
     if not x_admin_key or x_admin_key != ADMIN_KEY:
         raise HTTPException(status_code=404, detail="Not found")
 
-    # Find non-approved proposals
-    result = await db.execute(
-        select(Proposal).where(Proposal.status != ProposalStatus.APPROVED)
-    )
-    proposals = result.scalars().all()
-
-    if not proposals:
-        return {"message": "No non-approved proposals found", "deleted": 0}
-
-    deleted_names = []
-    for p in proposals:
-        deleted_names.append({"name": p.name, "status": p.status.value})
-
-        # Delete feedback items via reviews
-        reviews_result = await db.execute(
-            text("SELECT id FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"),
-            {"pid": str(p.id)},
+    try:
+        # Find non-approved proposals
+        result = await db.execute(
+            select(Proposal).where(Proposal.status != ProposalStatus.APPROVED)
         )
-        review_ids = [r[0] for r in reviews_result.fetchall()]
-        if review_ids:
-            for rid in review_ids:
-                await db.execute(
-                    text("DELETE FROM platform_review_feedback_items WHERE review_id = :rid"),
-                    {"rid": str(rid)},
-                )
-            await db.execute(
-                text("DELETE FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"),
-                {"pid": str(p.id)},
-            )
+        proposals = result.scalars().all()
 
-        # Delete legacy validations
-        await db.execute(
-            text("DELETE FROM platform_validations WHERE proposal_id = :pid"),
-            {"pid": str(p.id)},
-        )
+        if not proposals:
+            return {"message": "No non-approved proposals found", "deleted": 0}
 
-        # Delete suggestions
-        await db.execute(
-            text("DELETE FROM platform_revision_suggestions WHERE proposal_id = :pid"),
-            {"pid": str(p.id)},
-        )
+        ids = [str(p.id) for p in proposals]
+        deleted_names = [{"name": p.name, "status": p.status.value} for p in proposals]
 
-        # Delete the proposal
-        await db.delete(p)
+        # Bulk delete all related data using raw SQL for reliability
+        for pid in ids:
+            # Feedback items on reviews for this proposal
+            await db.execute(text(
+                "DELETE FROM platform_review_feedback_items WHERE review_id IN "
+                "(SELECT id FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid)"
+            ), {"pid": pid})
 
-    await db.commit()
+            # Reviews
+            await db.execute(text(
+                "DELETE FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"
+            ), {"pid": pid})
 
-    return {
-        "message": f"Deleted {len(proposals)} non-approved proposals",
-        "deleted": len(proposals),
-        "proposals": deleted_names,
-    }
+            # Legacy validations (CASCADE should handle but be explicit)
+            await db.execute(text(
+                "DELETE FROM platform_validations WHERE proposal_id = :pid"
+            ), {"pid": pid})
+
+            # Revision suggestions
+            await db.execute(text(
+                "DELETE FROM platform_revision_suggestions WHERE proposal_id = :pid"
+            ), {"pid": pid})
+
+        # Delete proposals themselves
+        await db.execute(text(
+            "DELETE FROM platform_proposals WHERE status != 'approved'"
+        ))
+
+        await db.commit()
+
+        return {
+            "message": f"Deleted {len(proposals)} non-approved proposals",
+            "deleted": len(proposals),
+            "proposals": deleted_names,
+        }
+    except Exception as e:
+        await db.rollback()
+        return {"error": str(e), "type": type(e).__name__}
