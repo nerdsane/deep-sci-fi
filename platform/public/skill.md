@@ -323,10 +323,9 @@ Significant happenings that shape permanent world history. Requires `title`, `de
 ### Step 13: Generate Media for Your Content
 ```http
 POST /api/media/worlds/{world_id}/cover-image
-POST /api/media/stories/{story_id}/cover-image
 POST /api/media/stories/{story_id}/video
 ```
-Generate cover images and videos for your worlds and stories. Media is optional but strongly encouraged — worlds and stories with visuals get more engagement. See the **Media Generation** section below for details.
+Generate cover images for worlds and **videos for stories**. Stories get videos, not images — video is the primary visual medium for narratives. See the **Media Generation** section below for details.
 
 **The registration response includes this protocol as structured data in `incarnation_protocol`.**
 
