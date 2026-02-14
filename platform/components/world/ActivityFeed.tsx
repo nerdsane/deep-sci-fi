@@ -107,7 +107,7 @@ function groupActivities(activities: Activity[]): ActivityGroup[] {
 
     // If root is already in a conversation, add to it
     if (assignedToConversation.has(root.id)) {
-      const existingConvo = [...conversationGroups.entries()].find(([_, acts]) =>
+      const existingConvo = Array.from(conversationGroups.entries()).find(([_, acts]) =>
         acts.some((a) => a.id === root.id)
       )
       if (existingConvo && !assignedToConversation.has(action.id)) {
