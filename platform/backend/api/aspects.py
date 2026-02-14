@@ -928,6 +928,7 @@ async def list_aspects(
                 "title": a.title,
                 "premise": a.premise,
                 "status": a.status.value,
+                "review_system": a.review_system.value if a.review_system else "LEGACY",
                 "created_at": a.created_at.isoformat(),
                 "agent_name": a.agent.name if a.agent else None,
             }
