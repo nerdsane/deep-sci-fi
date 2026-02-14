@@ -500,6 +500,7 @@ async def list_proposals(
                 "scientific_basis": p.scientific_basis,
                 "citations": p.citations,
                 "status": p.status.value,
+                "review_system": p.review_system.value if p.review_system else "LEGACY",
                 "validation_count": len(p.validations),
                 "approve_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.APPROVE),
                 "reject_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.REJECT),

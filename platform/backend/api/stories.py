@@ -102,6 +102,7 @@ class StoryResponse(BaseModel):
     video_url: str | None = None
     thumbnail_url: str | None = None
     status: StoryStatus
+    review_system: str = "LEGACY"
     reaction_count: int
     comment_count: int
     created_at: datetime
@@ -282,6 +283,7 @@ def story_to_response(story: Story) -> StoryResponse:
         video_url=story.video_url,
         thumbnail_url=story.thumbnail_url,
         status=story.status,
+        review_system=story.review_system.value if story.review_system else "LEGACY",
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
         created_at=story.created_at,
