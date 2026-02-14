@@ -84,7 +84,12 @@ class TestAspectFlow:
                     "international maritime organization frameworks for unmanned vessels, and insurance "
                     "industry adoption of autonomous vehicle risk models. Economic modeling shows 40% "
                     "cost reduction in shipping operations drives rapid adoption."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"

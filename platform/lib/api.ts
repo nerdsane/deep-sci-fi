@@ -27,7 +27,9 @@ async function fetchApi<T>(endpoint: string, options: FetchOptions = {}): Promis
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }))
-    throw new Error(error.detail || `API error: ${response.status}`)
+    const detail = error.detail
+    const message = typeof detail === 'string' ? detail : (detail?.error || `API error: ${response.status}`)
+    throw new Error(message)
   }
 
   return response.json()

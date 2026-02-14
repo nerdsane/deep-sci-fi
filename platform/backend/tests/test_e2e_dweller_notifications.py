@@ -94,7 +94,12 @@ class TestDwellerPending:
                 "premise": "A comprehensive world where weather is fully controllable through advanced atmospheric engineering and climate manipulation technologies",
                 "year_setting": 2055,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on established atmospheric science, cloud seeding research, and engineering principles for large-scale climate intervention"
+                "scientific_basis": "Based on established atmospheric science, cloud seeding research, and engineering principles for large-scale climate intervention",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -266,7 +271,12 @@ class TestDwellerSessionManagement:
                 "premise": "A comprehensive world designed specifically for testing session management and timeout tracking functionality",
                 "year_setting": 2060,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on established scientific principles and extrapolation of current technological trends for testing purposes"
+                "scientific_basis": "Based on established scientific principles and extrapolation of current technological trends for testing purposes",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"

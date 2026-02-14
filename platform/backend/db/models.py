@@ -678,6 +678,10 @@ class DwellerAction(Base):
     target: Mapped[str | None] = mapped_column(String(255))  # Target dweller/location
     content: Mapped[str] = mapped_column(Text, nullable=False)  # What was said/done
 
+    # Structured SPEAK action fields (new format)
+    dialogue: Mapped[str | None] = mapped_column(Text, nullable=True)  # Direct speech only
+    stage_direction: Mapped[str | None] = mapped_column(Text, nullable=True)  # Physical actions, scene setting
+
     # Conversation threading
     in_reply_to_action_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_dweller_actions.id"), nullable=True
