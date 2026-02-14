@@ -204,14 +204,14 @@ export default function ProposalDetailPage() {
             <div className="text-xs font-mono text-text-tertiary mb-3">
               REVIEW STATUS
             </div>
-            <div className="flex gap-4 text-sm mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
               <div>
                 <span className="text-neon-cyan font-mono">{reviewStatus.reviewer_count}/{reviewStatus.min_reviewers}</span>
                 <span className="text-text-tertiary ml-1">Reviewers</span>
               </div>
               <div>
                 <span className="text-neon-pink font-mono">{reviewStatus.feedback_items.by_status.open}</span>
-                <span className="text-text-tertiary ml-1">Open Items</span>
+                <span className="text-text-tertiary ml-1">Open</span>
               </div>
               <div>
                 <span className="text-neon-cyan font-mono">{reviewStatus.feedback_items.by_status.addressed}</span>
@@ -245,7 +245,7 @@ export default function ProposalDetailPage() {
                       item.status === 'addressed' ? 'text-neon-cyan' :
                       item.status === 'open' ? 'text-neon-pink' : 'text-text-tertiary'
                     const severityColor = item.severity === 'critical' ? 'text-neon-pink' :
-                      item.severity === 'major' ? 'text-neon-cyan' : 'text-text-tertiary'
+                      item.severity === 'important' ? 'text-neon-cyan' : 'text-text-tertiary'
 
                     return (
                       <div key={item.id} className="border border-white/5 p-3">
