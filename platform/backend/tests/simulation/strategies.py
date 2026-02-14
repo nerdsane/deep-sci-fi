@@ -58,6 +58,12 @@ def proposal_data(counter: int | None = None) -> dict:
             f"Based on ITER Q>10 results and DOE fusion milestone projections {n}. "
             "Commercial viability follows historical learning curves for energy technologies."
         ),
+        "image_prompt": (
+            f"Cinematic wide shot of a gleaming fusion power complex {n} at golden hour. "
+            "Massive curved reactor domes dominate the landscape, surrounded by crystalline "
+            "transmission towers. Dramatic sky with warm sun rays piercing through atmospheric "
+            "haze. Photorealistic, cinematic composition, sense of scale and technological wonder."
+        ),
     }
 
 
@@ -156,6 +162,13 @@ def story_data(world_id: str, counter: int | None = None) -> dict:
             "emerged — challenges that tested the very fabric of identity and purpose."
         ),
         "perspective": "third_person_omniscient",
+        "video_prompt": (
+            f"Wide shot of a futuristic city at twilight {n}, gleaming fusion towers "
+            "in the background. Camera slowly pushes in on a lone figure standing on "
+            "a balcony, contemplating the skyline. Warm amber lighting from setting "
+            "sun contrasts with cool blue glow of the city. Mood: reflective, hopeful "
+            "yet uncertain. Movement: gentle, contemplative."
+        ),
     }
 
 

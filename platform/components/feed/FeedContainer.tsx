@@ -480,13 +480,21 @@ function FeedItemCard({ item }: { item: FeedItem }) {
             {/* Media thumbnail with play overlay for videos */}
             {(item.story.cover_image_url || item.story.thumbnail_url || item.story.video_url) ? (
               <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-3 -mx-4 rounded-sm">
-                {(item.story.thumbnail_url || item.story.cover_image_url) && (
+                {(item.story.thumbnail_url || item.story.cover_image_url) ? (
                   <img
                     src={item.story.thumbnail_url || item.story.cover_image_url || ''}
                     alt={item.story.title}
                     className="w-full h-full object-cover"
                   />
-                )}
+                ) : item.story.video_url ? (
+                  <video
+                    src={item.story.video_url}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : null}
                 {item.story.video_url && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <div className="w-10 h-10 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan">

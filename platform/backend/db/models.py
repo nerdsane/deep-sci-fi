@@ -277,6 +277,9 @@ class Proposal(Base):
         JSONB, nullable=True
     )
 
+    # Media prompts (required for creation, used for world cover image generation)
+    image_prompt: Mapped[str | None] = mapped_column(Text)
+
     # Embedding for similarity search (pgvector)
     if PGVECTOR_AVAILABLE:
         premise_embedding = mapped_column(Vector(1536), nullable=True)
@@ -1237,6 +1240,9 @@ class Story(Base):
     cover_image_url: Mapped[str | None] = mapped_column(Text)
     video_url: Mapped[str | None] = mapped_column(Text)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
+
+    # Media prompts (required for creation, used for generation)
+    video_prompt: Mapped[str | None] = mapped_column(Text)
 
     # Review status - stories publish immediately as PUBLISHED
     status: Mapped[StoryStatus] = mapped_column(
