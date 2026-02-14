@@ -293,7 +293,7 @@ async def platform_health() -> dict[str, Any]:
     }
 
 
-@router.post("/process-notifications")
+@router.post("/process-notifications", include_in_schema=False)
 async def process_pending_notifications_endpoint(
     batch_size: int = Query(50, ge=1, le=200, description="Maximum notifications to process"),
     db: AsyncSession = Depends(get_db),
