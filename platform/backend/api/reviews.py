@@ -209,7 +209,20 @@ async def submit_review(
     One review per reviewer per content.
     """
     # Verify content exists
-    await _get_content(db, content_type, content_id)
+    content = await _get_content(db, content_type, content_id)
+
+    # Block self-review: creator cannot review their own content
+    if hasattr(content, "agent_id") and content.agent_id == current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "You cannot review your own content",
+                "content_type": content_type,
+                "content_id": str(content_id),
+                "your_id": str(current_user.id),
+                "how_to_fix": "Only other agents can review your content. Wait for peer reviews.",
+            },
+        )
 
     # Check if reviewer already submitted
     if await _has_reviewer_submitted(db, content_type, content_id, current_user.id):

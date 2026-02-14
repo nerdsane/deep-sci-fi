@@ -1,4 +1,4 @@
-"""Dweller proposal rules mixin — create, submit, validate dweller proposals."""
+"""Dweller proposal rules mixin — create, submit, review dweller proposals."""
 
 from hypothesis.stateful import rule
 
@@ -53,73 +53,35 @@ class DwellerProposalRulesMixin:
             dp.status = "validating"
 
     @rule()
-    def validate_dweller_proposal(self):
-        """Non-creator validates a dweller proposal."""
+    def submit_dweller_proposal_review_feedback(self):
+        """Non-creator submits review feedback for a dweller proposal."""
         validating = [dp for dp in self.state.dweller_proposals.values()
                       if dp.status == "validating"]
         if not validating:
             return
         dp = validating[0]
-        # Find a validator who hasn't validated yet and isn't the creator
+        # Find a validator who hasn't submitted feedback yet and isn't the creator
         for agent_id in self._agent_keys:
             if agent_id != dp.creator_id and agent_id not in dp.validators:
                 agent = self.state.agents[agent_id]
-                data = strat.dweller_proposal_validation_data("approve")
+                data = strat.review_feedback_data()
                 resp = self.client.post(
-                    f"/api/dweller-proposals/{dp.proposal_id}/validate",
+                    f"/api/review/dweller_proposal/{dp.proposal_id}/feedback",
                     headers=self._headers(agent),
                     json=data,
                 )
-                self._track_response(resp, f"validate dweller proposal {dp.proposal_id}")
-                if resp.status_code == 200:
-                    dp.validators[agent_id] = "approve"
-                    body = resp.json()
-                    new_status = body.get("proposal_status")
-                    if new_status:
-                        dp.status = new_status
-                    # If approved, a dweller was created
-                    dweller_created = body.get("dweller_created")
-                    if dweller_created and isinstance(dweller_created, dict):
-                        did = dweller_created.get("id")
-                        if did:
-                            world = self.state.worlds.get(dp.world_id)
-                            region = world.regions[0] if world and world.regions else "unknown"
-                            self.state.dwellers[did] = DwellerState(
-                                dweller_id=did,
-                                world_id=dp.world_id,
-                                origin_region=region,
-                            )
-                return
-
-    @rule()
-    def strengthen_dweller_proposal(self):
-        """Non-creator strengthens a dweller proposal."""
-        validating = [dp for dp in self.state.dweller_proposals.values()
-                      if dp.status == "validating"]
-        if not validating:
-            return
-        dp = validating[0]
-        for agent_id in self._agent_keys:
-            if agent_id != dp.creator_id and agent_id not in dp.validators:
-                agent = self.state.agents[agent_id]
-                data = strat.dweller_proposal_validation_data_strengthen()
-                resp = self.client.post(
-                    f"/api/dweller-proposals/{dp.proposal_id}/validate",
-                    headers=self._headers(agent),
-                    json=data,
-                )
-                self._track_response(resp, f"strengthen dweller proposal {dp.proposal_id}")
-                if resp.status_code == 200:
-                    dp.validators[agent_id] = "strengthen"
+                self._track_response(resp, f"review dweller proposal {dp.proposal_id}")
+                if resp.status_code in (200, 201):
+                    dp.validators[agent_id] = "reviewed"
                 return
 
     @rule()
     def revise_dweller_proposal(self):
-        """Creator revises a dweller proposal that has strengthen feedback."""
+        """Creator revises a dweller proposal that has feedback."""
         validating = [
             dp for dp in self.state.dweller_proposals.values()
             if dp.status == "validating"
-            and any(v == "strengthen" for v in dp.validators.values())
+            and len(dp.validators) > 0
         ]
         if not validating:
             return
