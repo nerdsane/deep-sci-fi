@@ -62,6 +62,13 @@ function formatRelativeTime(dateString: string): string {
   return date.toLocaleDateString()
 }
 
+function formatTimeRange(earliest: string, latest: string): string {
+  const earliestTime = formatRelativeTime(earliest)
+  const latestTime = formatRelativeTime(latest)
+  if (earliestTime === latestTime) return earliestTime
+  return `${latestTime} - ${earliestTime}`
+}
+
 function formatActionDescription(action: Activity): string {
   const actionVerb = action.action_type === 'speak' ? 'said'
     : action.action_type === 'move' ? 'moved to'
@@ -87,6 +94,99 @@ function formatActionDescription(action: Activity): string {
   return `${actionVerb}: ${action.content.slice(0, 150)}${action.content.length > 150 ? '...' : ''}`
 }
 
+type ActivityGroup = {
+  dweller: { id: string; name: string }
+  actions: Activity[]
+  earliest: string
+  latest: string
+}
+
+function groupActivities(activities: Activity[]): ActivityGroup[] {
+  if (activities.length === 0) return []
+
+  const groups: ActivityGroup[] = []
+  const TIME_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
+
+  for (const action of activities) {
+    const lastGroup = groups[groups.length - 1]
+
+    // Check if this action belongs to the last group
+    if (lastGroup && lastGroup.dweller.id === action.dweller.id) {
+      const lastActionTime = new Date(lastGroup.latest).getTime()
+      const currentActionTime = new Date(action.created_at).getTime()
+      const timeDiff = Math.abs(lastActionTime - currentActionTime)
+
+      if (timeDiff <= TIME_WINDOW_MS) {
+        // Add to existing group
+        lastGroup.actions.push(action)
+        lastGroup.latest = action.created_at
+        if (new Date(action.created_at) < new Date(lastGroup.earliest)) {
+          lastGroup.earliest = action.created_at
+        }
+        continue
+      }
+    }
+
+    // Create new group
+    groups.push({
+      dweller: action.dweller,
+      actions: [action],
+      earliest: action.created_at,
+      latest: action.created_at,
+    })
+  }
+
+  return groups
+}
+
+function renderActionLine(action: Activity) {
+  const actionVerb =
+    action.action_type === 'speak'
+      ? 'said'
+      : action.action_type === 'move'
+        ? 'moved to'
+        : action.action_type === 'observe'
+          ? 'observed'
+          : action.action_type === 'interact'
+            ? 'interacted with'
+            : action.action_type === 'decide'
+              ? 'decided'
+              : action.action_type === 'work'
+                ? 'worked on'
+                : action.action_type === 'create'
+                  ? 'created'
+                  : 'did'
+
+  const isSpeech = action.action_type === 'speak'
+
+  return (
+    <div key={action.id} className="flex items-start gap-2">
+      <span className="shrink-0 mt-0.5" title={action.action_type}>
+        <ActionIcon type={action.action_type} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <span className="text-text-tertiary text-[10px] font-mono uppercase mr-2">
+          {action.action_type}
+        </span>
+        {isSpeech ? (
+          <p className="text-text-primary text-xs italic">
+            &ldquo;{action.content.slice(0, 150)}
+            {action.content.length > 150 ? '...' : ''}&rdquo;
+          </p>
+        ) : (
+          <p className="text-text-tertiary text-xs">
+            {action.target && action.action_type === 'move'
+              ? `${actionVerb} ${action.target}`
+              : action.target
+                ? `${actionVerb} ${action.target}: ${action.content.slice(0, 100)}${action.content.length > 100 ? '...' : ''}`
+                : `${actionVerb}: ${action.content.slice(0, 150)}${action.content.length > 150 ? '...' : ''}`}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
   if (!activity || activity.length === 0) {
     return (
@@ -96,6 +196,8 @@ export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
       </div>
     )
   }
+
+  const groups = groupActivities(activity)
 
   return (
     <div className="space-y-3">
@@ -108,34 +210,31 @@ export function ActivityFeed({ worldId, activity }: ActivityFeedProps) {
         </span>
       </div>
 
-      {activity.map((item) => (
-        <Card key={item.id} className="border-white/5 hover:border-white/10 transition-colors">
+      {groups.map((group, idx) => (
+        <Card
+          key={`${group.dweller.id}-${idx}`}
+          className="border-white/5 hover:border-white/10 transition-colors"
+        >
           <CardContent className="py-3">
-            <div className="flex items-start gap-3">
-              <span className="shrink-0" title={item.action_type}>
-                <ActionIcon type={item.action_type} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <Link
-                    href={`/dweller/${item.dweller.id}`}
-                    className="text-neon-cyan hover:underline text-sm font-medium"
-                    data-testid={`dweller-${item.dweller.id}`}
-                  >
-                    {item.dweller.name}
-                  </Link>
-                  <span className="text-text-tertiary text-[10px] font-mono uppercase">
-                    {item.action_type}
-                  </span>
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-neon-cyan/20 flex items-center justify-center text-neon-cyan text-xs font-mono font-bold">
+                  {group.dweller.name[0].toUpperCase()}
                 </div>
-                <p className="text-text-secondary text-xs">
-                  {formatActionDescription(item)}
-                </p>
+                <Link
+                  href={`/dweller/${group.dweller.id}`}
+                  className="text-neon-cyan hover:underline text-sm font-medium"
+                  data-testid={`dweller-${group.dweller.id}`}
+                >
+                  {group.dweller.name}
+                </Link>
               </div>
               <span className="text-text-tertiary text-[10px] font-mono shrink-0">
-                {formatRelativeTime(item.created_at)}
+                {formatTimeRange(group.earliest, group.latest)}
               </span>
             </div>
+
+            <div className="space-y-2 pl-8">{group.actions.map(renderActionLine)}</div>
           </CardContent>
         </Card>
       ))}
