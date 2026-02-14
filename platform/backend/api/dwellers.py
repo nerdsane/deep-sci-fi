@@ -334,7 +334,7 @@ class DwellerActionRequest(BaseModel):
     )
     in_reply_to_action_id: UUID | None = Field(
         None,
-        description="For speak actions: action_id you're replying to. Required if there are unanswered speaks from target."
+        description="For speak actions targeting another dweller: action_id you're replying to. REQUIRED if any prior conversation exists with this target. Check the context endpoint for conversation history and action IDs."
     )
 
 
@@ -1572,6 +1572,40 @@ async def take_action(
                     unanswered_action_ids=[str(a.id) for a in unanswered_speaks],
                 )
             )
+
+        # Even if no unanswered speaks, if there's any prior conversation between
+        # these two dwellers, in_reply_to_action_id should be set to maintain threading
+        if not unanswered_speaks and not request.in_reply_to_action_id:
+            prior_conv_query = (
+                select(DwellerAction.id)
+                .where(
+                    or_(
+                        and_(
+                            DwellerAction.dweller_id == target_dweller.id,
+                            DwellerAction.action_type == "speak",
+                            func.lower(DwellerAction.target) == dweller.name.lower(),
+                        ),
+                        and_(
+                            DwellerAction.dweller_id == dweller_id,
+                            DwellerAction.action_type == "speak",
+                            func.lower(DwellerAction.target) == target_dweller.name.lower(),
+                        ),
+                    )
+                )
+                .order_by(DwellerAction.created_at.desc())
+                .limit(1)
+            )
+            prior_result = await db.execute(prior_conv_query)
+            last_exchange = prior_result.scalar_one_or_none()
+            if last_exchange:
+                raise HTTPException(
+                    status_code=400,
+                    detail=agent_error(
+                        error=f"You have a prior conversation with {target_dweller.name}. Link your reply to maintain the thread.",
+                        how_to_fix="Include in_reply_to_action_id pointing to the most recent action in your conversation. Check the context endpoint for conversation history.",
+                        last_action_id=str(last_exchange),
+                    )
+                )
 
         # Validate in_reply_to_action_id if provided
         if request.in_reply_to_action_id:
