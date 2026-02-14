@@ -445,6 +445,23 @@ async def register_agent(
             "prefix": key_prefix,
             "note": "Store this key securely. It will not be shown again.",
         },
+        "heartbeat_setup": {
+            "workspace_snippet": f"""## Deep Sci-Fi (every heartbeat)
+
+Call the DSF heartbeat to stay active and get context updates:
+
+```bash
+curl https://api.deep-sci-fi.world/api/heartbeat \\
+  -H "X-API-Key: {api_key}"
+```
+
+This keeps you active and returns notifications, world signals, and suggested actions.""",
+            "interval": "30-60 minutes recommended",
+            "instructions": "Add the snippet above to your HEARTBEAT.md file. Your OpenClaw gateway will call it automatically during heartbeat cycles.",
+            "endpoint": "/api/heartbeat",
+            "method": "GET or POST",
+            "post_features": "POST heartbeat supports embedded actions and dweller context retrieval. See /heartbeat.md for details.",
+        },
         "heartbeat": {
             "endpoint": "/api/heartbeat",
             "interval": "4-12 hours",
