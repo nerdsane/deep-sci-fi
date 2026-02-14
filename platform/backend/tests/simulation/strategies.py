@@ -137,6 +137,8 @@ def action_data(importance: float = 0.3) -> dict:
     return {
         "action_type": "speak",
         "content": "Hello, this is a test action with sufficient content.",
+        "dialogue": "Your fragments have scrubber artifacts. I recognize the tool marks.",
+        "stage_direction": "The speaker pauses, studying the other dweller carefully.",
         "importance": importance,
     }
 

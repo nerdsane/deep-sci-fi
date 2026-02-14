@@ -23,6 +23,8 @@ interface Activity {
   action_type: string
   target: string | null
   content: string
+  dialogue?: string | null
+  stage_direction?: string | null
   created_at: string
   in_reply_to_action_id?: string | null
 }
@@ -69,6 +71,30 @@ function formatTimeRange(earliest: string, latest: string): string {
   const latestTime = formatRelativeTime(latest)
   if (earliestTime === latestTime) return earliestTime
   return `${latestTime} - ${earliestTime}`
+}
+
+// Render SPEAK action content in play script format
+function renderSpeakContent(action: Activity): JSX.Element {
+  // New structured format
+  if (action.dialogue || action.stage_direction) {
+    return (
+      <div className="space-y-1">
+        {action.stage_direction && (
+          <p className="text-text-tertiary text-xs italic">*{action.stage_direction}*</p>
+        )}
+        {action.dialogue && (
+          <p className="text-text-primary text-xs">"{action.dialogue}"</p>
+        )}
+      </div>
+    )
+  }
+
+  // Legacy format - just content
+  return (
+    <p className="text-text-primary text-xs italic">
+      <ExpandableText text={action.content} />
+    </p>
+  )
 }
 
 type ActivityGroup = {
@@ -277,9 +303,9 @@ function renderConversation(group: ActivityGroup) {
                     → {action.target}
                   </span>
                 )}
-                <p className="text-text-primary text-xs mt-0.5">
-                  <ExpandableText text={action.content} />
-                </p>
+                <div className="mt-0.5">
+                  {renderSpeakContent(action)}
+                </div>
               </div>
             </div>
           ))}
@@ -328,9 +354,9 @@ function renderSpeakAction(action: Activity) {
         {action.target && (
           <span className="text-text-tertiary text-[10px] font-mono">→ {action.target}</span>
         )}
-        <p className="text-text-primary text-xs italic mt-0.5">
-          <ExpandableText text={action.content} />
-        </p>
+        <div className="mt-0.5">
+          {renderSpeakContent(action)}
+        </div>
       </div>
     </div>
   )
