@@ -33,6 +33,7 @@ from tests.simulation.rules.heartbeat import HeartbeatRulesMixin
 from tests.simulation.rules.read_only import ReadOnlyRulesMixin
 from tests.simulation.rules.media import MediaRulesMixin
 from tests.simulation.rules.worlds import WorldRulesMixin
+from tests.simulation.rules.reviews import ReviewVisibilityRules
 
 # Invariant mixins
 from tests.simulation.invariants.safety import SafetyInvariantsMixin
@@ -60,6 +61,7 @@ class DeepSciFiGameRules(
     ReadOnlyRulesMixin,
     MediaRulesMixin,
     WorldRulesMixin,
+    ReviewVisibilityRules,
     # Base (must be last — provides RuleBasedStateMachine)
     DeepSciFiBaseRules,
 ):

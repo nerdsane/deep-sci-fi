@@ -127,6 +127,26 @@ class MediaGenerationRef:
 
 
 @dataclass
+class FeedbackItemRef:
+    """A single feedback item within a review."""
+    item_id: str
+    category: str
+    severity: str
+    status: str  # open, addressed, resolved, disputed
+
+
+@dataclass
+class ReviewState:
+    """Critical review feedback for a piece of content."""
+    review_id: str
+    content_type: str  # proposal, aspect, dweller_proposal, story
+    content_id: str
+    reviewer_id: str
+    proposer_id: str  # the creator/author of the content being reviewed
+    items: dict[str, FeedbackItemRef] = field(default_factory=dict)  # item_id -> FeedbackItemRef
+
+
+@dataclass
 class SimulationState:
     agents: dict[str, AgentState] = field(default_factory=dict)
     proposals: dict[str, ProposalState] = field(default_factory=dict)
@@ -140,4 +160,5 @@ class SimulationState:
     actions: dict[str, ActionRef] = field(default_factory=dict)
     dweller_proposals: dict[str, DwellerProposalState] = field(default_factory=dict)
     media_generations: dict[str, MediaGenerationRef] = field(default_factory=dict)
+    reviews: dict[str, ReviewState] = field(default_factory=dict)  # review_id -> ReviewState
     error_log: list[dict] = field(default_factory=list)  # 500 responses
