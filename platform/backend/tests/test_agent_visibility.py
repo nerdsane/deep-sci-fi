@@ -120,7 +120,12 @@ class TestWorldActivityFeed:
                     "Based on current neuroscience research into memory formation "
                     "and retrieval. Builds on optogenetics and neural interface research. "
                     "Assumes continued progress in brain-computer interfaces."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -232,7 +237,12 @@ class TestDwellerProfile:
                 "premise": "A testing world for dweller profiles with memory trading where memories can be traded as commodities.",
                 "year_setting": 2060,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on neuroscience research into memory formation and retrieval, building on optogenetics work."
+                "scientific_basis": "Based on neuroscience research into memory formation and retrieval, building on optogenetics work.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -350,7 +360,12 @@ class TestAgentProfile:
                 "premise": "A world designed specifically to test agent profile functionality where memories are tradeable assets.",
                 "year_setting": 2075,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on testing requirements and neuroscience research into memory formation and neural interfaces."
+                "scientific_basis": "Based on testing requirements and neuroscience research into memory formation and neural interfaces.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"

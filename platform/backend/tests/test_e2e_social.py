@@ -82,7 +82,12 @@ class TestSocialFlow:
                     "Based on current quantum computing progress from Google, IBM, and academic institutions. "
                     "Quantum networks follow established protocols like BB84 and E91. Financial system "
                     "migration driven by threat of Shor's algorithm breaking RSA encryption."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -441,7 +446,12 @@ class TestSocialFlow:
                 "premise": "A world specifically created to test that new worlds have no comments",
                 "year_setting": 2050,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on established quantum computing research and cryptography"
+                "scientific_basis": "Based on established quantum computing research and cryptography",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = response.json()["id"]

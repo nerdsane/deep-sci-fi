@@ -130,7 +130,12 @@ class TestStoriesAPI:
                 "scientific_basis": (
                     "Based on current fusion research progress from ITER and private companies. "
                     "Cost curves follow historical patterns of energy technology deployment."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -396,7 +401,12 @@ class TestStoriesAPI:
                 "scientific_basis": (
                     "Based on current fusion research progress from ITER and private companies. "
                     "Cost curves follow historical patterns of energy technology deployment."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Second proposal failed: {response.json()}"
