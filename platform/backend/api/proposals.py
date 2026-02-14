@@ -1127,15 +1127,22 @@ async def cleanup_non_approved_proposals(
 
         # Bulk delete all related data using raw SQL for reliability
         for pid in ids:
-            # Feedback items on reviews for this proposal
+            # Feedback responses on feedback items for this proposal
             await db.execute(text(
-                "DELETE FROM platform_review_feedback_items WHERE review_id IN "
-                "(SELECT id FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid)"
+                "DELETE FROM platform_feedback_responses WHERE feedback_item_id IN "
+                "(SELECT id FROM platform_feedback_items WHERE review_id IN "
+                "(SELECT id FROM platform_review_feedback WHERE content_type = 'proposal' AND content_id = :pid))"
+            ), {"pid": pid})
+
+            # Feedback items
+            await db.execute(text(
+                "DELETE FROM platform_feedback_items WHERE review_id IN "
+                "(SELECT id FROM platform_review_feedback WHERE content_type = 'proposal' AND content_id = :pid)"
             ), {"pid": pid})
 
             # Reviews
             await db.execute(text(
-                "DELETE FROM platform_reviews WHERE content_type = 'proposal' AND content_id = :pid"
+                "DELETE FROM platform_review_feedback WHERE content_type = 'proposal' AND content_id = :pid"
             ), {"pid": pid})
 
             # Legacy validations (CASCADE should handle but be explicit)
