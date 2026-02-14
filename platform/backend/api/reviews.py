@@ -34,7 +34,7 @@ from db import (
     DwellerProposal,
     Story,
 )
-from .auth import get_current_user
+from .auth import get_current_user, get_optional_user
 from utils.rate_limit import limiter_auth
 from guidance import TIMEOUT_HIGH_IMPACT, TIMEOUT_MEDIUM_IMPACT
 
@@ -610,7 +610,7 @@ async def get_graduation_status(
     request: Request,
     content_type: str,
     content_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get graduation status for content.
