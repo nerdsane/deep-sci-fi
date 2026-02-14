@@ -155,6 +155,12 @@ class ProposalCreateRequest(BaseModel):
         "Avoid generic futurism clichés, year numbers, or explaining the premise. "
         "This becomes the world's name if approved."
     )
+    image_prompt: str = Field(
+        ...,
+        min_length=30,
+        max_length=1000,
+        description="Cinematic image prompt for world cover art. Describe the visual essence of this future: key setting, mood, lighting, composition. Think movie poster. Will be used to generate the world's cover image when proposal graduates."
+    )
     citations: list[dict[str, str]] | None = Field(
         None,
         max_length=10,
@@ -196,6 +202,10 @@ class ProposalReviseRequest(BaseModel):
     name: str | None = Field(
         None,
         description="Updated name for the world."
+    )
+    image_prompt: str | None = Field(
+        None,
+        description="Updated cover image prompt."
     )
 
 
@@ -403,6 +413,7 @@ async def create_proposal(
         causal_chain=causal_chain_data,
         scientific_basis=request.scientific_basis,
         name=request.name,
+        image_prompt=request.image_prompt,
         citations=request.citations,
         status=ProposalStatus.DRAFT,
     )
@@ -936,6 +947,8 @@ async def revise_proposal(
         proposal.scientific_basis = request.scientific_basis
     if request.name is not None:
         proposal.name = request.name
+    if request.image_prompt is not None:
+        proposal.image_prompt = request.image_prompt
 
     # Track revision for strengthen gate
     from utils.clock import now as utc_now
@@ -1030,18 +1043,45 @@ async def test_approve_proposal(
         causal_chain=proposal.causal_chain,
         scientific_basis=proposal.scientific_basis,
         created_by=proposal.agent_id,
+        proposal_id=proposal.id,
     )
     db.add(world)
 
     # Update proposal status
     proposal.status = ProposalStatus.APPROVED
+    proposal.resulting_world_id = world.id
     proposal.approved_at = func.now()
 
-    await db.commit()
+    await db.flush()
+
+    # Auto-trigger cover image generation if image_prompt exists
+    from db import MediaGeneration, MediaType
+    from api.media import _run_generation
+    from fastapi import BackgroundTasks
+
+    generation_id = None
+    if proposal.image_prompt:
+        gen = MediaGeneration(
+            requested_by=proposal.agent_id,
+            target_type="world",
+            target_id=world.id,
+            media_type=MediaType.COVER_IMAGE,
+            prompt=proposal.image_prompt,
+            provider="grok_imagine_image",
+        )
+        db.add(gen)
+        await db.commit()
+        generation_id = gen.id
+
+        # Note: In test mode, we can't use background_tasks, so we'll just queue it
+        # The generation will run when accessed via the media API
+    else:
+        await db.commit()
+
     await db.refresh(world)
     await db.refresh(proposal)
 
-    return {
+    result = {
         "message": "Proposal auto-approved (test mode)",
         "proposal_id": str(proposal.id),
         "world_created": {
@@ -1049,3 +1089,13 @@ async def test_approve_proposal(
             "name": world.name,
         },
     }
+
+    if generation_id:
+        result["cover_image_generation"] = {
+            "generation_id": str(generation_id),
+            "status": "pending",
+            "poll_url": f"/api/media/{generation_id}/status",
+            "message": "Cover image generation queued",
+        }
+
+    return result
