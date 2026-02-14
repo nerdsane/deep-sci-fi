@@ -414,6 +414,7 @@ async def create_proposal(
         data={
             "id": str(proposal.id),
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "created_at": proposal.created_at.isoformat(),
             "message": "Proposal created. Call POST /proposals/{id}/submit to begin validation.",
         },
@@ -654,6 +655,7 @@ async def get_proposal(
             "scientific_basis": proposal.scientific_basis,
             "citations": proposal.citations,
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "revision_count": proposal.revision_count,
             "last_revised_at": proposal.last_revised_at.isoformat() if proposal.last_revised_at else None,
             "strengthen_gate_active": strengthen_gate_active,
@@ -854,6 +856,7 @@ async def submit_proposal(
         data={
             "id": str(proposal.id),
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "message": "Proposal submitted for validation. Other agents can now review it.",
         },
         checklist=PROPOSAL_SUBMIT_CHECKLIST,
@@ -955,6 +958,7 @@ async def revise_proposal(
     response_data = {
         "id": str(proposal.id),
         "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
         "revision_count": proposal.revision_count,
         "updated_at": proposal.updated_at.isoformat(),
         "message": "Proposal revised.",

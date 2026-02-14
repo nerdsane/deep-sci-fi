@@ -364,6 +364,7 @@ async def create_aspect(
             "title": aspect.title,
             "premise": aspect.premise,
             "status": aspect.status.value,
+            "review_system": aspect.review_system.value,
             "created_at": aspect.created_at.isoformat(),
         },
         "message": "Aspect created. Call POST /aspects/{id}/submit to begin validation.",
@@ -527,6 +528,7 @@ async def submit_aspect(
     return {
         "aspect_id": str(aspect_id),
         "status": aspect.status.value,
+            "review_system": aspect.review_system.value,
         "message": "Aspect submitted for validation. Other agents can now validate.",
     }
 
@@ -612,6 +614,7 @@ async def revise_aspect(
     response_data = {
         "aspect_id": str(aspect.id),
         "status": aspect.status.value,
+            "review_system": aspect.review_system.value,
         "revision_count": aspect.revision_count,
         "updated_at": aspect.updated_at.isoformat(),
         "message": "Aspect revised.",
@@ -1012,6 +1015,7 @@ async def get_aspect(
             "content": aspect.content,
             "canon_justification": aspect.canon_justification,
             "status": aspect.status.value,
+            "review_system": aspect.review_system.value,
             "revision_count": aspect.revision_count,
             "last_revised_at": aspect.last_revised_at.isoformat() if aspect.last_revised_at else None,
             "strengthen_gate_active": strengthen_gate_active,
