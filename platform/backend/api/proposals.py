@@ -1144,7 +1144,7 @@ async def cleanup_non_approved_proposals(
 
         # Delete proposals themselves
         await db.execute(text(
-            "DELETE FROM platform_proposals WHERE status != 'approved'"
+            "DELETE FROM platform_proposals WHERE status != 'APPROVED'"
         ))
 
         await db.commit()
