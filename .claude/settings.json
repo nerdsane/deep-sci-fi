@@ -19,6 +19,16 @@
             "timeout": 300
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-push-typecheck.sh",
+            "timeout": 120
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -39,6 +49,15 @@
             "command": ".claude/hooks/check-e2e-coverage.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-skill-version.sh"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -50,6 +69,15 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read",
+      "Edit",
+      "Write",
+      "WebFetch(*)"
     ]
   }
 }

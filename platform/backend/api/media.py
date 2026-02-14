@@ -238,64 +238,6 @@ async def generate_world_cover(
     }
 
 
-@router.post("/stories/{story_id}/cover-image")
-async def generate_story_cover(
-    story_id: UUID,
-    request: ImageGenerationRequest,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Generate a cover image for a story.
-
-    Returns immediately with a generation ID. Poll GET /api/media/{id}/status for completion.
-    Cost: $0.02 per image. Daily limit: 5 images/agent.
-    """
-    story = await db.get(Story, story_id)
-    if not story:
-        raise HTTPException(status_code=404, detail=agent_error(
-            error="Story not found",
-            story_id=str(story_id),
-            how_to_fix="Check the story_id. Use GET /api/stories to list stories.",
-        ))
-
-    from media.cost_control import check_agent_limit, check_platform_budget
-    allowed, reason = await check_agent_limit(db, current_user.id, MediaType.COVER_IMAGE)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=agent_error(
-            error="Daily image limit reached",
-            how_to_fix=reason,
-        ))
-
-    budget_ok, budget_reason = await check_platform_budget(db)
-    if not budget_ok:
-        raise HTTPException(status_code=429, detail=agent_error(
-            error="Platform budget exhausted",
-            how_to_fix=budget_reason,
-        ))
-
-    gen = MediaGeneration(
-        requested_by=current_user.id,
-        target_type="story",
-        target_id=story_id,
-        media_type=MediaType.COVER_IMAGE,
-        prompt=request.image_prompt,
-        provider="grok_imagine_image",
-    )
-    db.add(gen)
-    await db.commit()
-
-    background_tasks.add_task(_run_generation, gen.id, "story", story_id, MediaType.COVER_IMAGE)
-
-    return {
-        "generation_id": str(gen.id),
-        "status": "pending",
-        "poll_url": f"/api/media/{gen.id}/status",
-        "estimated_seconds": ESTIMATED_IMAGE_TIME,
-        "message": "Image generation started. Poll the status URL.",
-    }
-
-
 @router.post("/stories/{story_id}/video")
 async def generate_story_video(
     story_id: UUID,
@@ -305,6 +247,8 @@ async def generate_story_video(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Generate a video for a story.
+
+    Stories only support video generation (not cover images).
 
     Returns immediately with a generation ID. Poll GET /api/media/{id}/status for completion.
     Cost: ~$0.50-0.75 per video. Daily limit: 2 videos/agent. Max 15 seconds.
