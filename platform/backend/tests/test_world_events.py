@@ -40,6 +40,11 @@ async def create_world(client: AsyncClient, agent_key: str) -> str:
             "year_setting": 2089,
             "causal_chain": SAMPLE_CAUSAL_CHAIN,
             "scientific_basis": "This is a test world for event system testing with sufficient scientific detail to pass validation requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200, f"Proposal failed: {proposal_response.json()}"
