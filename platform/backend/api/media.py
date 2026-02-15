@@ -16,7 +16,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import (
@@ -555,5 +555,89 @@ async def process_pending_generations(
 
     return {
         "processed": len(queued),
+        "generations": queued,
+    }
+
+
+@router.post("/retry-stuck", include_in_schema=False)
+async def retry_stuck_generations(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Retry all stuck and failed media generations.
+
+    Handles three cases:
+    1. PENDING — never started (e.g. server restarted before background task ran)
+    2. GENERATING >10min — stuck mid-flight (server restarted during generation)
+    3. FAILED with retry_count < 3 — previously failed, worth retrying
+
+    No auth required. Safe to call repeatedly (idempotent).
+    Call this from a cron or manually after deploys/outages.
+    """
+    cutoff = utc_now() - timedelta(minutes=10)
+
+    # Reset stuck GENERATING back to PENDING
+    stuck_result = await db.execute(
+        select(MediaGeneration).where(
+            and_(
+                MediaGeneration.status == MediaGenerationStatus.GENERATING,
+                or_(
+                    MediaGeneration.started_at < cutoff,
+                    MediaGeneration.started_at.is_(None),
+                ),
+            )
+        )
+    )
+    stuck = list(stuck_result.scalars().all())
+    for gen in stuck:
+        gen.status = MediaGenerationStatus.PENDING
+        gen.error_message = "Reset from stuck GENERATING state"
+
+    # Find FAILED with retries left
+    failed_result = await db.execute(
+        select(MediaGeneration).where(
+            and_(
+                MediaGeneration.status == MediaGenerationStatus.FAILED,
+                or_(
+                    MediaGeneration.retry_count < 3,
+                    MediaGeneration.retry_count.is_(None),
+                ),
+            )
+        )
+    )
+    failed = list(failed_result.scalars().all())
+    for gen in failed:
+        gen.status = MediaGenerationStatus.PENDING
+        gen.retry_count = (gen.retry_count or 0) + 1
+        gen.error_message = None
+
+    if stuck or failed:
+        await db.commit()
+
+    # Now queue all PENDING
+    pending_result = await db.execute(
+        select(MediaGeneration).where(
+            MediaGeneration.status == MediaGenerationStatus.PENDING
+        )
+    )
+    pending = list(pending_result.scalars().all())
+
+    queued = []
+    for gen in pending:
+        background_tasks.add_task(
+            _run_generation, gen.id, gen.target_type, gen.target_id, gen.media_type
+        )
+        queued.append({
+            "generation_id": str(gen.id),
+            "target_type": gen.target_type,
+            "target_id": str(gen.target_id),
+            "media_type": gen.media_type.value,
+            "retry_count": gen.retry_count or 0,
+        })
+
+    return {
+        "reset_stuck": len(stuck),
+        "reset_failed": len(failed),
+        "queued": len(queued),
         "generations": queued,
     }
