@@ -91,60 +91,12 @@ limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
 
 
 @asynccontextmanager
-async def _recover_stuck_generations():
-    """Re-queue media generations stuck in PENDING or GENERATING (killed by restart)."""
-    import asyncio
-    from datetime import timedelta
-    from sqlalchemy import select, or_, and_
-    from db import MediaGeneration, MediaGenerationStatus
-    from db.database import SessionLocal
-    from utils.clock import now as utc_now
-    from api.media import _run_generation
-
-    try:
-        async with SessionLocal() as db:
-            # Find PENDING (never started) or GENERATING stuck >5min (killed mid-flight)
-            cutoff = utc_now() - timedelta(minutes=5)
-            result = await db.execute(
-                select(MediaGeneration).where(
-                    or_(
-                        MediaGeneration.status == MediaGenerationStatus.PENDING,
-                        and_(
-                            MediaGeneration.status == MediaGenerationStatus.GENERATING,
-                            MediaGeneration.updated_at < cutoff,
-                        ),
-                    )
-                )
-            )
-            stuck = list(result.scalars().all())
-
-            if not stuck:
-                logger.info("No stuck media generations to recover")
-                return
-
-            logger.info(f"Recovering {len(stuck)} stuck media generations")
-            for gen in stuck:
-                gen.status = MediaGenerationStatus.PENDING
-                gen.retry_count = (gen.retry_count or 0) + 1
-            await db.commit()
-
-            # Fire them off with small delays to avoid hammering xAI
-            for gen in stuck:
-                asyncio.create_task(_run_generation(gen.id, gen.target_type, gen.target_id, gen.media_type))
-                logger.info(f"Re-queued generation {gen.id} ({gen.media_type.value} for {gen.target_type}/{gen.target_id})")
-    except Exception as e:
-        logger.error(f"Failed to recover stuck generations: {e}")
-
-
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     logger.info("Starting Deep Sci-Fi Platform...")
     await init_db()
     logger.info("Database initialized")
-
-    # Recover stuck media generations from previous instance
-    await _recover_stuck_generations()
 
     # Note: Scheduler disabled for crowdsourced model
     # External agents now drive content creation via proposals API
