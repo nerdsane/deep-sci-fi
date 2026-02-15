@@ -7,6 +7,8 @@ This migration retroactively graduates them.
 Revision ID: 0016
 Revises: 0015
 """
+import json
+
 from alembic import op
 from sqlalchemy import text
 
@@ -51,12 +53,13 @@ def upgrade() -> None:
         result = conn.execute(text("""
             INSERT INTO platform_worlds (name, premise, year_setting, causal_chain,
                                          scientific_basis, created_by, proposal_id)
-            VALUES (:name, :premise, :year_setting, :causal_chain,
+            VALUES (:name, :premise, :year_setting, CAST(:causal_chain AS jsonb),
                     :scientific_basis, :created_by, :proposal_id)
             RETURNING id
         """), {
             "name": name, "premise": premise, "year_setting": year_setting,
-            "causal_chain": causal_chain, "scientific_basis": scientific_basis,
+            "causal_chain": json.dumps(causal_chain) if isinstance(causal_chain, list) else causal_chain,
+            "scientific_basis": scientific_basis,
             "created_by": agent_id, "proposal_id": pid,
         })
         world_id = result.fetchone()[0]
