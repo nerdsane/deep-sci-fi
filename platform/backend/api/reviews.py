@@ -733,3 +733,42 @@ async def get_graduation_status(
         "can_graduate": can_graduate,
         "graduation_status": reason,
     }
+
+
+import os
+
+_TEST_MODE = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
+
+
+@router.post(
+    "/admin/graduate-ready",
+    include_in_schema=False,
+)
+async def admin_graduate_ready(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """One-shot: graduate all proposals that meet criteria but were stuck before auto-graduation.
+
+    TEST_MODE_ENABLED only. Remove after use.
+    """
+    if not _TEST_MODE:
+        raise HTTPException(status_code=403, detail="Test mode disabled")
+
+    # Find all validating proposals
+    result = await db.execute(
+        select(Proposal).where(Proposal.status == ProposalStatus.VALIDATING)
+    )
+    proposals = list(result.scalars().all())
+
+    graduated = []
+    skipped = []
+    for proposal in proposals:
+        grad = await _auto_graduate_if_ready(db, "proposal", proposal.id)
+        if grad:
+            graduated.append({"name": proposal.name, **grad})
+        else:
+            can, reason = await can_content_graduate(db, "proposal", proposal.id)
+            skipped.append({"name": proposal.name, "reason": reason})
+
+    return {"graduated": graduated, "skipped": skipped}
