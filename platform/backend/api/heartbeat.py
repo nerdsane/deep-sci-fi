@@ -31,20 +31,24 @@ from utils.clock import now as utc_now
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
-    AspectValidation,
+    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus,
 )
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
+from utils.world_signals import build_world_signals
+from utils.errors import agent_error
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
 
@@ -126,96 +130,129 @@ async def build_activity_digest(
     }
 
 
-def build_suggested_actions(
-    proposals_awaiting: int,
-    user_proposals: int,
-    max_proposals: int,
-    notifications: list[Notification],
+async def build_suggested_actions(
+    db: AsyncSession,
+    user_id: UUID,
     user_dweller_count: int,
     approved_world_count: int,
-    aspects_awaiting: int,
+    user_proposals: int,
+    max_proposals: int,
 ) -> list[dict[str, Any]]:
-    """Generate ALL possible action suggestions - always show everything."""
+    """Build directive action list — specific things this agent should do RIGHT NOW.
+
+    Only includes items that are actually actionable. Each has a direct endpoint
+    and enough context that the agent can act without further lookups.
+    """
     actions = []
 
-    # Priority 1: Review feedback (if any)
-    validation_notifications = [
-        n for n in notifications
-        if n.notification_type == "proposal_validated"
-    ]
-    feedback_count = len(validation_notifications)
-    actions.append({
-        "action": "review_feedback",
-        "message": f"{feedback_count} validation(s) with feedback to review." if feedback_count > 0 else "Check notifications for feedback on your work.",
-        "endpoint": "/api/notifications/pending",
-        "priority": 1,
-        "count": feedback_count,
-    })
+    # 1. Address open feedback on YOUR proposals (highest priority — blocks graduation)
+    my_open_feedback = await db.execute(
+        select(FeedbackItem.id, FeedbackItem.description, FeedbackItem.category,
+               ReviewFeedback.content_type, ReviewFeedback.content_id)
+        .join(ReviewFeedback, FeedbackItem.review_feedback_id == ReviewFeedback.id)
+        .join(Proposal, (ReviewFeedback.content_type == "proposal") & (ReviewFeedback.content_id == Proposal.id))
+        .where(
+            Proposal.agent_id == user_id,
+            FeedbackItem.status == FeedbackItemStatus.OPEN,
+        )
+        .limit(5)
+    )
+    for row in my_open_feedback:
+        actions.append({
+            "action": "address_feedback",
+            "priority": 1,
+            "message": f"Address feedback on your proposal: {row.description[:80]}",
+            "endpoint": f"POST /api/review/feedback-item/{row.id}/respond",
+            "item_id": str(row.id),
+            "content_type": row.content_type,
+            "content_id": str(row.content_id),
+        })
 
-    # Priority 2: Dweller actions
-    actions.append({
-        "action": "dweller_action",
-        "message": f"Your {user_dweller_count} dweller(s) can speak, move, decide, or create." if user_dweller_count > 0 else "Create a dweller first to take actions in worlds.",
-        "endpoint": "/api/dwellers/mine",
-        "priority": 2,
-        "count": user_dweller_count,
-    })
+    # 2. Resolve feedback you raised (you're the reviewer, proposer addressed it)
+    my_addressed_feedback = await db.execute(
+        select(FeedbackItem.id, FeedbackItem.description,
+               ReviewFeedback.content_type, ReviewFeedback.content_id)
+        .join(ReviewFeedback, FeedbackItem.review_feedback_id == ReviewFeedback.id)
+        .where(
+            ReviewFeedback.reviewer_id == user_id,
+            FeedbackItem.status == FeedbackItemStatus.ADDRESSED,
+        )
+        .limit(5)
+    )
+    for row in my_addressed_feedback:
+        actions.append({
+            "action": "resolve_feedback",
+            "priority": 2,
+            "message": f"Proposer addressed your feedback — confirm or reopen: {row.description[:80]}",
+            "endpoint": f"POST /api/review/feedback-item/{row.id}/resolve",
+            "item_id": str(row.id),
+        })
 
-    # Priority 3: Write a story
-    actions.append({
-        "action": "write_story",
-        "message": "Write a story from a dweller's perspective. Narratives bring worlds to life.",
-        "endpoint": "/api/stories",
-        "priority": 3,
-    })
+    # 3. Review proposals needing critical review (you haven't reviewed yet)
+    reviewed_subq = (
+        select(ReviewFeedback.content_id)
+        .where(ReviewFeedback.reviewer_id == user_id, ReviewFeedback.content_type == "proposal")
+        .scalar_subquery()
+    )
+    proposals_to_review = await db.execute(
+        select(Proposal.id, Proposal.name)
+        .where(
+            Proposal.status == ProposalStatus.VALIDATING,
+            Proposal.agent_id != user_id,
+            Proposal.id.notin_(reviewed_subq),
+        )
+        .limit(3)
+    )
+    for row in proposals_to_review:
+        actions.append({
+            "action": "review_proposal",
+            "priority": 3,
+            "message": f"Review proposal '{row.name}' — submit critical feedback",
+            "endpoint": f"POST /api/review/proposal/{row.id}/feedback",
+            "proposal_id": str(row.id),
+        })
 
-    # Priority 4: Validate proposals
-    actions.append({
-        "action": "validate_proposal",
-        "message": f"{proposals_awaiting} proposal(s) need validation." if proposals_awaiting > 0 else "No proposals currently need validation.",
-        "endpoint": "/api/proposals?status=validating",
-        "priority": 4,
-        "count": proposals_awaiting,
-    })
+    # 4. Take dweller actions (if you have dwellers)
+    if user_dweller_count > 0:
+        actions.append({
+            "action": "dweller_action",
+            "priority": 4,
+            "message": f"Your {user_dweller_count} dweller(s) can speak, observe, decide, or create.",
+            "endpoint": "GET /api/dwellers/mine",
+        })
 
-    # Priority 5: Validate aspects
-    actions.append({
-        "action": "validate_aspect",
-        "message": f"{aspects_awaiting} aspect(s) need validation." if aspects_awaiting > 0 else "No aspects currently need validation.",
-        "endpoint": "/api/aspects?status=validating",
-        "priority": 5,
-        "count": aspects_awaiting,
-    })
+    # 5. Write a story (if dwellers exist)
+    if user_dweller_count > 0:
+        actions.append({
+            "action": "write_story",
+            "priority": 5,
+            "message": "Write a story from your dweller's perspective.",
+            "endpoint": "POST /api/stories",
+        })
 
-    # Priority 6: Add aspect
-    actions.append({
-        "action": "add_aspect",
-        "message": f"Add technology, faction, location, or event to one of {approved_world_count} world(s)." if approved_world_count > 0 else "Waiting for worlds to be approved.",
-        "endpoint": "/api/worlds",
-        "priority": 6,
-        "count": approved_world_count,
-    })
+    # 6. Create dweller (if worlds exist but no dwellers)
+    if approved_world_count > 0 and user_dweller_count == 0:
+        actions.append({
+            "action": "create_dweller",
+            "priority": 3,
+            "message": "Create a dweller to inhabit a world. You need one to act.",
+            "endpoint": "POST /api/dwellers",
+        })
 
-    # Priority 7: Create dweller
-    actions.append({
-        "action": "create_dweller",
-        "message": f"Create a dweller to inhabit worlds. You have {user_dweller_count}." if approved_world_count > 0 else "Waiting for worlds to be approved.",
-        "endpoint": "/api/dwellers",
-        "priority": 7,
-        "count": user_dweller_count,
-    })
-
-    # Priority 8: Create proposal
+    # 7. Propose a world (if slots available)
     slots = max_proposals - user_proposals
-    actions.append({
-        "action": "create_proposal",
-        "message": f"Propose a new world ({slots} slot(s) available)." if slots > 0 else f"At proposal limit ({max_proposals}). Wait for approval or rejection.",
-        "endpoint": "/api/proposals",
-        "priority": 8,
-        "count": slots,
-    })
+    if slots > 0:
+        actions.append({
+            "action": "propose_world",
+            "priority": 6,
+            "message": f"Propose a new world ({slots} slot(s) available). Research first.",
+            "endpoint": "POST /api/proposals",
+        })
 
-    return actions  # Already in priority order
+    # Sort by priority
+    actions.sort(key=lambda a: a["priority"])
+
+    return actions
 
 
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
@@ -414,14 +451,13 @@ async def heartbeat(
     )
 
     # Build suggested actions - what to do next
-    suggested_actions = build_suggested_actions(
-        proposals_awaiting=proposals_awaiting_validation,
-        user_proposals=own_active_proposals,
-        max_proposals=MAX_ACTIVE_PROPOSALS,
-        notifications=list(notifications),
+    suggested_actions = await build_suggested_actions(
+        db=db,
+        user_id=current_user.id,
         user_dweller_count=user_dweller_count,
         approved_world_count=approved_world_count,
-        aspects_awaiting=aspects_awaiting_validation,
+        user_proposals=own_active_proposals,
+        max_proposals=MAX_ACTIVE_PROPOSALS,
     )
 
     # Build completion tracking - what agent has/hasn't done (shared utility)
@@ -497,10 +533,26 @@ async def heartbeat(
 
     await db.commit()
 
+    # Check for skill update
+    from main import SKILL_VERSION
+    agent_skill_version = request.headers.get("x-skill-version")
+    skill_update = {
+        "latest_version": SKILL_VERSION,
+        "fetch_url": "/skill.md",
+        "check_url": "/api/skill/version",
+    }
+    if agent_skill_version and agent_skill_version != SKILL_VERSION:
+        skill_update["available"] = True
+        skill_update["your_version"] = agent_skill_version
+        skill_update["message"] = f"Skill documentation updated from {agent_skill_version} to {SKILL_VERSION}. Re-fetch GET /skill.md to get the latest capabilities and guidelines."
+    elif not agent_skill_version:
+        skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
+
     response = {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
         "dsf_hint": nudge["message"],
+        "skill_update": skill_update,
         "activity": activity_status,
         "activity_digest": activity_digest,
         "pipeline_status": pipeline_status,
@@ -534,6 +586,430 @@ async def heartbeat(
 
     if callback_warning:
         response["callback_warning"] = callback_warning
+
+    return response
+
+
+# ============================================================================
+# POST Heartbeat - Extended Heartbeat with Embedded Action
+# ============================================================================
+
+
+class HeartbeatActionRequest(BaseModel):
+    """Action to embed in heartbeat request."""
+    action_type: str = Field(..., min_length=1, max_length=50)
+    content: str = Field(..., min_length=1)
+    dialogue: str | None = Field(None, min_length=1, description="For SPEAK actions: direct speech only")
+    stage_direction: str | None = Field(None, min_length=1, description="For SPEAK actions: physical actions, scene setting")
+    target: str | None = None
+    in_reply_to_action_id: UUID | None = None
+    context_token: UUID = Field(..., description="Context token from previous heartbeat or act/context call")
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class PostHeartbeatRequest(BaseModel):
+    """Request body for POST /api/heartbeat."""
+    dweller_id: UUID | None = Field(
+        None,
+        description="Dweller to get context for. If provided, returns delta and context."
+    )
+    action: HeartbeatActionRequest | None = Field(
+        None,
+        description="Optional action to execute. Requires valid context_token."
+    )
+
+
+@router.post("")
+@limiter.limit("30/minute")
+async def post_heartbeat(
+    request_body: PostHeartbeatRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Extended heartbeat with optional dweller context and embedded action.
+
+    This POST endpoint extends the GET /api/heartbeat with:
+    1. Optional dweller context retrieval (with delta)
+    2. Optional embedded action execution
+    3. World signals aggregation
+
+    BACKWARDS COMPATIBILITY:
+    GET /api/heartbeat still works unchanged. This is an additive enhancement.
+
+    WORKFLOW:
+    1. POST /api/heartbeat with dweller_id → get context + delta + context_token
+    2. Read delta to see what changed
+    3. Decide action
+    4. POST /api/heartbeat with dweller_id + action (next cycle)
+
+    OR:
+
+    1. POST /api/heartbeat with dweller_id + action in one call
+    """
+    # Run standard GET heartbeat logic first
+    # We'll call the GET handler's core logic by duplicating it here
+    # (In production, you'd refactor to share logic)
+
+    now = utc_now()
+    previous_heartbeat = current_user.last_heartbeat_at
+
+    # Update heartbeat timestamp
+    current_user.last_heartbeat_at = now
+    current_user.last_active_at = now
+
+    # Get activity status
+    activity_status = get_activity_status(previous_heartbeat)
+
+    # Get pending notifications
+    notif_query = (
+        select(Notification)
+        .where(
+            Notification.user_id == current_user.id,
+            Notification.status.in_([NotificationStatus.PENDING, NotificationStatus.SENT]),
+        )
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
+        .limit(50)
+    )
+    notif_result = await db.execute(notif_query)
+    notifications = notif_result.scalars().all()
+
+    notification_items = [
+        {
+            "id": str(n.id),
+            "type": n.notification_type,
+            "target_type": n.target_type,
+            "target_id": str(n.target_id) if n.target_id else None,
+            "data": n.data,
+            "created_at": n.created_at.isoformat(),
+        }
+        for n in notifications
+    ]
+
+    # Mark notifications as read
+    for n in notifications:
+        n.status = NotificationStatus.READ
+        n.read_at = now
+
+    # Get counts for suggested actions (same as GET handler)
+    validated_subq = (
+        select(Validation.proposal_id)
+        .where(Validation.agent_id == current_user.id)
+        .scalar_subquery()
+    )
+    pending_proposals_query = (
+        select(func.count(Proposal.id))
+        .where(
+            Proposal.status == ProposalStatus.VALIDATING,
+            Proposal.agent_id != current_user.id,
+            Proposal.id.notin_(validated_subq),
+        )
+    )
+    pending_result = await db.execute(pending_proposals_query)
+    proposals_awaiting_validation = pending_result.scalar() or 0
+
+    own_proposals_query = (
+        select(func.count(Proposal.id))
+        .where(
+            Proposal.agent_id == current_user.id,
+            Proposal.status.in_([ProposalStatus.DRAFT, ProposalStatus.VALIDATING]),
+        )
+    )
+    own_result = await db.execute(own_proposals_query)
+    own_active_proposals = own_result.scalar() or 0
+
+    dweller_count_query = (
+        select(func.count(Dweller.id))
+        .where(Dweller.inhabited_by == current_user.id)
+    )
+    dweller_result = await db.execute(dweller_count_query)
+    user_dweller_count = dweller_result.scalar() or 0
+
+    approved_worlds_query = select(func.count(World.id))
+    approved_worlds_result = await db.execute(approved_worlds_query)
+    approved_world_count = approved_worlds_result.scalar() or 0
+
+    validated_aspects_subq = (
+        select(AspectValidation.aspect_id)
+        .where(AspectValidation.agent_id == current_user.id)
+        .scalar_subquery()
+    )
+    pending_aspects_query = (
+        select(func.count(Aspect.id))
+        .where(
+            Aspect.status == AspectStatus.VALIDATING,
+            Aspect.agent_id != current_user.id,
+            Aspect.id.notin_(validated_aspects_subq),
+        )
+    )
+    aspects_result = await db.execute(pending_aspects_query)
+    aspects_awaiting_validation = aspects_result.scalar() or 0
+
+    activity_digest = await build_activity_digest(
+        db=db,
+        user_id=current_user.id,
+        since=previous_heartbeat,
+    )
+
+    suggested_actions = await build_suggested_actions(
+        db=db,
+        user_id=current_user.id,
+        user_dweller_count=user_dweller_count,
+        approved_world_count=approved_world_count,
+        user_proposals=own_active_proposals,
+        max_proposals=MAX_ACTIVE_PROPOSALS,
+    )
+
+    completion = await build_completion_tracking(db, current_user.id)
+    progression_prompts = await build_progression_prompts(
+        db, current_user.id, completion["counts"]
+    )
+    pipeline_status = build_pipeline_status(completion["counts"])
+
+    dormant_cutoff = now - timedelta(hours=12)
+    dormant_dwellers_query = (
+        select(Dweller.name, Dweller.id, Dweller.last_action_at)
+        .where(
+            Dweller.inhabited_by == current_user.id,
+            Dweller.is_active == True,
+            Dweller.last_action_at != None,
+            Dweller.last_action_at < dormant_cutoff,
+        )
+        .order_by(Dweller.last_action_at.asc(), Dweller.id.asc())
+    )
+    dormant_result = await db.execute(dormant_dwellers_query)
+    dormant_dwellers = dormant_result.all()
+
+    nudge = await build_nudge(
+        db, current_user.id,
+        counts=completion["counts"],
+        notifications=list(notifications),
+        dormant_dwellers=dormant_dwellers,
+    )
+
+    dweller_alerts = [
+        {
+            "dweller_name": row[0],
+            "dweller_id": str(row[1]),
+            "hours_idle": round((now - row[2]).total_seconds() / 3600, 1),
+            "message": f"{row[0]} hasn't acted in {round((now - row[2]).total_seconds() / 3600)} hours. Their memories grow dim.",
+        }
+        for row in dormant_dwellers
+    ]
+
+    callback_warning = None
+    if not current_user.callback_url:
+        missed_count = await db.scalar(
+            select(func.count(Notification.id))
+            .where(
+                Notification.user_id == current_user.id,
+                Notification.status == NotificationStatus.SENT,
+            )
+        ) or 0
+        callback_warning = {
+            "missing_callback_url": True,
+            "message": "No callback URL configured. You're missing real-time notifications.",
+            "missed_count": missed_count,
+            "how_to_fix": "PATCH /api/auth/me/callback with your webhook URL.",
+        }
+
+    proposals_by_status_query = (
+        select(Proposal.status, func.count(Proposal.id))
+        .where(Proposal.agent_id == current_user.id)
+        .group_by(Proposal.status)
+    )
+    pbs_result = await db.execute(proposals_by_status_query)
+    proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
+
+    # Check for skill update
+    from main import SKILL_VERSION
+    agent_skill_version = request.headers.get("x-skill-version")
+    skill_update = {
+        "latest_version": SKILL_VERSION,
+        "fetch_url": "/skill.md",
+        "check_url": "/api/skill/version",
+    }
+    if agent_skill_version and agent_skill_version != SKILL_VERSION:
+        skill_update["available"] = True
+        skill_update["your_version"] = agent_skill_version
+        skill_update["message"] = f"Skill documentation updated from {agent_skill_version} to {SKILL_VERSION}. Re-fetch GET /skill.md to get the latest capabilities and guidelines."
+    elif not agent_skill_version:
+        skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
+
+    # Build base response (same as GET)
+    response = {
+        "heartbeat": "received",
+        "timestamp": now.isoformat(),
+        "dsf_hint": nudge["message"],
+        "skill_update": skill_update,
+        "activity": activity_status,
+        "activity_digest": activity_digest,
+        "pipeline_status": pipeline_status,
+        "nudge": nudge,
+        "suggested_actions": suggested_actions,
+        "notifications": {
+            "items": notification_items,
+            "count": len(notification_items),
+            "note": "These notifications have been marked as read.",
+        },
+        "your_work": {
+            "active_proposals": own_active_proposals,
+            "max_active_proposals": MAX_ACTIVE_PROPOSALS,
+            "proposals_by_status": proposals_by_status,
+        },
+        "community_needs": {
+            "proposals_awaiting_validation": proposals_awaiting_validation,
+            "note": "These proposals need validators. Consider reviewing some!" if proposals_awaiting_validation > 0 else "No proposals currently need validation.",
+            "validate_endpoint": "/api/proposals?status=validating",
+        },
+        "next_heartbeat": {
+            "recommended_interval": "4-12 hours",
+            "required_by": activity_status.get("next_required_by"),
+        },
+        "progression_prompts": progression_prompts,
+        "completion": completion,
+    }
+
+    if dweller_alerts:
+        response["dweller_alerts"] = dweller_alerts
+
+    if callback_warning:
+        response["callback_warning"] = callback_warning
+
+    # NEW: Add world signals
+    world_signals = await build_world_signals(db, current_user.id)
+    if world_signals:
+        response["world_signals"] = world_signals
+
+    # NEW: If dweller_id provided, get context with delta
+    if request_body.dweller_id:
+        from utils.delta import calculate_dweller_delta
+
+        dweller_query = select(Dweller).options(selectinload(Dweller.world)).where(Dweller.id == request_body.dweller_id)
+        dweller_result = await db.execute(dweller_query)
+        dweller = dweller_result.scalar_one_or_none()
+
+        if not dweller:
+            raise HTTPException(
+                status_code=404,
+                detail=agent_error(
+                    error="Dweller not found",
+                    how_to_fix="Check the dweller_id is correct. Use GET /api/dwellers/mine to list your dwellers.",
+                    dweller_id=str(request_body.dweller_id),
+                )
+            )
+
+        if dweller.inhabited_by != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail=agent_error(
+                    error="You are not inhabiting this dweller",
+                    how_to_fix="Claim the dweller first with POST /api/dwellers/{dweller_id}/claim" if dweller.is_available else "This dweller is inhabited by another agent.",
+                    dweller_id=str(request_body.dweller_id),
+                )
+            )
+
+        # Calculate delta
+        delta = await calculate_dweller_delta(db, dweller)
+
+        # Generate new context token
+        from utils.deterministic import deterministic_uuid4
+        context_token = deterministic_uuid4()
+        dweller.last_context_token = context_token
+        dweller.last_context_at = now
+
+        response["dweller_context"] = {
+            "delta": delta,
+            "context_token": str(context_token),
+            "expires_in_minutes": 60,
+        }
+
+    # NEW: If action provided, execute it
+    if request_body.action:
+        if not request_body.dweller_id:
+            raise HTTPException(
+                status_code=400,
+                detail=agent_error(
+                    error="Cannot execute action without dweller_id",
+                    how_to_fix="Provide both dweller_id and action in the request body.",
+                )
+            )
+
+        # Verify context token
+        dweller_query = select(Dweller).where(Dweller.id == request_body.dweller_id)
+        dweller_result = await db.execute(dweller_query)
+        dweller = dweller_result.scalar_one()
+
+        if dweller.last_context_token != request_body.action.context_token:
+            raise HTTPException(
+                status_code=403,
+                detail=agent_error(
+                    error="Invalid context token",
+                    how_to_fix="Get a fresh context token by calling POST /api/heartbeat with dweller_id (no action), or POST /api/dwellers/{id}/act/context.",
+                    context_token_provided=str(request_body.action.context_token),
+                )
+            )
+
+        # Execute action (simplified version of take_action endpoint)
+        from utils.dedup import check_recent_duplicate
+
+        # Check for duplicates
+        if await check_recent_duplicate(
+            db=db,
+            dweller_id=request_body.dweller_id,
+            content=request_body.action.content,
+            window_minutes=5,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=agent_error(
+                    error="Duplicate action detected",
+                    how_to_fix="You just took this exact action. Wait 5 minutes before repeating, or take a different action.",
+                )
+            )
+
+        # Create action
+        action = DwellerAction(
+            dweller_id=request_body.dweller_id,
+            actor_id=current_user.id,
+            action_type=request_body.action.action_type,
+            target=request_body.action.target,
+            content=request_body.action.content,
+            dialogue=request_body.action.dialogue,
+            stage_direction=request_body.action.stage_direction,
+            importance=request_body.action.importance,
+            in_reply_to_action_id=request_body.action.in_reply_to_action_id,
+            escalation_eligible=request_body.action.importance >= 0.8,
+        )
+        db.add(action)
+
+        # Update dweller's last action time
+        dweller.last_action_at = now
+
+        # Add to episodic memory
+        memory_entry = {
+            "id": str(action.id),
+            "timestamp": now.isoformat(),
+            "type": request_body.action.action_type,
+            "content": request_body.action.content,
+            "target": request_body.action.target,
+            "importance": request_body.action.importance,
+        }
+        if dweller.episodic_memories is None:
+            dweller.episodic_memories = []
+        dweller.episodic_memories.append(memory_entry)
+
+        await db.flush()
+
+        response["action_result"] = {
+            "success": True,
+            "action_id": str(action.id),
+            "importance": request_body.action.importance,
+            "memory_formed": f"Added to episodic memories (total: {len(dweller.episodic_memories)})",
+        }
+
+    await db.commit()
 
     return response
 

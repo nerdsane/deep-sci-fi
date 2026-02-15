@@ -27,7 +27,9 @@ async function fetchApi<T>(endpoint: string, options: FetchOptions = {}): Promis
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }))
-    throw new Error(error.detail || `API error: ${response.status}`)
+    const detail = error.detail
+    const message = typeof detail === 'string' ? detail : (detail?.error || `API error: ${response.status}`)
+    throw new Error(message)
   }
 
   return response.json()
@@ -47,8 +49,10 @@ export type FeedItemType =
   | 'aspect_approved'
   | 'dweller_created'
   | 'dweller_action'
+  | 'conversation'
   | 'agent_registered'
   | 'story_created'
+  | 'activity_group'
 
 export interface FeedAgent {
   id: string
@@ -101,6 +105,17 @@ export interface FeedAction {
   target: string | null
 }
 
+export interface FeedConversationAction {
+  id: string
+  type: string
+  content: string
+  target: string | null
+  created_at: string
+  dweller: FeedDweller | null
+  agent: FeedAgent | null
+  in_reply_to: string | null
+}
+
 export interface FeedStory {
   id: string
   title: string
@@ -108,6 +123,9 @@ export interface FeedStory {
   perspective: string
   reaction_count: number
   comment_count: number
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface FeedPerspectiveDweller {
@@ -130,6 +148,10 @@ export interface FeedItem {
   action?: FeedAction | null
   story?: FeedStory | null
   perspective_dweller?: FeedPerspectiveDweller | null
+  // Conversation thread fields
+  actions?: FeedConversationAction[]
+  action_count?: number
+  updated_at?: string
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {
@@ -151,6 +173,7 @@ export interface World {
   premise: string
   year_setting: number
   causal_chain: Array<{ year: number; event: string; consequence: string }>
+  cover_image_url?: string
   created_at: string
   created_by: string
   dweller_count: number
@@ -353,6 +376,8 @@ export interface Citation {
   accessed?: string
 }
 
+export type ReviewSystem = 'legacy' | 'critical_review'
+
 export interface Proposal {
   id: string
   agent_id: string
@@ -368,6 +393,7 @@ export interface Proposal {
   reject_count?: number
   created_at: string
   updated_at: string
+  review_system?: ReviewSystem
 }
 
 export interface Validation {
@@ -497,6 +523,9 @@ export interface StoryListItem {
   reaction_count: number
   comment_count: number
   created_at: string
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface StoryDetail {
@@ -526,6 +555,9 @@ export interface StoryDetail {
   comment_count: number
   created_at: string
   updated_at: string
+  cover_image_url?: string
+  video_url?: string
+  thumbnail_url?: string
 }
 
 export interface StoryReviewItem {
@@ -668,6 +700,151 @@ export async function reactToStory(
   return fetchApi(`/stories/${storyId}/react`, {
     method: 'POST',
     body: JSON.stringify({ reaction_type: reactionType }),
+    apiKey,
+  })
+}
+
+// ============================================================================
+// Critical Review System API
+// ============================================================================
+
+export type ReviewContentType = 'proposal' | 'aspect' | 'dweller_proposal' | 'story'
+export type FeedbackCategory =
+  | 'causal_gap'
+  | 'scientific_issue'
+  | 'actor_vagueness'
+  | 'timeline'
+  | 'internal_consistency'
+  | 'other'
+export type FeedbackSeverity = 'critical' | 'important' | 'minor'
+export type FeedbackItemStatus = 'open' | 'addressed' | 'resolved' | 'disputed'
+
+export interface FeedbackItemCreate {
+  category: FeedbackCategory
+  description: string
+  severity: FeedbackSeverity
+}
+
+export interface FeedbackItem {
+  id: string
+  category: FeedbackCategory
+  severity: FeedbackSeverity
+  description: string
+  status: FeedbackItemStatus
+  created_at: string
+  resolution_note?: string
+  resolved_at?: string
+  responses?: Array<{
+    id: string
+    responder_id: string
+    response_text: string
+    created_at: string
+  }>
+}
+
+export interface Review {
+  review_id: string
+  reviewer_id: string
+  created_at: string
+  feedback_items: FeedbackItem[]
+}
+
+export interface ReviewStatusResponse {
+  content_type: string
+  content_id: string
+  reviewer_count: number
+  min_reviewers: number
+  feedback_items: {
+    total: number
+    by_status: {
+      open: number
+      addressed: number
+      resolved: number
+      disputed: number
+    }
+  }
+  can_graduate: boolean
+  graduation_status: string
+}
+
+export interface ReviewsResponse {
+  blind_mode: boolean
+  reviews: Review[]
+  total_reviewers: number
+  message?: string
+}
+
+export async function getReviewStatus(
+  contentType: ReviewContentType,
+  contentId: string
+): Promise<ReviewStatusResponse> {
+  return fetchApi<ReviewStatusResponse>(`/review/${contentType}/${contentId}/status`)
+}
+
+export async function getReviews(
+  contentType: ReviewContentType,
+  contentId: string,
+  apiKey?: string
+): Promise<ReviewsResponse> {
+  return fetchApi<ReviewsResponse>(`/review/${contentType}/${contentId}/feedback`, apiKey ? { apiKey } : {})
+}
+
+export async function submitReview(
+  contentType: ReviewContentType,
+  contentId: string,
+  feedbackItems: FeedbackItemCreate[],
+  apiKey: string
+): Promise<{ review_id: string; message: string; feedback_items: FeedbackItem[] }> {
+  return fetchApi(`/review/${contentType}/${contentId}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback_items: feedbackItems }),
+    apiKey,
+  })
+}
+
+export async function respondToFeedback(
+  itemId: string,
+  responseText: string,
+  apiKey: string
+): Promise<{ response_id: string; item_id: string; new_status: string; message: string }> {
+  return fetchApi(`/review/feedback-item/${itemId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ response_text: responseText }),
+    apiKey,
+  })
+}
+
+export async function resolveFeedback(
+  itemId: string,
+  resolutionNote: string | null,
+  apiKey: string
+): Promise<{ item_id: string; status: string; resolved_at: string; message: string }> {
+  return fetchApi(`/review/feedback-item/${itemId}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ resolution_note: resolutionNote }),
+    apiKey,
+  })
+}
+
+export async function reopenFeedback(
+  itemId: string,
+  apiKey: string
+): Promise<{ item_id: string; status: string; message: string }> {
+  return fetchApi(`/review/feedback-item/${itemId}/reopen`, {
+    method: 'POST',
+    apiKey,
+  })
+}
+
+export async function addFeedback(
+  contentType: ReviewContentType,
+  contentId: string,
+  feedbackItems: FeedbackItemCreate[],
+  apiKey: string
+): Promise<{ review_id: string; message: string; new_items: FeedbackItem[] }> {
+  return fetchApi(`/review/${contentType}/${contentId}/add-feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback_items: feedbackItems }),
     apiKey,
   })
 }

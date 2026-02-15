@@ -270,42 +270,12 @@ class SafetyInvariantsMixin:
                 )
 
     # -------------------------------------------------------------------------
-    # Strengthen gate invariant
+    # NOTE: s12_approved_with_strengthen_has_revision was removed.
+    # The critical review system (api/reviews.py) replaced the legacy validation
+    # system with verdict-based approvals (approve/reject/strengthen).
+    # The new system doesn't track "strengthen" verdicts in the same way —
+    # it tracks feedback items and their resolution status instead.
     # -------------------------------------------------------------------------
-
-    @invariant()
-    def s12_approved_with_strengthen_has_revision(self):
-        """Approved content with strengthen history must have revision_count >= 1."""
-        # Check proposals
-        for pid, p in self.state.proposals.items():
-            if p.status != "approved":
-                continue
-            has_strengthen = any(v == "strengthen" for v in p.validators.values())
-            if has_strengthen:
-                assert p.revision_count >= 1, (
-                    f"Proposal {pid}: approved with strengthen feedback "
-                    f"but revision_count={p.revision_count}"
-                )
-        # Check aspects
-        for aid, a in self.state.aspects.items():
-            if a.status != "approved":
-                continue
-            has_strengthen = any(v == "strengthen" for v in a.validators.values())
-            if has_strengthen:
-                assert a.revision_count >= 1, (
-                    f"Aspect {aid}: approved with strengthen feedback "
-                    f"but revision_count={a.revision_count}"
-                )
-        # Check dweller proposals
-        for dp_id, dp in self.state.dweller_proposals.items():
-            if dp.status != "approved":
-                continue
-            has_strengthen = any(v == "strengthen" for v in dp.validators.values())
-            if has_strengthen:
-                assert dp.revision_count >= 1, (
-                    f"Dweller proposal {dp_id}: approved with strengthen feedback "
-                    f"but revision_count={dp.revision_count}"
-                )
 
     # -------------------------------------------------------------------------
     # Read-only invariant
@@ -345,3 +315,148 @@ class SafetyInvariantsMixin:
             "AgentContextMiddleware not found in ASGI stack. "
             "It may have been stripped from DST conftest."
         )
+
+    # -------------------------------------------------------------------------
+    # Critical review system invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s_r1_proposer_always_sees_own_feedback(self):
+        """Proposers can always retrieve ALL feedback on their content (blind mode bypass)."""
+        # Check proposals with reviews
+        for review in list(self.state.reviews.values())[:3]:  # spot-check
+            if review.content_type != "proposal":
+                continue
+
+            proposer = self.state.agents[review.proposer_id]
+            resp = self.client.get(
+                f"/api/review/proposal/{review.content_id}/feedback",
+                headers=self._headers(proposer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Count how many reviews exist for this content
+            expected_count = sum(
+                1 for r in self.state.reviews.values()
+                if r.content_type == "proposal" and r.content_id == review.content_id
+            )
+
+            assert len(reviews_returned) == expected_count, (
+                f"Proposer {review.proposer_id} for proposal {review.content_id}: "
+                f"expected {expected_count} reviews but got {len(reviews_returned)}. "
+                "Proposers must see ALL feedback (blind mode bypass)."
+            )
+
+    @invariant()
+    def s_r2_blind_mode_isolates_reviewers(self):
+        """Reviewers who haven't submitted cannot see other reviewers' feedback."""
+        # Find proposals with multiple reviews
+        content_reviews = {}
+        for r in self.state.reviews.values():
+            key = (r.content_type, r.content_id)
+            if key not in content_reviews:
+                content_reviews[key] = []
+            content_reviews[key].append(r)
+
+        # Check blind mode for content with 2+ reviews
+        for (content_type, content_id), reviews in list(content_reviews.items())[:2]:
+            if len(reviews) < 2 or content_type != "proposal":
+                continue
+
+            # Pick an agent who hasn't reviewed this content
+            non_reviewer = None
+            for agent_id in self._agent_keys:
+                if not any(r.reviewer_id == agent_id for r in reviews):
+                    # Also make sure they're not the proposer
+                    if agent_id != reviews[0].proposer_id:
+                        non_reviewer = self.state.agents[agent_id]
+                        break
+
+            if not non_reviewer:
+                continue
+
+            resp = self.client.get(
+                f"/api/review/{content_type}/{content_id}/feedback",
+                headers=self._headers(non_reviewer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Non-reviewer should see 0 reviews (blind mode)
+            assert len(reviews_returned) == 0, (
+                f"Non-reviewer {non_reviewer.agent_id} for {content_type} {content_id}: "
+                f"expected 0 reviews but got {len(reviews_returned)}. "
+                "Blind mode must block non-reviewers from seeing others' feedback."
+            )
+
+    @invariant()
+    def s_r3_reviewer_sees_all_after_submit(self):
+        """Once a reviewer submits, they can see all reviews."""
+        # Check reviewers who have submitted
+        for review in list(self.state.reviews.values())[:3]:  # spot-check
+            if review.content_type != "proposal":
+                continue
+
+            reviewer = self.state.agents[review.reviewer_id]
+            resp = self.client.get(
+                f"/api/review/proposal/{review.content_id}/feedback",
+                headers=self._headers(reviewer),
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            body = resp.json()
+            reviews_returned = body.get("reviews", [])
+
+            # Count how many reviews exist for this content
+            expected_count = sum(
+                1 for r in self.state.reviews.values()
+                if r.content_type == "proposal" and r.content_id == review.content_id
+            )
+
+            assert len(reviews_returned) == expected_count, (
+                f"Reviewer {review.reviewer_id} for proposal {review.content_id}: "
+                f"expected {expected_count} reviews but got {len(reviews_returned)}. "
+                "Reviewers who submitted must see ALL reviews."
+            )
+
+    # -------------------------------------------------------------------------
+    # Idempotency invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s_idem1_no_duplicate_actions_from_same_key(self):
+        """Same idempotency key never creates duplicate records.
+
+        When agents retry after 502/timeout, using the same idempotency key
+        should never create duplicate actions, stories, or proposals.
+        """
+        # Check if we have any tracked idempotency keys
+        if not hasattr(self.state, "idempotency_keys"):
+            return
+
+        # Group actions by idempotency key
+        actions_by_key = {}
+        for action_id, action_data in self.state.dweller_actions.items():
+            idem_key = getattr(action_data, "idempotency_key", None)
+            if idem_key:
+                if idem_key not in actions_by_key:
+                    actions_by_key[idem_key] = []
+                actions_by_key[idem_key].append(action_id)
+
+        # Verify no duplicates
+        for idem_key, action_ids in actions_by_key.items():
+            assert len(action_ids) == 1, (
+                f"Idempotency key {idem_key} created {len(action_ids)} actions: {action_ids}. "
+                "Same idempotency key must never create duplicates!"
+            )

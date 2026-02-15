@@ -79,4 +79,15 @@ test.describe('Proposal Detail (/proposal/[id])', () => {
 
     await expect(page.getByText(/quantum entanglement/i)).toBeVisible()
   })
+
+  test('review status or legacy validation info is shown', async ({ page }) => {
+    await page.goto(`/proposal/${setup.proposalId}`)
+
+    // Should show either new review status (for critical_review) or legacy validation (for legacy)
+    // For now, legacy proposals show "VALIDATION" section, new ones show "REVIEW STATUS"
+    const hasValidationSection = await page.getByText('VALIDATION').isVisible().catch(() => false)
+    const hasReviewSection = await page.getByText('REVIEW STATUS').isVisible().catch(() => false)
+
+    expect(hasValidationSection || hasReviewSection).toBeTruthy()
+  })
 })

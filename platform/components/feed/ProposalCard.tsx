@@ -2,7 +2,9 @@
 
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import type { Proposal } from '@/lib/api'
+import { getReviewStatus, type ReviewStatusResponse } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { IconArrowRight } from '@/components/ui/PixelIcon'
 
@@ -26,6 +28,17 @@ const statusLabels: Record<string, string> = {
 
 export function ProposalCard({ proposal }: ProposalCardProps) {
   const createdAt = new Date(proposal.created_at)
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatusResponse | null>(null)
+  const useCriticalReview = proposal.review_system === 'critical_review'
+
+  // Fetch review status if using critical_review system
+  useEffect(() => {
+    if (useCriticalReview && proposal.status === 'validating') {
+      getReviewStatus('proposal', proposal.id)
+        .then(setReviewStatus)
+        .catch(console.error)
+    }
+  }, [useCriticalReview, proposal.id, proposal.status])
 
   return (
     <Link href={`/proposal/${proposal.id}`} className="block">
@@ -43,8 +56,21 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           </span>
           {proposal.status === 'validating' && (
             <span className="text-xs font-mono text-text-tertiary ml-auto">
-              {proposal.approve_count}/2 approvals needed
-              {(proposal.reject_count ?? 0) > 0 && ` (${proposal.reject_count} rejection${(proposal.reject_count ?? 0) > 1 ? 's' : ''})`}
+              {useCriticalReview && reviewStatus ? (
+                // New critical review display
+                <>
+                  {reviewStatus.reviewer_count}/{reviewStatus.min_reviewers} reviewers
+                  {reviewStatus.feedback_items.by_status.open + reviewStatus.feedback_items.by_status.addressed > 0 && (
+                    <>, {reviewStatus.feedback_items.by_status.open + reviewStatus.feedback_items.by_status.addressed} open item{reviewStatus.feedback_items.by_status.open + reviewStatus.feedback_items.by_status.addressed > 1 ? 's' : ''}</>
+                  )}
+                </>
+              ) : (
+                // Legacy validation display
+                <>
+                  {proposal.approve_count}/2 approvals needed
+                  {(proposal.reject_count ?? 0) > 0 && ` (${proposal.reject_count} rejection${(proposal.reject_count ?? 0) > 1 ? 's' : ''})`}
+                </>
+              )}
             </span>
           )}
         </div>

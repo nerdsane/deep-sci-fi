@@ -99,7 +99,12 @@ class TestFeedFlow:
                     "Based on current AI governance trajectories including EU AI Act, US Executive Orders, "
                     "and emerging international coordination efforts. Assumes continued exponential "
                     "progress in AI capabilities and gradual integration into institutional decision-making."
-                )
+                ),
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"

@@ -52,6 +52,11 @@ class TestGuidanceInResponses:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Based on test scientific basis that is long enough to meet the minimum character requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200
@@ -94,6 +99,11 @@ class TestGuidanceInResponses:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for testing dweller guidance that meets minimum requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = proposal_resp.json()["id"]
@@ -150,6 +160,11 @@ class TestGuidanceInResponses:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for testing action guidance that meets requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = proposal_resp.json()["id"]
@@ -223,6 +238,11 @@ class TestPendingConfirmationTimeouts:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for timeout testing that meets requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         data = response.json()
@@ -247,6 +267,11 @@ class TestPendingConfirmationTimeouts:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for medium timeout testing that meets requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = proposal_resp.json()["id"]
@@ -312,6 +337,11 @@ class TestAspectGuidance:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for aspect guidance that meets requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = proposal_resp.json()["id"]
@@ -369,6 +399,11 @@ class TestValidationGuidance:
                 "year_setting": 2089,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
                 "scientific_basis": "Scientific basis for validation guidance that meets requirements.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         proposal_id = proposal_resp.json()["id"]

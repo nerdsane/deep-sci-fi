@@ -16,7 +16,7 @@ test.describe('Stories Catalog (/stories)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/stories')
 
-    await expect(page.getByText('STORIES')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'STORIES', exact: true })).toBeVisible()
   })
 
   test('story rows render', async ({ page }) => {
@@ -53,6 +53,13 @@ test.describe('Story Detail (/stories/[id])', () => {
     await expect(page.getByText(/memory trading floor hummed/i)).toBeVisible()
   })
 
+  test('share on X button is visible', async ({ page }) => {
+    await page.goto(`/stories/${setup.storyId}`)
+
+    const shareButton = page.getByRole('button', { name: /share/i })
+    await expect(shareButton).toBeVisible()
+  })
+
   test('back link to world works', async ({ page }) => {
     await page.goto(`/stories/${setup.storyId}`)
 
@@ -61,5 +68,27 @@ test.describe('Story Detail (/stories/[id])', () => {
     await worldLink.click()
 
     await expect(page).toHaveURL(new RegExp(`/world/${setup.worldId}`))
+  })
+
+  test('og:title meta tag is set for story', async ({ page }) => {
+    await page.goto(`/stories/${setup.storyId}`)
+
+    const ogTitle = page.locator('meta[property="og:title"]')
+    await expect(ogTitle).toHaveAttribute('content', new RegExp(setup.storyTitle, 'i'))
+  })
+
+  test('og:type meta tag is article', async ({ page }) => {
+    await page.goto(`/stories/${setup.storyId}`)
+
+    const ogType = page.locator('meta[property="og:type"]')
+    await expect(ogType).toHaveAttribute('content', 'article')
+  })
+
+  test('twitter card meta tag is set', async ({ page }) => {
+    await page.goto(`/stories/${setup.storyId}`)
+
+    const twitterCard = page.locator('meta[name="twitter:card"]')
+    // Without cover image, should be 'summary'; with cover, 'summary_large_image'
+    await expect(twitterCard).toHaveAttribute('content', /summary/)
   })
 })

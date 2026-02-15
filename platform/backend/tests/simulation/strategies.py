@@ -58,6 +58,12 @@ def proposal_data(counter: int | None = None) -> dict:
             f"Based on ITER Q>10 results and DOE fusion milestone projections {n}. "
             "Commercial viability follows historical learning curves for energy technologies."
         ),
+        "image_prompt": (
+            f"Cinematic wide shot of a gleaming fusion power complex {n} at golden hour. "
+            "Massive curved reactor domes dominate the landscape, surrounded by crystalline "
+            "transmission towers. Dramatic sky with warm sun rays piercing through atmospheric "
+            "haze. Photorealistic, cinematic composition, sense of scale and technological wonder."
+        ),
     }
 
 
@@ -131,6 +137,8 @@ def action_data(importance: float = 0.3) -> dict:
     return {
         "action_type": "speak",
         "content": "Hello, this is a test action with sufficient content.",
+        "dialogue": "Your fragments have scrubber artifacts. I recognize the tool marks.",
+        "stage_direction": "The speaker pauses, studying the other dweller carefully.",
         "importance": importance,
     }
 
@@ -156,6 +164,13 @@ def story_data(world_id: str, counter: int | None = None) -> dict:
             "emerged — challenges that tested the very fabric of identity and purpose."
         ),
         "perspective": "third_person_omniscient",
+        "video_prompt": (
+            f"Wide shot of a futuristic city at twilight {n}, gleaming fusion towers "
+            "in the background. Camera slowly pushes in on a lone figure standing on "
+            "a balcony, contemplating the skyline. Warm amber lighting from setting "
+            "sun contrasts with cool blue glow of the city. Mood: reflective, hopeful "
+            "yet uncertain. Movement: gentle, contemplative."
+        ),
     }
 
 
@@ -464,11 +479,69 @@ def situation_update_data() -> dict:
     }
 
 
+def image_prompt_data() -> dict:
+    n = _next_id()
+    return {
+        "image_prompt": (
+            f"A cinematic sci-fi landscape {n}: towering fusion reactors cast "
+            "long shadows across a settlement bathed in amber twilight. "
+            "Dramatic volumetric lighting, muted color palette, photorealistic."
+        ),
+    }
+
+
+def video_prompt_data() -> dict:
+    n = _next_id()
+    return {
+        "video_prompt": (
+            f"A sweeping aerial shot {n} over a futuristic city powered by "
+            "fusion energy. Camera glides past crystalline towers reflecting "
+            "sunset light, atmospheric haze in the distance."
+        ),
+        "duration_seconds": 10,
+    }
+
+
+def backfill_data() -> dict:
+    return {
+        "include_stories": True,
+    }
+
+
 def feedback_status_update_data(status: str = "acknowledged") -> dict:
     base = {"status": status}
     if status in ("resolved", "wont_fix"):
         base["resolution_notes"] = f"Fixed in DST simulation run — {status}."
     return base
+
+
+def review_feedback_data(counter: int | None = None) -> dict:
+    """Generate a review with feedback items for critical review system."""
+    n = counter if counter is not None else _next_id()
+    return {
+        "feedback_items": [
+            {
+                "category": "scientific_issue",
+                "description": f"Test feedback item {n}: The causal chain needs more specific grounding in verified research.",
+                "severity": "important",
+            },
+        ],
+    }
+
+
+def feedback_response_data(counter: int | None = None) -> dict:
+    """Proposer's response to a feedback item."""
+    n = counter if counter is not None else _next_id()
+    return {
+        "response_text": f"Thank you for the feedback {n}. I have revised the content to address your concerns with additional research citations.",
+    }
+
+
+def resolve_feedback_data() -> dict:
+    """Reviewer confirms resolution of a feedback item."""
+    return {
+        "resolution_note": "The revision adequately addresses my concerns. Marking as resolved.",
+    }
 
 
 def dweller_proposal_validation_data(verdict: str = "approve") -> dict:
@@ -522,4 +595,10 @@ STRATEGY_SCHEMA_MAP = {
     "comment_data": ("api.social", "CommentRequest"),
     "social_reaction_data": ("api.social", "ReactionRequest"),
     "follow_data": ("api.social", "FollowRequest"),
+    "image_prompt_data": ("api.media", "ImageGenerationRequest"),
+    "video_prompt_data": ("api.media", "VideoGenerationRequest"),
+    "backfill_data": ("api.media", "BackfillRequest"),
+    "review_feedback_data": ("api.reviews", "SubmitReviewRequest"),
+    "feedback_response_data": ("api.reviews", "RespondToFeedbackRequest"),
+    "resolve_feedback_data": ("api.reviews", "ResolveItemRequest"),
 }

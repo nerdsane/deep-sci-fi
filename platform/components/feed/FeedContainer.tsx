@@ -14,6 +14,7 @@ import {
   IconChat,
   IconUserPlus,
   IconArrowRight,
+  IconPlay,
 } from '@/components/ui/PixelIcon'
 
 // Format relative time
@@ -35,11 +36,31 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString()
 }
 
-// Verdict color/icon
+// Render SPEAK action content in play script format
+function renderSpeakAction(action: { content: string; dialogue?: string | null; stage_direction?: string | null }): JSX.Element {
+  // New structured format
+  if (action.dialogue || action.stage_direction) {
+    return (
+      <div className="text-xs space-y-1">
+        {action.stage_direction && (
+          <p className="text-text-tertiary italic">*{action.stage_direction}*</p>
+        )}
+        {action.dialogue && (
+          <p className="text-text-primary">"{action.dialogue}"</p>
+        )}
+      </div>
+    )
+  }
+
+  // Legacy format - just content
+  return <p className="text-text-secondary text-xs">"{action.content}"</p>
+}
+
+// Verdict/Review color/icon (supports both legacy and new system)
 function VerdictBadge({ verdict }: { verdict: string }) {
   const config = {
     approve: { color: 'text-neon-green bg-neon-green/10 border-neon-green/30', label: 'APPROVED' },
-    strengthen: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'STRENGTHEN' },
+    strengthen: { color: 'text-neon-cyan bg-neon-cyan/10 border-neon-cyan/30', label: 'NEEDS WORK' },
     reject: { color: 'text-neon-pink bg-neon-pink/10 border-neon-pink/30', label: 'REJECTED' },
   }[verdict] || { color: 'text-text-secondary bg-white/5 border-white/10', label: verdict.toUpperCase() }
 
@@ -137,6 +158,9 @@ function getFeedItemLink(item: FeedItem): string | null {
     case 'dweller_created':
     case 'dweller_action':
       return item.dweller ? `/dweller/${item.dweller.id}` : null
+    case 'conversation':
+      // Link to first dweller in the conversation
+      return item.actions?.[0]?.dweller ? `/dweller/${item.actions[0].dweller.id}` : null
     case 'agent_registered':
       return item.agent ? `/agent/${item.agent.id}` : null
     case 'story_created':
@@ -325,9 +349,11 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                     {item.action.type.toUpperCase()}
                   </span>
                 </div>
-                <p className="text-text-secondary text-xs">
-                  {item.action.type === 'speak' ? `"${item.action.content}"` : item.action.content}
-                </p>
+                {item.action.type === 'speak' ? (
+                  renderSpeakAction(item.action)
+                ) : (
+                  <p className="text-text-secondary text-xs">{item.action.content}</p>
+                )}
                 {item.action.target && (
                   <div className="text-text-tertiary text-xs mt-1 flex items-center gap-1">
                     <IconArrowRight size={12} /> {item.action.target}
@@ -340,6 +366,133 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 In <span className="text-text-primary">{item.world.name}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {item.type === 'activity_group' && item.actions && item.dweller && (
+          <div>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
+                <span className="text-neon-cyan font-mono text-xs">
+                  {item.dweller.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-text-primary text-xs">{item.dweller.name}</span>
+                  <span className="text-[10px] font-mono text-text-tertiary">
+                    {item.action_count} actions
+                  </span>
+                </div>
+                <div className="space-y-2 border-l border-white/10 pl-3">
+                  {item.actions.map((action: any) => {
+                    const isSpeak = action.type === 'speak'
+                    let displayText = ''
+
+                    if (isSpeak && action.dialogue) {
+                      // New format - show truncated dialogue
+                      displayText = `"${action.dialogue.slice(0, 200)}${action.dialogue.length > 200 ? '...' : ''}"`
+                    } else if (isSpeak) {
+                      // Legacy format
+                      displayText = `"${action.content.slice(0, 200)}${action.content.length > 200 ? '...' : ''}"`
+                    } else {
+                      // Non-speak action
+                      displayText = action.content.slice(0, 150) + (action.content.length > 150 ? '...' : '')
+                    }
+
+                    return (
+                      <div key={action.id} className={isSpeak ? '' : 'opacity-70'}>
+                        <span className="text-[10px] font-mono text-text-tertiary bg-white/5 px-1 py-0.5 mr-2">
+                          {action.type.toUpperCase()}
+                        </span>
+                        <span className={`text-xs ${isSpeak ? 'text-text-primary' : 'text-text-secondary italic'}`}>
+                          {displayText}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            {item.world && (
+              <div className="mt-2 text-xs text-text-tertiary">
+                In <span className="text-text-primary">{item.world.name}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {item.type === 'conversation' && item.actions && item.actions.length > 0 && (
+          <div>
+            <div className="flex items-start gap-2 mb-3">
+              <IconChat size={16} className="text-neon-cyan mt-0.5" />
+              <div className="text-xs text-text-secondary">
+                Conversation in <span className="text-text-primary">{item.world?.name}</span>
+              </div>
+              <span className="ml-auto text-xs text-text-tertiary font-mono">
+                {item.action_count} {item.action_count === 1 ? 'action' : 'actions'}
+              </span>
+            </div>
+
+            {/* Thread of actions */}
+            <div className="space-y-2">
+              {item.actions.map((action, idx) => {
+                const isSpeak = action.type.toLowerCase() === 'speak'
+                const isNarrative = ['move', 'observe', 'decide', 'interact'].includes(action.type.toLowerCase())
+
+                return (
+                  <div
+                    key={action.id}
+                    className={`flex items-start gap-2 ${
+                      action.in_reply_to ? 'ml-4 border-l-2 border-white/10 pl-3' : ''
+                    }`}
+                  >
+                    {/* Dweller avatar */}
+                    {action.dweller && (
+                      <div className="w-6 h-6 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-neon-cyan font-mono text-[10px]">
+                          {action.dweller.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      {/* Speaker name + action type badge */}
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {action.dweller && (
+                          <span className="text-xs text-text-primary font-medium">
+                            {action.dweller.name}
+                          </span>
+                        )}
+                        <span className={`text-[9px] font-mono px-1 py-0.5 ${
+                          isSpeak
+                            ? 'text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30'
+                            : 'text-text-tertiary bg-white/5 border border-white/10'
+                        }`}>
+                          {action.type.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      {isSpeak ? (
+                        renderSpeakAction(action)
+                      ) : (
+                        <p className="text-xs text-text-tertiary italic opacity-75">
+                          {action.content}
+                        </p>
+                      )}
+
+                      {/* Target indicator */}
+                      {action.target && (
+                        <div className="text-text-tertiary text-[10px] mt-0.5 flex items-center gap-1">
+                          <IconArrowRight size={10} /> {action.target}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -360,6 +513,33 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'story_created' && item.story && (
           <div>
+            {/* Media thumbnail with play overlay for videos */}
+            {(item.story.cover_image_url || item.story.thumbnail_url || item.story.video_url) ? (
+              <div className="aspect-video bg-bg-tertiary relative overflow-hidden mb-3 -mx-4 rounded-sm">
+                {(item.story.thumbnail_url || item.story.cover_image_url) ? (
+                  <img
+                    src={item.story.thumbnail_url || item.story.cover_image_url || ''}
+                    alt={item.story.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : item.story.video_url ? (
+                  <video
+                    src={`${item.story.video_url}#t=0.5`}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : null}
+                {item.story.video_url && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="w-10 h-10 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan">
+                      <IconPlay size={24} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">

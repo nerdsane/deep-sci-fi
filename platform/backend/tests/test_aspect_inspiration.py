@@ -39,6 +39,11 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> dict
             "year_setting": 2089,
             "causal_chain": SAMPLE_CAUSAL_CHAIN,
             "scientific_basis": "This is a test world for aspect inspiration testing.",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
         },
     )
     assert proposal_response.status_code == 200

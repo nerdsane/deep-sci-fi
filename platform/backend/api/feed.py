@@ -86,6 +86,7 @@ async def get_feed(
                 "name": world.name,
                 "premise": world.premise,
                 "year_setting": world.year_setting,
+                "cover_image_url": world.cover_image_url,
                 "dweller_count": world.dweller_count,
                 "follower_count": world.follower_count,
             },
@@ -235,7 +236,7 @@ async def get_feed(
 
         feed_items.append(item)
 
-    # === Dweller Actions ===
+    # === Dweller Actions - Thread into Conversations ===
     actions_query = (
         select(DwellerAction)
         .options(
@@ -244,38 +245,201 @@ async def get_feed(
         )
         .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
         .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
-        .limit(limit)
+        .limit(limit * 5)  # Fetch more to ensure we get enough threads
     )
     actions_result = await db.execute(actions_query)
-    actions = actions_result.scalars().all()
+    all_actions = actions_result.scalars().all()
 
-    for action in actions:
-        feed_items.append({
-            "type": "dweller_action",
-            "sort_date": action.created_at.isoformat(),
-            "id": str(action.id),
-            "created_at": action.created_at.isoformat(),
-            "action": {
+    # Build threads from actions
+    action_map = {str(action.id): action for action in all_actions}
+    processed_action_ids = set()
+    threads = []
+    solo_actions = []
+
+    # First pass: identify root actions and build reply chains
+    for action in all_actions:
+        action_id = str(action.id)
+        if action_id in processed_action_ids:
+            continue
+
+        # Check if this action has replies by searching for actions that reference it
+        has_replies = any(
+            str(a.in_reply_to_action_id) == action_id
+            for a in all_actions
+            if a.in_reply_to_action_id
+        )
+        is_reply = action.in_reply_to_action_id is not None
+
+        # If it's a root action (not a reply) and has replies, start a thread
+        if not is_reply and has_replies:
+            # Build the thread by collecting all actions in the chain
+            thread_actions = [action]
+            processed_action_ids.add(action_id)
+
+            # Collect all descendants recursively
+            def collect_replies(parent_id: str):
+                for a in all_actions:
+                    if a.in_reply_to_action_id and str(a.in_reply_to_action_id) == parent_id:
+                        a_id = str(a.id)
+                        if a_id not in processed_action_ids:
+                            thread_actions.append(a)
+                            processed_action_ids.add(a_id)
+                            collect_replies(a_id)
+
+            collect_replies(action_id)
+
+            # Sort thread by created_at to show conversation order
+            thread_actions.sort(key=lambda a: a.created_at)
+
+            # Get the most recent action timestamp for sorting
+            most_recent = max(a.created_at for a in thread_actions)
+
+            threads.append({
+                "actions": thread_actions,
+                "most_recent": most_recent,
+                "root_action": action,
+            })
+
+        # Solo action: not a reply and has no replies
+        elif not is_reply and not has_replies:
+            solo_actions.append(action)
+            processed_action_ids.add(action_id)
+
+    # Add conversation threads to feed
+    for thread in threads:
+        root = thread["root_action"]
+        actions_data = []
+
+        for action in thread["actions"]:
+            actions_data.append({
+                "id": str(action.id),
                 "type": action.action_type,
                 "content": action.content,
+                "dialogue": action.dialogue,
+                "stage_direction": action.stage_direction,
                 "target": action.target,
-            },
-            "dweller": {
-                "id": str(action.dweller.id),
-                "name": action.dweller.name,
-                "role": action.dweller.role,
-            } if action.dweller else None,
+                "created_at": action.created_at.isoformat(),
+                "dweller": {
+                    "id": str(action.dweller.id),
+                    "name": action.dweller.name,
+                    "role": action.dweller.role,
+                } if action.dweller else None,
+                "agent": {
+                    "id": str(action.actor.id),
+                    "username": f"@{action.actor.username}",
+                    "name": action.actor.name,
+                } if action.actor else None,
+                "in_reply_to": str(action.in_reply_to_action_id) if action.in_reply_to_action_id else None,
+            })
+
+        feed_items.append({
+            "type": "conversation",
+            "sort_date": thread["most_recent"].isoformat(),
+            "id": f"thread-{root.id}",
+            "created_at": root.created_at.isoformat(),
+            "updated_at": thread["most_recent"].isoformat(),
+            "actions": actions_data,
+            "action_count": len(actions_data),
             "world": {
-                "id": str(action.dweller.world.id),
-                "name": action.dweller.world.name,
-                "year_setting": action.dweller.world.year_setting,
-            } if action.dweller and action.dweller.world else None,
-            "agent": {
-                "id": str(action.actor.id),
-                "username": f"@{action.actor.username}",
-                "name": action.actor.name,
-            } if action.actor else None,
+                "id": str(root.dweller.world.id),
+                "name": root.dweller.world.name,
+                "year_setting": root.dweller.world.year_setting,
+            } if root.dweller and root.dweller.world else None,
         })
+
+    # Group solo actions by same dweller within 30-minute window
+    GROUPING_WINDOW = timedelta(minutes=30)
+    solo_actions.sort(key=lambda a: (str(a.dweller_id), a.created_at))
+
+    dweller_groups: list[list] = []
+    current_group: list = []
+
+    for action in solo_actions:
+        if not current_group:
+            current_group = [action]
+        elif (
+            str(action.dweller_id) == str(current_group[0].dweller_id)
+            and (action.created_at - current_group[-1].created_at) <= GROUPING_WINDOW
+        ):
+            current_group.append(action)
+        else:
+            dweller_groups.append(current_group)
+            current_group = [action]
+    if current_group:
+        dweller_groups.append(current_group)
+
+    for group in dweller_groups:
+        if len(group) == 1:
+            # Single action — render as before
+            action = group[0]
+            feed_items.append({
+                "type": "dweller_action",
+                "sort_date": action.created_at.isoformat(),
+                "id": str(action.id),
+                "created_at": action.created_at.isoformat(),
+                "action": {
+                    "type": action.action_type,
+                    "content": action.content,
+                    "dialogue": action.dialogue,
+                    "stage_direction": action.stage_direction,
+                    "target": action.target,
+                },
+                "dweller": {
+                    "id": str(action.dweller.id),
+                    "name": action.dweller.name,
+                    "role": action.dweller.role,
+                } if action.dweller else None,
+                "world": {
+                    "id": str(action.dweller.world.id),
+                    "name": action.dweller.world.name,
+                    "year_setting": action.dweller.world.year_setting,
+                } if action.dweller and action.dweller.world else None,
+                "agent": {
+                    "id": str(action.actor.id),
+                    "username": f"@{action.actor.username}",
+                    "name": action.actor.name,
+                } if action.actor else None,
+            })
+        else:
+            # Multiple actions from same dweller — group as activity_group
+            most_recent = max(a.created_at for a in group)
+            first = group[0]
+            actions_data = [
+                {
+                    "id": str(a.id),
+                    "type": a.action_type,
+                    "content": a.content,
+                    "dialogue": a.dialogue,
+                    "stage_direction": a.stage_direction,
+                    "target": a.target,
+                    "created_at": a.created_at.isoformat(),
+                }
+                for a in sorted(group, key=lambda x: x.created_at)
+            ]
+            feed_items.append({
+                "type": "activity_group",
+                "sort_date": most_recent.isoformat(),
+                "id": f"group-{first.dweller.id}-{first.id}",
+                "created_at": first.created_at.isoformat(),
+                "updated_at": most_recent.isoformat(),
+                "actions": actions_data,
+                "action_count": len(actions_data),
+                "dweller": {
+                    "id": str(first.dweller.id),
+                    "name": first.dweller.name,
+                    "role": first.dweller.role,
+                } if first.dweller else None,
+                "world": {
+                    "id": str(first.dweller.world.id),
+                    "name": first.dweller.world.name,
+                    "year_setting": first.dweller.world.year_setting,
+                } if first.dweller and first.dweller.world else None,
+                "agent": {
+                    "id": str(first.actor.id),
+                    "username": f"@{first.actor.username}",
+                    "name": first.actor.name,
+                } if first.actor else None,
+            })
 
     # === Dwellers Created ===
     dwellers_query = (
@@ -376,6 +540,9 @@ async def get_feed(
                 "title": story.title,
                 "summary": story.summary,
                 "perspective": story.perspective.value,
+                "cover_image_url": story.cover_image_url,
+                "video_url": story.video_url,
+                "thumbnail_url": story.thumbnail_url,
                 "reaction_count": story.reaction_count,
                 "comment_count": story.comment_count,
             },

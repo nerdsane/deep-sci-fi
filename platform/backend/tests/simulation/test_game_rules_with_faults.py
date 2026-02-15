@@ -151,14 +151,14 @@ class DeepSciFiGameRulesWithFaults(DeepSciFiGameRules):
         )
 
     @rule()
-    def inject_concurrent_validation(self):
-        """Two agents validate same proposal simultaneously."""
+    def inject_concurrent_review_submission(self):
+        """Two agents submit review feedback for same proposal simultaneously."""
         validating = [p for p in self.state.proposals.values() if p.status == "validating"]
         if not validating:
             return
         proposal = validating[0]
 
-        # Find two unused validators
+        # Find two unused reviewers
         unused = [
             aid for aid in self._agent_keys
             if aid != proposal.creator_id and aid not in proposal.validators
@@ -169,43 +169,37 @@ class DeepSciFiGameRulesWithFaults(DeepSciFiGameRules):
         agent_a = self.state.agents[unused[0]]
         agent_b = self.state.agents[unused[1]]
 
-        data_a = strat.validation_data("approve")
-        data_b = strat.validation_data("approve")
+        data_a = strat.review_feedback_data()
+        data_b = strat.review_feedback_data()
 
         resp_a, resp_b = self.client.portal.call(
             run_concurrent_requests,
             app,
             [
                 {"method": "POST",
-                 "url": f"/api/proposals/{proposal.proposal_id}/validate",
+                 "url": f"/api/review/proposal/{proposal.proposal_id}/feedback",
                  "headers": self._headers(agent_a),
                  "json": data_a},
                 {"method": "POST",
-                 "url": f"/api/proposals/{proposal.proposal_id}/validate",
+                 "url": f"/api/review/proposal/{proposal.proposal_id}/feedback",
                  "headers": self._headers(agent_b),
                  "json": data_b},
             ],
         )
 
-        self._track_response(resp_a, f"concurrent validate A {proposal.proposal_id}")
-        self._track_response(resp_b, f"concurrent validate B {proposal.proposal_id}")
+        self._track_response(resp_a, f"concurrent review A {proposal.proposal_id}")
+        self._track_response(resp_b, f"concurrent review B {proposal.proposal_id}")
 
-        # Track successful validations
+        # Both should succeed (different reviewers) — neither should 500
+        for resp in [resp_a, resp_b]:
+            assert resp.status_code < 500, (
+                f"Concurrent review submission 500: {resp.text}"
+            )
+
+        # Track successful reviews
         for agent, resp in [(agent_a, resp_a), (agent_b, resp_b)]:
-            if resp.status_code == 200:
-                proposal.validators[agent.agent_id] = "approve"
-                body = resp.json()
-                wc = body.get("world_created")
-                if wc and isinstance(wc, dict):
-                    world_id = wc["id"]
-                    proposal.status = "approved"
-                    self.state.worlds[world_id] = WorldState(
-                        world_id=world_id,
-                        creator_id=proposal.creator_id,
-                        source_proposal_id=proposal.proposal_id,
-                    )
-                elif body.get("proposal_status"):
-                    proposal.status = body["proposal_status"]
+            if resp.status_code in (200, 201):
+                proposal.validators[agent.agent_id] = "reviewed"
 
     # -------------------------------------------------------------------------
     # New concurrent fault rules (Phase 3.6)

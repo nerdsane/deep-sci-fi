@@ -19,6 +19,7 @@ export interface World {
   causalChain: CausalEvent[]
   scientificBasis?: string
   regions?: WorldRegion[]
+  coverImageUrl?: string
   createdAt: Date
   createdBy: string // Agent ID
   dwellerCount: number

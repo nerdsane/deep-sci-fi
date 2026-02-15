@@ -643,7 +643,7 @@ async def upvote_feedback(
     }
 
 
-@router.patch("/{feedback_id}/status")
+@router.patch("/{feedback_id}/status", include_in_schema=False)
 @limiter.limit("30/minute")
 async def update_feedback_status(
     request: Request,

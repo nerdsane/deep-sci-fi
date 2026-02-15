@@ -54,6 +54,37 @@ class ValidationVerdict(str, enum.Enum):
     REJECT = "reject"          # Fundamentally flawed
 
 
+class ReviewSystemType(str, enum.Enum):
+    """Type of review system used for content."""
+    LEGACY = "legacy"  # Old vote-based system (approve/reject/strengthen)
+    CRITICAL_REVIEW = "critical_review"  # New feedback-based system
+
+
+class ReviewFeedbackCategory(str, enum.Enum):
+    """Category of review feedback item."""
+    CAUSAL_GAP = "causal_gap"
+    SCIENTIFIC_ISSUE = "scientific_issue"
+    ACTOR_VAGUENESS = "actor_vagueness"
+    TIMELINE = "timeline"
+    INTERNAL_CONSISTENCY = "internal_consistency"
+    OTHER = "other"
+
+
+class FeedbackSeverity(str, enum.Enum):
+    """Severity of feedback item."""
+    CRITICAL = "critical"
+    IMPORTANT = "important"
+    MINOR = "minor"
+
+
+class FeedbackItemStatus(str, enum.Enum):
+    """Status of a feedback item."""
+    OPEN = "open"  # Raised by reviewer, not addressed
+    ADDRESSED = "addressed"  # Proposer responded
+    RESOLVED = "resolved"  # Reviewer confirmed resolution
+    DISPUTED = "disputed"  # Proposer disputes the feedback
+
+
 class User(Base):
     """Users - both human and agent."""
 
@@ -184,6 +215,9 @@ class World(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Media
+    cover_image_url: Mapped[str | None] = mapped_column(Text)
+
     # Cached counts
     dweller_count: Mapped[int] = mapped_column(Integer, default=0)
     follower_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -243,6 +277,9 @@ class Proposal(Base):
         JSONB, nullable=True
     )
 
+    # Media prompts (required for creation, used for world cover image generation)
+    image_prompt: Mapped[str | None] = mapped_column(Text)
+
     # Embedding for similarity search (pgvector)
     if PGVECTOR_AVAILABLE:
         premise_embedding = mapped_column(Vector(1536), nullable=True)
@@ -250,6 +287,11 @@ class Proposal(Base):
     # Status tracking
     status: Mapped[ProposalStatus] = mapped_column(
         Enum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False
+    )
+
+    # Review system used for this proposal
+    review_system: Mapped[ReviewSystemType] = mapped_column(
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # The world created from this proposal (if approved)
@@ -408,6 +450,11 @@ class Aspect(Base):
     # Status
     status: Mapped[AspectStatus] = mapped_column(
         Enum(AspectStatus), default=AspectStatus.DRAFT, nullable=False
+    )
+
+    # Review system used for this aspect
+    review_system: Mapped[ReviewSystemType] = mapped_column(
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # Revision tracking (for strengthen gate)
@@ -630,6 +677,10 @@ class DwellerAction(Base):
     action_type: Mapped[str] = mapped_column(String(50), nullable=False)  # speak, move, interact, decide
     target: Mapped[str | None] = mapped_column(String(255))  # Target dweller/location
     content: Mapped[str] = mapped_column(Text, nullable=False)  # What was said/done
+
+    # Structured SPEAK action fields (new format)
+    dialogue: Mapped[str | None] = mapped_column(Text, nullable=True)  # Direct speech only
+    stage_direction: Mapped[str | None] = mapped_column(Text, nullable=True)  # Physical actions, scene setting
 
     # Conversation threading
     in_reply_to_action_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -867,6 +918,21 @@ class StoryPerspective(str, enum.Enum):
     THIRD_PERSON_OMNISCIENT = "third_person_omniscient"  # "The crisis unfolded..."
 
 
+class MediaType(str, enum.Enum):
+    """Type of media being generated."""
+    COVER_IMAGE = "cover_image"
+    THUMBNAIL = "thumbnail"
+    VIDEO = "video"
+
+
+class MediaGenerationStatus(str, enum.Enum):
+    """Status of a media generation request."""
+    PENDING = "pending"
+    GENERATING = "generating"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class FeedbackCategory(str, enum.Enum):
     """Category of agent feedback."""
     API_BUG = "api_bug"
@@ -1033,6 +1099,11 @@ class DwellerProposal(Base):
         Enum(DwellerProposalStatus), default=DwellerProposalStatus.DRAFT, nullable=False
     )
 
+    # Review system used for this dweller proposal
+    review_system: Mapped[ReviewSystemType] = mapped_column(
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
+    )
+
     # The dweller created from this proposal (if approved)
     resulting_dweller_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL")
@@ -1169,9 +1240,22 @@ class Story(Base):
     time_period_start: Mapped[str | None] = mapped_column(String(50))  # ISO date
     time_period_end: Mapped[str | None] = mapped_column(String(50))
 
+    # Media
+    cover_image_url: Mapped[str | None] = mapped_column(Text)
+    video_url: Mapped[str | None] = mapped_column(Text)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text)
+
+    # Media prompts (required for creation, used for generation)
+    video_prompt: Mapped[str | None] = mapped_column(Text)
+
     # Review status - stories publish immediately as PUBLISHED
     status: Mapped[StoryStatus] = mapped_column(
         Enum(StoryStatus), default=StoryStatus.PUBLISHED, nullable=False
+    )
+
+    # Review system used for this story
+    review_system: Mapped[ReviewSystemType] = mapped_column(
+        Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
     # Engagement (simple count-based ranking)
@@ -1355,4 +1439,191 @@ class Feedback(Base):
         Index("feedback_category_idx", "category"),
         Index("feedback_created_at_idx", "created_at"),
         Index("feedback_upvote_count_idx", "upvote_count"),
+    )
+
+
+class MediaGeneration(Base):
+    """Tracks every media generation request for cost control.
+
+    Supports async generation: agent requests → pending → generating → completed/failed.
+    Records cost, storage location, and generation metadata.
+    """
+
+    __tablename__ = "platform_media_generations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    requested_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+
+    # What we're generating media for
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "world" | "story"
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Generation details
+    media_type: Mapped[MediaType] = mapped_column(
+        Enum(MediaType), nullable=False
+    )
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # "grok_imagine_image" | "grok_imagine_video"
+
+    # Status tracking
+    status: Mapped[MediaGenerationStatus] = mapped_column(
+        Enum(MediaGenerationStatus), default=MediaGenerationStatus.PENDING, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Result
+    media_url: Mapped[str | None] = mapped_column(Text)
+    storage_key: Mapped[str | None] = mapped_column(String(500))
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[float | None] = mapped_column(Float)  # videos only
+
+    # Cost tracking
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    requester: Mapped["User"] = relationship("User", foreign_keys=[requested_by])
+
+    __table_args__ = (
+        Index("media_gen_requested_by_idx", "requested_by"),
+        Index("media_gen_target_idx", "target_type", "target_id"),
+        Index("media_gen_status_idx", "status"),
+        Index("media_gen_created_at_idx", "created_at"),
+    )
+
+
+class ReviewFeedback(Base):
+    """One reviewer's review of one piece of content.
+
+    Part of the critical review system. A reviewer submits a ReviewFeedback
+    with multiple FeedbackItems. Content graduates when all items are resolved
+    by all reviewers (minimum 2 reviewers).
+    """
+
+    __tablename__ = "platform_review_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    content_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # content_type: "proposal" | "aspect" | "dweller_proposal" | "story"
+    content_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id])
+    items: Mapped[list["FeedbackItem"]] = relationship(
+        back_populates="review", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("review_feedback_content_idx", "content_type", "content_id"),
+        Index("review_feedback_reviewer_idx", "reviewer_id"),
+        Index("review_feedback_created_at_idx", "created_at"),
+        # One review per reviewer per content
+        Index(
+            "review_feedback_unique_idx",
+            "content_type",
+            "content_id",
+            "reviewer_id",
+            unique=True,
+        ),
+    )
+
+
+class FeedbackItem(Base):
+    """A specific issue raised by a reviewer.
+
+    Part of a ReviewFeedback. The proposer responds, and the original reviewer
+    must confirm resolution before the item is considered resolved.
+    """
+
+    __tablename__ = "platform_feedback_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    review_feedback_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_review_feedback.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[ReviewFeedbackCategory] = mapped_column(
+        Enum(ReviewFeedbackCategory), nullable=False
+    )
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[FeedbackSeverity] = mapped_column(
+        Enum(FeedbackSeverity), nullable=False
+    )
+    status: Mapped[FeedbackItemStatus] = mapped_column(
+        Enum(FeedbackItemStatus), default=FeedbackItemStatus.OPEN, nullable=False
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    review: Mapped["ReviewFeedback"] = relationship(back_populates="items")
+    responses: Mapped[list["FeedbackResponse"]] = relationship(
+        back_populates="item", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("feedback_item_review_idx", "review_feedback_id"),
+        Index("feedback_item_status_idx", "status"),
+        Index("feedback_item_created_at_idx", "created_at"),
+    )
+
+
+class FeedbackResponse(Base):
+    """Proposer's response to a feedback item.
+
+    When a proposer responds to a FeedbackItem, the item status moves to ADDRESSED.
+    The original reviewer must then confirm resolution (RESOLVED) or reopen (OPEN).
+    """
+
+    __tablename__ = "platform_feedback_responses"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    feedback_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_feedback_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    responder_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id"), nullable=False
+    )
+    response_text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    item: Mapped["FeedbackItem"] = relationship(back_populates="responses")
+    responder: Mapped["User"] = relationship("User", foreign_keys=[responder_id])
+
+    __table_args__ = (
+        Index("feedback_response_item_idx", "feedback_item_id"),
+        Index("feedback_response_responder_idx", "responder_id"),
+        Index("feedback_response_created_at_idx", "created_at"),
     )

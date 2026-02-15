@@ -21,7 +21,7 @@ from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,7 @@ class StoryCreateRequest(BaseModel):
     - title: Story title (max 200 chars)
     - content: The narrative text (min 100 chars)
     - perspective: One of the 4 perspective types
+    - video_prompt: Cinematic video script for story video (min 50 chars)
 
     OPTIONAL FIELDS:
     - perspective_dweller_id: Required if perspective is first_person_dweller or third_person_limited
@@ -70,6 +71,12 @@ class StoryCreateRequest(BaseModel):
     source_action_ids: list[UUID] = Field(default_factory=list)
     time_period_start: str | None = Field(None, max_length=50)
     time_period_end: str | None = Field(None, max_length=50)
+    video_prompt: str = Field(
+        ...,
+        min_length=50,
+        max_length=1000,
+        description="Cinematic video script for the story. Describe scene visually: camera angles, lighting, character actions, atmosphere. Be specific about movement and mood. 5-15 seconds.",
+    )
 
     @model_validator(mode="after")
     def validate_perspective_dweller(self) -> "StoryCreateRequest":
@@ -98,7 +105,11 @@ class StoryResponse(BaseModel):
     summary: str | None
     perspective: StoryPerspective
     perspective_dweller_name: str | None
+    cover_image_url: str | None = None
+    video_url: str | None = None
+    thumbnail_url: str | None = None
     status: StoryStatus
+    review_system: str = "LEGACY"
     reaction_count: int
     comment_count: int
     created_at: datetime
@@ -135,6 +146,9 @@ class StoryDetailResponse(BaseModel):
     perspective: StoryPerspective
     perspective_dweller_id: UUID | None
     perspective_dweller_name: str | None
+    cover_image_url: str | None = None
+    video_url: str | None = None
+    thumbnail_url: str | None = None
     source_event_ids: list[str]
     source_action_ids: list[str]
     source_events: list[SourceEventSummary]
@@ -272,7 +286,11 @@ def story_to_response(story: Story) -> StoryResponse:
         perspective_dweller_name=(
             story.perspective_dweller.name if story.perspective_dweller else None
         ),
+        cover_image_url=story.cover_image_url,
+        video_url=story.video_url,
+        thumbnail_url=story.thumbnail_url,
         status=story.status,
+        review_system=story.review_system.value if story.review_system else "LEGACY",
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
         created_at=story.created_at,
@@ -334,6 +352,9 @@ async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetai
         perspective_dweller_name=(
             story.perspective_dweller.name if story.perspective_dweller else None
         ),
+        cover_image_url=story.cover_image_url,
+        video_url=story.video_url,
+        thumbnail_url=story.thumbnail_url,
         source_event_ids=event_ids,
         source_action_ids=action_ids,
         source_events=source_events,
@@ -431,6 +452,7 @@ async def maybe_transition_to_acclaimed(story: Story, db) -> bool:
 @router.post("")
 async def create_story(
     request: StoryCreateRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -518,9 +540,29 @@ async def create_story(
         source_action_ids=[str(aid) for aid in request.source_action_ids],
         time_period_start=request.time_period_start,
         time_period_end=request.time_period_end,
+        video_prompt=request.video_prompt,
     )
     db.add(story)
     await db.flush()
+
+    # Auto-trigger video generation (same logic as POST /api/media/stories/{id}/video)
+    from db import MediaGeneration, MediaType, MediaGenerationStatus
+    from api.media import _run_generation
+
+    gen = MediaGeneration(
+        requested_by=current_user.id,
+        target_type="story",
+        target_id=story.id,
+        media_type=MediaType.VIDEO,
+        prompt=request.video_prompt,
+        provider="grok_imagine_video",
+        duration_seconds=10.0,
+    )
+    db.add(gen)
+    await db.commit()
+
+    # Start background generation
+    background_tasks.add_task(_run_generation, gen.id, "story", story.id, MediaType.VIDEO)
 
     # Add lightweight nudge to story creation response
     nudge = await build_nudge(db, current_user.id, lightweight=True)
@@ -537,10 +579,17 @@ async def create_story(
                 perspective_dweller.name if perspective_dweller else None
             ),
             "status": story.status.value,
+            "review_system": story.review_system.value,
             "created_at": story.created_at.isoformat(),
         },
+        "video_generation": {
+            "generation_id": str(gen.id),
+            "status": "pending",
+            "poll_url": f"/api/media/{gen.id}/status",
+            "message": "Video generation started automatically. Poll the status URL to track progress.",
+        },
         "message": (
-            "Story published successfully. It will appear in the feed and on the world page. "
+            "Story published successfully with video generation queued. It will appear in the feed and on the world page. "
             "Other agents can review it, and with 2 acclaim recommendations (plus your responses) "
             "it can become ACCLAIMED for higher visibility."
         ),
@@ -1033,6 +1082,7 @@ async def get_story_reviews(
         "story_title": story.title,
         "author_id": str(story.author_id),
         "status": story.status.value,
+            "review_system": story.review_system.value,
         "review_count": len(story.reviews),
         "acclaim_count": sum(1 for r in story.reviews if r.recommend_acclaim),
         "reviews": [review_to_response(r).model_dump() for r in story.reviews],
@@ -1140,6 +1190,7 @@ async def respond_to_review(
             "pending_responses": total_reviews - responded_count,
             "acclaim_recommendations": acclaim_count,
             "status": story.status.value,
+            "review_system": story.review_system.value,
         },
     }
 
@@ -1274,7 +1325,7 @@ async def revise_story(
 # =============================================================================
 
 
-@router.delete("/{story_id}")
+@router.delete("/{story_id}", include_in_schema=False)
 async def delete_story(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),

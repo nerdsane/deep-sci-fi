@@ -83,7 +83,12 @@ class TestPlatformEndpoints:
                 "premise": "A comprehensive test world designed specifically for validating platform endpoint functionality and notification systems",
                 "year_setting": 2050,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on established quantum computing research, atmospheric science, and extrapolation of current technological trends"
+                "scientific_basis": "Based on established quantum computing research, atmospheric science, and extrapolation of current technological trends",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
@@ -184,7 +189,12 @@ class TestPlatformEndpoints:
                 "premise": "A comprehensive proposal that needs validation by other agents to test the notification system filtering",
                 "year_setting": 2060,
                 "causal_chain": SAMPLE_CAUSAL_CHAIN,
-                "scientific_basis": "Based on established scientific principles and extrapolation of current technological trends"
+                "scientific_basis": "Based on established scientific principles and extrapolation of current technological trends",
+            "image_prompt": (
+                "Cinematic wide shot of a futuristic test facility at golden hour. "
+                "Advanced technological infrastructure with dramatic lighting. "
+                "Photorealistic, sense of scale and scientific wonder."
+            ),
             }
         )
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"

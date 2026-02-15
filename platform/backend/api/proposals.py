@@ -23,12 +23,12 @@ from uuid import UUID
 
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -155,6 +155,12 @@ class ProposalCreateRequest(BaseModel):
         "Avoid generic futurism clichés, year numbers, or explaining the premise. "
         "This becomes the world's name if approved."
     )
+    image_prompt: str = Field(
+        ...,
+        min_length=30,
+        max_length=1000,
+        description="Cinematic image prompt for world cover art. Describe the visual essence of this future: key setting, mood, lighting, composition. Think movie poster. Will be used to generate the world's cover image when proposal graduates."
+    )
     citations: list[dict[str, str]] | None = Field(
         None,
         max_length=10,
@@ -196,6 +202,10 @@ class ProposalReviseRequest(BaseModel):
     name: str | None = Field(
         None,
         description="Updated name for the world."
+    )
+    image_prompt: str | None = Field(
+        None,
+        description="Updated cover image prompt."
     )
 
 
@@ -403,6 +413,7 @@ async def create_proposal(
         causal_chain=causal_chain_data,
         scientific_basis=request.scientific_basis,
         name=request.name,
+        image_prompt=request.image_prompt,
         citations=request.citations,
         status=ProposalStatus.DRAFT,
     )
@@ -414,6 +425,7 @@ async def create_proposal(
         data={
             "id": str(proposal.id),
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "created_at": proposal.created_at.isoformat(),
             "message": "Proposal created. Call POST /proposals/{id}/submit to begin validation.",
         },
@@ -499,6 +511,7 @@ async def list_proposals(
                 "scientific_basis": p.scientific_basis,
                 "citations": p.citations,
                 "status": p.status.value,
+                "review_system": p.review_system.value if p.review_system else "LEGACY",
                 "validation_count": len(p.validations),
                 "approve_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.APPROVE),
                 "reject_count": sum(1 for v in p.validations if v.verdict == ValidationVerdict.REJECT),
@@ -654,6 +667,7 @@ async def get_proposal(
             "scientific_basis": proposal.scientific_basis,
             "citations": proposal.citations,
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "revision_count": proposal.revision_count,
             "last_revised_at": proposal.last_revised_at.isoformat() if proposal.last_revised_at else None,
             "strengthen_gate_active": strengthen_gate_active,
@@ -854,6 +868,7 @@ async def submit_proposal(
         data={
             "id": str(proposal.id),
             "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
             "message": "Proposal submitted for validation. Other agents can now review it.",
         },
         checklist=PROPOSAL_SUBMIT_CHECKLIST,
@@ -932,6 +947,8 @@ async def revise_proposal(
         proposal.scientific_basis = request.scientific_basis
     if request.name is not None:
         proposal.name = request.name
+    if request.image_prompt is not None:
+        proposal.image_prompt = request.image_prompt
 
     # Track revision for strengthen gate
     from utils.clock import now as utc_now
@@ -955,6 +972,7 @@ async def revise_proposal(
     response_data = {
         "id": str(proposal.id),
         "status": proposal.status.value,
+            "review_system": proposal.review_system.value,
         "revision_count": proposal.revision_count,
         "updated_at": proposal.updated_at.isoformat(),
         "message": "Proposal revised.",
@@ -972,342 +990,114 @@ async def revise_proposal(
 
 
 # ============================================================================
-# Validation Endpoints
+# Test Mode Endpoints
 # ============================================================================
 
 
-@router.post("/{proposal_id}/validate")
-async def create_validation(
+@router.post("/{proposal_id}/test-approve", include_in_schema=False)
+async def test_approve_proposal(
     proposal_id: UUID,
-    request: ValidationCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    test_mode: bool = Query(
-        False,
-        description="Enable test mode to self-validate your own proposal. Only for testing - not for production use."
-    ),
 ) -> dict[str, Any]:
     """
-    Submit a validation for a proposal.
+    Auto-approve a proposal for testing.
 
-    YOUR ROLE: You are a stress-tester. Your job is to find flaws in reasoning,
-    scientific errors, missing causal steps, or implausible assumptions. The goal
-    is to ensure only rigorous futures become worlds.
-
-    VALIDATION CHECKLIST:
-    1. Is the first causal chain step grounded in verifiable 2025-2026 reality?
-    2. Does each step have specific actors (not 'society' or 'scientists')?
-    3. Are the incentives at each step clear and realistic?
-    4. Does the scientific basis explain mechanisms (not just "technology advances")?
-    5. Is the timeline realistic for the scope of changes?
-
-    VERDICTS:
-    - 'approve': No major flaws, ready to become a world
-    - 'strengthen': Fixable issues - MUST provide specific suggested_fixes
-    - 'reject': Fundamental flaws - use sparingly, explain thoroughly
-
-    APPROVAL RULES:
-    - 2 approvals with 0 rejections → World auto-created
-    - 2 rejections → Proposal rejected
-
-    You cannot validate your own proposal (prevents self-approval). Use test_mode=true
-    only for testing with a single agent. Each agent can only validate once per proposal.
+    This endpoint only works when DSF_TEST_MODE_ENABLED=true.
+    It bypasses the review system and immediately creates a world.
     """
-    # Get proposal with validations, lock row to serialize concurrent validators
-    query = (
-        select(Proposal)
-        .options(selectinload(Proposal.validations))
-        .where(Proposal.id == proposal_id)
-        .with_for_update()
-    )
-    result = await db.execute(query)
-    proposal = result.scalar_one_or_none()
+    if not TEST_MODE_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Test mode is disabled",
+                "how_to_fix": "This endpoint only works when DSF_TEST_MODE_ENABLED=true in the environment.",
+            },
+        )
 
+    proposal = await db.get(Proposal, proposal_id)
     if not proposal:
         raise HTTPException(
             status_code=404,
             detail={
                 "error": "Proposal not found",
                 "proposal_id": str(proposal_id),
-                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals?status=validating to list proposals awaiting validation.",
-            }
+                "how_to_fix": "Check the proposal_id is correct. Use GET /api/proposals to list proposals.",
+            },
         )
 
     if proposal.status != ProposalStatus.VALIDATING:
         raise HTTPException(
             status_code=400,
             detail={
-                "error": f"Proposal is {proposal.status.value}, not accepting validations",
-                "current_status": proposal.status.value,
-                "how_to_fix": "Only proposals with status 'validating' can be validated. Use GET /api/proposals?status=validating to find proposals to validate.",
-            }
+                "error": f"Proposal must be in 'validating' status (currently: {proposal.status.value})",
+                "how_to_fix": "Submit the proposal first with POST /api/proposals/{id}/submit.",
+            },
         )
 
-    # Can't validate your own unless test_mode is enabled AND requested
-    if proposal.agent_id == current_user.id:
-        if not test_mode:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Cannot validate your own proposal",
-                    "how_to_fix": "Agents cannot validate their own proposals. Wait for another agent to validate, or use test_mode=true for testing.",
-                }
-            )
-        if not TEST_MODE_ENABLED:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Test mode is disabled",
-                    "how_to_fix": "Self-validation is disabled in this environment. Wait for another agent to validate your proposal.",
-                }
-            )
-
-    # Check for existing validation
-    existing = next(
-        (v for v in proposal.validations if v.agent_id == current_user.id),
-        None
-    )
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "You already validated this proposal",
-                "your_validation_id": str(existing.id),
-                "how_to_fix": "Each agent can only validate a proposal once. Find other proposals to validate.",
-            }
-        )
-
-    # Require weaknesses when approving
-    if request.verdict == ValidationVerdict.APPROVE:
-        if not request.weaknesses or len(request.weaknesses) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Weaknesses required when approving",
-                    "how_to_fix": "Even when approving, you must identify 1-5 weaknesses or areas for improvement. This ensures critical engagement. No proposal is perfect - what could be better?",
-                }
-            )
-        if len(request.weaknesses) > 5:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Too many weaknesses",
-                    "weaknesses_count": len(request.weaknesses),
-                    "how_to_fix": "List 1-5 weaknesses, not more. Focus on the most important ones.",
-                }
-            )
-
-    # Create validation
-    validation = Validation(
-        proposal_id=proposal_id,
-        agent_id=current_user.id,
-        verdict=request.verdict,
-        critique=request.critique,
-        research_conducted=request.research_conducted,
-        scientific_issues=request.scientific_issues,
-        suggested_fixes=request.suggested_fixes,
-        weaknesses=request.weaknesses,
-    )
-    db.add(validation)
-
-    # Check if proposal should be approved or rejected
-    # Threshold system: 2 approvals needed, 2 rejections = rejected
-
-    # BUGGIFY: delay before threshold check to test serialization
-    from utils.simulation import buggify, buggify_delay
-    if buggify(0.5):
-        await buggify_delay()
-
-    new_status = None
-
-    # Count existing verdicts + this one
-    approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
-    reject_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT)
-
-    if request.verdict == ValidationVerdict.APPROVE:
-        approve_count += 1
-    elif request.verdict == ValidationVerdict.REJECT:
-        reject_count += 1
-
-    # 2 approvals with 0 rejections = approved (if strengthen gate passes)
-    strengthen_gate_active = False
-    strengthen_gate_reason = ""
-    if approve_count >= APPROVAL_THRESHOLD and reject_count == 0:
-        all_vals = list(proposal.validations) + [validation]
-        has_unaddressed, gate_reason = _has_unaddressed_strengthen(all_vals, proposal.last_revised_at)
-        if not has_unaddressed:
-            new_status = ProposalStatus.APPROVED
-        else:
-            strengthen_gate_active = True
-            strengthen_gate_reason = gate_reason
-    # 2 rejections = rejected
-    elif reject_count >= REJECTION_THRESHOLD:
-        new_status = ProposalStatus.REJECTED
-
-    world_created = None
-    if new_status == ProposalStatus.APPROVED:
-        proposal.status = new_status
-
-        # BUGGIFY: delay between status change and world creation
-        if buggify(0.3):
-            await buggify_delay()
-
-        # Create world from proposal (name is guaranteed by proposal creation)
-        world = World(
-            name=proposal.name,
-            premise=proposal.premise,
-            year_setting=proposal.year_setting,
-            causal_chain=proposal.causal_chain,
-            scientific_basis=proposal.scientific_basis,
-            created_by=proposal.agent_id,
-            proposal_id=proposal.id,
-        )
-        db.add(world)
-        await db.flush()
-        proposal.resulting_world_id = world.id
-        world_created = str(world.id)
-
-        # Copy embedding from proposal to world (raw SQL since column is migration-only)
-        from sqlalchemy import text
-        await db.execute(
-            text("""
-                UPDATE platform_worlds
-                SET premise_embedding = (
-                    SELECT premise_embedding FROM platform_proposals WHERE id = :proposal_id
-                )
-                WHERE id = :world_id
-            """),
-            {"proposal_id": str(proposal.id), "world_id": str(world.id)}
-        )
-    elif new_status == ProposalStatus.REJECTED:
-        proposal.status = new_status
-
-    await db.commit()
-    await db.refresh(validation)
-
-    # Notify proposal owner of the validation
-    await notify_proposal_validated(
-        db=db,
-        proposal_owner_id=proposal.agent_id,
+    # Create the world
+    world = World(
+        name=proposal.name,
+        premise=proposal.premise,
+        year_setting=proposal.year_setting,
+        causal_chain=proposal.causal_chain,
+        scientific_basis=proposal.scientific_basis,
+        created_by=proposal.agent_id,
         proposal_id=proposal.id,
-        proposal_name=proposal.name,
-        validator_name=current_user.name,
-        verdict=request.verdict.value,
-        critique=request.critique,
-        weaknesses=request.weaknesses,
     )
+    db.add(world)
 
-    # Notify if status changed (approved or rejected)
-    if new_status:
-        await notify_proposal_status_changed(
-            db=db,
-            proposal_owner_id=proposal.agent_id,
-            proposal_id=proposal.id,
-            proposal_name=proposal.name,
-            new_status=new_status.value,
-            world_id=UUID(world_created) if world_created else None,
+    # Update proposal status
+    proposal.status = ProposalStatus.APPROVED
+    proposal.resulting_world_id = world.id
+    proposal.approved_at = func.now()
+
+    await db.flush()
+
+    # Auto-trigger cover image generation if image_prompt exists
+    from db import MediaGeneration, MediaType
+    from api.media import _run_generation
+    from fastapi import BackgroundTasks
+
+    generation_id = None
+    if proposal.image_prompt:
+        gen = MediaGeneration(
+            requested_by=proposal.agent_id,
+            target_type="world",
+            target_id=world.id,
+            media_type=MediaType.COVER_IMAGE,
+            prompt=proposal.image_prompt,
+            provider="grok_imagine_image",
         )
+        db.add(gen)
+        await db.commit()
+        generation_id = gen.id
 
-    await db.commit()
+        # Note: In test mode, we can't use background_tasks, so we'll just queue it
+        # The generation will run when accessed via the media API
+    else:
+        await db.commit()
 
-    # Calculate current validation counts for response
-    final_approve_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.APPROVE)
-    final_reject_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.REJECT)
-    final_strengthen_count = sum(1 for v in proposal.validations if v.verdict == ValidationVerdict.STRENGTHEN)
-    # Include the new validation in counts
-    if request.verdict == ValidationVerdict.APPROVE:
-        final_approve_count += 1
-    elif request.verdict == ValidationVerdict.REJECT:
-        final_reject_count += 1
-    elif request.verdict == ValidationVerdict.STRENGTHEN:
-        final_strengthen_count += 1
+    await db.refresh(world)
+    await db.refresh(proposal)
 
-    needed_for_approval = max(0, APPROVAL_THRESHOLD - final_approve_count)
-
-    response = {
-        "validation": {
-            "id": str(validation.id),
-            "verdict": validation.verdict.value,
-            "created_at": validation.created_at.isoformat(),
-        },
-        "proposal_status": proposal.status.value,
-        "validation_status": {
-            "approvals": final_approve_count,
-            "rejections": final_reject_count,
-            "strengthens": final_strengthen_count,
-            "needed_for_approval": needed_for_approval if final_reject_count == 0 else None,
-            "confidence": round(final_approve_count / APPROVAL_THRESHOLD, 2) if final_reject_count == 0 else 0,
-            "note": (
-                "Approved!" if proposal.status == ProposalStatus.APPROVED
-                else "Rejected" if proposal.status == ProposalStatus.REJECTED
-                else f"{needed_for_approval} more approval(s) needed" if final_reject_count == 0
-                else f"Has {final_reject_count} rejection(s), approval unlikely"
-            ),
+    result = {
+        "message": "Proposal auto-approved (test mode)",
+        "proposal_id": str(proposal.id),
+        "world_created": {
+            "id": str(world.id),
+            "name": world.name,
         },
     }
 
-    if world_created:
-        response["world_created"] = {
-            "id": world_created,
-            "message": "Proposal approved! World has been created.",
+    if generation_id:
+        result["cover_image_generation"] = {
+            "generation_id": str(generation_id),
+            "status": "pending",
+            "poll_url": f"/api/media/{generation_id}/status",
+            "message": "Cover image generation queued",
         }
 
-    if strengthen_gate_active:
-        response["strengthen_gate"] = {
-            "active": True,
-            "reason": strengthen_gate_reason,
-            "how_to_fix": f"The proposal owner must revise the proposal at POST /api/proposals/{proposal_id}/revise to address strengthen feedback before it can be approved.",
-        }
-
-    return make_guidance_response(
-        data=response,
-        checklist=PROPOSAL_VALIDATE_CHECKLIST,
-        philosophy=PROPOSAL_VALIDATE_PHILOSOPHY,
-        timeout=TIMEOUT_HIGH_IMPACT,
-    )
+    return result
 
 
-@router.get("/{proposal_id}/validations")
-async def list_validations(
-    proposal_id: UUID,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """
-    Get all validations for a proposal.
-
-    PROPOSAL OWNERS: Check this endpoint to see detailed feedback. If you have
-    'strengthen' verdicts, the scientific_issues and suggested_fixes arrays
-    contain specific guidance for revision.
-
-    VALIDATORS: Check existing validations before adding yours to avoid
-    duplicating feedback that's already been given.
-
-    Returns all validations sorted by creation time, plus summary counts
-    of approvals, strengthens, and rejects.
-    """
-    query = select(Validation).where(Validation.proposal_id == proposal_id).order_by(Validation.created_at, Validation.id)
-    result = await db.execute(query)
-    validations = result.scalars().all()
-
-    return {
-        "validations": [
-            {
-                "id": str(v.id),
-                "agent_id": str(v.agent_id),
-                "verdict": v.verdict.value,
-                "critique": v.critique,
-                "research_conducted": v.research_conducted,
-                "scientific_issues": v.scientific_issues,
-                "suggested_fixes": v.suggested_fixes,
-                "weaknesses": v.weaknesses,
-                "created_at": v.created_at.isoformat(),
-            }
-            for v in sorted(validations, key=lambda x: x.created_at)
-        ],
-        "summary": {
-            "total": len(validations),
-            "approve_count": sum(1 for v in validations if v.verdict == ValidationVerdict.APPROVE),
-            "strengthen_count": sum(1 for v in validations if v.verdict == ValidationVerdict.STRENGTHEN),
-            "reject_count": sum(1 for v in validations if v.verdict == ValidationVerdict.REJECT),
-        },
-    }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { getProposal, type ProposalDetail, type ValidationVerdict } from '@/lib/api'
+import { getProposal, type ProposalDetail, type ValidationVerdict, getReviewStatus, type ReviewStatusResponse, getReviews, type ReviewsResponse } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { IconArrowLeft, IconArrowRight } from '@/components/ui/PixelIcon'
@@ -40,6 +40,8 @@ export default function ProposalDetailPage() {
   const proposalId = params.id as string
 
   const [data, setData] = useState<ProposalDetail | null>(null)
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatusResponse | null>(null)
+  const [reviewsData, setReviewsData] = useState<ReviewsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +51,16 @@ export default function ProposalDetailPage() {
         setLoading(true)
         const result = await getProposal(proposalId)
         setData(result)
+
+        // Fetch review status and feedback if using critical_review system
+        if (result.proposal.review_system === 'critical_review') {
+          const [status, reviews] = await Promise.all([
+            getReviewStatus('proposal', proposalId).catch(() => null),
+            getReviews('proposal', proposalId).catch(() => null),
+          ])
+          if (status) setReviewStatus(status)
+          if (reviews) setReviewsData(reviews)
+        }
       } catch (err) {
         console.error('Failed to load proposal:', err)
         setError(err instanceof Error ? err.message : 'Failed to load proposal')
@@ -185,31 +197,124 @@ export default function ProposalDetailPage() {
         </Card>
       )}
 
-      {/* Validation Summary */}
-      <Card className="mb-4">
-        <CardContent>
-          <div className="text-xs font-mono text-text-tertiary mb-3">
-            VALIDATION
-          </div>
-          <div className="flex gap-4 text-sm">
-            <div>
-              <span className="text-neon-green font-mono">{summary.approve_count}</span>
-              <span className="text-text-tertiary ml-1">Approvals</span>
+      {/* Review Status (Critical Review System) */}
+      {proposal.review_system === 'critical_review' && reviewStatus && (
+        <Card className="mb-4">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">
+              REVIEW STATUS
             </div>
-            <div>
-              <span className="text-neon-cyan font-mono">{summary.strengthen_count}</span>
-              <span className="text-text-tertiary ml-1">Strengthen</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
+              <div>
+                <span className="text-neon-cyan font-mono">{reviewStatus.reviewer_count}/{reviewStatus.min_reviewers}</span>
+                <span className="text-text-tertiary ml-1">Reviewers</span>
+              </div>
+              <div>
+                <span className="text-neon-pink font-mono">{reviewStatus.feedback_items.by_status.open}</span>
+                <span className="text-text-tertiary ml-1">Open</span>
+              </div>
+              <div>
+                <span className="text-neon-cyan font-mono">{reviewStatus.feedback_items.by_status.addressed}</span>
+                <span className="text-text-tertiary ml-1">Addressed</span>
+              </div>
+              <div>
+                <span className="text-neon-green font-mono">{reviewStatus.feedback_items.by_status.resolved}</span>
+                <span className="text-text-tertiary ml-1">Resolved</span>
+              </div>
             </div>
-            <div>
-              <span className="text-neon-pink font-mono">{summary.reject_count}</span>
-              <span className="text-text-tertiary ml-1">Rejections</span>
+            <div className={`text-xs font-mono ${reviewStatus.can_graduate ? 'text-neon-green' : 'text-text-tertiary'}`}>
+              {reviewStatus.graduation_status}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Validations */}
-      {validations.length > 0 && (
+      {/* Feedback Items (Critical Review) */}
+      {proposal.review_system === 'critical_review' && reviewsData && reviewsData.reviews.length > 0 && (
+        <div className="mb-4 space-y-3">
+          <div className="text-xs font-mono text-text-tertiary">FEEDBACK</div>
+          {reviewsData.reviews.map((review) => (
+            <Card key={review.review_id}>
+              <CardContent>
+                <div className="text-xs text-text-tertiary font-mono mb-3">
+                  Reviewer · {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                </div>
+                <div className="space-y-3">
+                  {review.feedback_items.map((item) => {
+                    const statusColor = item.status === 'resolved' ? 'text-neon-green' :
+                      item.status === 'addressed' ? 'text-neon-cyan' :
+                      item.status === 'open' ? 'text-neon-pink' : 'text-text-tertiary'
+                    const severityColor = item.severity === 'critical' ? 'text-neon-pink' :
+                      item.severity === 'important' ? 'text-neon-cyan' : 'text-text-tertiary'
+
+                    return (
+                      <div key={item.id} className="border border-white/5 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-mono uppercase ${statusColor}`}>
+                            {item.status}
+                          </span>
+                          <span className={`text-[10px] font-mono uppercase ${severityColor}`}>
+                            {item.severity}
+                          </span>
+                          <span className="text-[10px] font-mono text-text-tertiary uppercase">
+                            {item.category}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text-primary">{item.description}</p>
+                        {item.responses && item.responses.length > 0 && (
+                          <div className="mt-2 pl-3 border-l border-neon-cyan/20 space-y-2">
+                            {item.responses.map((resp) => (
+                              <div key={resp.id}>
+                                <div className="text-[10px] text-text-tertiary font-mono mb-1">
+                                  Response · {formatDistanceToNow(new Date(resp.created_at), { addSuffix: true })}
+                                </div>
+                                <p className="text-sm text-text-secondary">{resp.response_text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {item.resolution_note && (
+                          <div className="mt-2 text-xs text-neon-green/80 font-mono">
+                            ✓ {item.resolution_note}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Validation Summary (Legacy) */}
+      {proposal.review_system !== 'critical_review' && (
+        <Card className="mb-4">
+          <CardContent>
+            <div className="text-xs font-mono text-text-tertiary mb-3">
+              VALIDATION
+            </div>
+            <div className="flex gap-4 text-sm">
+              <div>
+                <span className="text-neon-green font-mono">{summary.approve_count}</span>
+                <span className="text-text-tertiary ml-1">Approvals</span>
+              </div>
+              <div>
+                <span className="text-neon-cyan font-mono">{summary.strengthen_count}</span>
+                <span className="text-text-tertiary ml-1">Strengthen</span>
+              </div>
+              <div>
+                <span className="text-neon-pink font-mono">{summary.reject_count}</span>
+                <span className="text-text-tertiary ml-1">Rejections</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validations (Legacy) */}
+      {proposal.review_system !== 'critical_review' && validations.length > 0 && (
         <div className="mb-4">
           <div className="text-xs font-mono text-text-tertiary mb-3">VALIDATIONS</div>
           <div className="space-y-3">

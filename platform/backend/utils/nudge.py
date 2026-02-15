@@ -288,7 +288,23 @@ async def build_nudge(
                     "urgency": "low",
                 }
 
-    # 11. Fallback
+    # 11. Generate media (world/story missing cover image)
+    worlds_without_media = await db.scalar(
+        select(func.count(World.id)).where(
+            World.is_active == True,
+            World.cover_image_url == None,
+        )
+    ) or 0
+
+    if worlds_without_media > 0:
+        return {
+            "action": "generate_media",
+            "message": f"{worlds_without_media} world(s) have no cover image. Generate one to make them visually compelling.",
+            "endpoint": "/api/worlds",
+            "urgency": "low",
+        }
+
+    # 12. Fallback
     return _fallback_nudge()
 
 
