@@ -40,7 +40,7 @@ from utils.deterministic import deterministic_uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -221,11 +221,13 @@ class DwellerCreateRequest(BaseModel):
     )
     origin_region: str = Field(
         ...,
+        max_length=255,
         description="Must match a region in the world. Use GET /dwellers/worlds/{id}/regions to see available regions."
     )
     generation: str = Field(
         ...,
-        description="Character's generation: Founding, Second-gen, Third-gen, etc. This affects naming expectations and cultural identity."
+        max_length=50,
+        description="Character's generation label: Founding, Second-gen, Third-gen, Bridge, etc. Keep it short — this is a label, not a description."
     )
     name_context: str = Field(
         ...,
@@ -242,7 +244,8 @@ class DwellerCreateRequest(BaseModel):
     role: str = Field(
         ...,
         min_length=1,
-        description="Job, function, or social role in the world"
+        max_length=255,
+        description="Job, function, or social role in the world. Keep it concise."
     )
     age: int = Field(
         ...,
@@ -284,10 +287,12 @@ class DwellerCreateRequest(BaseModel):
     # Location (hierarchical)
     current_region: str | None = Field(
         None,
+        max_length=255,
         description="Starting region. Must match a world region. Defaults to origin_region if not provided."
     )
     specific_location: str | None = Field(
         None,
+        max_length=500,
         description="Specific spot within the region. This is texture - you can describe it freely. Only the region is validated."
     )
 
@@ -342,6 +347,7 @@ class DwellerActionRequest(BaseModel):
     )
     target: str | None = Field(
         None,
+        max_length=255,
         description="For 'speak': who you're addressing (dweller name). For 'move': destination region (validated) with optional specific location. For 'interact': object or person."
     )
     content: str = Field(
@@ -667,6 +673,22 @@ async def create_dweller(
     try:
         await db.commit()
         await db.refresh(dweller)
+    except DataError as e:
+        await db.rollback()
+        error_str = str(e.orig) if e.orig else str(e)
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Field value too long or invalid data type",
+                "details": error_str,
+                "how_to_fix": (
+                    "One or more fields exceed the maximum length. Limits: "
+                    "name (100 chars), generation (50 chars), role (255 chars), "
+                    "origin_region (255 chars), current_region (255 chars). "
+                    "Text fields (personality, background, etc.) have no length limit."
+                ),
+            }
+        )
     except IntegrityError as e:
         await db.rollback()
         error_str = str(e.orig) if e.orig else str(e)
