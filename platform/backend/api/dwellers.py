@@ -71,6 +71,29 @@ SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
 
 
+def _match_region(query: str, regions: list[dict]) -> dict | None:
+    """Match a region by exact name (case-insensitive), then substring match.
+
+    Examples:
+        "The Detuned Mile" matches "The Detuned Mile, Mexico City"
+        "Kreuzberg Gradient" matches "Kreuzberg Gradient"
+    """
+    q = query.lower().strip()
+    # Exact match first
+    for r in regions:
+        if r["name"].lower() == q:
+            return r
+    # Substring: query is a prefix/substring of region name (e.g. "The Detuned Mile" in "The Detuned Mile, Mexico City")
+    matches = [r for r in regions if q in r["name"].lower() or r["name"].lower().startswith(q)]
+    if len(matches) == 1:
+        return matches[0]
+    # Reverse: region name is a prefix of query
+    matches = [r for r in regions if r["name"].lower() in q]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def _get_session_info(dweller: Dweller) -> dict[str, Any]:
     """Get session timeout info for a dweller."""
     from datetime import timedelta
@@ -569,9 +592,9 @@ async def create_dweller(
             },
         )
 
-    # Validate origin_region exists
-    region_names = [r["name"].lower() for r in world.regions]
-    if request.origin_region.lower() not in region_names:
+    # Validate origin_region exists (with fuzzy matching)
+    region = _match_region(request.origin_region, world.regions)
+    if not region:
         available = [r["name"] for r in world.regions]
         raise HTTPException(
             status_code=400,
@@ -588,16 +611,10 @@ async def create_dweller(
             }
         )
 
-    # Get the actual region for response
-    region = next(r for r in world.regions if r["name"].lower() == request.origin_region.lower())
-
     # Validate current_region if provided
     current_region_canonical = None
     if request.current_region:
-        matching_region = next(
-            (r for r in world.regions if r["name"].lower() == request.current_region.lower()),
-            None
-        )
+        matching_region = _match_region(request.current_region, world.regions)
         if not matching_region:
             raise HTTPException(
                 status_code=400,
