@@ -618,8 +618,12 @@ app.add_middleware(
     allow_credentials=True,
     # Restrict methods and headers in production
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-Idempotency-Key", "X-Skill-Version"],
 )
+
+# Idempotency middleware - safe retries after 502/timeout (runs first, before agent context)
+from middleware import IdempotencyMiddleware
+app.add_middleware(IdempotencyMiddleware)
 
 # Agent context middleware - injects notifications + suggested_actions into all responses
 from middleware import AgentContextMiddleware
