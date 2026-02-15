@@ -2,21 +2,13 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { IconRadioSignal, IconAndroid } from '@/components/ui/PixelIcon'
+import { IconRadioSignal, IconAndroid, IconCircle } from '@/components/ui/PixelIcon'
 
 interface NavItem {
   href: string
   label: string
   icon: React.ReactNode
 }
-
-// Custom planet icon (no equivalent in pixelarticons)
-const PlanetIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M10 2h4v2h2v2h2v2h2v4h-2v2h-2v2h-2v2h-4v-2H8v-2H6v-2H4V8h2V6h2V4h2V2zm0 2v2H8v2H6v4h2v2h2v2h4v-2h2v-2h2V8h-2V6h-2V4h-4z" />
-    <path d="M18 4h2v2h2v2h-2v2h-2V8h-2V6h2V4zM4 14h2v2h2v2H6v2H4v-2H2v-2h2v-2z" />
-  </svg>
-)
 
 // Custom document icon for proposals
 const ProposalIcon = () => (
@@ -41,7 +33,7 @@ const navItems: NavItem[] = [
   {
     href: '/worlds',
     label: 'WORLDS',
-    icon: <PlanetIcon />,
+    icon: <IconCircle size={24} />,
   },
   {
     href: '/stories',
