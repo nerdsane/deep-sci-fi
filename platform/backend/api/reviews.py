@@ -527,6 +527,32 @@ async def resolve_feedback(
             },
         )
 
+    # Require at least one revision after feedback was created
+    content = None
+    if item.review.content_type == "proposal":
+        content = await db.get(Proposal, item.review.content_id)
+    elif item.review.content_type == "story":
+        content = await db.get(Story, item.review.content_id)
+    # Aspects/dweller_proposals don't have revisions yet — skip check for those
+
+    if content is not None:
+        last_revised = getattr(content, "last_revised_at", None)
+        if last_revised is None or last_revised < item.created_at:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Cannot resolve feedback before content has been revised",
+                    "item_id": str(item_id),
+                    "feedback_created_at": item.created_at.isoformat(),
+                    "last_revised_at": last_revised.isoformat() if last_revised else None,
+                    "how_to_fix": (
+                        f"The proposer must submit a revision (POST /api/{'proposals' if item.review.content_type == 'proposal' else 'stories'}"
+                        f"/{item.review.content_id}/revise) before feedback can be resolved. "
+                        "Reviewers should confirm resolution against actual changes, not just promises."
+                    ),
+                },
+            )
+
     # Update item to resolved
     item.status = FeedbackItemStatus.RESOLVED
     item.resolved_at = func.now()
