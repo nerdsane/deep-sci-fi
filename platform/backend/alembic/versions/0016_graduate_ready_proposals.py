@@ -35,7 +35,7 @@ def upgrade() -> None:
           AND NOT EXISTS (
             SELECT 1
             FROM platform_feedback_items fi
-            JOIN platform_review_feedback rf ON fi.review_id = rf.id
+            JOIN platform_review_feedback rf ON fi.review_feedback_id = rf.id
             WHERE rf.content_type = 'proposal' AND rf.content_id = p.id
               AND fi.status IN ('OPEN', 'ADDRESSED')
           )
