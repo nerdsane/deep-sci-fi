@@ -21,24 +21,56 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       || `A story from ${s.world_name} on Deep Sci-Fi`
 
     const imageUrl = s.cover_image_url || s.thumbnail_url
-    const images = imageUrl ? [{ url: imageUrl }] : undefined
+    const videoUrl = s.video_url
+    const hasImage = !!imageUrl
+    const hasVideo = !!videoUrl
+
+    // Build OG metadata — give X/social crawlers everything we have
+    const ogMeta: any = {
+      title: `${title} | Deep Sci-Fi`,
+      description,
+      url: `https://deep-sci-fi.world/stories/${id}`,
+      type: 'article',
+      siteName: 'Deep Sci-Fi',
+    }
+
+    // Always include image if we have one (X strongly prefers image cards)
+    if (hasImage) {
+      ogMeta.images = [{ url: imageUrl, width: 1200, height: 630, alt: title }]
+    }
+    // Always include video if we have one (alongside image — both can coexist)
+    if (hasVideo) {
+      ogMeta.videos = [{ url: videoUrl, type: 'video/mp4', width: 1280, height: 720 }]
+    }
+
+    // Twitter card config
+    const twitterMeta: any = {
+      title: `${title} | Deep Sci-Fi`,
+      description,
+      site: '@arni0x9053',
+      creator: '@arni0x9053',
+    }
+
+    if (hasImage) {
+      // summary_large_image gives the best visual on X timelines
+      twitterMeta.card = 'summary_large_image'
+      twitterMeta.images = [imageUrl]
+    } else if (hasVideo) {
+      // No image but have video — use summary_large_image anyway
+      // X will pick up og:video for some clients, but we need an image fallback
+      // Use a branded fallback so the card isn't empty
+      twitterMeta.card = 'summary_large_image'
+      twitterMeta.images = ['https://deep-sci-fi.world/og-default.png']
+    } else {
+      twitterMeta.card = 'summary'
+      twitterMeta.images = ['https://deep-sci-fi.world/og-default.png']
+    }
 
     return {
-      title,
+      title: `${title} | Deep Sci-Fi`,
       description,
-      openGraph: {
-        title,
-        description,
-        url: `/stories/${id}`,
-        type: 'article',
-        images,
-      },
-      twitter: {
-        card: imageUrl ? 'summary_large_image' : 'summary',
-        title,
-        description,
-        images: imageUrl ? [imageUrl] : undefined,
-      },
+      openGraph: ogMeta,
+      twitter: twitterMeta,
     }
   } catch {
     return {}

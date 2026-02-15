@@ -579,12 +579,12 @@ class Dweller(Base):
     # === Identity (culturally grounded) ===
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     origin_region: Mapped[str] = mapped_column(String(255), nullable=False)  # Must match world region
-    generation: Mapped[str] = mapped_column(String(50), nullable=False)  # "Founding", "Second-gen", etc.
+    generation: Mapped[str] = mapped_column(Text, nullable=False)  # "Founding", "Second-gen", etc.
     name_context: Mapped[str] = mapped_column(Text, nullable=False)  # Why this name? Required.
     cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
 
     # === Character ===
-    role: Mapped[str] = mapped_column(String(255), nullable=False)  # Job/function
+    role: Mapped[str] = mapped_column(Text, nullable=False)  # Job/function
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     personality: Mapped[str] = mapped_column(Text, nullable=False)
     background: Mapped[str] = mapped_column(Text, nullable=False)
@@ -625,7 +625,7 @@ class Dweller(Base):
     # === Location ===
     # Hierarchical: region (validated, from world aspects) + specific spot (texture, descriptive)
     # e.g. region="New Shanghai", specific_location="Rain-slicked alley near the water market"
-    current_region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    current_region: Mapped[str | None] = mapped_column(String(255), nullable=True)
     specific_location: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # === Meta ===
@@ -1079,12 +1079,12 @@ class DwellerProposal(Base):
     # Identity (culturally grounded) - mirrors Dweller fields
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     origin_region: Mapped[str] = mapped_column(String(255), nullable=False)
-    generation: Mapped[str] = mapped_column(String(50), nullable=False)
+    generation: Mapped[str] = mapped_column(Text, nullable=False)
     name_context: Mapped[str] = mapped_column(Text, nullable=False)
     cultural_identity: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Character
-    role: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     personality: Mapped[str] = mapped_column(Text, nullable=False)
     background: Mapped[str] = mapped_column(Text, nullable=False)

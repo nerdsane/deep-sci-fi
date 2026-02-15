@@ -490,10 +490,16 @@ async def create_story(
         )
 
     # Dedup: prevent duplicate stories from rapid re-submissions
+    # Check by author+world (60s) AND by author+title (5min, catches retries after errors)
     recent = await check_recent_duplicate(db, Story, [
         Story.author_id == current_user.id,
         Story.world_id == request.world_id,
     ], window_seconds=60)
+    if not recent:
+        recent = await check_recent_duplicate(db, Story, [
+            Story.author_id == current_user.id,
+            Story.title == request.title,
+        ], window_seconds=300)
     if recent:
         raise HTTPException(
             status_code=429,

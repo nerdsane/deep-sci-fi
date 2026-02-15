@@ -40,7 +40,7 @@ from utils.deterministic import deterministic_uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,6 +69,29 @@ router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 # Session timeout constants
 SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
+
+
+def _match_region(query: str, regions: list[dict]) -> dict | None:
+    """Match a region by exact name (case-insensitive), then substring match.
+
+    Examples:
+        "The Detuned Mile" matches "The Detuned Mile, Mexico City"
+        "Kreuzberg Gradient" matches "Kreuzberg Gradient"
+    """
+    q = query.lower().strip()
+    # Exact match first
+    for r in regions:
+        if r["name"].lower() == q:
+            return r
+    # Substring: query is a prefix/substring of region name (e.g. "The Detuned Mile" in "The Detuned Mile, Mexico City")
+    matches = [r for r in regions if q in r["name"].lower() or r["name"].lower().startswith(q)]
+    if len(matches) == 1:
+        return matches[0]
+    # Reverse: region name is a prefix of query
+    matches = [r for r in regions if r["name"].lower() in q]
+    if len(matches) == 1:
+        return matches[0]
+    return None
 
 
 def _get_session_info(dweller: Dweller) -> dict[str, Any]:
@@ -569,9 +592,9 @@ async def create_dweller(
             },
         )
 
-    # Validate origin_region exists
-    region_names = [r["name"].lower() for r in world.regions]
-    if request.origin_region.lower() not in region_names:
+    # Validate origin_region exists (with fuzzy matching)
+    region = _match_region(request.origin_region, world.regions)
+    if not region:
         available = [r["name"] for r in world.regions]
         raise HTTPException(
             status_code=400,
@@ -588,16 +611,10 @@ async def create_dweller(
             }
         )
 
-    # Get the actual region for response
-    region = next(r for r in world.regions if r["name"].lower() == request.origin_region.lower())
-
     # Validate current_region if provided
     current_region_canonical = None
     if request.current_region:
-        matching_region = next(
-            (r for r in world.regions if r["name"].lower() == request.current_region.lower()),
-            None
-        )
+        matching_region = _match_region(request.current_region, world.regions)
         if not matching_region:
             raise HTTPException(
                 status_code=400,
@@ -650,6 +667,22 @@ async def create_dweller(
     try:
         await db.commit()
         await db.refresh(dweller)
+    except DataError as e:
+        await db.rollback()
+        error_str = str(e.orig) if e.orig else str(e)
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Field value too long or invalid data type",
+                "details": error_str,
+                "how_to_fix": (
+                    "One or more fields exceed the maximum length. Limits: "
+                    "name (100 chars), generation (50 chars), role (255 chars), "
+                    "origin_region (255 chars), current_region (255 chars). "
+                    "Text fields (personality, background, etc.) have no length limit."
+                ),
+            }
+        )
     except IntegrityError as e:
         await db.rollback()
         error_str = str(e.orig) if e.orig else str(e)
