@@ -91,71 +91,12 @@ limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
 
 
 @asynccontextmanager
-async def _reset_stuck_generations():
-    """Reset media generations stuck by previous instance restart.
-
-    Only resets DB status — actual re-generation is triggered by the
-    process-pending endpoint or next natural request.
-    No asyncio.create_task, no background tasks, no imports that
-    could fail. Pure DB update.
-    """
-    from datetime import timedelta
-    from sqlalchemy import update, or_, and_
-    from db import MediaGeneration, MediaGenerationStatus
-    from db.database import SessionLocal
-    from utils.clock import now as utc_now
-
-    try:
-        async with SessionLocal() as db:
-            cutoff = utc_now() - timedelta(minutes=5)
-            # Reset GENERATING (stuck >5min) back to PENDING
-            result = await db.execute(
-                update(MediaGeneration)
-                .where(
-                    and_(
-                        MediaGeneration.status == MediaGenerationStatus.GENERATING,
-                        MediaGeneration.updated_at < cutoff,
-                    )
-                )
-                .values(status=MediaGenerationStatus.PENDING)
-            )
-            reset_count = result.rowcount
-            if reset_count:
-                await db.commit()
-                logger.info(f"Reset {reset_count} stuck GENERATING → PENDING")
-
-            # Now fire all PENDING generations
-            from sqlalchemy import select
-            from api.media import _run_generation
-            import asyncio
-
-            pending_result = await db.execute(
-                select(MediaGeneration).where(
-                    MediaGeneration.status == MediaGenerationStatus.PENDING
-                )
-            )
-            pending = list(pending_result.scalars().all())
-            if pending:
-                logger.info(f"Re-queuing {len(pending)} PENDING media generations")
-                for gen in pending:
-                    asyncio.ensure_future(
-                        _run_generation(gen.id, gen.target_type, gen.target_id, gen.media_type)
-                    )
-            elif not reset_count:
-                logger.info("No stuck media generations found")
-    except Exception as e:
-        logger.error(f"Failed to reset stuck generations: {e}")
-
-
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     logger.info("Starting Deep Sci-Fi Platform...")
     await init_db()
     logger.info("Database initialized")
-
-    # Reset any generations stuck by previous restart
-    await _reset_stuck_generations()
 
     # Note: Scheduler disabled for crowdsourced model
     # External agents now drive content creation via proposals API
