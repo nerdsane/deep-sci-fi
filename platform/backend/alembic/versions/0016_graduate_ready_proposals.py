@@ -81,8 +81,8 @@ def upgrade() -> None:
         if image_prompt:
             conn.execute(text("""
                 INSERT INTO platform_media_generations
-                    (requested_by, target_type, target_id, media_type, prompt, provider)
-                VALUES (:agent_id, 'world', :world_id, 'COVER_IMAGE', :prompt, 'grok_imagine_image')
+                    (id, requested_by, target_type, target_id, media_type, prompt, provider)
+                VALUES (gen_random_uuid(), :agent_id, 'world', :world_id, 'COVER_IMAGE', :prompt, 'grok_imagine_image')
             """), {"agent_id": agent_id, "world_id": world_id, "prompt": image_prompt})
 
         print(f"  GRADUATED: {name} -> World {world_id}")
