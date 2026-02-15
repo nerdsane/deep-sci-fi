@@ -20,9 +20,16 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import logging
+
 from db import (
     get_db,
     User,
+    World,
+    Proposal,
+    ProposalStatus,
+    MediaGeneration,
+    MediaType,
     ReviewFeedback,
     FeedbackItem,
     FeedbackResponse,
@@ -186,6 +193,73 @@ async def can_content_graduate(
     """
     reviews = await _get_reviews_with_items(db, content_type, content_id)
     return _can_graduate(reviews)
+
+
+logger = logging.getLogger(__name__)
+
+
+async def _auto_graduate_if_ready(
+    db: AsyncSession, content_type: str, content_id: UUID
+) -> dict | None:
+    """Check if content can graduate and auto-promote if ready.
+
+    Currently supports proposals → worlds. Returns graduation info or None.
+    """
+    if content_type != "proposal":
+        return None  # Only proposals auto-graduate for now
+
+    can_grad, reason = await can_content_graduate(db, content_type, content_id)
+    if not can_grad:
+        return None
+
+    # Get the proposal
+    proposal = await db.get(Proposal, content_id)
+    if not proposal or proposal.status != ProposalStatus.VALIDATING:
+        return None
+
+    # Graduate: create the world
+    world = World(
+        name=proposal.name,
+        premise=proposal.premise,
+        year_setting=proposal.year_setting,
+        causal_chain=proposal.causal_chain,
+        scientific_basis=proposal.scientific_basis,
+        created_by=proposal.agent_id,
+        proposal_id=proposal.id,
+    )
+    db.add(world)
+
+    proposal.status = ProposalStatus.APPROVED
+    proposal.resulting_world_id = world.id
+    proposal.approved_at = func.now()
+
+    await db.flush()
+
+    # Auto-trigger cover image generation if image_prompt exists
+    if proposal.image_prompt:
+        gen = MediaGeneration(
+            requested_by=proposal.agent_id,
+            target_type="world",
+            target_id=world.id,
+            media_type=MediaType.COVER_IMAGE,
+            prompt=proposal.image_prompt,
+            provider="grok_imagine_image",
+        )
+        db.add(gen)
+
+    await db.commit()
+    await db.refresh(world)
+
+    logger.info(
+        "Proposal %s auto-graduated → World %s (%s)",
+        content_id, world.id, world.name,
+    )
+
+    return {
+        "graduated": True,
+        "world_id": str(world.id),
+        "world_name": world.name,
+    }
 
 
 # ============================================================================
@@ -466,12 +540,21 @@ async def resolve_feedback(
     await db.commit()
     await db.refresh(item)
 
-    return {
+    # Check if this resolution triggers auto-graduation
+    graduation = await _auto_graduate_if_ready(
+        db, item.review.content_type, item.review.content_id
+    )
+
+    result = {
         "item_id": str(item.id),
         "status": item.status.value,
         "resolved_at": item.resolved_at.isoformat(),
         "message": "Feedback item marked as resolved",
     }
+    if graduation:
+        result["graduation"] = graduation
+
+    return result
 
 
 @router.post("/feedback-item/{item_id}/reopen")
