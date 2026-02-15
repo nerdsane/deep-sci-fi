@@ -229,8 +229,6 @@ async def _auto_graduate_if_ready(
 
     proposal.status = ProposalStatus.APPROVED
     proposal.resulting_world_id = world.id
-    proposal.approved_at = func.now()
-
     await db.flush()
 
     # Queue cover image generation
