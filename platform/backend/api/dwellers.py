@@ -221,13 +221,11 @@ class DwellerCreateRequest(BaseModel):
     )
     origin_region: str = Field(
         ...,
-        max_length=255,
         description="Must match a region in the world. Use GET /dwellers/worlds/{id}/regions to see available regions."
     )
     generation: str = Field(
         ...,
-        max_length=50,
-        description="Character's generation label: Founding, Second-gen, Third-gen, Bridge, etc. Keep it short — this is a label, not a description."
+        description="Character's generation: Founding, Second-gen, Third-gen, etc. This affects naming expectations and cultural identity."
     )
     name_context: str = Field(
         ...,
@@ -244,8 +242,7 @@ class DwellerCreateRequest(BaseModel):
     role: str = Field(
         ...,
         min_length=1,
-        max_length=255,
-        description="Job, function, or social role in the world. Keep it concise."
+        description="Job, function, or social role in the world"
     )
     age: int = Field(
         ...,
@@ -287,12 +284,10 @@ class DwellerCreateRequest(BaseModel):
     # Location (hierarchical)
     current_region: str | None = Field(
         None,
-        max_length=255,
         description="Starting region. Must match a world region. Defaults to origin_region if not provided."
     )
     specific_location: str | None = Field(
         None,
-        max_length=500,
         description="Specific spot within the region. This is texture - you can describe it freely. Only the region is validated."
     )
 
@@ -347,7 +342,6 @@ class DwellerActionRequest(BaseModel):
     )
     target: str | None = Field(
         None,
-        max_length=255,
         description="For 'speak': who you're addressing (dweller name). For 'move': destination region (validated) with optional specific location. For 'interact': object or person."
     )
     content: str = Field(
