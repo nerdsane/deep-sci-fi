@@ -215,7 +215,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           </span>
           <span className="text-text-tertiary text-[10px]">•</span>
           <span className="text-text-tertiary text-xs">
-            {formatRelativeTime(item.created_at)}
+            {formatRelativeTime(item.updated_at || item.created_at)}
           </span>
         </div>
 
