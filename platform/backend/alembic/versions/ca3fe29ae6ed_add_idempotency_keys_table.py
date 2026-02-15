@@ -1,7 +1,7 @@
 """add idempotency keys table
 
 Revision ID: ca3fe29ae6ed
-Revises: 0015
+Revises: 0016
 Create Date: 2026-02-14 19:00:10.070343
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'ca3fe29ae6ed'
-down_revision: Union[str, None] = '0015'
+down_revision: Union[str, None] = '0016'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
