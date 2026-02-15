@@ -73,7 +73,7 @@ def upgrade() -> None:
         # Update proposal status
         conn.execute(text("""
             UPDATE platform_proposals
-            SET status = 'APPROVED', resulting_world_id = :wid, approved_at = NOW()
+            SET status = 'APPROVED', resulting_world_id = :wid
             WHERE id = :pid
         """), {"wid": world_id, "pid": pid})
 
