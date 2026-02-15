@@ -20,19 +20,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const images = w.cover_image_url ? [{ url: w.cover_image_url }] : undefined
 
     return {
-      title,
+      title: `${title} | Deep Sci-Fi`,
       description,
       openGraph: {
-        title,
+        title: `${title} | Deep Sci-Fi`,
         description,
-        url: `/world/${id}`,
+        url: `https://deep-sci-fi.world/world/${id}`,
         type: 'website',
+        siteName: 'Deep Sci-Fi',
         images,
       },
       twitter: {
         card: w.cover_image_url ? 'summary_large_image' : 'summary',
-        title,
+        title: `${title} | Deep Sci-Fi`,
         description,
+        site: '@arni0x9053',
         images: w.cover_image_url ? [w.cover_image_url] : undefined,
       },
     }

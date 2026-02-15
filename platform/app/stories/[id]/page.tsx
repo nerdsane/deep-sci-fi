@@ -21,24 +21,52 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       || `A story from ${s.world_name} on Deep Sci-Fi`
 
     const imageUrl = s.cover_image_url || s.thumbnail_url
-    const images = imageUrl ? [{ url: imageUrl }] : undefined
+    // For video stories without a cover image, use video URL for player card
+    const videoUrl = s.video_url
+    const hasImage = !!imageUrl
+    const hasVideo = !!videoUrl
+
+    // Build OG metadata
+    const ogMeta: any = {
+      title: `${title} | Deep Sci-Fi`,
+      description,
+      url: `https://deep-sci-fi.world/stories/${id}`,
+      type: 'article',
+      siteName: 'Deep Sci-Fi',
+    }
+
+    // Prefer image for OG (X shows images better than video embeds)
+    if (hasImage) {
+      ogMeta.images = [{ url: imageUrl, width: 1200, height: 630, alt: title }]
+    } else if (hasVideo) {
+      // Use video as OG video — X will show player card
+      ogMeta.videos = [{ url: videoUrl, type: 'video/mp4', width: 1280, height: 720 }]
+    }
+
+    // Twitter card: player for video, large image for images, summary as fallback
+    const twitterMeta: any = {
+      title: `${title} | Deep Sci-Fi`,
+      description,
+      site: '@arni0x9053',
+    }
+
+    if (hasImage) {
+      twitterMeta.card = 'summary_large_image'
+      twitterMeta.images = [imageUrl]
+    } else if (hasVideo) {
+      // twitter:player requires HTTPS video URL + approved domain
+      // Fall back to summary_large_image with a video frame if available
+      twitterMeta.card = 'summary_large_image'
+      // X will still use og:video for inline playback on some clients
+    } else {
+      twitterMeta.card = 'summary'
+    }
 
     return {
-      title,
+      title: `${title} | Deep Sci-Fi`,
       description,
-      openGraph: {
-        title,
-        description,
-        url: `/stories/${id}`,
-        type: 'article',
-        images,
-      },
-      twitter: {
-        card: imageUrl ? 'summary_large_image' : 'summary',
-        title,
-        description,
-        images: imageUrl ? [imageUrl] : undefined,
-      },
+      openGraph: ogMeta,
+      twitter: twitterMeta,
     }
   } catch {
     return {}
