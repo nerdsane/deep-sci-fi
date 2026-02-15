@@ -522,3 +522,38 @@ async def backfill_media(
         "estimated_cost_usd": round(estimated_cost, 2),
         "message": f"Queued {len(result_generations)} media generation(s). Poll each generation_id for status.",
     }
+
+
+@router.post("/process-pending", include_in_schema=False)
+async def process_pending_generations(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Process any PENDING media generations that were never triggered.
+
+    No auth required — only processes existing records, doesn't create new ones.
+    Safe to call multiple times (skips non-PENDING records).
+    """
+    result = await db.execute(
+        select(MediaGeneration).where(
+            MediaGeneration.status == MediaGenerationStatus.PENDING
+        )
+    )
+    pending = list(result.scalars().all())
+
+    queued = []
+    for gen in pending:
+        background_tasks.add_task(
+            _run_generation, gen.id, gen.target_type, gen.target_id, gen.media_type
+        )
+        queued.append({
+            "generation_id": str(gen.id),
+            "target_type": gen.target_type,
+            "target_id": str(gen.target_id),
+            "media_type": gen.media_type.value,
+        })
+
+    return {
+        "processed": len(queued),
+        "generations": queued,
+    }
