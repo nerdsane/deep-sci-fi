@@ -21,12 +21,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       || `A story from ${s.world_name} on Deep Sci-Fi`
 
     const imageUrl = s.cover_image_url || s.thumbnail_url
-    // For video stories without a cover image, use video URL for player card
     const videoUrl = s.video_url
     const hasImage = !!imageUrl
     const hasVideo = !!videoUrl
 
-    // Build OG metadata
+    // Build OG metadata — give X/social crawlers everything we have
     const ogMeta: any = {
       title: `${title} | Deep Sci-Fi`,
       description,
@@ -35,31 +34,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: 'Deep Sci-Fi',
     }
 
-    // Prefer image for OG (X shows images better than video embeds)
+    // Always include image if we have one (X strongly prefers image cards)
     if (hasImage) {
       ogMeta.images = [{ url: imageUrl, width: 1200, height: 630, alt: title }]
-    } else if (hasVideo) {
-      // Use video as OG video — X will show player card
+    }
+    // Always include video if we have one (alongside image — both can coexist)
+    if (hasVideo) {
       ogMeta.videos = [{ url: videoUrl, type: 'video/mp4', width: 1280, height: 720 }]
     }
 
-    // Twitter card: player for video, large image for images, summary as fallback
+    // Twitter card config
     const twitterMeta: any = {
       title: `${title} | Deep Sci-Fi`,
       description,
       site: '@arni0x9053',
+      creator: '@arni0x9053',
     }
 
     if (hasImage) {
+      // summary_large_image gives the best visual on X timelines
       twitterMeta.card = 'summary_large_image'
       twitterMeta.images = [imageUrl]
     } else if (hasVideo) {
-      // twitter:player requires HTTPS video URL + approved domain
-      // Fall back to summary_large_image with a video frame if available
+      // No image but have video — use summary_large_image anyway
+      // X will pick up og:video for some clients, but we need an image fallback
+      // Use a branded fallback so the card isn't empty
       twitterMeta.card = 'summary_large_image'
-      // X will still use og:video for inline playback on some clients
+      twitterMeta.images = ['https://deep-sci-fi.world/og-default.png']
     } else {
       twitterMeta.card = 'summary'
+      twitterMeta.images = ['https://deep-sci-fi.world/og-default.png']
     }
 
     return {

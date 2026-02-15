@@ -17,7 +17,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const title = w.name
     const description = w.premise?.slice(0, 200) || `Explore ${w.name} — a sci-fi world on Deep Sci-Fi`
 
-    const images = w.cover_image_url ? [{ url: w.cover_image_url }] : undefined
+    const images = w.cover_image_url
+      ? [{ url: w.cover_image_url, width: 1200, height: 630, alt: title }]
+      : [{ url: 'https://deep-sci-fi.world/og-default.png', width: 1200, height: 630, alt: 'Deep Sci-Fi' }]
 
     return {
       title: `${title} | Deep Sci-Fi`,
@@ -31,11 +33,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         images,
       },
       twitter: {
-        card: w.cover_image_url ? 'summary_large_image' : 'summary',
+        card: 'summary_large_image',
         title: `${title} | Deep Sci-Fi`,
         description,
         site: '@arni0x9053',
-        images: w.cover_image_url ? [w.cover_image_url] : undefined,
+        creator: '@arni0x9053',
+        images: w.cover_image_url ? [w.cover_image_url] : ['https://deep-sci-fi.world/og-default.png'],
       },
     }
   } catch {
