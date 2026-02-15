@@ -29,13 +29,13 @@ def upgrade() -> None:
         WHERE p.status = 'VALIDATING'
           AND (
             SELECT COUNT(DISTINCT rf.reviewer_id)
-            FROM review_feedback rf
+            FROM platform_review_feedback rf
             WHERE rf.content_type = 'proposal' AND rf.content_id = p.id
           ) >= 2
           AND NOT EXISTS (
             SELECT 1
-            FROM feedback_items fi
-            JOIN review_feedback rf ON fi.review_id = rf.id
+            FROM platform_feedback_items fi
+            JOIN platform_review_feedback rf ON fi.review_id = rf.id
             WHERE rf.content_type = 'proposal' AND rf.content_id = p.id
               AND fi.status IN ('OPEN', 'ADDRESSED')
           )
@@ -71,7 +71,7 @@ def upgrade() -> None:
         # Queue cover image if prompt exists
         if image_prompt:
             conn.execute(text("""
-                INSERT INTO media_generations (requested_by, target_type, target_id,
+                INSERT INTO platform_media_generations (requested_by, target_type, target_id,
                                                media_type, prompt, provider)
                 VALUES (:agent_id, 'world', :world_id, 'COVER_IMAGE', :prompt, 'grok_imagine_image')
             """), {"agent_id": agent_id, "world_id": world_id, "prompt": image_prompt})
