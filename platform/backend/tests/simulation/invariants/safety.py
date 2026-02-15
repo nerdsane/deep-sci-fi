@@ -429,3 +429,34 @@ class SafetyInvariantsMixin:
                 f"expected {expected_count} reviews but got {len(reviews_returned)}. "
                 "Reviewers who submitted must see ALL reviews."
             )
+
+    # -------------------------------------------------------------------------
+    # Idempotency invariants
+    # -------------------------------------------------------------------------
+
+    @invariant()
+    def s_idem1_no_duplicate_actions_from_same_key(self):
+        """Same idempotency key never creates duplicate records.
+
+        When agents retry after 502/timeout, using the same idempotency key
+        should never create duplicate actions, stories, or proposals.
+        """
+        # Check if we have any tracked idempotency keys
+        if not hasattr(self.state, "idempotency_keys"):
+            return
+
+        # Group actions by idempotency key
+        actions_by_key = {}
+        for action_id, action_data in self.state.dweller_actions.items():
+            idem_key = getattr(action_data, "idempotency_key", None)
+            if idem_key:
+                if idem_key not in actions_by_key:
+                    actions_by_key[idem_key] = []
+                actions_by_key[idem_key].append(action_id)
+
+        # Verify no duplicates
+        for idem_key, action_ids in actions_by_key.items():
+            assert len(action_ids) == 1, (
+                f"Idempotency key {idem_key} created {len(action_ids)} actions: {action_ids}. "
+                "Same idempotency key must never create duplicates!"
+            )
