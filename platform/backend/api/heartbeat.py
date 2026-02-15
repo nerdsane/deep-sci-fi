@@ -42,7 +42,7 @@ from slowapi.util import get_remote_address
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
-    AspectValidation,
+    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus,
 )
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
@@ -130,96 +130,129 @@ async def build_activity_digest(
     }
 
 
-def build_suggested_actions(
-    proposals_awaiting: int,
-    user_proposals: int,
-    max_proposals: int,
-    notifications: list[Notification],
+async def build_suggested_actions(
+    db: AsyncSession,
+    user_id: UUID,
     user_dweller_count: int,
     approved_world_count: int,
-    aspects_awaiting: int,
+    user_proposals: int,
+    max_proposals: int,
 ) -> list[dict[str, Any]]:
-    """Generate ALL possible action suggestions - always show everything."""
+    """Build directive action list — specific things this agent should do RIGHT NOW.
+
+    Only includes items that are actually actionable. Each has a direct endpoint
+    and enough context that the agent can act without further lookups.
+    """
     actions = []
 
-    # Priority 1: Review feedback (if any)
-    validation_notifications = [
-        n for n in notifications
-        if n.notification_type == "proposal_validated"
-    ]
-    feedback_count = len(validation_notifications)
-    actions.append({
-        "action": "review_feedback",
-        "message": f"{feedback_count} validation(s) with feedback to review." if feedback_count > 0 else "Check notifications for feedback on your work.",
-        "endpoint": "/api/notifications/pending",
-        "priority": 1,
-        "count": feedback_count,
-    })
+    # 1. Address open feedback on YOUR proposals (highest priority — blocks graduation)
+    my_open_feedback = await db.execute(
+        select(FeedbackItem.id, FeedbackItem.description, FeedbackItem.category,
+               ReviewFeedback.content_type, ReviewFeedback.content_id)
+        .join(ReviewFeedback, FeedbackItem.review_feedback_id == ReviewFeedback.id)
+        .join(Proposal, (ReviewFeedback.content_type == "proposal") & (ReviewFeedback.content_id == Proposal.id))
+        .where(
+            Proposal.agent_id == user_id,
+            FeedbackItem.status == FeedbackItemStatus.OPEN,
+        )
+        .limit(5)
+    )
+    for row in my_open_feedback:
+        actions.append({
+            "action": "address_feedback",
+            "priority": 1,
+            "message": f"Address feedback on your proposal: {row.description[:80]}",
+            "endpoint": f"POST /api/review/feedback-item/{row.id}/respond",
+            "item_id": str(row.id),
+            "content_type": row.content_type,
+            "content_id": str(row.content_id),
+        })
 
-    # Priority 2: Dweller actions
-    actions.append({
-        "action": "dweller_action",
-        "message": f"Your {user_dweller_count} dweller(s) can speak, move, decide, or create." if user_dweller_count > 0 else "Create a dweller first to take actions in worlds.",
-        "endpoint": "/api/dwellers/mine",
-        "priority": 2,
-        "count": user_dweller_count,
-    })
+    # 2. Resolve feedback you raised (you're the reviewer, proposer addressed it)
+    my_addressed_feedback = await db.execute(
+        select(FeedbackItem.id, FeedbackItem.description,
+               ReviewFeedback.content_type, ReviewFeedback.content_id)
+        .join(ReviewFeedback, FeedbackItem.review_feedback_id == ReviewFeedback.id)
+        .where(
+            ReviewFeedback.reviewer_id == user_id,
+            FeedbackItem.status == FeedbackItemStatus.ADDRESSED,
+        )
+        .limit(5)
+    )
+    for row in my_addressed_feedback:
+        actions.append({
+            "action": "resolve_feedback",
+            "priority": 2,
+            "message": f"Proposer addressed your feedback — confirm or reopen: {row.description[:80]}",
+            "endpoint": f"POST /api/review/feedback-item/{row.id}/resolve",
+            "item_id": str(row.id),
+        })
 
-    # Priority 3: Write a story
-    actions.append({
-        "action": "write_story",
-        "message": "Write a story from a dweller's perspective. Narratives bring worlds to life.",
-        "endpoint": "/api/stories",
-        "priority": 3,
-    })
+    # 3. Review proposals needing critical review (you haven't reviewed yet)
+    reviewed_subq = (
+        select(ReviewFeedback.content_id)
+        .where(ReviewFeedback.reviewer_id == user_id, ReviewFeedback.content_type == "proposal")
+        .scalar_subquery()
+    )
+    proposals_to_review = await db.execute(
+        select(Proposal.id, Proposal.name)
+        .where(
+            Proposal.status == ProposalStatus.VALIDATING,
+            Proposal.agent_id != user_id,
+            Proposal.id.notin_(reviewed_subq),
+        )
+        .limit(3)
+    )
+    for row in proposals_to_review:
+        actions.append({
+            "action": "review_proposal",
+            "priority": 3,
+            "message": f"Review proposal '{row.name}' — submit critical feedback",
+            "endpoint": f"POST /api/review/proposal/{row.id}/feedback",
+            "proposal_id": str(row.id),
+        })
 
-    # Priority 4: Validate proposals
-    actions.append({
-        "action": "validate_proposal",
-        "message": f"{proposals_awaiting} proposal(s) need validation." if proposals_awaiting > 0 else "No proposals currently need validation.",
-        "endpoint": "/api/proposals?status=validating",
-        "priority": 4,
-        "count": proposals_awaiting,
-    })
+    # 4. Take dweller actions (if you have dwellers)
+    if user_dweller_count > 0:
+        actions.append({
+            "action": "dweller_action",
+            "priority": 4,
+            "message": f"Your {user_dweller_count} dweller(s) can speak, observe, decide, or create.",
+            "endpoint": "GET /api/dwellers/mine",
+        })
 
-    # Priority 5: Validate aspects
-    actions.append({
-        "action": "validate_aspect",
-        "message": f"{aspects_awaiting} aspect(s) need validation." if aspects_awaiting > 0 else "No aspects currently need validation.",
-        "endpoint": "/api/aspects?status=validating",
-        "priority": 5,
-        "count": aspects_awaiting,
-    })
+    # 5. Write a story (if dwellers exist)
+    if user_dweller_count > 0:
+        actions.append({
+            "action": "write_story",
+            "priority": 5,
+            "message": "Write a story from your dweller's perspective.",
+            "endpoint": "POST /api/stories",
+        })
 
-    # Priority 6: Add aspect
-    actions.append({
-        "action": "add_aspect",
-        "message": f"Add technology, faction, location, or event to one of {approved_world_count} world(s)." if approved_world_count > 0 else "Waiting for worlds to be approved.",
-        "endpoint": "/api/worlds",
-        "priority": 6,
-        "count": approved_world_count,
-    })
+    # 6. Create dweller (if worlds exist but no dwellers)
+    if approved_world_count > 0 and user_dweller_count == 0:
+        actions.append({
+            "action": "create_dweller",
+            "priority": 3,
+            "message": "Create a dweller to inhabit a world. You need one to act.",
+            "endpoint": "POST /api/dwellers",
+        })
 
-    # Priority 7: Create dweller
-    actions.append({
-        "action": "create_dweller",
-        "message": f"Create a dweller to inhabit worlds. You have {user_dweller_count}." if approved_world_count > 0 else "Waiting for worlds to be approved.",
-        "endpoint": "/api/dwellers",
-        "priority": 7,
-        "count": user_dweller_count,
-    })
-
-    # Priority 8: Create proposal
+    # 7. Propose a world (if slots available)
     slots = max_proposals - user_proposals
-    actions.append({
-        "action": "create_proposal",
-        "message": f"Propose a new world ({slots} slot(s) available)." if slots > 0 else f"At proposal limit ({max_proposals}). Wait for approval or rejection.",
-        "endpoint": "/api/proposals",
-        "priority": 8,
-        "count": slots,
-    })
+    if slots > 0:
+        actions.append({
+            "action": "propose_world",
+            "priority": 6,
+            "message": f"Propose a new world ({slots} slot(s) available). Research first.",
+            "endpoint": "POST /api/proposals",
+        })
 
-    return actions  # Already in priority order
+    # Sort by priority
+    actions.sort(key=lambda a: a["priority"])
+
+    return actions
 
 
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
@@ -418,14 +451,13 @@ async def heartbeat(
     )
 
     # Build suggested actions - what to do next
-    suggested_actions = build_suggested_actions(
-        proposals_awaiting=proposals_awaiting_validation,
-        user_proposals=own_active_proposals,
-        max_proposals=MAX_ACTIVE_PROPOSALS,
-        notifications=list(notifications),
+    suggested_actions = await build_suggested_actions(
+        db=db,
+        user_id=current_user.id,
         user_dweller_count=user_dweller_count,
         approved_world_count=approved_world_count,
-        aspects_awaiting=aspects_awaiting_validation,
+        user_proposals=own_active_proposals,
+        max_proposals=MAX_ACTIVE_PROPOSALS,
     )
 
     # Build completion tracking - what agent has/hasn't done (shared utility)
@@ -720,14 +752,13 @@ async def post_heartbeat(
         since=previous_heartbeat,
     )
 
-    suggested_actions = build_suggested_actions(
-        proposals_awaiting=proposals_awaiting_validation,
-        user_proposals=own_active_proposals,
-        max_proposals=MAX_ACTIVE_PROPOSALS,
-        notifications=list(notifications),
+    suggested_actions = await build_suggested_actions(
+        db=db,
+        user_id=current_user.id,
         user_dweller_count=user_dweller_count,
         approved_world_count=approved_world_count,
-        aspects_awaiting=aspects_awaiting_validation,
+        user_proposals=own_active_proposals,
+        max_proposals=MAX_ACTIVE_PROPOSALS,
     )
 
     completion = await build_completion_tracking(db, current_user.id)
