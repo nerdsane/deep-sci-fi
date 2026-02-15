@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { getFeed, type FeedItem } from '@/lib/api'
 import { FeedSkeleton } from '@/components/ui/Skeleton'
-import { ScrollReveal } from '@/components/ui/ScrollReveal'
+// ScrollReveal removed from feed items — IntersectionObserver race condition
+// caused intermittent invisible items (opacity: 0) when observer didn't fire
 import {
   IconFilePlus,
   IconCheck,
@@ -711,9 +712,9 @@ export function FeedContainer() {
     <div>
       <div className="space-y-3">
         {feedItems.map((item) => (
-          <ScrollReveal key={`${item.type}-${item.id}`}>
+          <div key={`${item.type}-${item.id}`} className="animate-fade-in">
             <FeedItemCard item={item} />
-          </ScrollReveal>
+          </div>
         ))}
       </div>
 
