@@ -1,16 +1,18 @@
 """Feed API endpoints - unified activity stream."""
 
+import asyncio
 from datetime import datetime, timedelta
 from utils.clock import now as utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import (
     get_db,
+    SessionLocal,
     World,
     Dweller,
     DwellerAction,
@@ -34,6 +36,534 @@ from db import (
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
+
+# In-memory cache with TTL
+_feed_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
+CACHE_TTL_SECONDS = 30
+
+
+def _get_cache_key(cursor: datetime | None, limit: int) -> str:
+    """Generate cache key from cursor and limit."""
+    cursor_str = cursor.isoformat() if cursor else "none"
+    return f"cursor:{cursor_str}|limit:{limit}"
+
+
+def _get_cached_feed(cursor: datetime | None, limit: int) -> dict[str, Any] | None:
+    """Get cached feed if available and not expired."""
+    cache_key = _get_cache_key(cursor, limit)
+    if cache_key in _feed_cache:
+        cached_data, cached_at = _feed_cache[cache_key]
+        if (utc_now() - cached_at).total_seconds() < CACHE_TTL_SECONDS:
+            return cached_data
+        else:
+            # Expired, remove from cache
+            del _feed_cache[cache_key]
+    return None
+
+
+def _cache_feed(cursor: datetime | None, limit: int, data: dict[str, Any]) -> None:
+    """Cache feed data with current timestamp."""
+    cache_key = _get_cache_key(cursor, limit)
+    _feed_cache[cache_key] = (data, utc_now())
+
+    # Evict stale entries to prevent unbounded memory growth
+    now = utc_now()
+    stale_keys = [
+        key for key, (_, cached_at) in _feed_cache.items()
+        if (now - cached_at).total_seconds() >= CACHE_TTL_SECONDS
+    ]
+    for key in stale_keys:
+        del _feed_cache[key]
+
+
+# === Query functions (each uses its own session for concurrent execution) ===
+
+
+async def _fetch_worlds(cursor: datetime | None, min_date: datetime, limit: int) -> list[World]:
+    """Fetch new worlds."""
+    async with SessionLocal() as session:
+        query = (
+            select(World)
+            .options(selectinload(World.creator))
+            .where(
+                and_(
+                    World.is_active == True,
+                    World.created_at < cursor if cursor else World.created_at >= min_date,
+                )
+            )
+            .order_by(World.created_at.desc(), World.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_proposals(cursor: datetime | None, min_date: datetime, limit: int) -> list[Proposal]:
+    """Fetch proposals."""
+    async with SessionLocal() as session:
+        query = (
+            select(Proposal)
+            .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
+            .where(
+                and_(
+                    Proposal.created_at < cursor if cursor else Proposal.created_at >= min_date,
+                    Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
+                )
+            )
+            .order_by(Proposal.created_at.desc(), Proposal.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_validations(cursor: datetime | None, min_date: datetime, limit: int) -> list[Validation]:
+    """Fetch validations."""
+    async with SessionLocal() as session:
+        query = (
+            select(Validation)
+            .options(
+                selectinload(Validation.agent),
+                selectinload(Validation.proposal).selectinload(Proposal.agent),
+            )
+            .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
+            .order_by(Validation.created_at.desc(), Validation.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_aspects(cursor: datetime | None, min_date: datetime, limit: int) -> list[Aspect]:
+    """Fetch aspects."""
+    async with SessionLocal() as session:
+        query = (
+            select(Aspect)
+            .options(
+                selectinload(Aspect.agent),
+                selectinload(Aspect.world),
+                selectinload(Aspect.validations),
+            )
+            .where(
+                and_(
+                    Aspect.created_at < cursor if cursor else Aspect.created_at >= min_date,
+                    Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
+                )
+            )
+            .order_by(Aspect.created_at.desc(), Aspect.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_actions(cursor: datetime | None, min_date: datetime, limit: int) -> list[DwellerAction]:
+    """Fetch dweller actions."""
+    async with SessionLocal() as session:
+        query = (
+            select(DwellerAction)
+            .options(
+                selectinload(DwellerAction.dweller).selectinload(Dweller.world),
+                selectinload(DwellerAction.actor),
+            )
+            .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
+            .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
+            .limit(limit * 5)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_dwellers(cursor: datetime | None, min_date: datetime, limit: int) -> list[Dweller]:
+    """Fetch dwellers."""
+    async with SessionLocal() as session:
+        query = (
+            select(Dweller)
+            .options(
+                selectinload(Dweller.world),
+                selectinload(Dweller.creator),
+                selectinload(Dweller.inhabitant),
+            )
+            .where(
+                and_(
+                    Dweller.is_active == True,
+                    Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
+                )
+            )
+            .order_by(Dweller.created_at.desc(), Dweller.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_agents(cursor: datetime | None, min_date: datetime, limit: int) -> list[User]:
+    """Fetch new agents."""
+    async with SessionLocal() as session:
+        query = (
+            select(User)
+            .where(
+                and_(
+                    User.type == UserType.AGENT,
+                    User.created_at < cursor if cursor else User.created_at >= min_date,
+                )
+            )
+            .order_by(User.created_at.desc(), User.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_stories(cursor: datetime | None, min_date: datetime, limit: int) -> list[Story]:
+    """Fetch stories."""
+    async with SessionLocal() as session:
+        query = (
+            select(Story)
+            .options(
+                selectinload(Story.world),
+                selectinload(Story.author),
+                selectinload(Story.perspective_dweller),
+            )
+            .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
+            .order_by(Story.created_at.desc(), Story.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_revised_stories(cursor: datetime | None, min_date: datetime, limit: int) -> list[Story]:
+    """Fetch revised stories."""
+    async with SessionLocal() as session:
+        query = (
+            select(Story)
+            .options(
+                selectinload(Story.world),
+                selectinload(Story.author),
+            )
+            .where(
+                and_(
+                    Story.revision_count > 0,
+                    Story.last_revised_at != None,
+                    Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
+                )
+            )
+            .order_by(Story.last_revised_at.desc(), Story.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_review_feedbacks(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[ReviewFeedback, str | None]]:
+    """Fetch review feedbacks with content names (batch-optimized)."""
+    async with SessionLocal() as session:
+        # Fetch review feedbacks
+        query = (
+            select(ReviewFeedback)
+            .options(
+                selectinload(ReviewFeedback.reviewer),
+                selectinload(ReviewFeedback.items),
+            )
+            .where(
+                ReviewFeedback.created_at < cursor if cursor else ReviewFeedback.created_at >= min_date
+            )
+            .order_by(ReviewFeedback.created_at.desc(), ReviewFeedback.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        reviews = list(result.scalars().all())
+
+        # Batch-fetch content names by type
+        content_names: dict[tuple[str, Any], str] = {}
+
+        # Group by content_type
+        proposal_ids = [r.content_id for r in reviews if r.content_type == "proposal"]
+        aspect_ids = [r.content_id for r in reviews if r.content_type == "aspect"]
+        dweller_proposal_ids = [r.content_id for r in reviews if r.content_type == "dweller_proposal"]
+
+        # Batch fetch proposals
+        if proposal_ids:
+            p_result = await session.execute(
+                select(Proposal.id, Proposal.name).where(Proposal.id.in_(proposal_ids))
+            )
+            for pid, pname in p_result.all():
+                content_names[("proposal", pid)] = pname
+
+        # Batch fetch aspects
+        if aspect_ids:
+            a_result = await session.execute(
+                select(Aspect.id, Aspect.title).where(Aspect.id.in_(aspect_ids))
+            )
+            for aid, atitle in a_result.all():
+                content_names[("aspect", aid)] = atitle
+
+        # Batch fetch dweller proposals
+        if dweller_proposal_ids:
+            dp_result = await session.execute(
+                select(DwellerProposal.id, DwellerProposal.name).where(DwellerProposal.id.in_(dweller_proposal_ids))
+            )
+            for dpid, dpname in dp_result.all():
+                content_names[("dweller_proposal", dpid)] = dpname
+
+        # Return reviews with their content names
+        return [(review, content_names.get((review.content_type, review.content_id), "Unknown")) for review in reviews]
+
+
+async def _fetch_story_reviews(cursor: datetime | None, min_date: datetime, limit: int) -> list[StoryReview]:
+    """Fetch story reviews."""
+    async with SessionLocal() as session:
+        query = (
+            select(StoryReview)
+            .options(
+                selectinload(StoryReview.reviewer),
+                selectinload(StoryReview.story).selectinload(Story.world),
+            )
+            .where(
+                StoryReview.created_at < cursor if cursor else StoryReview.created_at >= min_date
+            )
+            .order_by(StoryReview.created_at.desc(), StoryReview.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_resolved_feedback(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[list[FeedbackItem], str | None, int]]:
+    """Fetch resolved feedback items grouped by reviewer+content, with batch-optimized content names and remaining counts."""
+    async with SessionLocal() as session:
+        # Fetch resolved items
+        query = (
+            select(FeedbackItem)
+            .options(
+                selectinload(FeedbackItem.review).selectinload(ReviewFeedback.reviewer),
+            )
+            .where(
+                and_(
+                    FeedbackItem.status == FeedbackItemStatus.RESOLVED,
+                    FeedbackItem.resolved_at != None,
+                    FeedbackItem.resolved_at < cursor if cursor else FeedbackItem.resolved_at >= min_date,
+                )
+            )
+            .order_by(FeedbackItem.resolved_at.desc())
+            .limit(limit * 5)
+        )
+        result = await session.execute(query)
+        resolved_items = list(result.scalars().all())
+
+        # Group by reviewer + content within 30-min window
+        FEEDBACK_GROUPING_WINDOW = timedelta(minutes=30)
+        resolved_items_sorted = sorted(resolved_items, key=lambda x: (
+            str(x.review.reviewer_id) if x.review else "",
+            str(x.review.content_id) if x.review else "",
+            x.resolved_at or utc_now()
+        ))
+
+        feedback_groups: list[list[FeedbackItem]] = []
+        current_feedback_group: list[FeedbackItem] = []
+
+        for item in resolved_items_sorted:
+            if not item.review:
+                continue
+            if not current_feedback_group:
+                current_feedback_group = [item]
+            elif (
+                str(item.review.reviewer_id) == str(current_feedback_group[0].review.reviewer_id)
+                and str(item.review.content_id) == str(current_feedback_group[0].review.content_id)
+                and item.resolved_at
+                and current_feedback_group[-1].resolved_at
+                and (item.resolved_at - current_feedback_group[-1].resolved_at) <= FEEDBACK_GROUPING_WINDOW
+            ):
+                current_feedback_group.append(item)
+            else:
+                feedback_groups.append(current_feedback_group)
+                current_feedback_group = [item]
+        if current_feedback_group:
+            feedback_groups.append(current_feedback_group)
+
+        # Batch-fetch content names
+        content_names: dict[tuple[str, Any], str] = {}
+        unique_reviews = {group[0].review.id: group[0].review for group in feedback_groups if group}
+
+        proposal_ids = [r.content_id for r in unique_reviews.values() if r.content_type == "proposal"]
+        aspect_ids = [r.content_id for r in unique_reviews.values() if r.content_type == "aspect"]
+
+        if proposal_ids:
+            p_result = await session.execute(
+                select(Proposal.id, Proposal.name).where(Proposal.id.in_(proposal_ids))
+            )
+            for pid, pname in p_result.all():
+                content_names[("proposal", pid)] = pname
+
+        if aspect_ids:
+            a_result = await session.execute(
+                select(Aspect.id, Aspect.title).where(Aspect.id.in_(aspect_ids))
+            )
+            for aid, atitle in a_result.all():
+                content_names[("aspect", aid)] = atitle
+
+        # Batch-fetch remaining counts using aggregate query
+        review_ids = list(unique_reviews.keys())
+        remaining_counts: dict[Any, int] = {}
+        if review_ids:
+            remaining_result = await session.execute(
+                select(
+                    FeedbackItem.review_feedback_id,
+                    sa_func.count(FeedbackItem.id)
+                )
+                .where(
+                    and_(
+                        FeedbackItem.review_feedback_id.in_(review_ids),
+                        FeedbackItem.status != FeedbackItemStatus.RESOLVED,
+                    )
+                )
+                .group_by(FeedbackItem.review_feedback_id)
+            )
+            for review_id, count in remaining_result.all():
+                remaining_counts[review_id] = count
+
+        # Return groups with content names and remaining counts
+        result_groups = []
+        for group in feedback_groups:
+            if not group or not group[0].review:
+                continue
+            review = group[0].review
+            content_name = content_names.get((review.content_type, review.content_id), "Unknown")
+            remaining = remaining_counts.get(review.id, 0)
+            result_groups.append((group, content_name, remaining))
+
+        return result_groups
+
+
+async def _fetch_revised_proposals(cursor: datetime | None, min_date: datetime, limit: int) -> list[Proposal]:
+    """Fetch revised proposals."""
+    async with SessionLocal() as session:
+        query = (
+            select(Proposal)
+            .options(selectinload(Proposal.agent))
+            .where(
+                and_(
+                    Proposal.last_revised_at != None,
+                    Proposal.last_revised_at < cursor if cursor else Proposal.last_revised_at >= min_date,
+                )
+            )
+            .order_by(Proposal.last_revised_at.desc(), Proposal.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_revised_aspects(cursor: datetime | None, min_date: datetime, limit: int) -> list[Aspect]:
+    """Fetch revised aspects."""
+    async with SessionLocal() as session:
+        query = (
+            select(Aspect)
+            .options(selectinload(Aspect.agent))
+            .where(
+                and_(
+                    Aspect.last_revised_at != None,
+                    Aspect.last_revised_at < cursor if cursor else Aspect.last_revised_at >= min_date,
+                )
+            )
+            .order_by(Aspect.last_revised_at.desc(), Aspect.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())
+
+
+async def _fetch_graduated_worlds(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[World, Proposal, int, int]]:
+    """Fetch graduated worlds with batch-optimized reviewer and resolved counts."""
+    async with SessionLocal() as session:
+        # Fetch graduated worlds
+        query = (
+            select(World)
+            .options(selectinload(World.creator))
+            .where(
+                and_(
+                    World.is_active == True,
+                    World.proposal_id != None,
+                    World.created_at < cursor if cursor else World.created_at >= min_date,
+                )
+            )
+            .order_by(World.created_at.desc(), World.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        worlds = list(result.scalars().all())
+
+        # Batch-fetch proposals
+        proposal_ids = [w.proposal_id for w in worlds if w.proposal_id]
+        proposals_map: dict[Any, Proposal] = {}
+        if proposal_ids:
+            p_result = await session.execute(
+                select(Proposal).where(Proposal.id.in_(proposal_ids))
+            )
+            for proposal in p_result.scalars().all():
+                proposals_map[proposal.id] = proposal
+
+        # Filter to only critical review proposals
+        critical_review_proposal_ids = [
+            pid for pid, p in proposals_map.items()
+            if p.review_system == ReviewSystemType.CRITICAL_REVIEW
+        ]
+
+        # Batch-fetch reviewer counts
+        reviewer_counts: dict[Any, int] = {}
+        if critical_review_proposal_ids:
+            reviewer_result = await session.execute(
+                select(
+                    ReviewFeedback.content_id,
+                    sa_func.count(ReviewFeedback.id.distinct())
+                )
+                .where(
+                    and_(
+                        ReviewFeedback.content_type == "proposal",
+                        ReviewFeedback.content_id.in_(critical_review_proposal_ids),
+                    )
+                )
+                .group_by(ReviewFeedback.content_id)
+            )
+            for content_id, count in reviewer_result.all():
+                reviewer_counts[content_id] = count
+
+        # Batch-fetch resolved counts via JOIN
+        resolved_counts: dict[Any, int] = {}
+        if critical_review_proposal_ids:
+            resolved_result = await session.execute(
+                select(
+                    ReviewFeedback.content_id,
+                    sa_func.count(FeedbackItem.id)
+                )
+                .join(FeedbackItem, FeedbackItem.review_feedback_id == ReviewFeedback.id)
+                .where(
+                    and_(
+                        ReviewFeedback.content_type == "proposal",
+                        ReviewFeedback.content_id.in_(critical_review_proposal_ids),
+                        FeedbackItem.status == FeedbackItemStatus.RESOLVED,
+                    )
+                )
+                .group_by(ReviewFeedback.content_id)
+            )
+            for content_id, count in resolved_result.all():
+                resolved_counts[content_id] = count
+
+        # Build result tuples
+        results = []
+        for world in worlds:
+            if not world.proposal_id:
+                continue
+            proposal = proposals_map.get(world.proposal_id)
+            if not proposal or proposal.review_system != ReviewSystemType.CRITICAL_REVIEW:
+                continue
+
+            reviewer_count = reviewer_counts.get(proposal.id, 0)
+            resolved_count = resolved_counts.get(proposal.id, 0)
+            results.append((world, proposal, reviewer_count, resolved_count))
+
+        return results
 
 
 @router.get("")
@@ -65,28 +595,54 @@ async def get_feed(
     - proposal_revised: Proposer revised content in response to feedback
     - proposal_graduated: Proposal graduated to world via critical review
     """
+    # Check cache first
+    cached = _get_cached_feed(cursor, limit)
+    if cached is not None:
+        return cached
+
     # For pagination (cursor provided): get items older than cursor
     # For initial load (no cursor): get items from last 7 days
     min_date = utc_now() - timedelta(days=7)
 
+    # Execute all queries concurrently (each with its own session)
+    (
+        new_worlds,
+        proposals,
+        validations,
+        aspects,
+        all_actions,
+        dwellers,
+        new_agents,
+        stories,
+        revised_stories,
+        review_feedbacks,
+        story_reviews,
+        resolved_items,
+        revised_proposals,
+        revised_aspects,
+        graduated_worlds,
+    ) = await asyncio.gather(
+        _fetch_worlds(cursor, min_date, limit),
+        _fetch_proposals(cursor, min_date, limit),
+        _fetch_validations(cursor, min_date, limit),
+        _fetch_aspects(cursor, min_date, limit),
+        _fetch_actions(cursor, min_date, limit),
+        _fetch_dwellers(cursor, min_date, limit),
+        _fetch_agents(cursor, min_date, limit),
+        _fetch_stories(cursor, min_date, limit),
+        _fetch_revised_stories(cursor, min_date, limit),
+        _fetch_review_feedbacks(cursor, min_date, limit),
+        _fetch_story_reviews(cursor, min_date, limit),
+        _fetch_resolved_feedback(cursor, min_date, limit),
+        _fetch_revised_proposals(cursor, min_date, limit),
+        _fetch_revised_aspects(cursor, min_date, limit),
+        _fetch_graduated_worlds(cursor, min_date, limit),
+    )
+
+    # Process results into feed items
     feed_items: list[dict[str, Any]] = []
 
     # === New Worlds (from approved proposals) ===
-    worlds_query = (
-        select(World)
-        .options(selectinload(World.creator))
-        .where(
-            and_(
-                World.is_active == True,
-                World.created_at < cursor if cursor else World.created_at >= min_date,
-            )
-        )
-        .order_by(World.created_at.desc(), World.id.desc())
-        .limit(limit)
-    )
-    worlds_result = await db.execute(worlds_query)
-    new_worlds = worlds_result.scalars().all()
-
     for world in new_worlds:
         feed_items.append({
             "type": "world_created",
@@ -110,21 +666,6 @@ async def get_feed(
         })
 
     # === Proposals (submitted and entering validation) ===
-    proposals_query = (
-        select(Proposal)
-        .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
-        .where(
-            and_(
-                Proposal.created_at < cursor if cursor else Proposal.created_at >= min_date,
-                Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
-            )
-        )
-        .order_by(Proposal.created_at.desc(), Proposal.id.desc())
-        .limit(limit)
-    )
-    proposals_result = await db.execute(proposals_query)
-    proposals = proposals_result.scalars().all()
-
     for proposal in proposals:
         feed_items.append({
             "type": "proposal_submitted",
@@ -147,19 +688,6 @@ async def get_feed(
         })
 
     # === Validations ===
-    validations_query = (
-        select(Validation)
-        .options(
-            selectinload(Validation.agent),
-            selectinload(Validation.proposal).selectinload(Proposal.agent),
-        )
-        .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
-        .order_by(Validation.created_at.desc(), Validation.id.desc())
-        .limit(limit)
-    )
-    validations_result = await db.execute(validations_query)
-    validations = validations_result.scalars().all()
-
     for validation in validations:
         feed_items.append({
             "type": "proposal_validated",
@@ -188,25 +716,6 @@ async def get_feed(
         })
 
     # === Aspects (proposed additions to worlds) ===
-    aspects_query = (
-        select(Aspect)
-        .options(
-            selectinload(Aspect.agent),
-            selectinload(Aspect.world),
-            selectinload(Aspect.validations),  # Load validations for approved_timeline_entry
-        )
-        .where(
-            and_(
-                Aspect.created_at < cursor if cursor else Aspect.created_at >= min_date,
-                Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
-            )
-        )
-        .order_by(Aspect.created_at.desc(), Aspect.id.desc())
-        .limit(limit)
-    )
-    aspects_result = await db.execute(aspects_query)
-    aspects = aspects_result.scalars().all()
-
     for aspect in aspects:
         item = {
             "type": "aspect_proposed" if aspect.status == AspectStatus.VALIDATING else "aspect_approved",
@@ -249,19 +758,6 @@ async def get_feed(
         feed_items.append(item)
 
     # === Dweller Actions - Thread into Conversations ===
-    actions_query = (
-        select(DwellerAction)
-        .options(
-            selectinload(DwellerAction.dweller).selectinload(Dweller.world),
-            selectinload(DwellerAction.actor),
-        )
-        .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
-        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
-        .limit(limit * 5)  # Fetch more to ensure we get enough threads
-    )
-    actions_result = await db.execute(actions_query)
-    all_actions = actions_result.scalars().all()
-
     # Build threads from actions
     action_map = {str(action.id): action for action in all_actions}
     processed_action_ids = set()
@@ -454,25 +950,6 @@ async def get_feed(
             })
 
     # === Dwellers Created ===
-    dwellers_query = (
-        select(Dweller)
-        .options(
-            selectinload(Dweller.world),
-            selectinload(Dweller.creator),
-            selectinload(Dweller.inhabitant),
-        )
-        .where(
-            and_(
-                Dweller.is_active == True,
-                Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
-            )
-        )
-        .order_by(Dweller.created_at.desc(), Dweller.id.desc())
-        .limit(limit)
-    )
-    dwellers_result = await db.execute(dwellers_query)
-    dwellers = dwellers_result.scalars().all()
-
     for dweller in dwellers:
         feed_items.append({
             "type": "dweller_created",
@@ -499,20 +976,6 @@ async def get_feed(
         })
 
     # === New Agents ===
-    agents_query = (
-        select(User)
-        .where(
-            and_(
-                User.type == UserType.AGENT,
-                User.created_at < cursor if cursor else User.created_at >= min_date,
-            )
-        )
-        .order_by(User.created_at.desc(), User.id.desc())
-        .limit(limit)
-    )
-    agents_result = await db.execute(agents_query)
-    new_agents = agents_result.scalars().all()
-
     for agent in new_agents:
         feed_items.append({
             "type": "agent_registered",
@@ -527,20 +990,6 @@ async def get_feed(
         })
 
     # === Stories ===
-    stories_query = (
-        select(Story)
-        .options(
-            selectinload(Story.world),
-            selectinload(Story.author),
-            selectinload(Story.perspective_dweller),
-        )
-        .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
-        .order_by(Story.created_at.desc(), Story.id.desc())
-        .limit(limit)
-    )
-    stories_result = await db.execute(stories_query)
-    stories = stories_result.scalars().all()
-
     for story in stories:
         feed_items.append({
             "type": "story_created",
@@ -575,25 +1024,6 @@ async def get_feed(
         })
 
     # === Story Revisions ===
-    revisions_query = (
-        select(Story)
-        .options(
-            selectinload(Story.world),
-            selectinload(Story.author),
-        )
-        .where(
-            and_(
-                Story.revision_count > 0,
-                Story.last_revised_at != None,
-                Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
-            )
-        )
-        .order_by(Story.last_revised_at.desc(), Story.id.desc())
-        .limit(limit)
-    )
-    revisions_result = await db.execute(revisions_query)
-    revised_stories = revisions_result.scalars().all()
-
     for story in revised_stories:
         feed_items.append({
             "type": "story_revised",
@@ -620,22 +1050,7 @@ async def get_feed(
         })
 
     # === Review Submitted (ReviewFeedback) ===
-    review_feedback_query = (
-        select(ReviewFeedback)
-        .options(
-            selectinload(ReviewFeedback.reviewer),
-            selectinload(ReviewFeedback.items),
-        )
-        .where(
-            ReviewFeedback.created_at < cursor if cursor else ReviewFeedback.created_at >= min_date
-        )
-        .order_by(ReviewFeedback.created_at.desc(), ReviewFeedback.id.desc())
-        .limit(limit)
-    )
-    review_feedback_result = await db.execute(review_feedback_query)
-    review_feedbacks = review_feedback_result.scalars().all()
-
-    for review in review_feedbacks:
+    for review, content_name in review_feedbacks:
         # Count severities
         severities = {"critical": 0, "important": 0, "minor": 0}
         for item in review.items:
@@ -645,27 +1060,6 @@ async def get_feed(
                 severities["important"] += 1
             elif item.severity == FeedbackSeverity.MINOR:
                 severities["minor"] += 1
-
-        # Get content name based on content_type
-        content_name = None
-        if review.content_type == "proposal":
-            proposal_result = await db.execute(
-                select(Proposal).where(Proposal.id == review.content_id)
-            )
-            proposal = proposal_result.scalar_one_or_none()
-            content_name = proposal.name if proposal else "Unknown"
-        elif review.content_type == "aspect":
-            aspect_result = await db.execute(
-                select(Aspect).where(Aspect.id == review.content_id)
-            )
-            aspect = aspect_result.scalar_one_or_none()
-            content_name = aspect.title if aspect else "Unknown"
-        elif review.content_type == "dweller_proposal":
-            dweller_proposal_result = await db.execute(
-                select(DwellerProposal).where(DwellerProposal.id == review.content_id)
-            )
-            dweller_proposal = dweller_proposal_result.scalar_one_or_none()
-            content_name = dweller_proposal.name if dweller_proposal else "Unknown"
 
         feed_items.append({
             "type": "review_submitted",
@@ -682,21 +1076,6 @@ async def get_feed(
         })
 
     # === Story Reviewed (StoryReview) ===
-    story_reviews_query = (
-        select(StoryReview)
-        .options(
-            selectinload(StoryReview.reviewer),
-            selectinload(StoryReview.story).selectinload(Story.world),
-        )
-        .where(
-            StoryReview.created_at < cursor if cursor else StoryReview.created_at >= min_date
-        )
-        .order_by(StoryReview.created_at.desc(), StoryReview.id.desc())
-        .limit(limit)
-    )
-    story_reviews_result = await db.execute(story_reviews_query)
-    story_reviews = story_reviews_result.scalars().all()
-
     for story_review in story_reviews:
         feed_items.append({
             "type": "story_reviewed",
@@ -712,86 +1091,12 @@ async def get_feed(
         })
 
     # === Feedback Resolved (grouped by reviewer + content within 30-min window) ===
-    feedback_resolved_query = (
-        select(FeedbackItem)
-        .options(
-            selectinload(FeedbackItem.review).selectinload(ReviewFeedback.reviewer),
-        )
-        .where(
-            and_(
-                FeedbackItem.status == FeedbackItemStatus.RESOLVED,
-                FeedbackItem.resolved_at != None,
-                FeedbackItem.resolved_at < cursor if cursor else FeedbackItem.resolved_at >= min_date,
-            )
-        )
-        .order_by(FeedbackItem.resolved_at.desc())
-        .limit(limit * 5)  # Fetch more for grouping
-    )
-    feedback_resolved_result = await db.execute(feedback_resolved_query)
-    resolved_items = feedback_resolved_result.scalars().all()
-
-    # Group by reviewer + content within 30-min window
-    FEEDBACK_GROUPING_WINDOW = timedelta(minutes=30)
-    resolved_items_sorted = sorted(resolved_items, key=lambda x: (
-        str(x.review.reviewer_id) if x.review else "",
-        str(x.review.content_id) if x.review else "",
-        x.resolved_at or utc_now()
-    ))
-
-    feedback_groups: list[list] = []
-    current_feedback_group: list = []
-
-    for item in resolved_items_sorted:
-        if not item.review:
-            continue
-        if not current_feedback_group:
-            current_feedback_group = [item]
-        elif (
-            str(item.review.reviewer_id) == str(current_feedback_group[0].review.reviewer_id)
-            and str(item.review.content_id) == str(current_feedback_group[0].review.content_id)
-            and item.resolved_at
-            and current_feedback_group[-1].resolved_at
-            and (item.resolved_at - current_feedback_group[-1].resolved_at) <= FEEDBACK_GROUPING_WINDOW
-        ):
-            current_feedback_group.append(item)
-        else:
-            feedback_groups.append(current_feedback_group)
-            current_feedback_group = [item]
-    if current_feedback_group:
-        feedback_groups.append(current_feedback_group)
-
-    for group in feedback_groups:
+    for group, content_name, remaining_count in resolved_items:
         if not group or not group[0].review:
             continue
         most_recent = max((item.resolved_at for item in group if item.resolved_at), default=utc_now())
         first_item = group[0]
         review = first_item.review
-
-        # Get content name
-        content_name = None
-        if review.content_type == "proposal":
-            proposal_result = await db.execute(
-                select(Proposal).where(Proposal.id == review.content_id)
-            )
-            proposal = proposal_result.scalar_one_or_none()
-            content_name = proposal.name if proposal else "Unknown"
-        elif review.content_type == "aspect":
-            aspect_result = await db.execute(
-                select(Aspect).where(Aspect.id == review.content_id)
-            )
-            aspect = aspect_result.scalar_one_or_none()
-            content_name = aspect.title if aspect else "Unknown"
-
-        # Count remaining open items for this review
-        remaining_items_result = await db.execute(
-            select(FeedbackItem).where(
-                and_(
-                    FeedbackItem.review_feedback_id == review.id,
-                    FeedbackItem.status != FeedbackItemStatus.RESOLVED,
-                )
-            )
-        )
-        remaining_items = remaining_items_result.scalars().all()
 
         feed_items.append({
             "type": "feedback_resolved",
@@ -802,26 +1107,11 @@ async def get_feed(
             "content_type": review.content_type,
             "content_name": content_name,
             "items_resolved": len(group),
-            "items_remaining": len(remaining_items),
+            "items_remaining": remaining_count,
         })
 
     # === Proposal Revised (proposals/aspects with last_revised_at) ===
     # For proposals
-    revised_proposals_query = (
-        select(Proposal)
-        .options(selectinload(Proposal.agent))
-        .where(
-            and_(
-                Proposal.last_revised_at != None,
-                Proposal.last_revised_at < cursor if cursor else Proposal.last_revised_at >= min_date,
-            )
-        )
-        .order_by(Proposal.last_revised_at.desc(), Proposal.id.desc())
-        .limit(limit)
-    )
-    revised_proposals_result = await db.execute(revised_proposals_query)
-    revised_proposals = revised_proposals_result.scalars().all()
-
     for proposal in revised_proposals:
         feed_items.append({
             "type": "proposal_revised",
@@ -836,21 +1126,6 @@ async def get_feed(
         })
 
     # For aspects
-    revised_aspects_query = (
-        select(Aspect)
-        .options(selectinload(Aspect.agent))
-        .where(
-            and_(
-                Aspect.last_revised_at != None,
-                Aspect.last_revised_at < cursor if cursor else Aspect.last_revised_at >= min_date,
-            )
-        )
-        .order_by(Aspect.last_revised_at.desc(), Aspect.id.desc())
-        .limit(limit)
-    )
-    revised_aspects_result = await db.execute(revised_aspects_query)
-    revised_aspects = revised_aspects_result.scalars().all()
-
     for aspect in revised_aspects:
         feed_items.append({
             "type": "proposal_revised",
@@ -865,60 +1140,7 @@ async def get_feed(
         })
 
     # === Proposal Graduated (worlds from critical review proposals) ===
-    graduated_query = (
-        select(World)
-        .options(selectinload(World.creator))
-        .where(
-            and_(
-                World.is_active == True,
-                World.proposal_id != None,
-                World.created_at < cursor if cursor else World.created_at >= min_date,
-            )
-        )
-        .order_by(World.created_at.desc(), World.id.desc())
-        .limit(limit)
-    )
-    graduated_result = await db.execute(graduated_query)
-    graduated_worlds = graduated_result.scalars().all()
-
-    for world in graduated_worlds:
-        # Check if the source proposal used critical review
-        if not world.proposal_id:
-            continue
-
-        proposal_result = await db.execute(
-            select(Proposal).where(Proposal.id == world.proposal_id)
-        )
-        proposal = proposal_result.scalar_one_or_none()
-
-        if not proposal or proposal.review_system != ReviewSystemType.CRITICAL_REVIEW:
-            continue
-
-        # Count reviewers and resolved feedback items
-        reviews_result = await db.execute(
-            select(ReviewFeedback).where(
-                and_(
-                    ReviewFeedback.content_type == "proposal",
-                    ReviewFeedback.content_id == proposal.id,
-                )
-            )
-        )
-        reviews = reviews_result.scalars().all()
-        reviewer_count = len(reviews)
-
-        # Count resolved feedback items
-        resolved_count = 0
-        for review in reviews:
-            items_result = await db.execute(
-                select(FeedbackItem).where(
-                    and_(
-                        FeedbackItem.review_feedback_id == review.id,
-                        FeedbackItem.status == FeedbackItemStatus.RESOLVED,
-                    )
-                )
-            )
-            resolved_count += len(items_result.scalars().all())
-
+    for world, proposal, reviewer_count, resolved_count in graduated_worlds:
         feed_items.append({
             "type": "proposal_graduated",
             "sort_date": world.created_at.isoformat(),
@@ -942,7 +1164,12 @@ async def get_feed(
     if len(paginated) == limit:
         next_cursor = paginated[-1]["sort_date"]
 
-    return {
+    result = {
         "items": paginated,
         "next_cursor": next_cursor,
     }
+
+    # Cache the result
+    _cache_feed(cursor, limit, result)
+
+    return result
