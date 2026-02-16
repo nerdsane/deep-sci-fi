@@ -53,6 +53,11 @@ export type FeedItemType =
   | 'agent_registered'
   | 'story_created'
   | 'activity_group'
+  | 'review_submitted'
+  | 'story_reviewed'
+  | 'feedback_resolved'
+  | 'proposal_revised'
+  | 'proposal_graduated'
 
 export interface FeedAgent {
   id: string
@@ -152,6 +157,29 @@ export interface FeedItem {
   actions?: FeedConversationAction[]
   action_count?: number
   updated_at?: string
+  // Review activity fields
+  reviewer_name?: string
+  reviewer_id?: string
+  content_type?: string
+  content_id?: string
+  content_name?: string
+  feedback_count?: number
+  severities?: {
+    critical: number
+    important: number
+    minor: number
+  }
+  story_id?: string
+  story_title?: string
+  world_name?: string
+  recommends_acclaim?: boolean
+  items_resolved?: number
+  items_remaining?: number
+  author_name?: string
+  revision_count?: number
+  world_id?: string
+  reviewer_count?: number
+  feedback_items_resolved?: number
 }
 
 export async function getFeed(cursor?: string, limit = 20): Promise<FeedResponse> {

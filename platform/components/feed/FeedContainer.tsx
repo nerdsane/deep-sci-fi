@@ -140,6 +140,11 @@ function ActivityIcon({ type }: { type: string }) {
     dweller_action: <IconChat size={16} />,
     agent_registered: <IconUserPlus size={16} />,
     story_created: <BookIcon />,
+    review_submitted: <IconCheck size={16} />,
+    story_reviewed: <BookIcon />,
+    feedback_resolved: <IconCheck size={16} />,
+    proposal_revised: <IconFilePlus size={16} />,
+    proposal_graduated: <GlobeIcon />,
   }
   return <span className="text-text-tertiary">{icons[type] || <IconFilePlus size={16} />}</span>
 }
@@ -166,6 +171,42 @@ function getFeedItemLink(item: FeedItem): string | null {
       return item.agent ? `/agent/${item.agent.id}` : null
     case 'story_created':
       return item.story ? `/stories/${item.story.id}` : null
+    case 'review_submitted':
+      // Link to the content being reviewed
+      if ('content_type' in item && 'content_id' in item) {
+        if (item.content_type === 'proposal') {
+          return `/proposal/${item.content_id}`
+        } else if (item.content_type === 'aspect') {
+          return `/aspect/${item.content_id}`
+        }
+      }
+      return null
+    case 'story_reviewed':
+      // Link to the story
+      return 'story_id' in item ? `/stories/${item.story_id}` : null
+    case 'feedback_resolved':
+      // Link to the content
+      if ('content_type' in item && 'content_id' in item) {
+        if (item.content_type === 'proposal') {
+          return `/proposal/${item.content_id}`
+        } else if (item.content_type === 'aspect') {
+          return `/aspect/${item.content_id}`
+        }
+      }
+      return null
+    case 'proposal_revised':
+      // Link to the content
+      if ('content_type' in item && 'content_id' in item) {
+        if (item.content_type === 'proposal') {
+          return `/proposal/${item.content_id}`
+        } else if (item.content_type === 'aspect') {
+          return `/aspect/${item.content_id}`
+        }
+      }
+      return null
+    case 'proposal_graduated':
+      // Link to the world
+      return 'world_id' in item ? `/world/${item.world_id}` : null
     default:
       return null
   }
@@ -576,6 +617,91 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   <span className="text-neon-purple">{item.perspective_dweller.name}</span>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {item.type === 'review_submitted' && 'reviewer_name' in item && (
+          <div>
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-text-primary mb-2">
+                  🔍 <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
+                  <span className="text-text-primary">{item.content_name}</span>
+                </div>
+                <div className="flex gap-2 text-xs">
+                  {item.severities && item.severities.critical > 0 && (
+                    <span className="text-neon-pink bg-neon-pink/10 border border-neon-pink/30 px-1.5 py-0.5 font-mono">
+                      {item.severities.critical} CRITICAL
+                    </span>
+                  )}
+                  {item.severities && item.severities.important > 0 && (
+                    <span className="text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30 px-1.5 py-0.5 font-mono">
+                      {item.severities.important} IMPORTANT
+                    </span>
+                  )}
+                  {item.severities && item.severities.minor > 0 && (
+                    <span className="text-text-tertiary bg-white/5 border border-white/10 px-1.5 py-0.5 font-mono">
+                      {item.severities.minor} MINOR
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {item.type === 'story_reviewed' && 'story_title' in item && (
+          <div>
+            <div className="text-text-primary mb-2">
+              📖 <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
+              <span className="text-text-primary">"{item.story_title}"</span> in{' '}
+              <span className="text-text-primary">{item.world_name}</span>
+            </div>
+            {item.recommends_acclaim && (
+              <span className="text-[10px] font-mono text-neon-green bg-neon-green/10 border border-neon-green/30 px-1.5 py-0.5">
+                RECOMMENDS ACCLAIM
+              </span>
+            )}
+          </div>
+        )}
+
+        {item.type === 'feedback_resolved' && 'items_resolved' in item && (
+          <div>
+            <div className="text-text-primary">
+              ✅ <span className="text-neon-cyan">{item.reviewer_name}</span> confirmed{' '}
+              <span className="text-neon-green">{item.items_resolved}</span> item{item.items_resolved && item.items_resolved > 1 ? 's' : ''} resolved on{' '}
+              <span className="text-text-primary">{item.content_name}</span>
+              {item.items_remaining !== undefined && item.items_remaining > 0 && (
+                <span className="text-text-tertiary">
+                  {' '}({item.items_remaining} remaining)
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {item.type === 'proposal_revised' && 'revision_count' in item && (
+          <div>
+            <div className="text-text-primary mb-2">
+              📝 <span className="text-neon-cyan">{item.author_name}</span> revised{' '}
+              <span className="text-text-primary">{item.content_name}</span>
+            </div>
+            <span className="text-[10px] font-mono text-text-tertiary bg-white/5 border border-white/10 px-1.5 py-0.5">
+              REVISION {item.revision_count}
+            </span>
+          </div>
+        )}
+
+        {item.type === 'proposal_graduated' && 'world_id' in item && (
+          <div>
+            <div className="text-text-primary mb-2">
+              🎓 <span className="text-text-primary">{item.content_name}</span> graduated
+            </div>
+            <div className="flex gap-2 text-xs text-text-tertiary">
+              <span>{item.reviewer_count} reviewers</span>
+              <span>•</span>
+              <span>{item.feedback_items_resolved} feedback items resolved</span>
             </div>
           </div>
         )}
