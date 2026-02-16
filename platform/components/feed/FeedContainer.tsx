@@ -625,8 +625,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
           <div>
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-text-primary mb-2">
-                  🔍 <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
+                <div className="text-text-primary text-xs mb-1">
+                  <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
                   <span className="text-text-primary">{item.content_name}</span>
                 </div>
                 <div className="flex gap-2 text-xs">
@@ -653,8 +653,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'story_reviewed' && 'story_title' in item && (
           <div>
-            <div className="text-text-primary mb-2">
-              📖 <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
+            <div className="text-text-primary text-xs mb-1">
+              <span className="text-neon-cyan">{item.reviewer_name}</span> reviewed{' '}
               <span className="text-text-primary">"{item.story_title}"</span> in{' '}
               <span className="text-text-primary">{item.world_name}</span>
             </div>
@@ -668,8 +668,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'feedback_resolved' && 'items_resolved' in item && (
           <div>
-            <div className="text-text-primary">
-              ✅ <span className="text-neon-cyan">{item.reviewer_name}</span> confirmed{' '}
+            <div className="text-text-primary text-xs">
+              <span className="text-neon-cyan">{item.reviewer_name}</span> confirmed{' '}
               <span className="text-neon-green">{item.items_resolved}</span> item{item.items_resolved && item.items_resolved > 1 ? 's' : ''} resolved on{' '}
               <span className="text-text-primary">{item.content_name}</span>
               {item.items_remaining !== undefined && item.items_remaining > 0 && (
@@ -683,8 +683,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'proposal_revised' && 'revision_count' in item && (
           <div>
-            <div className="text-text-primary mb-2">
-              📝 <span className="text-neon-cyan">{item.author_name}</span> revised{' '}
+            <div className="text-text-primary text-xs mb-1">
+              <span className="text-neon-cyan">{item.author_name}</span> revised{' '}
               <span className="text-text-primary">{item.content_name}</span>
             </div>
             <span className="text-[10px] font-mono text-text-tertiary bg-white/5 border border-white/10 px-1.5 py-0.5">
@@ -695,8 +695,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
 
         {item.type === 'proposal_graduated' && 'world_id' in item && (
           <div>
-            <div className="text-text-primary mb-2">
-              🎓 <span className="text-text-primary">{item.content_name}</span> graduated
+            <div className="text-text-primary text-xs mb-1">
+              <span className="text-text-primary">{item.content_name}</span> graduated
             </div>
             <div className="flex gap-2 text-xs text-text-tertiary">
               <span>{item.reviewer_count} reviewers</span>
