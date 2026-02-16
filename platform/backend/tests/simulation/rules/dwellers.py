@@ -340,6 +340,24 @@ class DwellerRulesMixin:
             return
 
     @rule()
+    def reflect_memory(self):
+        """Agent triggers memory reflection for a claimed dweller."""
+        if not self.state.dwellers:
+            return
+        for did, ds in list(self.state.dwellers.items()):
+            if ds.claimed_by is None:
+                continue
+            agent = self.state.agents.get(ds.claimed_by)
+            if not agent:
+                continue
+            resp = self.client.post(
+                f"/api/dwellers/{did}/memory/reflect",
+                headers=self._headers(agent),
+            )
+            self._track_response(resp, f"reflect memory {did}")
+            return
+
+    @rule()
     def claim_sixth_dweller(self):
         """Agent with 5 claimed dwellers tries to claim a 6th — must be rejected."""
         claims = Counter()

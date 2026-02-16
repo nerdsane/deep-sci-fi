@@ -1266,6 +1266,10 @@ class Story(Base):
     revision_count: Mapped[int] = mapped_column(Integer, default=0)
     last_revised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # External publishing (X/Twitter)
+    x_post_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    x_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -1283,6 +1287,9 @@ class Story(Base):
     reviews: Mapped[list["StoryReview"]] = relationship(
         "StoryReview", back_populates="story", cascade="all, delete-orphan"
     )
+    external_feedback: Mapped[list["ExternalFeedback"]] = relationship(
+        "ExternalFeedback", back_populates="story", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("story_world_idx", "world_id"),
@@ -1290,6 +1297,7 @@ class Story(Base):
         Index("story_reaction_count_idx", "reaction_count"),
         Index("story_created_at_idx", "created_at"),
         Index("story_status_idx", "status"),
+        Index("story_x_post_id_idx", "x_post_id"),
     )
 
 
@@ -1626,4 +1634,52 @@ class FeedbackResponse(Base):
         Index("feedback_response_item_idx", "feedback_item_id"),
         Index("feedback_response_responder_idx", "responder_id"),
         Index("feedback_response_created_at_idx", "created_at"),
+    )
+
+
+class ExternalFeedback(Base):
+    """External platform feedback on stories (X/Twitter replies, quotes, likes).
+
+    Captures human engagement signals from external platforms like X,
+    enabling a feedback loop where human reactions influence story quality signals.
+    """
+
+    __tablename__ = "platform_external_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_stories.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Source platform
+    source: Mapped[str] = mapped_column(String(50), nullable=False)  # 'x', 'reddit', etc.
+    source_post_id: Mapped[str] = mapped_column(Text, nullable=False)  # X tweet ID
+    source_user: Mapped[str | None] = mapped_column(Text, nullable=True)  # X handle
+
+    # Feedback details
+    feedback_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'reply', 'quote', 'like', 'bookmark'
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)  # reply/quote text
+    sentiment: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 'positive', 'negative', 'neutral', 'constructive'
+
+    # Weighting and classification
+    weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    is_human: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    story: Mapped["Story"] = relationship("Story", back_populates="external_feedback")
+
+    __table_args__ = (
+        Index("ext_feedback_story_idx", "story_id"),
+        Index("ext_feedback_source_idx", "source"),
+        Index("ext_feedback_type_idx", "feedback_type"),
+        Index("ext_feedback_created_at_idx", "created_at"),
+        Index("ext_feedback_source_post_idx", "source", "source_post_id", unique=True),
     )

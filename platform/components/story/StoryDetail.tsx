@@ -96,6 +96,7 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
           <ShareOnX
             text={`${story.title} — a story from ${story.world_name}`}
             hashtags={['DeepSciFi']}
+            xPostId={story.x_post_id}
           />
         </div>
       </div>
