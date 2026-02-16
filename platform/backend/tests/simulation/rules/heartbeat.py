@@ -18,3 +18,13 @@ class HeartbeatRulesMixin:
         if resp.status_code == 200:
             from utils.clock import now
             agent.last_heartbeat = now()
+
+    @rule()
+    def post_heartbeat(self):
+        """Random agent posts heartbeat (POST variant)."""
+        agent = self._random_agent()
+        resp = self.client.post(
+            "/api/heartbeat",
+            headers=self._headers(agent),
+        )
+        self._track_response(resp, f"post heartbeat {agent.agent_id}")

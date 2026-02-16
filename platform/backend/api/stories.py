@@ -16,10 +16,13 @@ REVIEW SYSTEM:
 - 2 ACCLAIM votes (with author responses) → ACCLAIMED (higher ranking)
 """
 
+import logging
 from datetime import datetime
 from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
@@ -108,6 +111,7 @@ class StoryResponse(BaseModel):
     cover_image_url: str | None = None
     video_url: str | None = None
     thumbnail_url: str | None = None
+    x_post_id: str | None = None
     status: StoryStatus
     review_system: str = "LEGACY"
     reaction_count: int
@@ -149,6 +153,8 @@ class StoryDetailResponse(BaseModel):
     cover_image_url: str | None = None
     video_url: str | None = None
     thumbnail_url: str | None = None
+    x_post_id: str | None = None
+    x_published_at: datetime | None = None
     source_event_ids: list[str]
     source_action_ids: list[str]
     source_events: list[SourceEventSummary]
@@ -289,6 +295,7 @@ def story_to_response(story: Story) -> StoryResponse:
         cover_image_url=story.cover_image_url,
         video_url=story.video_url,
         thumbnail_url=story.thumbnail_url,
+        x_post_id=story.x_post_id,
         status=story.status,
         review_system=story.review_system.value if story.review_system else "LEGACY",
         reaction_count=story.reaction_count,
@@ -355,6 +362,8 @@ async def story_to_detail_response(story: Story, db: AsyncSession) -> StoryDetai
         cover_image_url=story.cover_image_url,
         video_url=story.video_url,
         thumbnail_url=story.thumbnail_url,
+        x_post_id=story.x_post_id,
+        x_published_at=story.x_published_at,
         source_event_ids=event_ids,
         source_action_ids=action_ids,
         source_events=source_events,
@@ -570,6 +579,9 @@ async def create_story(
     # Start background generation
     background_tasks.add_task(_run_generation, gen.id, "story", story.id, MediaType.VIDEO)
 
+    # Auto-publish to X in background (no-op if credentials not set)
+    background_tasks.add_task(_publish_to_x, story.id)
+
     # Add lightweight nudge to story creation response
     nudge = await build_nudge(db, current_user.id, lightweight=True)
 
@@ -713,12 +725,60 @@ async def get_story(
     # Check acclaim eligibility
     eligible, reason = check_acclaim_eligibility(story)
 
+    # Build external feedback summary if story has been published to X
+    external_feedback_summary = None
+    if story.x_post_id:
+        from db import ExternalFeedback
+        from sqlalchemy import func as sa_func
+
+        type_counts_result = await db.execute(
+            select(
+                ExternalFeedback.feedback_type,
+                sa_func.count(ExternalFeedback.id),
+            )
+            .where(ExternalFeedback.story_id == story_id)
+            .group_by(ExternalFeedback.feedback_type)
+        )
+        type_counts = {row[0]: row[1] for row in type_counts_result.all()}
+
+        # Top feedback excerpts
+        top_result = await db.execute(
+            select(ExternalFeedback)
+            .where(
+                and_(
+                    ExternalFeedback.story_id == story_id,
+                    ExternalFeedback.content.isnot(None),
+                    ExternalFeedback.feedback_type.in_(["reply", "quote"]),
+                )
+            )
+            .order_by(ExternalFeedback.weight.desc())
+            .limit(3)
+        )
+        top_excerpts = [
+            {
+                "source_user": item.source_user,
+                "type": item.feedback_type,
+                "content": item.content[:200] if item.content else None,
+                "sentiment": item.sentiment,
+            }
+            for item in top_result.scalars().all()
+        ]
+
+        external_feedback_summary = {
+            "x_post_id": story.x_post_id,
+            "reply_count": type_counts.get("reply", 0),
+            "quote_count": type_counts.get("quote", 0),
+            "like_count": type_counts.get("like", 0),
+            "top_feedback": top_excerpts,
+        }
+
     return {
         "story": (await story_to_detail_response(story, db)).model_dump(),
         "acclaim_eligibility": {
             "eligible": eligible,
             "reason": reason,
         },
+        "external_feedback_summary": external_feedback_summary,
     }
 
 
@@ -1324,6 +1384,66 @@ async def revise_story(
         response["message"] += " Your story has been ACCLAIMED!"
 
     return response
+
+
+# =============================================================================
+# X Publishing
+# =============================================================================
+
+
+async def _publish_to_x(story_id: UUID):
+    """Background task: publish story to X."""
+    try:
+        from services.x_publisher import publish_story_to_x
+        x_post_id = await publish_story_to_x(story_id)
+        if x_post_id:
+            logger.info("Story published to X: story_id=%s, x_post_id=%s", story_id, x_post_id)
+    except Exception:
+        logger.exception("Background X publishing failed for story %s", story_id)
+
+
+@router.post("/{story_id}/publish-to-x")
+async def publish_story_to_x_endpoint(
+    story_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+) -> dict[str, Any]:
+    """
+    Admin-only: manually trigger X publishing for a story.
+
+    Useful for retry after failure or publishing older stories.
+    """
+    query = select(Story).where(Story.id == story_id)
+    result = await db.execute(query)
+    story = result.scalar_one_or_none()
+
+    if not story:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Story not found",
+                story_id=str(story_id),
+                how_to_fix="Check the story_id is correct. Use GET /api/stories to list stories.",
+            ),
+        )
+
+    if story.x_post_id:
+        return {
+            "success": True,
+            "already_published": True,
+            "x_post_id": story.x_post_id,
+            "x_published_at": story.x_published_at.isoformat() if story.x_published_at else None,
+            "message": "Story is already published to X.",
+        }
+
+    background_tasks.add_task(_publish_to_x, story.id)
+
+    return {
+        "success": True,
+        "story_id": str(story_id),
+        "message": "X publishing triggered in background. Poll the story detail endpoint to check for x_post_id.",
+    }
 
 
 # =============================================================================

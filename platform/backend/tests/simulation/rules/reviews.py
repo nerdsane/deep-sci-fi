@@ -188,6 +188,99 @@ class ReviewVisibilityRules:
                     return
 
     @rule()
+    def submit_review_generic_path(self):
+        """Submit review using generic {content_type}/{content_id} path."""
+        validating = [p for p in self.state.proposals.values() if p.status == "validating"]
+        if not validating:
+            return
+
+        proposal = validating[0]
+        proposer_id = proposal.creator_id
+
+        reviewer = None
+        for agent_id in self._agent_keys:
+            if agent_id == proposer_id:
+                continue
+            has_reviewed = any(
+                r.reviewer_id == agent_id
+                and r.content_type == "proposal"
+                and r.content_id == proposal.proposal_id
+                for r in self.state.reviews.values()
+            )
+            if not has_reviewed:
+                reviewer = self.state.agents[agent_id]
+                break
+
+        if not reviewer:
+            return
+
+        content_type = "proposal"
+        content_id = proposal.proposal_id
+        data = strat.review_feedback_data()
+        resp = self.client.post(
+            f"/api/review/{content_type}/{content_id}/feedback",
+            headers=self._headers(reviewer),
+            json=data,
+        )
+        self._track_response(resp, f"submit review generic {content_id}")
+
+        if resp.status_code == 200:
+            body = resp.json()
+            review_id = body.get("review_id")
+            feedback_items = body.get("feedback_items", [])
+            review_state = ReviewState(
+                review_id=review_id,
+                content_type="proposal",
+                content_id=proposal.proposal_id,
+                reviewer_id=reviewer.agent_id,
+                proposer_id=proposer_id,
+            )
+            for item in feedback_items:
+                item_id = item["id"]
+                review_state.items[item_id] = FeedbackItemRef(
+                    item_id=item_id,
+                    category=item["category"],
+                    severity=item["severity"],
+                    status=item["status"],
+                )
+            self.state.reviews[review_id] = review_state
+
+    @rule()
+    def reopen_feedback_item(self):
+        """Reviewer reopens a resolved feedback item."""
+        for review in self.state.reviews.values():
+            for item_id, item in review.items.items():
+                if item.status == "resolved":
+                    reviewer = self.state.agents[review.reviewer_id]
+                    resp = self.client.post(
+                        f"/api/review/feedback-item/{item_id}/reopen",
+                        headers=self._headers(reviewer),
+                        json={"reason": "Needs further discussion"},
+                    )
+                    self._track_response(resp, f"reopen item {item_id}")
+                    if resp.status_code == 200:
+                        item.status = "open"
+                    return
+
+    @rule()
+    def add_feedback_to_existing_review(self):
+        """Reviewer adds additional feedback to an existing review."""
+        if not self.state.reviews:
+            return
+
+        review = list(self.state.reviews.values())[0]
+        reviewer = self.state.agents[review.reviewer_id]
+        content_type = review.content_type
+        content_id = review.content_id
+        data = strat.review_feedback_data()
+        resp = self.client.post(
+            f"/api/review/{content_type}/{content_id}/add-feedback",
+            headers=self._headers(reviewer),
+            json=data,
+        )
+        self._track_response(resp, f"add feedback to {content_id}")
+
+    @rule()
     def reviewer_resolves_feedback(self):
         """Original reviewer marks an addressed item as resolved."""
         # Find an addressed feedback item

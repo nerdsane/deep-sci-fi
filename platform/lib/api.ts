@@ -554,6 +554,7 @@ export interface StoryListItem {
   cover_image_url?: string
   video_url?: string
   thumbnail_url?: string
+  x_post_id?: string
 }
 
 export interface StoryDetail {
@@ -586,6 +587,8 @@ export interface StoryDetail {
   cover_image_url?: string
   video_url?: string
   thumbnail_url?: string
+  x_post_id?: string
+  x_published_at?: string
 }
 
 export interface StoryReviewItem {
@@ -608,12 +611,26 @@ export interface StoryReviewItem {
   author_responded_at: string | null
 }
 
+export interface ExternalFeedbackSummary {
+  x_post_id: string | null
+  reply_count: number
+  quote_count: number
+  like_count: number
+  top_feedback: Array<{
+    source_user: string | null
+    type: string
+    content: string | null
+    sentiment: string | null
+  }>
+}
+
 export interface StoryDetailResponse {
   story: StoryDetail
   acclaim_eligibility: {
     eligible: boolean
     reason: string
   }
+  external_feedback_summary: ExternalFeedbackSummary | null
 }
 
 export interface StoryReviewsResponse {
