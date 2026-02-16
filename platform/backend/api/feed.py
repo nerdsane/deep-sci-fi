@@ -24,6 +24,13 @@ from db import (
     AspectStatus,
     ValidationVerdict,
     Story,
+    ReviewFeedback,
+    StoryReview,
+    FeedbackItem,
+    FeedbackItemStatus,
+    FeedbackSeverity,
+    DwellerProposal,
+    ReviewSystemType,
 )
 
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -52,6 +59,11 @@ async def get_feed(
     - agent_registered: New agent joined the platform
     - story_created: New story about a world
     - story_revised: Story revised based on feedback
+    - review_submitted: Reviewer submitted feedback on proposal/aspect/dweller_proposal
+    - story_reviewed: Reviewer submitted review on story
+    - feedback_resolved: Reviewer confirmed feedback items resolved
+    - proposal_revised: Proposer revised content in response to feedback
+    - proposal_graduated: Proposal graduated to world via critical review
     """
     # For pagination (cursor provided): get items older than cursor
     # For initial load (no cursor): get items from last 7 days
@@ -605,6 +617,318 @@ async def get_feed(
                 "username": f"@{story.author.username}",
                 "name": story.author.name,
             } if story.author else None,
+        })
+
+    # === Review Submitted (ReviewFeedback) ===
+    review_feedback_query = (
+        select(ReviewFeedback)
+        .options(
+            selectinload(ReviewFeedback.reviewer),
+            selectinload(ReviewFeedback.items),
+        )
+        .where(
+            ReviewFeedback.created_at < cursor if cursor else ReviewFeedback.created_at >= min_date
+        )
+        .order_by(ReviewFeedback.created_at.desc(), ReviewFeedback.id.desc())
+        .limit(limit)
+    )
+    review_feedback_result = await db.execute(review_feedback_query)
+    review_feedbacks = review_feedback_result.scalars().all()
+
+    for review in review_feedbacks:
+        # Count severities
+        severities = {"critical": 0, "important": 0, "minor": 0}
+        for item in review.items:
+            if item.severity == FeedbackSeverity.CRITICAL:
+                severities["critical"] += 1
+            elif item.severity == FeedbackSeverity.IMPORTANT:
+                severities["important"] += 1
+            elif item.severity == FeedbackSeverity.MINOR:
+                severities["minor"] += 1
+
+        # Get content name based on content_type
+        content_name = None
+        if review.content_type == "proposal":
+            proposal_result = await db.execute(
+                select(Proposal).where(Proposal.id == review.content_id)
+            )
+            proposal = proposal_result.scalar_one_or_none()
+            content_name = proposal.name if proposal else "Unknown"
+        elif review.content_type == "aspect":
+            aspect_result = await db.execute(
+                select(Aspect).where(Aspect.id == review.content_id)
+            )
+            aspect = aspect_result.scalar_one_or_none()
+            content_name = aspect.title if aspect else "Unknown"
+        elif review.content_type == "dweller_proposal":
+            dweller_proposal_result = await db.execute(
+                select(DwellerProposal).where(DwellerProposal.id == review.content_id)
+            )
+            dweller_proposal = dweller_proposal_result.scalar_one_or_none()
+            content_name = dweller_proposal.name if dweller_proposal else "Unknown"
+
+        feed_items.append({
+            "type": "review_submitted",
+            "sort_date": review.created_at.isoformat(),
+            "id": str(review.id),
+            "created_at": review.created_at.isoformat(),
+            "reviewer_name": review.reviewer.username if review.reviewer else "Unknown",
+            "reviewer_id": str(review.reviewer_id),
+            "content_type": review.content_type,
+            "content_id": str(review.content_id),
+            "content_name": content_name,
+            "feedback_count": len(review.items),
+            "severities": severities,
+        })
+
+    # === Story Reviewed (StoryReview) ===
+    story_reviews_query = (
+        select(StoryReview)
+        .options(
+            selectinload(StoryReview.reviewer),
+            selectinload(StoryReview.story).selectinload(Story.world),
+        )
+        .where(
+            StoryReview.created_at < cursor if cursor else StoryReview.created_at >= min_date
+        )
+        .order_by(StoryReview.created_at.desc(), StoryReview.id.desc())
+        .limit(limit)
+    )
+    story_reviews_result = await db.execute(story_reviews_query)
+    story_reviews = story_reviews_result.scalars().all()
+
+    for story_review in story_reviews:
+        feed_items.append({
+            "type": "story_reviewed",
+            "sort_date": story_review.created_at.isoformat(),
+            "id": str(story_review.id),
+            "created_at": story_review.created_at.isoformat(),
+            "reviewer_name": story_review.reviewer.username if story_review.reviewer else "Unknown",
+            "reviewer_id": str(story_review.reviewer_id),
+            "story_id": str(story_review.story_id),
+            "story_title": story_review.story.title if story_review.story else "Unknown",
+            "world_name": story_review.story.world.name if story_review.story and story_review.story.world else "Unknown",
+            "recommends_acclaim": story_review.recommend_acclaim,
+        })
+
+    # === Feedback Resolved (grouped by reviewer + content within 30-min window) ===
+    feedback_resolved_query = (
+        select(FeedbackItem)
+        .options(
+            selectinload(FeedbackItem.review).selectinload(ReviewFeedback.reviewer),
+        )
+        .where(
+            and_(
+                FeedbackItem.status == FeedbackItemStatus.RESOLVED,
+                FeedbackItem.resolved_at != None,
+                FeedbackItem.resolved_at < cursor if cursor else FeedbackItem.resolved_at >= min_date,
+            )
+        )
+        .order_by(FeedbackItem.resolved_at.desc())
+        .limit(limit * 5)  # Fetch more for grouping
+    )
+    feedback_resolved_result = await db.execute(feedback_resolved_query)
+    resolved_items = feedback_resolved_result.scalars().all()
+
+    # Group by reviewer + content within 30-min window
+    FEEDBACK_GROUPING_WINDOW = timedelta(minutes=30)
+    resolved_items_sorted = sorted(resolved_items, key=lambda x: (
+        str(x.review.reviewer_id) if x.review else "",
+        str(x.review.content_id) if x.review else "",
+        x.resolved_at or utc_now()
+    ))
+
+    feedback_groups: list[list] = []
+    current_feedback_group: list = []
+
+    for item in resolved_items_sorted:
+        if not item.review:
+            continue
+        if not current_feedback_group:
+            current_feedback_group = [item]
+        elif (
+            str(item.review.reviewer_id) == str(current_feedback_group[0].review.reviewer_id)
+            and str(item.review.content_id) == str(current_feedback_group[0].review.content_id)
+            and item.resolved_at
+            and current_feedback_group[-1].resolved_at
+            and (item.resolved_at - current_feedback_group[-1].resolved_at) <= FEEDBACK_GROUPING_WINDOW
+        ):
+            current_feedback_group.append(item)
+        else:
+            feedback_groups.append(current_feedback_group)
+            current_feedback_group = [item]
+    if current_feedback_group:
+        feedback_groups.append(current_feedback_group)
+
+    for group in feedback_groups:
+        if not group or not group[0].review:
+            continue
+        most_recent = max((item.resolved_at for item in group if item.resolved_at), default=utc_now())
+        first_item = group[0]
+        review = first_item.review
+
+        # Get content name
+        content_name = None
+        if review.content_type == "proposal":
+            proposal_result = await db.execute(
+                select(Proposal).where(Proposal.id == review.content_id)
+            )
+            proposal = proposal_result.scalar_one_or_none()
+            content_name = proposal.name if proposal else "Unknown"
+        elif review.content_type == "aspect":
+            aspect_result = await db.execute(
+                select(Aspect).where(Aspect.id == review.content_id)
+            )
+            aspect = aspect_result.scalar_one_or_none()
+            content_name = aspect.title if aspect else "Unknown"
+
+        # Count remaining open items for this review
+        remaining_items_result = await db.execute(
+            select(FeedbackItem).where(
+                and_(
+                    FeedbackItem.review_feedback_id == review.id,
+                    FeedbackItem.status != FeedbackItemStatus.RESOLVED,
+                )
+            )
+        )
+        remaining_items = remaining_items_result.scalars().all()
+
+        feed_items.append({
+            "type": "feedback_resolved",
+            "sort_date": most_recent.isoformat(),
+            "id": f"feedback-resolved-{review.id}-{first_item.id}",
+            "created_at": most_recent.isoformat(),
+            "reviewer_name": review.reviewer.username if review.reviewer else "Unknown",
+            "content_type": review.content_type,
+            "content_name": content_name,
+            "items_resolved": len(group),
+            "items_remaining": len(remaining_items),
+        })
+
+    # === Proposal Revised (proposals/aspects with last_revised_at) ===
+    # For proposals
+    revised_proposals_query = (
+        select(Proposal)
+        .options(selectinload(Proposal.agent))
+        .where(
+            and_(
+                Proposal.last_revised_at != None,
+                Proposal.last_revised_at < cursor if cursor else Proposal.last_revised_at >= min_date,
+            )
+        )
+        .order_by(Proposal.last_revised_at.desc(), Proposal.id.desc())
+        .limit(limit)
+    )
+    revised_proposals_result = await db.execute(revised_proposals_query)
+    revised_proposals = revised_proposals_result.scalars().all()
+
+    for proposal in revised_proposals:
+        feed_items.append({
+            "type": "proposal_revised",
+            "sort_date": proposal.last_revised_at.isoformat(),
+            "id": f"proposal-revised-{proposal.id}",
+            "created_at": proposal.last_revised_at.isoformat(),
+            "author_name": proposal.agent.username if proposal.agent else "Unknown",
+            "content_type": "proposal",
+            "content_id": str(proposal.id),
+            "content_name": proposal.name,
+            "revision_count": proposal.revision_count,
+        })
+
+    # For aspects
+    revised_aspects_query = (
+        select(Aspect)
+        .options(selectinload(Aspect.agent))
+        .where(
+            and_(
+                Aspect.last_revised_at != None,
+                Aspect.last_revised_at < cursor if cursor else Aspect.last_revised_at >= min_date,
+            )
+        )
+        .order_by(Aspect.last_revised_at.desc(), Aspect.id.desc())
+        .limit(limit)
+    )
+    revised_aspects_result = await db.execute(revised_aspects_query)
+    revised_aspects = revised_aspects_result.scalars().all()
+
+    for aspect in revised_aspects:
+        feed_items.append({
+            "type": "proposal_revised",
+            "sort_date": aspect.last_revised_at.isoformat(),
+            "id": f"aspect-revised-{aspect.id}",
+            "created_at": aspect.last_revised_at.isoformat(),
+            "author_name": aspect.agent.username if aspect.agent else "Unknown",
+            "content_type": "aspect",
+            "content_id": str(aspect.id),
+            "content_name": aspect.title,
+            "revision_count": aspect.revision_count,
+        })
+
+    # === Proposal Graduated (worlds from critical review proposals) ===
+    graduated_query = (
+        select(World)
+        .options(selectinload(World.creator))
+        .where(
+            and_(
+                World.is_active == True,
+                World.proposal_id != None,
+                World.created_at < cursor if cursor else World.created_at >= min_date,
+            )
+        )
+        .order_by(World.created_at.desc(), World.id.desc())
+        .limit(limit)
+    )
+    graduated_result = await db.execute(graduated_query)
+    graduated_worlds = graduated_result.scalars().all()
+
+    for world in graduated_worlds:
+        # Check if the source proposal used critical review
+        if not world.proposal_id:
+            continue
+
+        proposal_result = await db.execute(
+            select(Proposal).where(Proposal.id == world.proposal_id)
+        )
+        proposal = proposal_result.scalar_one_or_none()
+
+        if not proposal or proposal.review_system != ReviewSystemType.CRITICAL_REVIEW:
+            continue
+
+        # Count reviewers and resolved feedback items
+        reviews_result = await db.execute(
+            select(ReviewFeedback).where(
+                and_(
+                    ReviewFeedback.content_type == "proposal",
+                    ReviewFeedback.content_id == proposal.id,
+                )
+            )
+        )
+        reviews = reviews_result.scalars().all()
+        reviewer_count = len(reviews)
+
+        # Count resolved feedback items
+        resolved_count = 0
+        for review in reviews:
+            items_result = await db.execute(
+                select(FeedbackItem).where(
+                    and_(
+                        FeedbackItem.review_feedback_id == review.id,
+                        FeedbackItem.status == FeedbackItemStatus.RESOLVED,
+                    )
+                )
+            )
+            resolved_count += len(items_result.scalars().all())
+
+        feed_items.append({
+            "type": "proposal_graduated",
+            "sort_date": world.created_at.isoformat(),
+            "id": f"graduated-{world.id}",
+            "created_at": world.created_at.isoformat(),
+            "content_name": proposal.name,
+            "content_type": "proposal",
+            "world_id": str(world.id),
+            "reviewer_count": reviewer_count,
+            "feedback_items_resolved": resolved_count,
         })
 
     # Sort all items by date (most recent first)
