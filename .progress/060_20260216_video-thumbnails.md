@@ -1,8 +1,9 @@
 # 060: Video Thumbnails + Cover Images for Stories
 
 **Date:** 2026-02-16
-**Status:** In Progress
-**Branch:** staging first
+**Status:** Complete
+**Branch:** staging
+**Commit:** c4190fc
 
 ## Problem
 
@@ -65,3 +66,29 @@ Ongoing: $0.02 per new story (in addition to $0.50 video)
 - Create a story on staging, verify video + cover image both generate
 - Check OG meta tags serve the cover_image_url
 - Verify backfill works for existing stories
+
+## Implementation Summary
+
+### Changes Made
+
+1. **Auto-queue cover image after video** (`_run_generation()`):
+   - After VIDEO generation completes for a story, checks if `story.video_prompt` exists and `story.cover_image_url` is None
+   - If both conditions met, creates new COVER_IMAGE MediaGeneration with same prompt
+   - Uses `asyncio.create_task()` to fire and forget the cover image generation
+
+2. **Backfill reuses video_prompt** (`backfill_media()`):
+   - When backfilling cover images for stories, checks if `story.video_prompt` exists
+   - If yes, reuses `video_prompt` instead of generating new prompt via LLM
+   - Ensures visual consistency between video and cover image
+
+### Testing
+
+- ✅ TypeScript type checking passed (`tsc --noEmit`)
+- ✅ Python imports successfully
+- ✅ Backend tests passed (77 passed, 213 skipped)
+- ✅ Logic flow verified
+
+### Deployment
+
+- Pushed to staging branch (commit c4190fc)
+- Ready for staging deployment and testing
