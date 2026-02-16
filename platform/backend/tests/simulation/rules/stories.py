@@ -190,6 +190,23 @@ class StoryRulesMixin:
         )
 
     @rule()
+    def publish_story_to_x(self):
+        """Admin publishes a story to X (no-op without credentials)."""
+        if not self.state.stories:
+            return
+        sid = list(self.state.stories.keys())[0]
+        resp = self.client.post(
+            f"/api/stories/{sid}/publish-to-x",
+            headers=self._admin_headers(),
+        )
+        self._track_response(resp, f"publish story to X {sid}")
+        # Expect 200 (published or skipped) — never 500
+        assert resp.status_code in (200, 404), (
+            f"Publish-to-X should return 200/404 but got {resp.status_code}: "
+            f"{resp.text[:200]}"
+        )
+
+    @rule()
     def review_story_no_acclaim(self):
         """Non-author reviews a story WITHOUT recommending acclaim."""
         if not self.state.stories:
