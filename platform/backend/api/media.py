@@ -7,6 +7,7 @@ Async generation flow:
 4. Agent polls status (GET)
 """
 
+import asyncio
 import logging
 import os
 import uuid as uuid_mod
@@ -162,6 +163,24 @@ async def _run_generation(generation_id: UUID, target_type: str, target_id: UUID
 
             await db.commit()
             logger.info(f"Generation {generation_id} completed: {media_url}")
+
+            # Auto-generate cover image after video completion
+            if target_type == "story" and media_type == MediaType.VIDEO:
+                story = await db.get(Story, target_id)
+                if story and story.video_prompt and not story.cover_image_url:
+                    logger.info(f"Auto-queuing cover image for story {target_id} after video completion")
+                    cover_gen = MediaGeneration(
+                        requested_by=gen.requested_by,
+                        target_type="story",
+                        target_id=target_id,
+                        media_type=MediaType.COVER_IMAGE,
+                        prompt=story.video_prompt,
+                        provider="grok_imagine_image",
+                    )
+                    db.add(cover_gen)
+                    await db.commit()
+                    # Fire and forget - don't wait for this to complete
+                    asyncio.create_task(_run_generation(cover_gen.id, "story", target_id, MediaType.COVER_IMAGE))
 
         except Exception as e:
             gen.status = MediaGenerationStatus.FAILED
@@ -437,15 +456,20 @@ async def backfill_media(
 
             # Generate cover image if missing
             if not story.cover_image_url:
-                img_prompt = await generate_image_prompt(
-                    title=story.title,
-                    content=story.content,
-                    world_name=world_name,
-                    world_premise=world_premise,
-                    year_setting=year_setting,
-                    perspective=perspective_str,
-                    dweller_name=dweller_name,
-                )
+                # If story has a video_prompt (from existing video), reuse it for consistency
+                # Otherwise generate a fresh prompt from the story content
+                if story.video_prompt:
+                    img_prompt = story.video_prompt
+                else:
+                    img_prompt = await generate_image_prompt(
+                        title=story.title,
+                        content=story.content,
+                        world_name=world_name,
+                        world_premise=world_premise,
+                        year_setting=year_setting,
+                        perspective=perspective_str,
+                        dweller_name=dweller_name,
+                    )
                 img_gen = MediaGeneration(
                     requested_by=current_user.id,
                     target_type="story",
