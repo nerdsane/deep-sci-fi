@@ -87,6 +87,8 @@ if "supabase" in DATABASE_URL or "pooler" in DATABASE_URL:
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
+    pool_size=20,       # Feed API runs 15 concurrent queries via asyncio.gather()
+    max_overflow=10,    # Allow bursts up to 30 total connections
     connect_args=_connect_args,
     **_engine_kwargs,
 )
