@@ -88,7 +88,7 @@ async def _fetch_worlds(cursor: datetime | None, min_date: datetime, limit: int)
             .where(
                 and_(
                     World.is_active == True,
-                    World.created_at < cursor if cursor else World.created_at >= min_date,
+                    (World.created_at < cursor) if cursor else (World.created_at >= min_date),
                 )
             )
             .order_by(World.created_at.desc(), World.id.desc())
@@ -106,7 +106,7 @@ async def _fetch_proposals(cursor: datetime | None, min_date: datetime, limit: i
             .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
             .where(
                 and_(
-                    Proposal.created_at < cursor if cursor else Proposal.created_at >= min_date,
+                    (Proposal.created_at < cursor) if cursor else (Proposal.created_at >= min_date),
                     Proposal.status.in_([ProposalStatus.VALIDATING, ProposalStatus.APPROVED, ProposalStatus.REJECTED]),
                 )
             )
@@ -126,7 +126,7 @@ async def _fetch_validations(cursor: datetime | None, min_date: datetime, limit:
                 selectinload(Validation.agent),
                 selectinload(Validation.proposal).selectinload(Proposal.agent),
             )
-            .where(Validation.created_at < cursor if cursor else Validation.created_at >= min_date)
+            .where((Validation.created_at < cursor) if cursor else (Validation.created_at >= min_date))
             .order_by(Validation.created_at.desc(), Validation.id.desc())
             .limit(limit)
         )
@@ -146,7 +146,7 @@ async def _fetch_aspects(cursor: datetime | None, min_date: datetime, limit: int
             )
             .where(
                 and_(
-                    Aspect.created_at < cursor if cursor else Aspect.created_at >= min_date,
+                    (Aspect.created_at < cursor) if cursor else (Aspect.created_at >= min_date),
                     Aspect.status.in_([AspectStatus.VALIDATING, AspectStatus.APPROVED]),
                 )
             )
@@ -166,7 +166,7 @@ async def _fetch_actions(cursor: datetime | None, min_date: datetime, limit: int
                 selectinload(DwellerAction.dweller).selectinload(Dweller.world),
                 selectinload(DwellerAction.actor),
             )
-            .where(DwellerAction.created_at < cursor if cursor else DwellerAction.created_at >= min_date)
+            .where((DwellerAction.created_at < cursor) if cursor else (DwellerAction.created_at >= min_date))
             .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
             .limit(limit * 5)
         )
@@ -187,7 +187,7 @@ async def _fetch_dwellers(cursor: datetime | None, min_date: datetime, limit: in
             .where(
                 and_(
                     Dweller.is_active == True,
-                    Dweller.created_at < cursor if cursor else Dweller.created_at >= min_date,
+                    (Dweller.created_at < cursor) if cursor else (Dweller.created_at >= min_date),
                 )
             )
             .order_by(Dweller.created_at.desc(), Dweller.id.desc())
@@ -205,7 +205,7 @@ async def _fetch_agents(cursor: datetime | None, min_date: datetime, limit: int)
             .where(
                 and_(
                     User.type == UserType.AGENT,
-                    User.created_at < cursor if cursor else User.created_at >= min_date,
+                    (User.created_at < cursor) if cursor else (User.created_at >= min_date),
                 )
             )
             .order_by(User.created_at.desc(), User.id.desc())
@@ -225,7 +225,7 @@ async def _fetch_stories(cursor: datetime | None, min_date: datetime, limit: int
                 selectinload(Story.author),
                 selectinload(Story.perspective_dweller),
             )
-            .where(Story.created_at < cursor if cursor else Story.created_at >= min_date)
+            .where((Story.created_at < cursor) if cursor else (Story.created_at >= min_date))
             .order_by(Story.created_at.desc(), Story.id.desc())
             .limit(limit)
         )
@@ -246,7 +246,7 @@ async def _fetch_revised_stories(cursor: datetime | None, min_date: datetime, li
                 and_(
                     Story.revision_count > 0,
                     Story.last_revised_at != None,
-                    Story.last_revised_at < cursor if cursor else Story.last_revised_at >= min_date,
+                    (Story.last_revised_at < cursor) if cursor else (Story.last_revised_at >= min_date),
                 )
             )
             .order_by(Story.last_revised_at.desc(), Story.id.desc())
@@ -267,7 +267,7 @@ async def _fetch_review_feedbacks(cursor: datetime | None, min_date: datetime, l
                 selectinload(ReviewFeedback.items),
             )
             .where(
-                ReviewFeedback.created_at < cursor if cursor else ReviewFeedback.created_at >= min_date
+                (ReviewFeedback.created_at < cursor) if cursor else (ReviewFeedback.created_at >= min_date)
             )
             .order_by(ReviewFeedback.created_at.desc(), ReviewFeedback.id.desc())
             .limit(limit)
@@ -321,7 +321,7 @@ async def _fetch_story_reviews(cursor: datetime | None, min_date: datetime, limi
                 selectinload(StoryReview.story).selectinload(Story.world),
             )
             .where(
-                StoryReview.created_at < cursor if cursor else StoryReview.created_at >= min_date
+                (StoryReview.created_at < cursor) if cursor else (StoryReview.created_at >= min_date)
             )
             .order_by(StoryReview.created_at.desc(), StoryReview.id.desc())
             .limit(limit)
@@ -343,7 +343,7 @@ async def _fetch_resolved_feedback(cursor: datetime | None, min_date: datetime, 
                 and_(
                     FeedbackItem.status == FeedbackItemStatus.RESOLVED,
                     FeedbackItem.resolved_at != None,
-                    FeedbackItem.resolved_at < cursor if cursor else FeedbackItem.resolved_at >= min_date,
+                    (FeedbackItem.resolved_at < cursor) if cursor else (FeedbackItem.resolved_at >= min_date),
                 )
             )
             .order_by(FeedbackItem.resolved_at.desc())
@@ -445,7 +445,7 @@ async def _fetch_revised_proposals(cursor: datetime | None, min_date: datetime, 
             .where(
                 and_(
                     Proposal.last_revised_at != None,
-                    Proposal.last_revised_at < cursor if cursor else Proposal.last_revised_at >= min_date,
+                    (Proposal.last_revised_at < cursor) if cursor else (Proposal.last_revised_at >= min_date),
                 )
             )
             .order_by(Proposal.last_revised_at.desc(), Proposal.id.desc())
@@ -464,7 +464,7 @@ async def _fetch_revised_aspects(cursor: datetime | None, min_date: datetime, li
             .where(
                 and_(
                     Aspect.last_revised_at != None,
-                    Aspect.last_revised_at < cursor if cursor else Aspect.last_revised_at >= min_date,
+                    (Aspect.last_revised_at < cursor) if cursor else (Aspect.last_revised_at >= min_date),
                 )
             )
             .order_by(Aspect.last_revised_at.desc(), Aspect.id.desc())
@@ -485,7 +485,7 @@ async def _fetch_graduated_worlds(cursor: datetime | None, min_date: datetime, l
                 and_(
                     World.is_active == True,
                     World.proposal_id != None,
-                    World.created_at < cursor if cursor else World.created_at >= min_date,
+                    (World.created_at < cursor) if cursor else (World.created_at >= min_date),
                 )
             )
             .order_by(World.created_at.desc(), World.id.desc())
