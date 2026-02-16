@@ -20,6 +20,9 @@ try:
 except ImportError:
     _logfire_available = False
 
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
+
 from db import (
     get_db,
     SessionLocal,
@@ -50,6 +53,20 @@ router = APIRouter(prefix="/feed", tags=["feed"])
 # In-memory cache with TTL
 _feed_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
 CACHE_TTL_SECONDS = 30
+
+# Separate engine with NullPool for concurrent feed queries.
+# asyncio.gather() runs 15 queries simultaneously — a pooled engine can hand out
+# connections that still have operations in progress, causing asyncpg InterfaceError.
+# NullPool creates a fresh connection per checkout, guaranteeing isolation.
+from db.database import DATABASE_URL, _connect_args, _engine_kwargs
+_feed_engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    poolclass=NullPool,
+    connect_args=_connect_args,
+    **_engine_kwargs,
+)
+_FeedSession = async_sessionmaker(_feed_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 def _get_cache_key(cursor: datetime | None, limit: int) -> str:
@@ -91,7 +108,7 @@ def _cache_feed(cursor: datetime | None, limit: int, data: dict[str, Any]) -> No
 
 async def _fetch_worlds(cursor: datetime | None, min_date: datetime, limit: int) -> list[World]:
     """Fetch new worlds."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(World)
             .options(selectinload(World.creator))
@@ -110,7 +127,7 @@ async def _fetch_worlds(cursor: datetime | None, min_date: datetime, limit: int)
 
 async def _fetch_proposals(cursor: datetime | None, min_date: datetime, limit: int) -> list[Proposal]:
     """Fetch proposals."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Proposal)
             .options(selectinload(Proposal.agent), selectinload(Proposal.validations))
@@ -129,7 +146,7 @@ async def _fetch_proposals(cursor: datetime | None, min_date: datetime, limit: i
 
 async def _fetch_validations(cursor: datetime | None, min_date: datetime, limit: int) -> list[Validation]:
     """Fetch validations."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Validation)
             .options(
@@ -146,7 +163,7 @@ async def _fetch_validations(cursor: datetime | None, min_date: datetime, limit:
 
 async def _fetch_aspects(cursor: datetime | None, min_date: datetime, limit: int) -> list[Aspect]:
     """Fetch aspects."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Aspect)
             .options(
@@ -169,7 +186,7 @@ async def _fetch_aspects(cursor: datetime | None, min_date: datetime, limit: int
 
 async def _fetch_actions(cursor: datetime | None, min_date: datetime, limit: int) -> list[DwellerAction]:
     """Fetch dweller actions."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(DwellerAction)
             .options(
@@ -186,7 +203,7 @@ async def _fetch_actions(cursor: datetime | None, min_date: datetime, limit: int
 
 async def _fetch_dwellers(cursor: datetime | None, min_date: datetime, limit: int) -> list[Dweller]:
     """Fetch dwellers."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Dweller)
             .options(
@@ -209,7 +226,7 @@ async def _fetch_dwellers(cursor: datetime | None, min_date: datetime, limit: in
 
 async def _fetch_agents(cursor: datetime | None, min_date: datetime, limit: int) -> list[User]:
     """Fetch new agents."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(User)
             .where(
@@ -227,7 +244,7 @@ async def _fetch_agents(cursor: datetime | None, min_date: datetime, limit: int)
 
 async def _fetch_stories(cursor: datetime | None, min_date: datetime, limit: int) -> list[Story]:
     """Fetch stories."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Story)
             .options(
@@ -245,7 +262,7 @@ async def _fetch_stories(cursor: datetime | None, min_date: datetime, limit: int
 
 async def _fetch_revised_stories(cursor: datetime | None, min_date: datetime, limit: int) -> list[Story]:
     """Fetch revised stories."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Story)
             .options(
@@ -268,7 +285,7 @@ async def _fetch_revised_stories(cursor: datetime | None, min_date: datetime, li
 
 async def _fetch_review_feedbacks(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[ReviewFeedback, str | None]]:
     """Fetch review feedbacks with content names (batch-optimized)."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         # Fetch review feedbacks
         query = (
             select(ReviewFeedback)
@@ -323,7 +340,7 @@ async def _fetch_review_feedbacks(cursor: datetime | None, min_date: datetime, l
 
 async def _fetch_story_reviews(cursor: datetime | None, min_date: datetime, limit: int) -> list[StoryReview]:
     """Fetch story reviews."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(StoryReview)
             .options(
@@ -342,7 +359,7 @@ async def _fetch_story_reviews(cursor: datetime | None, min_date: datetime, limi
 
 async def _fetch_resolved_feedback(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[list[FeedbackItem], str | None, int]]:
     """Fetch resolved feedback items grouped by reviewer+content, with batch-optimized content names and remaining counts."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         # Fetch resolved items
         query = (
             select(FeedbackItem)
@@ -448,7 +465,7 @@ async def _fetch_resolved_feedback(cursor: datetime | None, min_date: datetime, 
 
 async def _fetch_revised_proposals(cursor: datetime | None, min_date: datetime, limit: int) -> list[Proposal]:
     """Fetch revised proposals."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Proposal)
             .options(selectinload(Proposal.agent))
@@ -467,7 +484,7 @@ async def _fetch_revised_proposals(cursor: datetime | None, min_date: datetime, 
 
 async def _fetch_revised_aspects(cursor: datetime | None, min_date: datetime, limit: int) -> list[Aspect]:
     """Fetch revised aspects."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         query = (
             select(Aspect)
             .options(selectinload(Aspect.agent))
@@ -486,7 +503,7 @@ async def _fetch_revised_aspects(cursor: datetime | None, min_date: datetime, li
 
 async def _fetch_graduated_worlds(cursor: datetime | None, min_date: datetime, limit: int) -> list[tuple[World, Proposal, int, int]]:
     """Fetch graduated worlds with batch-optimized reviewer and resolved counts."""
-    async with SessionLocal() as session:
+    async with _FeedSession() as session:
         # Fetch graduated worlds
         query = (
             select(World)
