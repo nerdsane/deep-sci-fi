@@ -717,10 +717,95 @@ export function FeedContainer() {
   const [error, setError] = useState<string | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
+  const [useSSE, setUseSSE] = useState(true) // Try SSE first, fallback to JSON
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
-  const loadFeed = useCallback(async (loadMore = false) => {
+  const loadFeedSSE = useCallback((loadMore = false, cursorParam?: string | null) => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.deep-sci-fi.world'
+    const params = new URLSearchParams({ limit: '20' })
+    if (loadMore && cursorParam) {
+      params.set('cursor', cursorParam)
+    }
+
+    const url = `${API_BASE}/api/feed/stream?${params}`
+    const es = new EventSource(url)
+
+    if (loadMore) {
+      setLoadingMore(true)
+    }
+
+    let accumulatedItems: FeedItem[] = []
+
+    es.addEventListener('feed_items', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        const newItems: FeedItem[] = data.items || []
+
+        // Accumulate items
+        accumulatedItems = [...accumulatedItems, ...newItems]
+
+        // For initial load, update UI progressively (each batch)
+        // For load more, only update on completion to avoid O(n²) deduplication
+        if (!loadMore) {
+          setFeedItems(accumulatedItems)
+        }
+
+        // Hide skeleton on first items
+        if (accumulatedItems.length > 0) {
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE feed_items event:', err)
+      }
+    })
+
+    es.addEventListener('feed_complete', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+
+        // If loading more, merge accumulated items now (with deduplication)
+        if (loadMore) {
+          setFeedItems(prev => {
+            const merged = [...prev, ...accumulatedItems]
+            const seen = new Set<string>()
+            return merged.filter(item => {
+              const key = `${item.type}-${item.id}`
+              if (seen.has(key)) return false
+              seen.add(key)
+              return true
+            })
+          })
+        }
+
+        setCursor(data.next_cursor || null)
+        setHasMore(data.next_cursor !== null)
+        setLoading(false)
+        setLoadingMore(false)
+      } catch (err) {
+        console.error('Failed to parse SSE feed_complete event:', err)
+      } finally {
+        es.close()
+      }
+    })
+
+    es.onerror = (err) => {
+      console.error('SSE error, falling back to JSON:', err)
+      es.close()
+      setUseSSE(false) // Fallback to JSON
+      setError('Streaming failed, retrying with standard fetch...')
+      // The fallback will be triggered by the useEffect watching useSSE
+    }
+
+    eventSourceRef.current = es
+
+    return () => {
+      es.close()
+    }
+  }, [])
+
+  const loadFeedJSON = useCallback(async (loadMore = false) => {
     try {
       setError(null)
       if (loadMore) {
@@ -745,9 +830,18 @@ export function FeedContainer() {
     }
   }, [cursor])
 
-  // Poll for new items every 30 seconds
+  // Initial load
   useEffect(() => {
-    if (loading) return
+    if (useSSE && typeof EventSource !== 'undefined') {
+      return loadFeedSSE(false)
+    } else {
+      loadFeedJSON()
+    }
+  }, [useSSE])
+
+  // Poll for new items every 30 seconds (only when using JSON fallback)
+  useEffect(() => {
+    if (loading || useSSE) return
 
     const pollForNewItems = async () => {
       if (feedItems.length === 0) return
@@ -771,12 +865,7 @@ export function FeedContainer() {
 
     const interval = setInterval(pollForNewItems, 30000)
     return () => clearInterval(interval)
-  }, [loading, feedItems])
-
-  // Initial load
-  useEffect(() => {
-    loadFeed()
-  }, [])
+  }, [loading, feedItems, useSSE])
 
   // Infinite scroll with Intersection Observer
   useEffect(() => {
@@ -785,7 +874,11 @@ export function FeedContainer() {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          loadFeed(true)
+          if (useSSE && typeof EventSource !== 'undefined') {
+            loadFeedSSE(true, cursor)
+          } else {
+            loadFeedJSON(true)
+          }
         }
       },
       { rootMargin: '200px' }
@@ -798,7 +891,14 @@ export function FeedContainer() {
     return () => {
       observerRef.current?.disconnect()
     }
-  }, [loading, hasMore, loadingMore, loadFeed])
+  }, [loading, hasMore, loadingMore, cursor, useSSE, loadFeedSSE, loadFeedJSON])
+
+  // Cleanup EventSource on unmount
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close()
+    }
+  }, [])
 
   if (loading && feedItems.length === 0) {
     return <FeedSkeleton count={3} />
@@ -809,7 +909,15 @@ export function FeedContainer() {
       <div className="text-center py-20 animate-fade-in">
         <p className="text-neon-pink mb-4">{error}</p>
         <button
-          onClick={() => loadFeed()}
+          onClick={() => {
+            setError(null)
+            setLoading(true)
+            if (useSSE && typeof EventSource !== 'undefined') {
+              loadFeedSSE(false)
+            } else {
+              loadFeedJSON()
+            }
+          }}
           className="px-4 py-2 bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50 hover:bg-neon-cyan/30 transition"
         >
           TRY AGAIN
