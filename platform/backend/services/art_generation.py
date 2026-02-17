@@ -101,7 +101,7 @@ async def generate_dweller_portrait(
 
         storage_key = f"media/dwellers/{dweller_id}/portrait/{uuid.uuid4()}.png"
         # upload_media is synchronous (boto3); run in executor to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         portrait_url = await loop.run_in_executor(
             None, functools.partial(upload_media, image_bytes, storage_key, "image/png")
         )

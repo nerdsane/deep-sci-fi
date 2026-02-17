@@ -33,6 +33,7 @@ You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
 import asyncio
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
@@ -65,6 +66,8 @@ from guidance import (
     MEMORY_UPDATE_PHILOSOPHY,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 
 # Session timeout constants
@@ -89,12 +92,14 @@ async def _generate_portrait_background(dweller_id: str, dweller_data: dict, wor
     if not portrait_url:
         return
 
-    async with SessionLocal() as db:
-        from uuid import UUID as UUIDType
-        dweller = await db.get(Dweller, UUIDType(dweller_id))
-        if dweller:
-            dweller.portrait_url = portrait_url
-            await db.commit()
+    try:
+        async with SessionLocal() as db:
+            dweller = await db.get(Dweller, UUID(dweller_id))
+            if dweller:
+                dweller.portrait_url = portrait_url
+                await db.commit()
+    except Exception:
+        logger.exception(f"Failed to persist portrait_url for dweller {dweller_id}")
 
 
 def _match_region(query: str, regions: list[dict]) -> dict | None:
@@ -826,6 +831,7 @@ async def list_dwellers(
                 "specific_location": d.specific_location,
                 "is_available": d.is_available,
                 "inhabited_by": str(d.inhabited_by) if d.inhabited_by else None,
+                "portrait_url": d.portrait_url,
             }
             for d in dwellers
         ],
@@ -885,6 +891,7 @@ async def get_dweller(
             # Meta
             "is_available": dweller.is_available,
             "inhabited_by": str(dweller.inhabited_by) if dweller.inhabited_by else None,
+            "portrait_url": dweller.portrait_url,
             "created_at": dweller.created_at.isoformat(),
             "updated_at": dweller.updated_at.isoformat(),
         },
