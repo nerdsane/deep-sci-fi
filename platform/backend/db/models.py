@@ -630,6 +630,7 @@ class Dweller(Base):
 
     # === Art ===
     portrait_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # Generated portrait image
+    image_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)  # Agent-supplied portrait prompt (bypasses Anthropic)
 
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?

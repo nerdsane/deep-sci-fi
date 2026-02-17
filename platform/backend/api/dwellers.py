@@ -83,12 +83,14 @@ _background_tasks: set = set()
 # ============================================================================
 
 
-async def _generate_portrait_background(dweller_id: str, dweller_data: dict, world_data: dict) -> None:
+async def _generate_portrait_background(
+    dweller_id: str, dweller_data: dict, world_data: dict, image_prompt: str | None = None
+) -> None:
     """Background task: generate portrait for a dweller and persist the URL."""
     from db.database import SessionLocal
     from services.art_generation import generate_dweller_portrait
 
-    portrait_url = await generate_dweller_portrait(dweller_id, dweller_data, world_data)
+    portrait_url = await generate_dweller_portrait(dweller_id, dweller_data, world_data, image_prompt=image_prompt)
     if not portrait_url:
         return
 
@@ -320,6 +322,18 @@ class DwellerCreateRequest(BaseModel):
     specific_location: str | None = Field(
         None,
         description="Specific spot within the region. This is texture - you can describe it freely. Only the region is validated."
+    )
+
+    # Art direction (optional)
+    image_prompt: str | None = Field(
+        None,
+        max_length=1000,
+        description=(
+            "Optional portrait prompt for image generation. "
+            "If provided, used directly for XAI Grok Imagine instead of server-side prompt engineering. "
+            "Describe the character visually: appearance, clothing, lighting, mood. "
+            "Keep under 150 words. Omit text/UI elements."
+        ),
     )
 
 
@@ -688,6 +702,8 @@ async def create_dweller(
         # Location
         current_region=current_region_canonical or region["name"],  # Default to origin region
         specific_location=request.specific_location,
+        # Art direction
+        image_prompt=request.image_prompt,
         is_available=True,
     )
     db.add(dweller)
@@ -755,6 +771,7 @@ async def create_dweller(
             "name": world.name,
             "premise": world.premise,
         },
+        image_prompt=dweller.image_prompt,
     ))
     _background_tasks.add(_task)
     _task.add_done_callback(_background_tasks.discard)
