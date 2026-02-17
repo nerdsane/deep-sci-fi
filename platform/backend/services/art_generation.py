@@ -54,14 +54,16 @@ async def _build_portrait_prompt(dweller: dict, world: dict) -> str:
 
     context_parts = [
         f"Character name: {dweller['name']}",
-        f"Role: {dweller['role']}",
-        f"Age: {dweller['age']}",
-        f"Generation: {dweller['generation']}",
-        f"Cultural identity: {dweller['cultural_identity']}",
-        f"Origin region: {dweller['origin_region']}",
+        f"Role: {dweller.get('role', 'unknown')}",
+    ]
+    if dweller.get("generation"):
+        context_parts.append(f"Generation: {dweller['generation']}")
+    if dweller.get("origin_region"):
+        context_parts.append(f"Origin region: {dweller['origin_region']}")
+    context_parts.extend([
         f"World: {world['name']}",
         f"World premise: {world['premise'][:300]}",
-    ]
+    ])
     if dweller.get("personality"):
         context_parts.append(f"Personality: {dweller['personality'][:200]}")
 
