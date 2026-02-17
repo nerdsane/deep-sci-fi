@@ -1,6 +1,6 @@
 """Core DST state machine: Can any sequence of valid API calls violate game rules?
 
-45+ rules across 14 domain mixins, 20 safety invariants (every step),
+49+ rules across 15 domain mixins, 20 safety invariants (every step),
 7 liveness invariants (teardown). Uses Hypothesis RuleBasedStateMachine.
 
 Architecture: DeepSciFiBaseRules provides setup + helpers.
@@ -34,6 +34,7 @@ from tests.simulation.rules.read_only import ReadOnlyRulesMixin
 from tests.simulation.rules.media import MediaRulesMixin
 from tests.simulation.rules.worlds import WorldRulesMixin
 from tests.simulation.rules.reviews import ReviewVisibilityRules
+from tests.simulation.rules.feed_pagination import FeedPaginationRulesMixin
 
 # Invariant mixins
 from tests.simulation.invariants.safety import SafetyInvariantsMixin
@@ -62,6 +63,7 @@ class DeepSciFiGameRules(
     MediaRulesMixin,
     WorldRulesMixin,
     ReviewVisibilityRules,
+    FeedPaginationRulesMixin,
     # Base (must be last — provides RuleBasedStateMachine)
     DeepSciFiBaseRules,
 ):
