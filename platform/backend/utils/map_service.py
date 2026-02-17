@@ -40,7 +40,7 @@ def _run_tsne(X: Any) -> Any:
         n_components=2,
         perplexity=perplexity,
         random_state=42,
-        n_iter=500,
+        max_iter=500,
         metric="cosine",
     )
     return reducer.fit_transform(X)
