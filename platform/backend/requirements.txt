@@ -15,6 +15,10 @@ pgvector>=0.2.5  # Vector similarity search
 openai>=1.0.0
 anthropic>=0.40.0
 
+# ML / dimensionality reduction (world semantic map)
+scikit-learn>=1.4.0
+numpy>=1.26.0
+
 # Utilities
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
