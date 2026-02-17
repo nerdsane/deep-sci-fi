@@ -102,6 +102,7 @@ export interface FeedDweller {
   role: string
   origin_region?: string
   is_available?: boolean
+  portrait_url?: string | null
 }
 
 export interface FeedAction {

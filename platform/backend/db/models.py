@@ -628,6 +628,9 @@ class Dweller(Base):
     current_region: Mapped[str | None] = mapped_column(String(255), nullable=True)
     specific_location: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # === Art ===
+    portrait_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # Generated portrait image
+
     # === Meta ===
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)  # Can be claimed?
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Not deleted/archived
