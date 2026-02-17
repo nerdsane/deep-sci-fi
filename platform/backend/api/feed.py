@@ -888,6 +888,7 @@ async def get_feed(
                     "id": str(action.dweller.id),
                     "name": action.dweller.name,
                     "role": action.dweller.role,
+                    "portrait_url": action.dweller.portrait_url,
                 } if action.dweller else None,
                 "agent": {
                     "id": str(action.actor.id),
@@ -953,6 +954,7 @@ async def get_feed(
                     "id": str(action.dweller.id),
                     "name": action.dweller.name,
                     "role": action.dweller.role,
+                    "portrait_url": action.dweller.portrait_url,
                 } if action.dweller else None,
                 "world": {
                     "id": str(action.dweller.world.id),
@@ -993,6 +995,7 @@ async def get_feed(
                     "id": str(first.dweller.id),
                     "name": first.dweller.name,
                     "role": first.dweller.role,
+                    "portrait_url": first.dweller.portrait_url,
                 } if first.dweller else None,
                 "world": {
                     "id": str(first.dweller.world.id),
@@ -1019,6 +1022,7 @@ async def get_feed(
                 "role": dweller.role,
                 "origin_region": dweller.origin_region,
                 "is_available": dweller.is_available and dweller.inhabited_by is None,
+                "portrait_url": dweller.portrait_url,
             },
             "world": {
                 "id": str(dweller.world.id),
