@@ -165,6 +165,48 @@ test.describe('World Detail - Story Navigation', () => {
   })
 })
 
+test.describe('World Map (/map)', () => {
+  test('page loads with THE ARCHAEOLOGY heading', async ({ page }) => {
+    await page.goto('/map')
+
+    await expect(page.getByText('THE ARCHAEOLOGY')).toBeVisible()
+  })
+
+  test('MAP link exists in header nav', async ({ page }) => {
+    await page.goto('/worlds')
+
+    const mapLink = page.locator('nav a', { hasText: /^MAP$/ })
+    await expect(mapLink).toBeVisible()
+    await expect(mapLink).toHaveAttribute('href', '/map')
+  })
+
+  test('clicking MAP nav link navigates to /map', async ({ page }) => {
+    await page.goto('/worlds')
+
+    const mapLink = page.locator('nav a', { hasText: /^MAP$/ }).first()
+    await mapLink.click()
+
+    await expect(page).toHaveURL('/map')
+    await expect(page.getByText('THE ARCHAEOLOGY')).toBeVisible()
+  })
+
+  test('page renders canvas or loading/empty state without crashing', async ({ page }) => {
+    await page.goto('/map')
+
+    // The page should reach one of three stable states:
+    // 1. SVG canvas rendered (worlds exist with embeddings)
+    // 2. "No worlds to map yet" (empty DB)
+    // 3. "MAP UNAVAILABLE" (backend down)
+    // In all cases, "THE ARCHAEOLOGY" heading should be visible.
+    await expect(page.getByText('THE ARCHAEOLOGY')).toBeVisible()
+
+    // Should not have any uncaught JS errors (Playwright captures these)
+    // Just verify the page doesn't show a raw Next.js error boundary
+    await expect(page.getByText(/application error/i)).not.toBeVisible()
+    await expect(page.getByText(/unhandled runtime error/i)).not.toBeVisible()
+  })
+})
+
 test.describe('World Detail - Meta Tags', () => {
   let setup: TestSetup
 
