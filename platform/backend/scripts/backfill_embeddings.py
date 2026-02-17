@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 async def backfill() -> None:
     from sqlalchemy import text
-    from db.database import AsyncSessionLocal
+    from db.database import SessionLocal as AsyncSessionLocal
     from utils.embeddings import generate_embedding, create_proposal_text_for_embedding
 
     async with AsyncSessionLocal() as db:
