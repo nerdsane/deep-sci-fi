@@ -1,62 +1,66 @@
 # PROP-010 Architecture: World Art Generation — "The Atlas"
 
-## Approach: Dweller Portraits First (Option 1)
+## Vision
 
-Start with the highest-impact, lowest-risk piece: generate a portrait for each dweller on creation. Display as avatar in the feed.
+Give every world a visual identity. Portraits for dwellers, region art for worlds, cover images for world pages. The feed stops being a wall of text.
 
 ## Implementation
 
-### Phase 1: Portrait Generation Pipeline
+### Phase 1: Dweller Portraits
 
-#### 1. New service: `services/art_generation.py`
-```python
-async def generate_dweller_portrait(dweller: Dweller, world: World) -> str:
-    """Generate portrait via Nano Banana, return media URL."""
-    prompt = build_portrait_prompt(dweller, world)
-    image_bytes = await nano_banana_generate(prompt)
-    media_url = await upload_to_storage(image_bytes, f"portraits/{dweller.id}.png")
-    return media_url
-```
+#### 1. Art generation service: `services/art_generation.py`
+- `generate_dweller_portrait(dweller, world)` → image URL
+- Prompt built from: dweller name, role, region description, world aesthetic/era
+- Uses XAI image generation (already integrated for story covers)
+- Fire-and-forget on dweller creation — don't block the creation flow
+- Store result in new `Dweller.portrait_url` column (nullable)
 
-#### 2. Portrait prompt builder
-Construct from: dweller name, role, region description, world aesthetic/era.
-Example: "Portrait of Gu-ship-pal, a clinical researcher in the medical district of Felt, 2089. Soft ambient lighting, clean minimalist aesthetic. Digital painting style."
+#### 2. Migration
+- Add `portrait_url` to dwellers table
 
-#### 3. Hook into dweller creation
-In `services/dwellers.py` — after successful dweller creation, fire-and-forget portrait generation. Don't block the creation on image gen.
+#### 3. Backfill script
+- Generate portraits for all existing dwellers (~67)
+- Estimated cost: ~$0.02-0.05/image × 67 = ~$3.35
 
-#### 4. New model field: `Dweller.portrait_url`
-Migration to add nullable `portrait_url` column.
+#### 4. Frontend: Feed avatars
+- Show portrait as avatar circle on dweller actions in feed
+- Fallback to initials if no portrait yet
 
-#### 5. Backfill existing dwellers
-One-time script to generate portraits for all existing dwellers (~67 based on creation stats).
+### Phase 2: World Cover Art
 
-### Phase 2: Frontend Display
+#### 5. World cover generation
+- `generate_world_cover(world)` → image URL
+- Prompt from: world name, era, premise, region descriptions
+- One image per world, generated on world creation/graduation
+- New `World.cover_url` column
 
-#### 6. Feed item avatar
-Where dweller actions appear in feed, show portrait as avatar circle. Fallback to initials if no portrait.
+#### 6. Frontend: World cards
+- Show cover art on world cards in feed and world list page
+- Hero image on world detail page
 
-#### 7. Dweller detail view
-Show full portrait on dweller profile page.
+### Phase 3: Region Art
+
+#### 7. Region illustrations
+- `generate_region_art(region, world)` → image URL
+- One per region per world
+- Displayed on world detail page as a visual gallery of regions
 
 ## Files Changed
 - `platform/backend/services/art_generation.py` — NEW
-- `platform/backend/services/dwellers.py` — hook portrait gen
-- `platform/backend/models/dweller.py` — add portrait_url field
-- `platform/backend/migrations/` — new migration
+- `platform/backend/models/dweller.py` — add portrait_url
+- `platform/backend/models/world.py` — add cover_url
+- `platform/backend/migrations/` — new migration (2 columns)
+- `platform/backend/services/dwellers.py` — hook portrait gen on create
+- `platform/backend/services/worlds.py` — hook cover gen on graduation
 - `platform/frontend/src/components/FeedItem/` — avatar display
-- `platform/frontend/src/components/DwellerProfile/` — portrait display
-- `scripts/backfill_portraits.py` — one-time backfill
-
-## Dependencies
-- Nano Banana Pro skill (already available)
-- Storage for generated images (existing media storage)
+- `platform/frontend/src/components/WorldCard/` — cover display
+- `scripts/backfill_art.py` — one-time backfill for existing data
 
 ## Risk Assessment
-- **Database**: New nullable column, backwards compatible
-- **API**: No existing endpoints change, just enriched data
-- **Cost**: ~$0.02-0.05 per portrait × 67 existing = ~$3.35 max backfill
-- **Frontend**: Additive only, graceful fallback
-- **Rollback**: Column stays null, no portraits shown, zero breakage
+- **Database**: New nullable columns only, backwards compatible
+- **API**: Enriched responses, no breaking changes
+- **Cost**: ~$0.05/image, ~$5-10 total for backfill
+- **XAI**: Already used for story covers, same pipeline
+- **Rollback**: Columns stay null, no art shown, zero breakage
 
 ## Estimated Effort: 4-6 hours CC time
