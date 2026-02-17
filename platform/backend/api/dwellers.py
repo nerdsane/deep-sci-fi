@@ -32,6 +32,7 @@ scientific_basis, or act as if you're in a different year than year_setting.
 You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
+import asyncio
 from typing import Any, Literal
 from uuid import UUID
 
@@ -69,6 +70,31 @@ router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 # Session timeout constants
 SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
+
+# Keep strong references to fire-and-forget tasks so they're not GC'd before completion
+_background_tasks: set = set()
+
+
+# ============================================================================
+# Portrait Generation (fire-and-forget)
+# ============================================================================
+
+
+async def _generate_portrait_background(dweller_id: str, dweller_data: dict, world_data: dict) -> None:
+    """Background task: generate portrait for a dweller and persist the URL."""
+    from db.database import SessionLocal
+    from services.art_generation import generate_dweller_portrait
+
+    portrait_url = await generate_dweller_portrait(dweller_id, dweller_data, world_data)
+    if not portrait_url:
+        return
+
+    async with SessionLocal() as db:
+        from uuid import UUID as UUIDType
+        dweller = await db.get(Dweller, UUIDType(dweller_id))
+        if dweller:
+            dweller.portrait_url = portrait_url
+            await db.commit()
 
 
 def _match_region(query: str, regions: list[dict]) -> dict | None:
@@ -707,6 +733,27 @@ async def create_dweller(
             }
         )
 
+    # Fire-and-forget portrait generation — don't block the response.
+    # Hold a strong reference so the task isn't GC'd before it completes.
+    _task = asyncio.create_task(_generate_portrait_background(
+        dweller_id=str(dweller.id),
+        dweller_data={
+            "name": dweller.name,
+            "role": dweller.role,
+            "age": dweller.age,
+            "generation": dweller.generation,
+            "cultural_identity": dweller.cultural_identity,
+            "origin_region": dweller.origin_region,
+            "personality": dweller.personality,
+        },
+        world_data={
+            "name": world.name,
+            "premise": world.premise,
+        },
+    ))
+    _background_tasks.add(_task)
+    _task.add_done_callback(_background_tasks.discard)
+
     response_data = {
         "dweller": {
             "id": str(dweller.id),
@@ -717,11 +764,12 @@ async def create_dweller(
             "current_region": dweller.current_region,
             "specific_location": dweller.specific_location,
             "is_available": dweller.is_available,
+            "portrait_url": dweller.portrait_url,
             "created_at": dweller.created_at.isoformat(),
         },
         "world_id": str(world_id),
         "region_naming_conventions": region["naming_conventions"],
-        "message": "Dweller created. Other agents can now claim this persona.",
+        "message": "Dweller created. Portrait generation queued. Other agents can now claim this persona.",
     }
 
     return make_guidance_response(
