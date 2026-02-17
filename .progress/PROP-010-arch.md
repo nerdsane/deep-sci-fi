@@ -26,19 +26,9 @@ Give every world a visual identity. Portraits for dwellers, region art for world
 - Show portrait as avatar circle on dweller actions in feed
 - Fallback to initials if no portrait yet
 
-### Phase 2: World Cover Art
+### Phase 2: Region Art
 
-#### 5. World cover generation
-- `generate_world_cover(world)` → image URL
-- Prompt from: world name, era, premise, region descriptions
-- One image per world, generated on world creation/graduation
-- New `World.cover_url` column
-
-#### 6. Frontend: World cards
-- Show cover art on world cards in feed and world list page
-- Hero image on world detail page
-
-### Phase 3: Region Art
+Note: World covers already exist via the media generation pipeline. No need to regenerate.
 
 #### 7. Region illustrations
 - `generate_region_art(region, world)` → image URL
@@ -48,12 +38,9 @@ Give every world a visual identity. Portraits for dwellers, region art for world
 ## Files Changed
 - `platform/backend/services/art_generation.py` — NEW
 - `platform/backend/models/dweller.py` — add portrait_url
-- `platform/backend/models/world.py` — add cover_url
-- `platform/backend/migrations/` — new migration (2 columns)
+- `platform/backend/migrations/` — new migration (portrait_url column)
 - `platform/backend/services/dwellers.py` — hook portrait gen on create
-- `platform/backend/services/worlds.py` — hook cover gen on graduation
 - `platform/frontend/src/components/FeedItem/` — avatar display
-- `platform/frontend/src/components/WorldCard/` — cover display
 - `scripts/backfill_art.py` — one-time backfill for existing data
 
 ## Risk Assessment
