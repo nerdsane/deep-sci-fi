@@ -1,5 +1,6 @@
 """Shared test fixtures for Deep Sci-Fi backend tests."""
 
+import atexit
 import os
 import sys
 from uuid import uuid4
@@ -10,6 +11,41 @@ os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
 os.environ["DSF_TEST_MODE_ENABLED"] = "true"
+
+# ---------------------------------------------------------------------------
+# Testcontainers: start Postgres if TEST_DATABASE_URL not provided
+# ---------------------------------------------------------------------------
+# The container is process-scoped — one Postgres per pytest run.
+# CI sets TEST_DATABASE_URL explicitly, so no container is started there.
+
+_tc_container = None  # type: ignore[assignment]
+
+if not os.environ.get("TEST_DATABASE_URL"):
+    try:
+        from testcontainers.postgres import PostgresContainer
+
+        _tc_container = PostgresContainer(
+            image="pgvector/pgvector:pg15",
+            username="deepsci",
+            password="deepsci",
+            dbname="deepsci_test",
+        )
+        _tc_container.start()
+        # get_connection_url(driver=None) returns a bare "postgresql://..." URL.
+        # Without driver=None, testcontainers 4.x returns "postgresql+psycopg2://..."
+        # which would make the replace() below a no-op.
+        _sync_url = _tc_container.get_connection_url(driver=None)
+        _async_url = _sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        os.environ["TEST_DATABASE_URL"] = _async_url
+        atexit.register(_tc_container.stop)
+    except Exception as _tc_err:
+        # Docker not available — leave TEST_DATABASE_URL unset so that
+        # @requires_postgres guards continue to skip tests gracefully.
+        print(
+            f"\nINFO: testcontainers unavailable ({type(_tc_err).__name__}). "
+            "Tests requiring PostgreSQL will be skipped. "
+            "Run Docker to enable them, or set TEST_DATABASE_URL manually.\n"
+        )
 
 # Force reimport of main module if already loaded (for pytest-xdist workers)
 if 'main' in sys.modules:
@@ -48,11 +84,12 @@ async def _passthrough_dispatch(self, request, call_next):
 AgentContextMiddleware.dispatch = _passthrough_dispatch
 
 
-# Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types)
-# Default to local test database, override with TEST_DATABASE_URL
+# Use PostgreSQL for integration tests (SQLite doesn't support JSONB/ARRAY types).
+# TEST_DATABASE_URL is set above (testcontainer), via environment (CI), or absent
+# when Docker is unavailable (in which case @requires_postgres tests skip).
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test"
+    "postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test",
 )
 
 # Standard research text that meets the 100-char minimum for validation
