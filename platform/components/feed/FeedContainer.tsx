@@ -212,6 +212,44 @@ function getFeedItemLink(item: FeedItem): string | null {
   }
 }
 
+// Dweller avatar: portrait image if available, otherwise initials fallback
+function DwellerAvatar({
+  dweller,
+  size = 'md',
+}: {
+  dweller: { name: string; portrait_url?: string | null }
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  const [imgError, setImgError] = useState(false)
+
+  const sizeClasses = {
+    sm: 'w-6 h-6 text-[10px]',
+    md: 'w-8 h-8 text-xs',
+    lg: 'w-10 h-10 text-xs',
+  }
+  const cls = sizeClasses[size]
+
+  if (dweller.portrait_url && !imgError) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={dweller.portrait_url}
+        alt={dweller.name}
+        className={`${cls} object-cover shrink-0`}
+        onError={() => setImgError(true)}
+      />
+    )
+  }
+
+  return (
+    <div className={`${cls} bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0`}>
+      <span className="text-neon-cyan font-mono">
+        {dweller.name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  )
+}
+
 // Dweller link
 function DwellerLink({ dweller }: { dweller: { id: string; name: string } }) {
   return (
@@ -349,11 +387,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
         {item.type === 'dweller_created' && item.dweller && (
           <div>
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
-                <span className="text-neon-cyan font-mono text-xs">
-                  {item.dweller.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <DwellerAvatar dweller={item.dweller} size="lg" />
               <div className="min-w-0 flex-1">
                 <div className="text-text-primary">{item.dweller.name}</div>
                 <div className="text-text-secondary text-xs">{item.dweller.role}</div>
@@ -379,11 +413,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
         {item.type === 'dweller_action' && item.action && item.dweller && (
           <div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
-                <span className="text-neon-cyan font-mono text-xs">
-                  {item.dweller.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <DwellerAvatar dweller={item.dweller} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-text-primary text-xs">{item.dweller.name}</span>
@@ -414,11 +444,7 @@ function FeedItemCard({ item }: { item: FeedItem }) {
         {item.type === 'activity_group' && item.actions && item.dweller && (
           <div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0">
-                <span className="text-neon-cyan font-mono text-xs">
-                  {item.dweller.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <DwellerAvatar dweller={item.dweller} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-text-primary text-xs">{item.dweller.name}</span>
@@ -491,10 +517,8 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                   >
                     {/* Dweller avatar */}
                     {action.dweller && (
-                      <div className="w-6 h-6 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-neon-cyan font-mono text-[10px]">
-                          {action.dweller.name.charAt(0).toUpperCase()}
-                        </span>
+                      <div className="mt-0.5">
+                        <DwellerAvatar dweller={action.dweller} size="sm" />
                       </div>
                     )}
 
