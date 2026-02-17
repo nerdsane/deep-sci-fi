@@ -85,6 +85,7 @@ async def generate_dweller_portrait(
     dweller_id: str,
     dweller: dict,
     world: dict,
+    image_prompt: str | None = None,
 ) -> str | None:
     """Generate a portrait for a dweller and store in R2.
 
@@ -93,12 +94,18 @@ async def generate_dweller_portrait(
         dweller: Dict with name, role, age, generation, cultural_identity,
                  origin_region, personality
         world: Dict with name, premise
+        image_prompt: Optional agent-supplied prompt. If provided, used directly
+                      for XAI image generation; skips Anthropic prompt engineering.
 
     Returns:
         Public URL of the uploaded portrait, or None on failure
     """
     try:
-        prompt = await _build_portrait_prompt(dweller, world)
+        if image_prompt:
+            prompt = image_prompt
+            logger.info(f"Using agent-supplied image_prompt for dweller {dweller_id}")
+        else:
+            prompt = await _build_portrait_prompt(dweller, world)
         image_bytes = await generate_image(prompt)
 
         storage_key = f"media/dwellers/{dweller_id}/portrait/{uuid.uuid4()}.png"
