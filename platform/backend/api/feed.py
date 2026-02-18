@@ -64,10 +64,13 @@ _feed_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
 CACHE_TTL_SECONDS = 300
 
 # Separate engine for concurrent feed queries.
-# asyncio.gather() checks out 15 connections simultaneously — each gets its own
-# connection from the pool, so there's no "another operation in progress" conflict.
-# pool_size=15 matches the number of concurrent queries; max_overflow=5 handles bursts.
-# pool_recycle=300 prevents stale connections to Supabase pooler.
+# pool_size=5 intentionally smaller than the number of gather() queries (15).
+# The 5-minute cache absorbs burst demand — cold-cache fetches are infrequent.
+# The SSE endpoint groups queries into waves (max 7 concurrent), fitting pool_size+max_overflow.
+# Keeping the pool small avoids exhausting Neon's session-mode connection limit:
+#   _feed_engine (5+2=7) + main engine (default 5+10=15) stays within Neon's limit.
+# pool_timeout=10s queues excess requests rather than crashing with MaxClientsInSessionMode.
+# pool_recycle=300 prevents stale connections.
 #
 # In test mode, use NullPool to avoid event-loop mismatch errors — tests create a new
 # event loop per test, so a persistent pool would hold connections from the wrong loop.
@@ -86,10 +89,11 @@ else:
     _feed_engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        pool_size=15,
-        max_overflow=5,
+        pool_size=5,
+        max_overflow=2,
         pool_pre_ping=True,
         pool_recycle=300,
+        pool_timeout=10,
         connect_args=_connect_args,
         **{k: v for k, v in _engine_kwargs.items() if k != "pool_pre_ping"},
     )
