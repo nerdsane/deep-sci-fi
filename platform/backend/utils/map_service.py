@@ -30,34 +30,23 @@ CLUSTER_COLORS = [
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="map-ml")
 
 
-def _run_tsne(X: Any, metric: str = "cosine") -> Any:
-    """Run t-SNE synchronously (called in thread executor).
+def _run_mds(dist_matrix: Any) -> Any:
+    """Run MDS on a precomputed distance matrix (called in thread executor).
 
-    X may be a normalized feature matrix (metric='cosine') or a precomputed
-    distance matrix (metric='precomputed').
+    MDS directly optimizes for preserving pairwise distances in 2D,
+    which is exactly what we want for a small number of points (n<50).
+    Unlike t-SNE, it produces stable, deterministic layouts.
     """
-    from sklearn.manifold import TSNE
+    from sklearn.manifold import MDS
 
-    n = len(X)
-    perplexity = min(30, n - 1)
-    init = "random" if metric == "precomputed" else "pca"
-    reducer = TSNE(
+    mds = MDS(
         n_components=2,
-        perplexity=perplexity,
+        dissimilarity="precomputed",
         random_state=42,
-        max_iter=500,
-        metric=metric,
-        init=init,
+        max_iter=1000,
+        normalized_stress="auto",
     )
-    return reducer.fit_transform(X)
-
-
-def _run_pca(X: Any) -> Any:
-    """Run PCA synchronously (called in thread executor)."""
-    from sklearn.decomposition import PCA
-
-    pca = PCA(n_components=2, random_state=42)
-    return pca.fit_transform(X)
+    return mds.fit_transform(dist_matrix)
 
 
 def _run_kmeans(X: Any, k: int) -> Any:
@@ -86,32 +75,26 @@ async def _reduce_to_2d(embeddings: list[list[float]]) -> list[tuple[float, floa
 
         loop = asyncio.get_running_loop()
 
-        if n >= 4:
-            # Contrast-stretch cosine distances to amplify small differences.
-            # All sci-fi worlds cluster tightly in embedding space (similarity
-            # range 0.36–0.75), so raw cosine distances produce a nearly
-            # uniform cloud.  Rescaling to [0,1] then applying a sqrt power
-            # makes similar worlds cluster tightly and dissimilar ones spread
-            # far apart, giving a more informative map layout.
-            dist = cosine_distances(X)
-            positive = dist[dist > 0]
-            if positive.size and positive.max() > positive.min():
-                d_min, d_max = positive.min(), positive.max()
-                dist_stretched = (dist - d_min) / (d_max - d_min)
-                # Zero the diagonal before power transform — subtraction above
-                # makes diagonal entries negative (0 - d_min), which would
-                # produce nan under fractional exponents.
-                np.fill_diagonal(dist_stretched, 0.0)
-                dist_stretched = np.power(dist_stretched, 0.5)
-                np.fill_diagonal(dist_stretched, 0.0)
-            else:
-                dist_stretched = dist
-
-            coords = await loop.run_in_executor(
-                _executor, _run_tsne, dist_stretched.astype(np.float32), "precomputed"
-            )
+        # Use MDS (Multidimensional Scaling) with contrast-stretched cosine
+        # distances.  MDS directly optimizes for preserving pairwise distances
+        # in 2D — unlike t-SNE it's stable, deterministic, and works well
+        # with small n.  Contrast stretching amplifies the narrow similarity
+        # range (0.36–0.75 for sci-fi premises) so similar worlds cluster
+        # tightly and dissimilar ones spread apart.
+        dist = cosine_distances(X)
+        positive = dist[dist > 0]
+        if positive.size and positive.max() > positive.min():
+            d_min, d_max = positive.min(), positive.max()
+            dist_stretched = (dist - d_min) / (d_max - d_min)
+            np.fill_diagonal(dist_stretched, 0.0)
+            dist_stretched = np.power(dist_stretched, 0.5)
+            np.fill_diagonal(dist_stretched, 0.0)
         else:
-            coords = await loop.run_in_executor(_executor, _run_pca, X)
+            dist_stretched = dist
+
+        coords = await loop.run_in_executor(
+            _executor, _run_mds, dist_stretched.astype(np.float64)
+        )
 
         # Normalize to [-1, 1] range
         for i in range(2):
