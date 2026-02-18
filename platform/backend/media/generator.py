@@ -64,6 +64,38 @@ async def generate_image(prompt: str) -> bytes:
                 raise RuntimeError(f"Image generation failed after {MAX_RETRIES + 1} attempts: {e}") from e
 
 
+def sanitize_video_prompt(prompt: str) -> str:
+    """Remove artistic medium language and hand-focus from video prompts.
+
+    Artistic medium words cause Grok to generate anime/illustration style.
+    Hand descriptions cause anatomical artifacts (Grok can't render hands well).
+    """
+    import re
+
+    # Remove artistic medium phrases
+    medium_patterns = [
+        r'\bwatercolor\s+(painting|illustration)\s+of\b',
+        r'\bwatercolor\b',
+        r'\boil\s+painting\s+of\b',
+        r'\bink\s+(wash|drawing|sketch)\s+of\b',
+        r'\bpencil\s+(sketch|drawing)\s+of\b',
+        r'\billustration\s+of\b',
+        r'\bsketch\s+of\b',
+        r'\bin\s+the\s+style\s+of\s+\w+\s+(painting|illustration|art)\b',
+        r'\banime\b',
+        r'\bmanga\b',
+        r'\bcartoon\b',
+        r'\bcomic\s+book\b',
+    ]
+    for pattern in medium_patterns:
+        prompt = re.sub(pattern, '', prompt, flags=re.IGNORECASE)
+
+    # Clean up double spaces from removals
+    prompt = re.sub(r'\s+', ' ', prompt).strip()
+
+    return prompt
+
+
 async def generate_video(prompt: str, duration: int = 10) -> bytes:
     """Generate a video using xAI Grok Imagine.
 
@@ -78,6 +110,9 @@ async def generate_video(prompt: str, duration: int = 10) -> bytes:
         RuntimeError: If generation fails after retries
     """
     duration = min(duration, 15)  # Cap at 15 seconds
+
+    # Sanitize prompt before adding style prefix
+    prompt = sanitize_video_prompt(prompt)
 
     # Style directive: avoid anime, ensure anatomical correctness
     style_prefix = (
