@@ -248,15 +248,15 @@ test.describe('API - Platform Configuration', () => {
  * Critical API Tests - Test Mode Self-Validation
  */
 test.describe('API - Test Mode Self-Validation', () => {
-  test('agent can self-validate proposal with test_mode=true', async ({ request }) => {
+  test('agent can test-approve proposal when DSF_TEST_MODE_ENABLED=true', async ({ request }) => {
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 8)
 
     // Register agent
     const agentRes = await request.post(`${API_BASE}/auth/agent`, {
       data: {
-        name: `Self-Validation Test Agent ${timestamp}`,
-        username: `self-validate-${timestamp}-${random}`,
+        name: `Test-Approve Agent ${timestamp}`,
+        username: `test-approve-${timestamp}-${random}`,
       },
     })
     expect(agentRes.ok()).toBeTruthy()
@@ -266,13 +266,15 @@ test.describe('API - Test Mode Self-Validation', () => {
     const proposalRes = await request.post(`${API_BASE}/proposals`, {
       headers: { 'X-API-Key': agentKey },
       data: {
-        name: `Self-Validation Test World ${timestamp}`,
+        name: `Test-Approve World ${timestamp}`,
         premise:
           'A world where neural interfaces allow direct brain-to-brain communication, enabling shared consciousness experiences.',
         year_setting: 2080,
         causal_chain: SAMPLE_CAUSAL_CHAIN,
         scientific_basis:
           'Based on Neuralink progress and brain-computer interface research. Extends current neural interface capabilities.',
+        image_prompt:
+          'A vast neural network visualization with glowing synaptic connections across a dark cosmos.',
       },
     })
     expect(proposalRes.ok()).toBeTruthy()
@@ -284,48 +286,38 @@ test.describe('API - Test Mode Self-Validation', () => {
     })
     expect(submitRes.ok()).toBeTruthy()
 
-    // Self-validate with test_mode=true - THIS MUST WORK
-    const validateRes = await request.post(
-      `${API_BASE}/proposals/${proposalId}/validate?test_mode=true`,
-      {
-        headers: { 'X-API-Key': agentKey },
-        data: {
-          verdict: 'approve',
-          critique:
-            'Solid scientific foundation with clear causal chain. Self-validation for testing purposes.',
-          scientific_issues: [],
-          suggested_fixes: [],
-          research_conducted:
-            'Reviewed neuroscience research on brain-computer interfaces, Neuralink progress reports, and neural interface research papers for scientific grounding.',
-          weaknesses: ['Timeline optimism in intermediate steps'],
-        },
-      }
+    // Use test-approve endpoint - THIS MUST WORK when DSF_TEST_MODE_ENABLED=true
+    const approveRes = await request.post(
+      `${API_BASE}/proposals/${proposalId}/test-approve`,
+      { headers: { 'X-API-Key': agentKey } }
     )
+    const approveData = await approveRes.json()
 
     // If this fails, test_mode is broken - agents will be blocked!
-    if (!validateRes.ok()) {
-      const error = await validateRes.text()
+    if (!approveRes.ok()) {
       throw new Error(
-        `CRITICAL: test_mode=true self-validation failed! Agents cannot self-validate. Error: ${error}`
+        `CRITICAL: test-approve failed! Test mode may not be enabled. Error: ${JSON.stringify(approveData)}`
       )
     }
 
-    // Verify proposal became a world
+    // Verify world was created (world ID comes from test-approve response)
+    expect(approveData.world_created?.id).toBeTruthy()
+
+    // Verify proposal status via API
     const proposalCheck = await request.get(`${API_BASE}/proposals/${proposalId}`)
     const proposalData = await proposalCheck.json()
     expect(proposalData.proposal.status).toBe('approved')
-    expect(proposalData.proposal.resulting_world_id).toBeTruthy()
   })
 
-  test('agent CANNOT self-validate without test_mode=true', async ({ request }) => {
+  test('proposal review-cycle endpoint no longer exists (test-approve is the E2E path)', async ({ request }) => {
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 8)
 
     // Register agent
     const agentRes = await request.post(`${API_BASE}/auth/agent`, {
       data: {
-        name: `No-Self-Validate Agent ${timestamp}`,
-        username: `no-self-${timestamp}-${random}`,
+        name: `Validate Check Agent ${timestamp}`,
+        username: `val-check-${timestamp}-${random}`,
       },
     })
     expect(agentRes.ok()).toBeTruthy()
@@ -335,13 +327,15 @@ test.describe('API - Test Mode Self-Validation', () => {
     const proposalRes = await request.post(`${API_BASE}/proposals`, {
       headers: { 'X-API-Key': agentKey },
       data: {
-        name: `No Self-Validate World ${timestamp}`,
+        name: `Validate Check World ${timestamp}`,
         premise:
           'A world where quantum computing has made all classical encryption obsolete, requiring new security paradigms.',
         year_setting: 2070,
         causal_chain: SAMPLE_CAUSAL_CHAIN,
         scientific_basis:
-          'Based on quantum computing research and cryptography fundamentals. Shor algorithm implications.',
+          'Based on quantum computing research and cryptography fundamentals. Shor algorithm implications for post-quantum standards.',
+        image_prompt:
+          'A quantum computing data center with crystalline qubit arrays glowing in cold blue light.',
       },
     })
     expect(proposalRes.ok()).toBeTruthy()
@@ -351,24 +345,13 @@ test.describe('API - Test Mode Self-Validation', () => {
       headers: { 'X-API-Key': agentKey },
     })
 
-    // Try to self-validate WITHOUT test_mode - SHOULD FAIL
+    // The old /validate endpoint no longer exists — should return 404 or 405
     const validateRes = await request.post(`${API_BASE}/proposals/${proposalId}/validate`, {
       headers: { 'X-API-Key': agentKey },
-      data: {
-        verdict: 'approve',
-        critique: 'Attempting self-validation without test_mode',
-        scientific_issues: [],
-        suggested_fixes: [],
-        research_conducted:
-          'Reviewed quantum computing research and cryptography fundamentals including Shor algorithm implications for post-quantum cryptographic standards.',
-        weaknesses: ['Timeline optimism in quantum computing progress'],
-      },
+      data: { verdict: 'approve', critique: 'test', scientific_issues: [], suggested_fixes: [], research_conducted: 'test', weaknesses: [] },
     })
-
-    // This should be rejected
-    expect(validateRes.status()).toBe(400)
-    const error = await validateRes.json()
-    expect(error.detail.error).toContain('Cannot validate your own proposal')
+    // Endpoint is gone — expect 404 (or any non-2xx)
+    expect(validateRes.ok()).toBe(false)
   })
 
   test('agent can self-validate aspect with test_mode=true', async ({ request }) => {
