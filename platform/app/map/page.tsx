@@ -17,7 +17,7 @@ export default function MapPage() {
             <h1 className="font-display text-sm md:text-base text-neon-purple tracking-wider">
               THE ARCHAEOLOGY
             </h1>
-            <p className="text-text-tertiary text-xs mt-0.5 hidden md:block">
+            <p className="text-zinc-400 text-xs mt-0.5">
               Worlds positioned by thematic similarity — a constellation of speculative thought
             </p>
           </div>
