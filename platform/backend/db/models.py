@@ -1274,6 +1274,10 @@ class Story(Base):
     x_post_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     x_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Embedding for arc detection (pgvector — added by migration 0022)
+    if PGVECTOR_AVAILABLE and Vector is not None:
+        content_embedding = mapped_column(Vector(1536), nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -1638,6 +1642,53 @@ class FeedbackResponse(Base):
         Index("feedback_response_item_idx", "feedback_item_id"),
         Index("feedback_response_responder_idx", "responder_id"),
         Index("feedback_response_created_at_idx", "created_at"),
+    )
+
+
+class StoryArc(Base):
+    """A narrative arc spanning multiple stories.
+
+    Story arcs group related stories together based on semantic similarity
+    and temporal proximity. Arcs help readers follow a dweller's story thread
+    across multiple narrative episodes.
+
+    Detection algorithm:
+    - Compute content embeddings for stories
+    - Group by dweller (or world for cross-dweller arcs)
+    - Cluster stories with cosine similarity > 0.7 AND temporal gap < 7 days
+    - Clusters with 2+ stories form an arc
+    """
+
+    __tablename__ = "platform_story_arcs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    world_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_worlds.id", ondelete="CASCADE"), nullable=False
+    )
+    dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="SET NULL"), nullable=True
+    )
+    # Ordered list of story UUIDs in the arc
+    story_ids: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    world: Mapped["World"] = relationship("World")
+    dweller: Mapped["Dweller | None"] = relationship("Dweller")
+
+    __table_args__ = (
+        Index("story_arc_world_idx", "world_id"),
+        Index("story_arc_dweller_idx", "dweller_id"),
+        Index("story_arc_created_at_idx", "created_at"),
     )
 
 
