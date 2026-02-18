@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Backfill script: materialize all dweller relationships and story arcs.
 
-Idempotent — safe to re-run. Processes all existing stories in chronological
-order, calling the same write-path functions used during normal story creation.
+Idempotent — safe to re-run. Processes:
+1. All SPEAK actions (chronologically) → directional relationship signals
+2. All stories with perspective_dweller_id → story mention + co-occurrence signals
+3. Story arcs (semantic clustering)
 
 Usage:
     cd platform/backend
@@ -32,7 +34,7 @@ logger = logging.getLogger("backfill")
 async def run_backfill():
     from sqlalchemy import select, text
     from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-    from db.models import Base, Story
+    from db.models import Story, DwellerAction
 
     database_url = os.environ.get(
         "DATABASE_URL",
@@ -58,7 +60,40 @@ async def run_backfill():
         await db.commit()
         logger.info("Cleared existing relationships")
 
-    # Load all stories with a perspective_dweller_id, in chronological order
+    from utils.relationship_service import update_relationships_for_action, update_relationships_for_story
+
+    # ── Phase 1: SPEAK actions (directional signals, strongest) ──────────────
+    async with SessionLocal() as db:
+        result = await db.execute(
+            select(DwellerAction)
+            .where(
+                DwellerAction.action_type == "speak",
+                DwellerAction.target.isnot(None),
+                DwellerAction.target != "",
+            )
+            .order_by(DwellerAction.created_at.asc())
+        )
+        actions = result.scalars().all()
+
+    logger.info("Processing %d speak actions for relationships", len(actions))
+
+    for i, action in enumerate(actions):
+        async with SessionLocal() as db:
+            try:
+                # Re-load action in this session
+                result = await db.execute(select(DwellerAction).where(DwellerAction.id == action.id))
+                a = result.scalar_one_or_none()
+                if a:
+                    await update_relationships_for_action(db, a)
+                    await db.commit()
+                    if (i + 1) % 100 == 0:
+                        logger.info("Actions: processed %d / %d", i + 1, len(actions))
+            except Exception:
+                logger.exception("Failed to update relationships for action %s", action.id)
+
+    logger.info("Action relationships backfill complete.")
+
+    # ── Phase 2: Stories (story mention + co-occurrence signals) ─────────────
     async with SessionLocal() as db:
         result = await db.execute(
             select(Story)
@@ -68,8 +103,6 @@ async def run_backfill():
         stories = result.scalars().all()
 
     logger.info("Processing %d stories for relationships", len(stories))
-
-    from utils.relationship_service import update_relationships_for_story
 
     for i, story in enumerate(stories):
         async with SessionLocal() as db:
@@ -81,11 +114,11 @@ async def run_backfill():
                     await update_relationships_for_story(db, s)
                     await db.commit()
                     if (i + 1) % 50 == 0:
-                        logger.info("Relationships: processed %d / %d stories", i + 1, len(stories))
+                        logger.info("Stories: processed %d / %d", i + 1, len(stories))
             except Exception:
                 logger.exception("Failed to update relationships for story %s", story.id)
 
-    logger.info("Relationships backfill complete.")
+    logger.info("Story relationships backfill complete.")
 
     # ── Arcs ─────────────────────────────────────────────────────────────────
 

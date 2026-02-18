@@ -212,3 +212,281 @@ class TestDwellerGraphAPI:
         # Should be empty for non-existent world
         assert data["nodes"] == []
         assert data["edges"] == []
+
+    async def test_graph_edge_has_directional_fields(self, client: AsyncClient):
+        """Edge response includes directional fields from PROP-022 revision."""
+        response = await client.get("/api/dwellers/graph")
+        assert response.status_code == 200
+        data = response.json()
+        for edge in data["edges"]:
+            assert "speaks_a_to_b" in edge
+            assert "speaks_b_to_a" in edge
+            assert "story_mentions_a_to_b" in edge
+            assert "story_mentions_b_to_a" in edge
+            assert "threads" in edge
+            assert "last_interaction" in edge
+
+
+# ---------------------------------------------------------------------------
+# SPEAK action relationship tests (PROP-022 revision)
+# ---------------------------------------------------------------------------
+
+@requires_postgres
+class TestUpdateRelationshipsForAction:
+    """Unit tests for update_relationships_for_action."""
+
+    @pytest.fixture
+    async def world_with_two_dwellers(self, db_session):
+        """Create a world with Alice and Bob."""
+        from db.models import World, Dweller
+
+        world = World(
+            name="Speak Test World",
+            premise="A world for testing speak relationships " * 5,
+            scientific_basis="Based on science " * 10,
+            year_setting=2100,
+            created_by=uuid4(),
+            status="approved",
+        )
+        db_session.add(world)
+        await db_session.flush()
+
+        alice = Dweller(
+            world_id=world.id,
+            name="Alice",
+            role="Alice's role",
+            personality="Alice's personality " * 5,
+            background="Alice's background " * 5,
+            is_active=True,
+        )
+        bob = Dweller(
+            world_id=world.id,
+            name="Bob",
+            role="Bob's role",
+            personality="Bob's personality " * 5,
+            background="Bob's background " * 5,
+            is_active=True,
+        )
+        db_session.add(alice)
+        db_session.add(bob)
+        await db_session.flush()
+        return world, alice, bob
+
+    async def test_speak_action_creates_relationship(self, db_session, world_with_two_dwellers):
+        """SPEAK action from Alice to Bob creates relationship with speak_count_a_to_b=1."""
+        from db.models import DwellerAction, DwellerRelationship
+        from utils.relationship_service import update_relationships_for_action
+        from sqlalchemy import select
+
+        world, alice, bob = world_with_two_dwellers
+
+        action = DwellerAction(
+            dweller_id=alice.id,
+            actor_id=uuid4(),
+            action_type="speak",
+            target="Bob",
+            content="Hello Bob, how are you?",
+            importance=0.5,
+            escalation_eligible=False,
+        )
+        db_session.add(action)
+        await db_session.flush()
+
+        await update_relationships_for_action(db_session, action)
+
+        # Fetch the relationship (canonical order: a_id < b_id)
+        a_id = min(str(alice.id), str(bob.id))
+        b_id = max(str(alice.id), str(bob.id))
+        result = await db_session.execute(
+            select(DwellerRelationship).where(
+                DwellerRelationship.dweller_a_id == a_id,
+                DwellerRelationship.dweller_b_id == b_id,
+            )
+        )
+        rel = result.scalar_one_or_none()
+        assert rel is not None
+
+        # Determine which direction alice→bob is
+        if str(alice.id) == a_id:
+            assert rel.speak_count_a_to_b == 1
+            assert rel.speak_count_b_to_a == 0
+        else:
+            assert rel.speak_count_b_to_a == 1
+            assert rel.speak_count_a_to_b == 0
+
+        assert rel.combined_score > 0
+        assert rel.last_interaction_at is not None
+
+    async def test_speak_back_increments_reverse_count(self, db_session, world_with_two_dwellers):
+        """Two-way speak increments both directional counts."""
+        from db.models import DwellerAction, DwellerRelationship
+        from utils.relationship_service import update_relationships_for_action
+        from sqlalchemy import select
+
+        world, alice, bob = world_with_two_dwellers
+
+        # Alice → Bob
+        action1 = DwellerAction(
+            dweller_id=alice.id,
+            actor_id=uuid4(),
+            action_type="speak",
+            target="Bob",
+            content="Hello Bob!",
+            importance=0.5,
+            escalation_eligible=False,
+        )
+        db_session.add(action1)
+        await db_session.flush()
+        await update_relationships_for_action(db_session, action1)
+
+        # Bob → Alice
+        action2 = DwellerAction(
+            dweller_id=bob.id,
+            actor_id=uuid4(),
+            action_type="speak",
+            target="Alice",
+            content="Hello Alice, I heard you!",
+            importance=0.5,
+            escalation_eligible=False,
+        )
+        db_session.add(action2)
+        await db_session.flush()
+        await update_relationships_for_action(db_session, action2)
+
+        a_id = min(str(alice.id), str(bob.id))
+        b_id = max(str(alice.id), str(bob.id))
+        result = await db_session.execute(
+            select(DwellerRelationship).where(
+                DwellerRelationship.dweller_a_id == a_id,
+                DwellerRelationship.dweller_b_id == b_id,
+            )
+        )
+        rel = result.scalar_one_or_none()
+        assert rel is not None
+        # Both directions must be 1. Account for canonical UUID ordering:
+        # the column assigned to alice→bob vs bob→alice depends on which UUID is smaller.
+        if str(alice.id) == a_id:
+            assert rel.speak_count_a_to_b == 1  # alice→bob
+            assert rel.speak_count_b_to_a == 1  # bob→alice
+        else:
+            assert rel.speak_count_b_to_a == 1  # alice→bob
+            assert rel.speak_count_a_to_b == 1  # bob→alice
+
+    async def test_reply_increments_thread_count(self, db_session, world_with_two_dwellers):
+        """Reply-to action from Bob to Alice increments thread_count."""
+        from db.models import DwellerAction, DwellerRelationship
+        from utils.relationship_service import update_relationships_for_action
+        from sqlalchemy import select
+
+        world, alice, bob = world_with_two_dwellers
+
+        # Alice speaks first
+        action1 = DwellerAction(
+            dweller_id=alice.id,
+            actor_id=uuid4(),
+            action_type="speak",
+            target="Bob",
+            content="Bob, are you there?",
+            importance=0.5,
+            escalation_eligible=False,
+        )
+        db_session.add(action1)
+        await db_session.flush()
+        await update_relationships_for_action(db_session, action1)
+
+        # Bob replies (in_reply_to_action_id = action1.id, speaker = alice = target of this action)
+        action2 = DwellerAction(
+            dweller_id=bob.id,
+            actor_id=uuid4(),
+            action_type="speak",
+            target="Alice",
+            content="Yes Alice, I am here!",
+            importance=0.5,
+            escalation_eligible=False,
+            in_reply_to_action_id=action1.id,
+        )
+        db_session.add(action2)
+        await db_session.flush()
+        await update_relationships_for_action(db_session, action2)
+
+        a_id = min(str(alice.id), str(bob.id))
+        b_id = max(str(alice.id), str(bob.id))
+        result = await db_session.execute(
+            select(DwellerRelationship).where(
+                DwellerRelationship.dweller_a_id == a_id,
+                DwellerRelationship.dweller_b_id == b_id,
+            )
+        )
+        rel = result.scalar_one_or_none()
+        assert rel is not None
+        assert rel.thread_count == 1
+
+    async def test_story_mention_is_directional(self, db_session, world_with_two_dwellers):
+        """Story by Alice mentioning Bob → story_mention_a_to_b (or b_to_a) increments, not the reverse."""
+        from db.models import Story, DwellerRelationship, StoryPerspective
+        from utils.relationship_service import update_relationships_for_story
+        from sqlalchemy import select
+
+        world, alice, bob = world_with_two_dwellers
+
+        story = Story(
+            world_id=world.id,
+            author_id=uuid4(),
+            title="Alice thinks about Bob",
+            content="Alice found herself thinking about Bob often. Bob had said something profound.",
+            perspective=StoryPerspective.FIRST_PERSON_AGENT,
+            perspective_dweller_id=alice.id,
+            video_prompt="Alice reflecting on her conversations " * 3,
+        )
+        db_session.add(story)
+        await db_session.flush()
+
+        await update_relationships_for_story(db_session, story)
+
+        a_id = min(str(alice.id), str(bob.id))
+        b_id = max(str(alice.id), str(bob.id))
+        result = await db_session.execute(
+            select(DwellerRelationship).where(
+                DwellerRelationship.dweller_a_id == a_id,
+                DwellerRelationship.dweller_b_id == b_id,
+            )
+        )
+        rel = result.scalar_one_or_none()
+        assert rel is not None
+
+        # Alice is the perspective dweller (author); she mentioned Bob
+        # Exactly one direction should be 1, the other 0
+        if str(alice.id) == a_id:
+            # alice is A, bob is B → story_mention_a_to_b
+            assert rel.story_mention_a_to_b == 1
+            assert rel.story_mention_b_to_a == 0
+        else:
+            # alice is B, bob is A → story_mention_b_to_a
+            assert rel.story_mention_b_to_a == 1
+            assert rel.story_mention_a_to_b == 0
+
+    async def test_non_speak_action_ignored(self, db_session, world_with_two_dwellers):
+        """Non-speak actions with a target do not create relationships."""
+        from db.models import DwellerAction, DwellerRelationship
+        from utils.relationship_service import update_relationships_for_action
+        from sqlalchemy import select
+
+        world, alice, bob = world_with_two_dwellers
+
+        action = DwellerAction(
+            dweller_id=alice.id,
+            actor_id=uuid4(),
+            action_type="move",
+            target="Bob",  # move target is a region, but let's test the guard
+            content="Alice moved toward the north.",
+            importance=0.3,
+            escalation_eligible=False,
+        )
+        db_session.add(action)
+        await db_session.flush()
+
+        await update_relationships_for_action(db_session, action)
+
+        result = await db_session.execute(select(DwellerRelationship))
+        rels = result.scalars().all()
+        assert len(rels) == 0

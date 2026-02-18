@@ -13,7 +13,7 @@ export default function WebPage() {
       <div className="shrink-0 px-6 md:px-8 lg:px-12 py-4 border-b border-white/5">
         <h1 className="font-display text-lg tracking-widest text-text-primary">WEB</h1>
         <p className="text-text-tertiary text-xs font-mono mt-0.5">
-          dweller relationships — co-occurrence in stories
+          dweller relationships — speaks, mentions, reply threads
         </p>
       </div>
 

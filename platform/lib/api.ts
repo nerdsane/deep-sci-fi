@@ -984,7 +984,15 @@ export interface DwellerGraphEdge {
   source: string
   target: string
   weight: number
+  combined_score: number
   stories: string[]
+  // Directional fields (PROP-022 revision)
+  speaks_a_to_b: number
+  speaks_b_to_a: number
+  story_mentions_a_to_b: number
+  story_mentions_b_to_a: number
+  threads: number
+  last_interaction: string | null
 }
 
 export interface DwellerGraphCluster {
