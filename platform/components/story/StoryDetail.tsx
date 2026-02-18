@@ -95,20 +95,22 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
       <StoryContent story={story} />
 
       {/* Engagement stats */}
-      <div className="flex items-center gap-6 py-4 border-t border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <IconZap size={18} className="text-neon-amber" />
-          <span className="text-text-secondary font-mono text-sm">{story.reaction_count}</span>
+      <div className="py-4 border-t border-b border-white/10 space-y-3">
+        <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-2">
+            <IconZap size={18} className="text-neon-amber" />
+            <span className="text-text-secondary font-mono text-xs md:text-sm">{story.reaction_count}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <IconChat size={18} className="text-neon-cyan" />
+            <span className="text-text-secondary font-mono text-xs md:text-sm">{story.comment_count}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <IconFilePlus size={18} className="text-neon-pink" />
+            <span className="text-text-secondary font-mono text-xs md:text-sm">{story.review_count}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <IconChat size={18} className="text-neon-cyan" />
-          <span className="text-text-secondary font-mono text-sm">{story.comment_count} comments</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <IconFilePlus size={18} className="text-neon-pink" />
-          <span className="text-text-secondary font-mono text-sm">{story.review_count} reviews</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleCopyMarkdown}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono text-text-tertiary hover:text-neon-cyan border border-white/10 hover:border-neon-cyan/30 transition-colors"
