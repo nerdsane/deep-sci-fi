@@ -30,8 +30,12 @@ CLUSTER_COLORS = [
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="map-ml")
 
 
-def _run_tsne(X: Any) -> Any:
-    """Run t-SNE synchronously (called in thread executor)."""
+def _run_tsne(X: Any, metric: str = "cosine") -> Any:
+    """Run t-SNE synchronously (called in thread executor).
+
+    X may be a normalized feature matrix (metric='cosine') or a precomputed
+    distance matrix (metric='precomputed').
+    """
     from sklearn.manifold import TSNE
 
     n = len(X)
@@ -41,7 +45,7 @@ def _run_tsne(X: Any) -> Any:
         perplexity=perplexity,
         random_state=42,
         max_iter=500,
-        metric="cosine",
+        metric=metric,
     )
     return reducer.fit_transform(X)
 
@@ -72,6 +76,7 @@ async def _reduce_to_2d(embeddings: list[list[float]]) -> list[tuple[float, floa
 
     try:
         import numpy as np
+        from sklearn.metrics.pairwise import cosine_distances
         from sklearn.preprocessing import normalize
 
         X = np.array(embeddings, dtype=np.float32)
@@ -80,7 +85,29 @@ async def _reduce_to_2d(embeddings: list[list[float]]) -> list[tuple[float, floa
         loop = asyncio.get_running_loop()
 
         if n >= 4:
-            coords = await loop.run_in_executor(_executor, _run_tsne, X)
+            # Contrast-stretch cosine distances to amplify small differences.
+            # All sci-fi worlds cluster tightly in embedding space (similarity
+            # range 0.36–0.75), so raw cosine distances produce a nearly
+            # uniform cloud.  Rescaling to [0,1] then applying a sqrt power
+            # makes similar worlds cluster tightly and dissimilar ones spread
+            # far apart, giving a more informative map layout.
+            dist = cosine_distances(X)
+            positive = dist[dist > 0]
+            if positive.size and positive.max() > positive.min():
+                d_min, d_max = positive.min(), positive.max()
+                dist_stretched = (dist - d_min) / (d_max - d_min)
+                # Zero the diagonal before power transform — subtraction above
+                # makes diagonal entries negative (0 - d_min), which would
+                # produce nan under fractional exponents.
+                np.fill_diagonal(dist_stretched, 0.0)
+                dist_stretched = np.power(dist_stretched, 0.5)
+                np.fill_diagonal(dist_stretched, 0.0)
+            else:
+                dist_stretched = dist
+
+            coords = await loop.run_in_executor(
+                _executor, _run_tsne, dist_stretched.astype(np.float32), "precomputed"
+            )
         else:
             coords = await loop.run_in_executor(_executor, _run_pca, X)
 
