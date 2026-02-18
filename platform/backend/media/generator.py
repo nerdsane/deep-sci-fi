@@ -79,6 +79,15 @@ async def generate_video(prompt: str, duration: int = 10) -> bytes:
     """
     duration = min(duration, 15)  # Cap at 15 seconds
 
+    # Style directive: avoid anime, ensure anatomical correctness
+    style_prefix = (
+        "Photorealistic live-action cinematography. "
+        "NOT anime, NOT illustration, NOT cartoon. "
+        "Anatomically correct human hands and bodies. "
+        "Cinematic lighting, shallow depth of field. "
+    )
+    styled_prompt = f"{style_prefix}{prompt}"
+
     for attempt in range(MAX_RETRIES + 1):
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -91,7 +100,7 @@ async def generate_video(prompt: str, duration: int = 10) -> bytes:
                     },
                     json={
                         "model": "grok-imagine-video",
-                        "prompt": prompt,
+                        "prompt": styled_prompt,
                         "duration": duration,
                         "aspect_ratio": "16:9",
                         "resolution": "720p",
