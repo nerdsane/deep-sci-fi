@@ -22,11 +22,38 @@ function worldColor(worldId: string, allWorldIds: string[]): string {
   return WORLD_COLORS[idx % WORLD_COLORS.length] ?? '#888'
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Edge is asymmetric if one speak direction is 3x+ the other. */
+function isAsymmetric(edge: DwellerGraphEdge): boolean {
+  const a = edge.speaks_a_to_b ?? 0
+  const b = edge.speaks_b_to_a ?? 0
+  if (a === 0 && b === 0) return false
+  // Smooth the smaller side by +1 to avoid false positives at near-zero counts,
+  // while still catching genuine imbalances like 3:1 or 5:0.
+  return Math.max(a, b) >= 3 * (Math.min(a, b) + 1)
+}
+
+/** Dominant speak direction for asymmetric edges. */
+function dominantDirection(edge: DwellerGraphEdge): 'a_to_b' | 'b_to_a' | 'balanced' {
+  const a = edge.speaks_a_to_b ?? 0
+  const b = edge.speaks_b_to_a ?? 0
+  if (a > b * 2) return 'a_to_b'
+  if (b > a * 2) return 'b_to_a'
+  return 'balanced'
+}
+
 // ── Tooltip ─────────────────────────────────────────────────────────────────
+
+interface EdgeTooltipData {
+  source: DwellerGraphNode
+  target: DwellerGraphNode
+  edge: DwellerGraphEdge
+}
 
 interface TooltipState {
   node: DwellerGraphNode | null
-  edge: { source: DwellerGraphNode; target: DwellerGraphNode; weight: number } | null
+  edge: EdgeTooltipData | null
   pos: { x: number; y: number }
 }
 
@@ -45,7 +72,7 @@ function Tooltip({
 
   return (
     <div
-      className="pointer-events-none absolute z-20 glass-purple border border-neon-purple/30 p-3 max-w-[200px]"
+      className="pointer-events-none absolute z-20 glass-purple border border-neon-purple/30 p-3 max-w-[220px]"
       style={{
         left: flipX ? pos.x - 14 : pos.x + 14,
         top: pos.y - 8,
@@ -59,17 +86,62 @@ function Tooltip({
           <div className="text-zinc-500 text-[10px] font-mono mt-1">click → dweller detail</div>
         </>
       )}
-      {edge && (
-        <>
-          <div className="font-display text-xs text-neon-purple tracking-wider mb-1">
-            {edge.source.name} ↔ {edge.target.name}
-          </div>
-          <div className="text-zinc-300 text-[10px] font-mono">
-            <span className="text-neon-cyan">{edge.weight}</span> shared{' '}
-            {edge.weight === 1 ? 'story' : 'stories'}
-          </div>
-        </>
-      )}
+      {edge && (() => {
+        const { source: src, target: tgt, edge: e } = edge
+        const totalSpeaks = (e.speaks_a_to_b ?? 0) + (e.speaks_b_to_a ?? 0)
+        const asymmetric = isAsymmetric(e)
+        return (
+          <>
+            <div className="font-display text-xs text-neon-purple tracking-wider mb-2">
+              {src.name} ↔ {tgt.name}
+            </div>
+            {totalSpeaks > 0 && (
+              <div className="space-y-0.5">
+                {(e.speaks_a_to_b ?? 0) > 0 && (
+                  <div className="text-[10px] font-mono text-zinc-300">
+                    <span className="text-neon-cyan">{src.name}</span>
+                    {' → '}
+                    <span className="text-zinc-400">{tgt.name}</span>
+                    {': '}
+                    <span className="text-neon-cyan">{e.speaks_a_to_b}</span>
+                    {' speak'}{e.speaks_a_to_b !== 1 ? 's' : ''}
+                  </div>
+                )}
+                {(e.speaks_b_to_a ?? 0) > 0 && (
+                  <div className="text-[10px] font-mono text-zinc-300">
+                    <span className="text-neon-purple">{tgt.name}</span>
+                    {' → '}
+                    <span className="text-zinc-400">{src.name}</span>
+                    {': '}
+                    <span className="text-neon-purple">{e.speaks_b_to_a}</span>
+                    {' speak'}{e.speaks_b_to_a !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+            )}
+            {((e.story_mentions_a_to_b ?? 0) > 0 || (e.story_mentions_b_to_a ?? 0) > 0) && (
+              <div className="mt-1 text-[10px] font-mono text-zinc-500">
+                {(e.story_mentions_a_to_b ?? 0) > 0 && (
+                  <div>{src.name} mentions {tgt.name} in {e.story_mentions_a_to_b} {e.story_mentions_a_to_b === 1 ? 'story' : 'stories'}</div>
+                )}
+                {(e.story_mentions_b_to_a ?? 0) > 0 && (
+                  <div>{tgt.name} mentions {src.name} in {e.story_mentions_b_to_a} {e.story_mentions_b_to_a === 1 ? 'story' : 'stories'}</div>
+                )}
+              </div>
+            )}
+            {(e.threads ?? 0) > 0 && (
+              <div className="mt-1 text-[10px] font-mono text-zinc-500">
+                {e.threads} reply thread{e.threads !== 1 ? 's' : ''}
+              </div>
+            )}
+            {asymmetric && (
+              <div className="mt-1 text-[10px] font-mono text-neon-amber/70">
+                asymmetric relationship
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }
@@ -163,6 +235,7 @@ interface SimNode extends DwellerGraphNode, d3.SimulationNodeDatum {
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   weight: number
   stories: string[]
+  edge: DwellerGraphEdge
   sourceNode: SimNode
   targetNode: SimNode
 }
@@ -265,6 +338,7 @@ export function DwellerGraphCanvas() {
           target: tgt,
           weight: e.weight,
           stories: e.stories,
+          edge: e,
           sourceNode: src,
           targetNode: tgt,
         } as SimLink
@@ -315,19 +389,21 @@ export function DwellerGraphCanvas() {
 
     const edgeG = g.append('g').attr('class', 'edges')
     const edgeSel = edgeG
-      .selectAll('line')
+      .selectAll<SVGLineElement, SimLink>('line')
       .data(simLinks)
       .join('line')
-      .attr('stroke', '#ffffff')
-      .attr('stroke-opacity', (d) => 0.08 + 0.25 * (d.weight / maxWeight))
-      .attr('stroke-width', (d) => 0.5 + 3 * (d.weight / maxWeight))
+      // Asymmetric edges: amber dashed; balanced: white solid
+      .attr('stroke', (d) => isAsymmetric(d.edge) ? '#ff9500' : '#ffffff')
+      .attr('stroke-opacity', (d) => 0.08 + 0.28 * (d.weight / maxWeight))
+      .attr('stroke-width', (d) => 0.5 + 3.5 * (d.weight / maxWeight))
+      .attr('stroke-dasharray', (d) => isAsymmetric(d.edge) ? '4 3' : null)
       .style('cursor', 'pointer')
       .on('mouseenter', function (event, d) {
-        d3.select(this).attr('stroke-opacity', 0.6)
+        d3.select(this).attr('stroke-opacity', 0.7)
         const rect = containerRef.current?.getBoundingClientRect()
         setTooltip({
           node: null,
-          edge: { source: d.sourceNode, target: d.targetNode, weight: d.weight },
+          edge: { source: d.sourceNode, target: d.targetNode, edge: d.edge },
           pos: { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) },
         })
       })
@@ -339,9 +415,21 @@ export function DwellerGraphCanvas() {
         }))
       })
       .on('mouseleave', function (_, d) {
-        d3.select(this).attr('stroke-opacity', 0.08 + 0.25 * (d.weight / maxWeight))
+        d3.select(this).attr('stroke-opacity', 0.08 + 0.28 * (d.weight / maxWeight))
         setTooltip({ node: null, edge: null, pos: { x: 0, y: 0 } })
       })
+
+    // ── Directional arrows on asymmetric edges ──────────────────────────────
+    const arrowG = g.append('g').attr('class', 'arrows').attr('pointer-events', 'none')
+    const asymLinks = simLinks.filter((l) => isAsymmetric(l.edge))
+
+    const arrowSel = arrowG
+      .selectAll<SVGPolygonElement, SimLink>('polygon')
+      .data(asymLinks)
+      .join('polygon')
+      .attr('points', '0,-4 8,0 0,4')
+      .attr('fill', '#ff9500')
+      .attr('fill-opacity', 0.65)
 
     // ── Node groups ─────────────────────────────────────────────────────────
     const nodeG = g.append('g').attr('class', 'nodes')
@@ -490,6 +578,29 @@ export function DwellerGraphCanvas() {
         .attr('y2', (d) => (d.target as SimNode).y ?? 0)
 
       nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+
+      // Position directional arrows along asymmetric edges
+      arrowSel.attr('transform', (d) => {
+        const src = d.source as SimNode
+        const tgt = d.target as SimNode
+        const sx = src.x ?? 0
+        const sy = src.y ?? 0
+        const tx = tgt.x ?? 0
+        const ty = tgt.y ?? 0
+        const dx = tx - sx
+        const dy = ty - sy
+        const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+
+        // Place arrow at 65% along the edge in dominant direction
+        const dir = dominantDirection(d.edge)
+        const fraction = dir === 'b_to_a' ? 0.35 : 0.65
+        const mx = sx + dx * fraction
+        const my = sy + dy * fraction
+
+        // Flip arrow if dominant direction is b→a (reversed)
+        const rotate = dir === 'b_to_a' ? angle + 180 : angle
+        return `translate(${mx},${my}) rotate(${rotate})`
+      })
     })
 
     return () => {
@@ -554,6 +665,7 @@ export function DwellerGraphCanvas() {
             <div>scroll — zoom</div>
             <div>drag — pan / move</div>
             <div>click — dweller detail</div>
+            <div className="mt-1 text-zinc-600">— — asymmetric speaks</div>
           </div>
 
           {/* Controls hint — mobile */}

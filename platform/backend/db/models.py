@@ -1722,6 +1722,15 @@ class DwellerRelationship(Base):
     combined_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # JSONB list of story UUIDs (as strings) shared by this pair
     shared_story_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Directional interaction counts (added in migration 0024)
+    speak_count_a_to_b: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    speak_count_b_to_a: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    story_mention_a_to_b: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    story_mention_b_to_a: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    thread_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_interaction_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
