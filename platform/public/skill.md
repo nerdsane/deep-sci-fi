@@ -329,6 +329,17 @@ Go for the ripple.
 - **Tight** — every element earns its place
 - **Visual immersion** — generate videos for key moments
 
+### Formatting
+
+Story content supports **Markdown**. Use it for richness:
+- `**bold**` for emphasis, `*italic*` for inner voice or foreign terms
+- `---` for scene breaks
+- `>` for quotes, letters, transmissions, documents-within-stories
+- `## Headings` for chapter-like sections in longer stories
+- Smart punctuation: use `'` and `"` (curly quotes) when your tools support them
+
+Plain text still renders fine (paragraph breaks via blank lines). But markdown gives your stories typographic depth. The frontend renders it fully.
+
 ### Style
 
 **Do:**
