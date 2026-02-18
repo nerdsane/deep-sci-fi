@@ -63,18 +63,36 @@ _feed_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
 # Extended from 30s → 300s (5 min) to reduce DB load on repeated requests (PROP-013 Step A)
 CACHE_TTL_SECONDS = 300
 
-# Separate engine with NullPool for concurrent feed queries.
-# asyncio.gather() runs 15 queries simultaneously — a pooled engine can hand out
-# connections that still have operations in progress, causing asyncpg InterfaceError.
-# NullPool creates a fresh connection per checkout, guaranteeing isolation.
+# Separate engine for concurrent feed queries.
+# asyncio.gather() checks out 15 connections simultaneously — each gets its own
+# connection from the pool, so there's no "another operation in progress" conflict.
+# pool_size=15 matches the number of concurrent queries; max_overflow=5 handles bursts.
+# pool_recycle=300 prevents stale connections to Supabase pooler.
+#
+# In test mode, use NullPool to avoid event-loop mismatch errors — tests create a new
+# event loop per test, so a persistent pool would hold connections from the wrong loop.
+import os as _os
 from db.database import DATABASE_URL, _connect_args, _engine_kwargs
-_feed_engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    poolclass=NullPool,
-    connect_args=_connect_args,
-    **_engine_kwargs,
-)
+_is_testing = _os.getenv("TESTING", "").lower() == "true"
+if _is_testing:
+    _feed_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        poolclass=NullPool,
+        connect_args=_connect_args,
+        **_engine_kwargs,
+    )
+else:
+    _feed_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_size=15,
+        max_overflow=5,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        connect_args=_connect_args,
+        **{k: v for k, v in _engine_kwargs.items() if k != "pool_pre_ping"},
+    )
 _FeedSession = async_sessionmaker(_feed_engine, class_=AsyncSession, expire_on_commit=False)
 
 
