@@ -152,6 +152,7 @@ async function getWorldData(id: string) {
       role: string
       current_region?: string
       is_available: boolean
+      portrait_url?: string | null
     }> = []
     if (dwellersRes.ok) {
       const dwellersData = await dwellersRes.json()

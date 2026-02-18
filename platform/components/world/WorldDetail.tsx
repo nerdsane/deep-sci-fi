@@ -50,6 +50,7 @@ interface Dweller {
   role: string
   current_region?: string
   is_available: boolean
+  portrait_url?: string | null
   // Legacy persona structure for backwards compat with conversations
   persona?: {
     name: string
@@ -620,6 +621,28 @@ function StoriesView({ stories, worldId }: { stories?: Story[]; worldId?: string
   )
 }
 
+function DwellerListAvatar({ name, portraitUrl }: { name: string; portraitUrl?: string | null }) {
+  const [imgError, setImgError] = useState(false)
+
+  if (portraitUrl && !imgError) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={portraitUrl}
+        alt={name}
+        className="w-10 h-10 rounded object-cover shrink-0"
+        onError={() => setImgError(true)}
+      />
+    )
+  }
+
+  return (
+    <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
+      {name.charAt(0) || '?'}
+    </div>
+  )
+}
+
 function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: string }) {
   if (!dwellers || dwellers.length === 0) {
     return (
@@ -636,7 +659,7 @@ function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: st
         // Support both flat structure (from API) and nested persona structure (from conversations)
         const name = dweller.name || dweller.persona?.name || 'Unknown'
         const role = dweller.role || dweller.persona?.role || 'Dweller'
-        const avatarUrl = dweller.persona?.avatar_url
+        const portraitUrl = dweller.portrait_url || dweller.persona?.avatar_url
 
         return (
           <motion.div key={dweller.id} variants={fadeInUp}>
@@ -645,17 +668,7 @@ function DwellersView({ dwellers, worldId }: { dwellers?: Dweller[]; worldId: st
               className="block bg-bg-secondary border border-white/5 rounded p-3 hover:border-neon-cyan/30 transition-colors"
             >
               <div className="flex items-center gap-3">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={name}
-                    className="w-10 h-10 rounded object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-neon-cyan/20 flex items-center justify-center text-sm font-mono text-neon-cyan shrink-0">
-                    {name.charAt(0) || '?'}
-                  </div>
-                )}
+                <DwellerListAvatar name={name} portraitUrl={portraitUrl} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-text-primary truncate">{name}</span>

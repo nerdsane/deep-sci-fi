@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { DwellerAvatar } from '@/components/ui/DwellerAvatar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
@@ -51,6 +52,7 @@ interface DwellerData {
       created_at: string
     }>
     episodic_memory_count?: number
+    portrait_url?: string | null
   }
 }
 
@@ -89,9 +91,12 @@ export default async function DwellerPage({ params }: { params: Promise<{ id: st
       <div className="glass-cyan mb-8">
         <div className="p-5">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 flex items-center justify-center text-lg font-mono text-neon-cyan shrink-0">
-              {dweller.name.charAt(0)}
-            </div>
+            <DwellerAvatar
+              name={dweller.name}
+              portrait_url={dweller.portrait_url}
+              sizeClass="w-14 h-14"
+              textClass="text-lg"
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-sm font-display text-neon-cyan tracking-wide truncate">{dweller.name}</h1>
