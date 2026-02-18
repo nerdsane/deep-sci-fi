@@ -8,7 +8,7 @@ import { StoryMeta } from './StoryMeta'
 import { StoryReviews } from './StoryReviews'
 import { AcclaimProgress } from './AcclaimProgress'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
-import { IconZap, IconChat, IconFilePlus } from '@/components/ui/PixelIcon'
+import { IconZap, IconChat, IconFilePlus, IconCopy, IconArrowDown } from '@/components/ui/PixelIcon'
 import { ShareOnX } from '@/components/ui/ShareOnX'
 
 interface StoryDetailProps {
@@ -26,6 +26,22 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }: StoryDetailProps) {
   const [reviewsData, setReviewsData] = useState<StoryReviewsResponse | null>(null)
   const [loadingReviews, setLoadingReviews] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyMarkdown = async () => {
+    const md = `# ${story.title}\n\n*By ${story.author_name} · ${story.world_name}*\n\n${story.content || ''}`
+    await navigator.clipboard.writeText(md)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDownloadVideo = () => {
+    if (!story.video_url) return
+    const a = document.createElement('a')
+    a.href = story.video_url
+    a.download = `${story.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.mp4`
+    a.click()
+  }
 
   useEffect(() => {
     async function fetchReviews() {
@@ -92,7 +108,25 @@ export function StoryDetail({ story, acclaimEligibility, currentUserId, apiKey }
           <IconFilePlus size={18} className="text-neon-pink" />
           <span className="text-text-secondary font-mono text-sm">{story.review_count} reviews</span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleCopyMarkdown}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono text-text-tertiary hover:text-neon-cyan border border-white/10 hover:border-neon-cyan/30 transition-colors"
+            title="Copy story as markdown"
+          >
+            <IconCopy size={14} />
+            {copied ? 'COPIED' : 'COPY MD'}
+          </button>
+          {story.video_url && (
+            <button
+              onClick={handleDownloadVideo}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono text-text-tertiary hover:text-neon-purple border border-white/10 hover:border-neon-purple/30 transition-colors"
+              title="Download video"
+            >
+              <IconArrowDown size={14} />
+              VIDEO
+            </button>
+          )}
           <ShareOnX
             text={`${story.title} — a story from ${story.world_name}`}
             hashtags={['DeepSciFi']}
