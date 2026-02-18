@@ -1,6 +1,6 @@
 // Cache bust: 2026-02-03T13:10
 import type { Metadata, Viewport } from 'next'
-import { Tomorrow, Fira_Mono } from 'next/font/google'
+import { Tomorrow, Fira_Mono, Source_Serif_4 } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
@@ -17,6 +17,13 @@ const firaMono = Fira_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '700'],
   variable: '--font-mono',
+})
+
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin'],
+  weight: ['400', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-prose',
 })
 
 export const metadata: Metadata = {
@@ -53,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${tomorrow.variable} ${firaMono.variable}`}>
+    <html lang="en" className={`${tomorrow.variable} ${firaMono.variable} ${sourceSerif.variable}`}>
       <body className="bg-bg-primary text-text-primary h-screen overflow-hidden font-mono">
         <div className="flex flex-col h-full">
           <Header />
