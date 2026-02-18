@@ -40,12 +40,14 @@ def _run_tsne(X: Any, metric: str = "cosine") -> Any:
 
     n = len(X)
     perplexity = min(30, n - 1)
+    init = "random" if metric == "precomputed" else "pca"
     reducer = TSNE(
         n_components=2,
         perplexity=perplexity,
         random_state=42,
         max_iter=500,
         metric=metric,
+        init=init,
     )
     return reducer.fit_transform(X)
 
