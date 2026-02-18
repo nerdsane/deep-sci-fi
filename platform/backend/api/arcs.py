@@ -95,13 +95,14 @@ async def trigger_arc_detection(
     """Trigger story arc detection (admin only).
 
     Embeds all un-embedded stories and clusters them into arcs based on
-    semantic similarity (> 0.7 cosine) and temporal proximity (< 7 days).
-    Runs synchronously — may be slow with many un-embedded stories.
+    semantic similarity (>= 0.75 cosine). No time window — arcs are purely
+    semantic. Runs synchronously — may be slow with many un-embedded stories.
 
-    Returns a summary of arcs created or updated.
+    Returns a summary of arcs created.
     """
     result = await detect_arcs(db=db)
+    await db.commit()
     return {
-        "message": f"Arc detection complete: {len(result)} arc(s) created or updated",
+        "message": f"Arc detection complete: {len(result)} arc(s) created",
         "arcs": result,
     }

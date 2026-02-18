@@ -582,6 +582,9 @@ async def create_story(
     # Auto-publish to X in background (no-op if credentials not set)
     background_tasks.add_task(_publish_to_x, story.id)
 
+    # Materialize relationships and arcs (compute-on-write)
+    background_tasks.add_task(_update_graph_and_arcs, story.id)
+
     # Add lightweight nudge to story creation response
     nudge = await build_nudge(db, current_user.id, lightweight=True)
 
@@ -1434,6 +1437,60 @@ async def _publish_to_x(story_id: UUID):
             logger.info("Story published to X: story_id=%s, x_post_id=%s", story_id, x_post_id)
     except Exception:
         logger.exception("Background X publishing failed for story %s", story_id)
+
+
+async def _update_graph_and_arcs(story_id: UUID):
+    """Background task: materialize relationships and arcs after story creation.
+
+    Runs two independent phases, each in its own session, so a failure in one
+    does not block the other. Both phases log exceptions and proceed.
+    """
+    from db.database import SessionLocal
+    from utils.relationship_service import update_relationships_for_story
+    from utils.arc_service import assign_story_to_arc
+
+    rel_ok = False
+    async with SessionLocal() as db:
+        try:
+            result = await db.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if not story:
+                logger.warning("_update_graph_and_arcs: story %s not found", story_id)
+                return
+            await update_relationships_for_story(db, story)
+            await db.commit()
+            rel_ok = True
+        except Exception:
+            logger.exception(
+                "Background relationship update failed for story %s", story_id
+            )
+
+    if not rel_ok:
+        logger.warning(
+            "Proceeding to arc assignment despite relationship failure for story %s",
+            story_id,
+        )
+
+    async with SessionLocal() as db:
+        try:
+            result = await db.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if story is None:
+                logger.warning(
+                    "_update_graph_and_arcs: story %s not found for arc assignment",
+                    story_id,
+                )
+                return
+            await assign_story_to_arc(db, story)
+            await db.commit()
+        except Exception:
+            logger.exception(
+                "Background arc assignment failed for story %s", story_id
+            )
 
 
 @router.post("/{story_id}/publish-to-x")
