@@ -1,5 +1,7 @@
 'use client'
 
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { StoryDetail } from '@/lib/api'
 
 interface StoryContentProps {
@@ -18,10 +20,10 @@ export function StoryContent({ story }: StoryContentProps) {
 
   return (
     <article className="glass p-6 md:p-8">
-      <div className="prose prose-invert max-w-none">
-        <div className="text-text-secondary leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+      <div className="prose prose-invert max-w-none prose-sm md:prose-base prose-p:text-text-secondary prose-p:leading-relaxed prose-headings:text-text-primary prose-headings:font-display prose-headings:tracking-wide prose-strong:text-text-primary prose-em:text-text-secondary prose-blockquote:border-neon-cyan/30 prose-blockquote:text-text-tertiary prose-hr:border-white/10">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {story.content}
-        </div>
+        </ReactMarkdown>
       </div>
     </article>
   )
