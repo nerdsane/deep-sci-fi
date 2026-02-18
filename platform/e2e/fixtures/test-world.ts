@@ -115,6 +115,8 @@ export async function setupTestWorld(request: APIRequestContext): Promise<TestSe
       causal_chain: SAMPLE_CAUSAL_CHAIN,
       scientific_basis:
         'Based on neuroscience research into memory formation and retrieval. Builds on optogenetics and neural interface research.',
+      image_prompt:
+        'A cyberpunk cityscape with glowing neural interfaces and holographic memory markets floating in misty air.',
     },
   })
   expect(proposalRes.ok()).toBeTruthy()
@@ -129,43 +131,18 @@ export async function setupTestWorld(request: APIRequestContext): Promise<TestSe
     throw new Error(`Submit failed (${submitRes.status()}): ${submitErr}`)
   }
 
-  const validationPayload = {
-    verdict: 'approve',
-    critique:
-      'Solid scientific foundation with clear causal chain. The memory trading concept is well-grounded in current neuroscience.',
-    scientific_issues: [],
-    suggested_fixes: [],
-    research_conducted:
-      'Reviewed neuroscience research on memory formation and retrieval, optogenetics progress, and neural interface developments. The causal chain aligns with current BCI research timelines.',
-    weaknesses: ['Timeline optimism in intermediate steps'],
-  }
-
-  // First validation (creator self-validates with test_mode)
-  const val1Res = await request.post(
-    `${API_BASE}/proposals/${proposalId}/validate?test_mode=true`,
-    {
-      headers: { 'X-API-Key': creator.key },
-      data: validationPayload,
-    }
+  // Use test-approve endpoint (requires DSF_TEST_MODE_ENABLED=true) to bypass review system
+  const approveRes = await request.post(
+    `${API_BASE}/proposals/${proposalId}/test-approve`,
+    { headers: { 'X-API-Key': creator.key } }
   )
-  if (!val1Res.ok()) {
-    const val1Err = await val1Res.text()
-    throw new Error(`First validation failed (${val1Res.status()}): ${val1Err}`)
+  if (!approveRes.ok()) {
+    const approveErr = await approveRes.text()
+    throw new Error(`Test-approve failed (${approveRes.status()}): ${approveErr}`)
   }
-
-  // Second validation (different agent approves → creates world)
-  const validateRes = await request.post(`${API_BASE}/proposals/${proposalId}/validate`, {
-    headers: { 'X-API-Key': validator.key },
-    data: validationPayload,
-  })
-  if (!validateRes.ok()) {
-    const valErr = await validateRes.text()
-    throw new Error(`Second validation failed (${validateRes.status()}): ${valErr}`)
-  }
-
-  // Get world ID
-  const worldRes = await request.get(`${API_BASE}/proposals/${proposalId}`)
-  const worldId = (await worldRes.json()).proposal.resulting_world_id
+  // Get world ID directly from the test-approve response
+  const approveData = await approveRes.json()
+  const worldId = approveData.world_created?.id
   expect(worldId).toBeTruthy()
 
   // Add region
@@ -223,6 +200,8 @@ export async function setupTestProposal(request: APIRequestContext): Promise<Pro
       causal_chain: SAMPLE_CAUSAL_CHAIN,
       scientific_basis:
         'Builds on quantum information theory and Bell state measurements. Extends current entanglement experiments to macro scale.',
+      image_prompt:
+        'A vast interstellar network of quantum relay stations glowing with entangled light beams across a starfield.',
     },
   })
   expect(proposalRes.ok()).toBeTruthy()
@@ -319,6 +298,8 @@ export async function setupTestStory(request: APIRequestContext): Promise<StoryS
       summary: 'A memory broker encounters an unprecedented set of memories on the trading floor.',
       perspective: 'third_person_limited',
       perspective_dweller_id: setup.dwellerId,
+      video_prompt:
+        'A dimly lit memory trading floor with holographic displays showing neural patterns, agents in sleek future attire negotiating.',
     },
   })
   if (!storyRes.ok()) {

@@ -87,6 +87,32 @@ test.describe('World Detail (/world/[id])', () => {
     await expect(page.getByText('Edmund Whitestone')).toBeVisible()
   })
 
+  test('dwellers tab renders portrait image or letter-initial avatar for each dweller', async ({ page }) => {
+    await page.goto(`/world/${setup.worldId}`)
+
+    const dwellersTab = page.locator('button', { hasText: /^dwellers$/i })
+    await dwellersTab.click()
+
+    // Wait for the dweller card to appear
+    const dwellerCard = page.locator('a[href*="/dweller/"]').first()
+    await expect(dwellerCard).toBeVisible()
+
+    // Each dweller card must show either a portrait <img> or a letter-initial <div>
+    const portrait = dwellerCard.locator('img').first()
+    const hasPortrait = await portrait.isVisible().catch(() => false)
+
+    if (hasPortrait) {
+      const src = await portrait.getAttribute('src')
+      expect(src).toBeTruthy()
+    } else {
+      // Letter-initial fallback — the rounded div with font-mono text
+      const initial = dwellerCard.locator('div.font-mono').first()
+      await expect(initial).toBeVisible()
+      const text = await initial.textContent()
+      expect(text?.trim()).toBe('E') // Edmund Whitestone → 'E'
+    }
+  })
+
   test('share on X button is visible', async ({ page }) => {
     await page.goto(`/world/${setup.worldId}`)
 
