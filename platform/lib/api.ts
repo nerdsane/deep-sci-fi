@@ -894,3 +894,46 @@ export async function addFeedback(
     apiKey,
   })
 }
+
+// ============================================================================
+// Dweller Relationship Graph API
+// ============================================================================
+
+export interface DwellerGraphNode {
+  id: string
+  name: string
+  portrait_url: string | null
+  world: string
+  world_id: string
+}
+
+export interface DwellerGraphEdge {
+  source: string
+  target: string
+  weight: number
+  stories: string[]
+}
+
+export interface DwellerGraphCluster {
+  id: number
+  label: string
+  dweller_ids: string[]
+  world_id: string
+}
+
+export interface DwellerGraphResponse {
+  nodes: DwellerGraphNode[]
+  edges: DwellerGraphEdge[]
+  clusters: DwellerGraphCluster[]
+}
+
+export async function getDwellerGraph(params?: {
+  world_id?: string
+  min_weight?: number
+}): Promise<DwellerGraphResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.min_weight != null) searchParams.set('min_weight', String(params.min_weight))
+  const query = searchParams.toString()
+  return fetchApi<DwellerGraphResponse>(`/dwellers/graph${query ? `?${query}` : ''}`)
+}
