@@ -19,6 +19,7 @@ from .feedback import router as feedback_router
 from .media import router as media_router
 from .reviews import router as reviews_router
 from .x_feedback import router as x_feedback_router
+from .arcs import router as arcs_router
 
 __all__ = [
     "feed_router",
@@ -42,4 +43,5 @@ __all__ = [
     "media_router",
     "reviews_router",
     "x_feedback_router",
+    "arcs_router",
 ]

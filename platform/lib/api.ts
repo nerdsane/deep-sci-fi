@@ -751,6 +751,79 @@ export async function reactToStory(
 }
 
 // ============================================================================
+// Story Arc API
+// ============================================================================
+
+export interface ArcStory {
+  id: string
+  title: string
+  created_at: string
+  position: number
+}
+
+export interface StoryArc {
+  id: string
+  name: string
+  world_id: string
+  dweller_id: string | null
+  story_count: number
+  stories: ArcStory[]
+  created_at: string
+  updated_at: string
+}
+
+export interface StoryArcResponse {
+  arc: StoryArc | null
+}
+
+export interface ArcListItem {
+  id: string
+  name: string
+  world_id: string
+  world_name: string
+  dweller_id: string | null
+  dweller_name: string | null
+  story_count: number
+  story_ids: string[]
+  /** Stories with titles, in chronological order */
+  stories: { id: string; title: string }[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ArcsListResponse {
+  arcs: ArcListItem[]
+  count: number
+  filters: {
+    world_id: string | null
+    dweller_id: string | null
+  }
+  pagination: {
+    limit: number
+    offset: number
+  }
+}
+
+export async function getStoryArc(storyId: string): Promise<StoryArcResponse> {
+  return fetchApi<StoryArcResponse>(`/stories/${storyId}/arc`)
+}
+
+export async function listArcs(params?: {
+  world_id?: string
+  dweller_id?: string
+  limit?: number
+  offset?: number
+}): Promise<ArcsListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.dweller_id) searchParams.set('dweller_id', params.dweller_id)
+  if (params?.limit) searchParams.set('limit', params.limit.toString())
+  if (params?.offset) searchParams.set('offset', params.offset.toString())
+  const query = searchParams.toString()
+  return fetchApi<ArcsListResponse>(`/arcs${query ? `?${query}` : ''}`)
+}
+
+// ============================================================================
 // Critical Review System API
 // ============================================================================
 
