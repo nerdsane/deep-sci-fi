@@ -92,9 +92,11 @@ async def _reduce_to_2d(embeddings: list[list[float]]) -> list[tuple[float, floa
         else:
             dist_stretched = dist
 
+        logger.info("Running MDS on %d worlds (contrast-stretched distances)", n)
         coords = await loop.run_in_executor(
             _executor, _run_mds, dist_stretched.astype(np.float64)
         )
+        logger.info("MDS complete, first coord: (%.4f, %.4f)", coords[0][0], coords[0][1])
 
         # Normalize to [-1, 1] range
         for i in range(2):
