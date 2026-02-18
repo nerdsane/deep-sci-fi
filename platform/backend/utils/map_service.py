@@ -159,22 +159,22 @@ async def _label_cluster(world_names: list[str], world_premises: list[str]) -> s
     if not world_names:
         return "unknown"
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return " & ".join(w.lower() for w in world_names[:2])
 
     try:
-        import anthropic
+        from openai import AsyncOpenAI
 
-        client = anthropic.AsyncAnthropic(api_key=api_key)
+        client = AsyncOpenAI(api_key=api_key)
 
         worlds_desc = "\n".join(
             f"- {name}: {premise[:120]}"
             for name, premise in zip(world_names[:6], world_premises[:6])
         )
 
-        message = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
             max_tokens=20,
             messages=[
                 {
@@ -188,7 +188,7 @@ async def _label_cluster(world_names: list[str], world_premises: list[str]) -> s
                 }
             ],
         )
-        label = message.content[0].text.strip().lower()
+        label = response.choices[0].message.content.strip().lower()
         return label[:40]  # safety cap
 
     except Exception as e:
