@@ -91,6 +91,22 @@ async def _reduce_to_2d(embeddings: list[list[float]]) -> list[tuple[float, floa
             if span > 0:
                 coords[:, i] = 2.0 * (col - col.min()) / span - 1.0
 
+        # Detect degenerate layouts: if any axis has near-zero spread, add jitter.
+        # This happens with very small n (< ~15) where t-SNE collapses to ~1D.
+        rng_np = np.random.RandomState(42)
+        for i in range(2):
+            col = coords[:, i]
+            spread = col.max() - col.min()
+            if spread < 0.5:
+                # Apply jitter — more jitter when spread is smaller (more degenerate)
+                jitter_scale = min(1.0, 0.5 / (spread + 0.01))
+                coords[:, i] = col + rng_np.uniform(-jitter_scale, jitter_scale, size=len(col))
+                # Re-normalize after jitter
+                col2 = coords[:, i]
+                span2 = col2.max() - col2.min()
+                if span2 > 0:
+                    coords[:, i] = 2.0 * (col2 - col2.min()) / span2 - 1.0
+
         return [(float(row[0]), float(row[1])) for row in coords]
 
     except ImportError:
