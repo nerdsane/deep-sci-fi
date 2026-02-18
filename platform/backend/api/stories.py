@@ -782,6 +782,40 @@ async def get_story(
     }
 
 
+@router.get("/{story_id}/arc")
+async def get_story_arc(
+    story_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get the narrative arc containing this story, if any.
+
+    Returns the arc with ordered sibling stories and the current story's
+    position within the arc. Returns {"arc": null} if the story is not
+    part of any detected arc.
+
+    Arc detection runs daily. A story may not yet have an arc if it was
+    recently published or if arc detection hasn't run yet.
+    """
+    from utils.arc_service import get_story_arc as _get_story_arc
+
+    # Verify story exists first
+    story_check = await db.execute(select(Story).where(Story.id == story_id))
+    story = story_check.scalar_one_or_none()
+    if not story:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Story not found",
+                "story_id": str(story_id),
+                "how_to_fix": "Check the story_id is correct. Use GET /api/stories to list available stories.",
+            },
+        )
+
+    arc = await _get_story_arc(story_id=story_id, db=db)
+    return {"arc": arc}
+
+
 @router.get("/worlds/{world_id}")
 async def get_world_stories(
     world_id: UUID,
