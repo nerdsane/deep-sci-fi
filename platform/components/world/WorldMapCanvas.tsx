@@ -83,7 +83,7 @@ function Tooltip({
 function Legend({ labels, colorMap, total }: { labels: string[]; colorMap: Record<string, string>; total: number }) {
   if (labels.length === 0) return null
   return (
-    <div className="absolute bottom-4 left-4 z-10 space-y-1.5 max-h-[60vh] overflow-y-auto pb-20 md:pb-0">
+    <div className="absolute bottom-4 left-4 z-10 space-y-1.5 max-h-[50vh] overflow-y-auto pb-24 md:pb-0">
       {/* World count — sits above legend items so there's no collision */}
       <div className="mb-2 pb-2 border-b border-white/10">
         <span className="text-[11px] font-mono text-zinc-300 tracking-wider">
@@ -445,8 +445,7 @@ export function WorldMapCanvas() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full bg-bg-primary overflow-hidden"
-      style={{ minHeight: 'max(500px, calc(100vh - 160px))' }}
+      className="relative w-full h-full bg-bg-primary overflow-hidden"
     >
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center">
