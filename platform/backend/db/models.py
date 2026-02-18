@@ -10,6 +10,7 @@ from utils.deterministic import deterministic_uuid4
 from sqlalchemy import (
     ARRAY,
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     Float,
@@ -18,6 +19,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -1648,15 +1650,16 @@ class FeedbackResponse(Base):
 class StoryArc(Base):
     """A narrative arc spanning multiple stories.
 
-    Story arcs group related stories together based on semantic similarity
-    and temporal proximity. Arcs help readers follow a dweller's story thread
+    Story arcs group related stories from the same dweller's perspective based
+    on semantic similarity. Arcs help readers follow a dweller's story thread
     across multiple narrative episodes.
 
-    Detection algorithm:
-    - Compute content embeddings for stories
-    - Group by dweller (or world for cross-dweller arcs)
-    - Cluster stories with cosine similarity > 0.7 AND temporal gap < 7 days
-    - Clusters with 2+ stories form an arc
+    Detection algorithm (assign_story_to_arc):
+    - Compute content embedding for the new story
+    - Compare against centroids of existing arcs for this dweller
+    - Cosine similarity >= 0.75 → join the best-matching arc
+    - Below threshold → seed a new arc
+    - No time window — arcs are purely semantic.
     """
 
     __tablename__ = "platform_story_arcs"
@@ -1689,6 +1692,50 @@ class StoryArc(Base):
         Index("story_arc_world_idx", "world_id"),
         Index("story_arc_dweller_idx", "dweller_id"),
         Index("story_arc_created_at_idx", "created_at"),
+    )
+
+
+class DwellerRelationship(Base):
+    """Pre-computed relationship score between two dwellers.
+
+    Populated on story write via update_relationships_for_story().
+    dweller_a_id < dweller_b_id enforces canonical ordering (no duplicates).
+    """
+
+    __tablename__ = "platform_dweller_relationships"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    dweller_a_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dwellers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dweller_b_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dwellers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    co_occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    semantic_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    combined_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # JSONB list of story UUIDs (as strings) shared by this pair
+    shared_story_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    dweller_a: Mapped["Dweller"] = relationship("Dweller", foreign_keys=[dweller_a_id])
+    dweller_b: Mapped["Dweller"] = relationship("Dweller", foreign_keys=[dweller_b_id])
+
+    __table_args__ = (
+        UniqueConstraint("dweller_a_id", "dweller_b_id", name="uq_dweller_relationship_pair"),
+        CheckConstraint("dweller_a_id < dweller_b_id", name="ck_dweller_relationship_canonical_order"),
+        Index("idx_dweller_rel_a", "dweller_a_id"),
+        Index("idx_dweller_rel_b", "dweller_b_id"),
+        Index("idx_dweller_rel_score", "combined_score"),
     )
 
 
