@@ -83,7 +83,7 @@ function Tooltip({
 function Legend({ labels, colorMap, total }: { labels: string[]; colorMap: Record<string, string>; total: number }) {
   if (labels.length === 0) return null
   return (
-    <div className="absolute bottom-4 left-4 z-10 space-y-1.5 max-h-[60vh] overflow-y-auto">
+    <div className="absolute bottom-4 left-4 z-10 space-y-1.5 max-h-[60vh] overflow-y-auto pb-20 md:pb-0">
       {/* World count — sits above legend items so there's no collision */}
       <div className="mb-2 pb-2 border-b border-white/10">
         <span className="text-[11px] font-mono text-zinc-300 tracking-wider">
@@ -294,17 +294,6 @@ export function WorldMapCanvas() {
         .attr('ry', 100)
         .attr('fill', `url(#${gradId})`)
 
-      // Cluster label in background
-      g.append('text')
-        .attr('x', cx)
-        .attr('y', cy + 112)
-        .attr('text-anchor', 'middle')
-        .attr('fill', color)
-        .attr('opacity', 0.25)
-        .attr('font-size', 9)
-        .attr('font-family', 'monospace')
-        .attr('letter-spacing', '0.15em')
-        .text(members[0].cluster_label.toUpperCase())
     })
 
     // ── Nearest-neighbor connecting lines ─────────────────────────────────────
@@ -377,20 +366,24 @@ export function WorldMapCanvas() {
 
     const adjustedLabels = avoidLabelCollisions(rawLabels, CHAR_W, LINE_H)
 
-    // World name labels — rendered via D3 using adjusted positions
-    nodes.forEach((d, i) => {
-      const adj = adjustedLabels[i]
-      g.append('text')
-        .attr('x', d.px)
-        .attr('y', adj.y)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#D4D4D8')
-        .attr('font-size', 9)
-        .attr('font-family', 'monospace')
-        .attr('letter-spacing', '0.1em')
-        .attr('pointer-events', 'none')
-        .text(d.name.toUpperCase())
-    })
+    // World name labels — hidden on mobile (too cramped); visible on wider viewports
+    // 768px matches Tailwind's md breakpoint used by hint divs and legend padding
+    const isMobile = width < 768
+    if (!isMobile) {
+      nodes.forEach((d, i) => {
+        const adj = adjustedLabels[i]
+        g.append('text')
+          .attr('x', d.px)
+          .attr('y', adj.y)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#D4D4D8')
+          .attr('font-size', 9)
+          .attr('font-family', 'monospace')
+          .attr('letter-spacing', '0.1em')
+          .attr('pointer-events', 'none')
+          .text(d.name.toUpperCase())
+      })
+    }
 
     // ── Interaction ───────────────────────────────────────────────────────────
     nodeG
@@ -482,11 +475,16 @@ export function WorldMapCanvas() {
         <>
           <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
 
-          {/* Controls hint — desktop only */}
+          {/* Controls hint — desktop */}
           <div className="absolute top-4 right-4 z-10 text-zinc-400 text-[10px] font-mono space-y-0.5 hidden md:block">
             <div>scroll — zoom</div>
             <div>drag — pan</div>
             <div>click — explore world</div>
+          </div>
+
+          {/* Controls hint — mobile */}
+          <div className="absolute top-4 right-4 z-10 text-zinc-400 text-[10px] font-mono md:hidden">
+            pinch — zoom · tap — explore
           </div>
 
           {/* Legend with world count embedded — bottom left */}
