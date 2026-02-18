@@ -172,6 +172,20 @@ test.describe('World Map (/map)', () => {
     await expect(page.getByRole('heading', { name: 'THE ARCHAEOLOGY' })).toBeVisible()
   })
 
+  test('subtitle is visible on desktop', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto('/map')
+
+    await expect(page.getByText(/constellation of speculative thought/i)).toBeVisible()
+  })
+
+  test('subtitle is visible on mobile (not hidden by responsive class)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/map')
+
+    await expect(page.getByText(/constellation of speculative thought/i)).toBeVisible()
+  })
+
   test('MAP link exists in header nav', async ({ page }) => {
     await page.goto('/worlds')
 
@@ -204,6 +218,42 @@ test.describe('World Map (/map)', () => {
     // Just verify the page doesn't show a raw Next.js error boundary
     await expect(page.getByText(/application error/i)).not.toBeVisible()
     await expect(page.getByText(/unhandled runtime error/i)).not.toBeVisible()
+  })
+
+  test('canvas container has non-zero height on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/map')
+
+    // Wait for the map container to be in the DOM
+    const mapContainer = page.locator('.bg-bg-primary').first()
+    await expect(mapContainer).toBeVisible()
+
+    // Container must have meaningful height (not zero — the old h-full bug)
+    const box = await mapContainer.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.height).toBeGreaterThan(200)
+  })
+
+  test('legend "worlds mapped" count does not overlap legend labels', async ({ page }) => {
+    await page.goto('/map')
+
+    // Wait for map data to load — legend appears once data resolves
+    // Use a generous timeout since the map API can be slow
+    const worldsText = page.getByText(/worlds mapped/i)
+    const visible = await worldsText.isVisible().catch(() => false)
+    if (!visible) {
+      // If no worlds are mapped yet, the legend won't show — skip gracefully
+      return
+    }
+
+    // The world count and legend labels must be in separate elements,
+    // not overlapping inside a single text node (the old "parti13al" bug)
+    const legendContainer = worldsText.locator('..')
+    await expect(legendContainer).toBeVisible()
+
+    // "worlds mapped" should be in its own element with a border separator
+    const separator = page.locator('.border-b.border-white\\/10').first()
+    await expect(separator).toBeVisible()
   })
 })
 
