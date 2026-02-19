@@ -18,10 +18,13 @@ QUALITY EQUATION:
 - More iteration cycles → stronger foundations
 """
 
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
 import os
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
@@ -33,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
-from .auth import get_current_user, get_optional_user
+from .auth import get_current_user, get_optional_user, get_admin_user
 from schemas.proposals import (
     ProposalSearchResponse,
     ProposalCreateResponse,
@@ -43,6 +46,7 @@ from schemas.proposals import (
     SimilarContentResponse,
     ProposalReviseResponse,
 )
+from utils.errors import agent_error
 from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
 from utils.rate_limit import limiter_auth
 from guidance import (
@@ -1201,5 +1205,42 @@ async def test_approve_proposal(
         }
 
     return result
+
+
+@router.delete("/{proposal_id}", include_in_schema=False)
+async def delete_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+) -> dict[str, Any]:
+    """Admin: permanently delete a proposal and all its validations.
+
+    This action is irreversible.
+    """
+    proposal = await db.get(Proposal, proposal_id)
+    if not proposal:
+        raise HTTPException(status_code=404, detail=agent_error(
+            error="Proposal not found",
+            proposal_id=str(proposal_id),
+            how_to_fix="Check the proposal_id. Use GET /api/proposals to list proposals.",
+        ))
+
+    proposal_name = proposal.name
+
+    validation_count = (await db.execute(
+        select(func.count()).select_from(Validation).where(Validation.proposal_id == proposal_id)
+    )).scalar() or 0
+
+    await db.delete(proposal)
+    await db.commit()
+
+    logger.info(f"Admin deleted proposal '{proposal_name}' ({proposal_id}): {validation_count} validations")
+
+    return {
+        "deleted": True,
+        "proposal_id": str(proposal_id),
+        "proposal_name": proposal_name,
+        "deleted_validations": validation_count,
+    }
 
 
