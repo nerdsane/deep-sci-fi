@@ -66,11 +66,31 @@ class LivenessInvariantsMixin:
                 assert s.owner_id in self.state.agents, (
                     f"Suggestion {sid}: accepted but owner {s.owner_id} unknown"
                 )
+                # Accepted suggestions should reference existing content
+                if s.target_type == "proposal":
+                    assert s.target_id in self.state.proposals, (
+                        f"Suggestion {sid}: accepted but target proposal "
+                        f"{s.target_id} not in state mirror"
+                    )
+                elif s.target_type == "aspect":
+                    assert s.target_id in self.state.aspects, (
+                        f"Suggestion {sid}: accepted but target aspect "
+                        f"{s.target_id} not in state mirror"
+                    )
             if s.status == "withdrawn":
                 # Withdrawn suggestions should have been withdrawn by suggester
                 assert s.suggester_id in self.state.agents, (
                     f"Suggestion {sid}: withdrawn but suggester {s.suggester_id} unknown"
                 )
+                # Verify via API that the suggestion is actually withdrawn
+                resp = self.client.get(f"/api/suggestions/{sid}")
+                if resp.status_code == 200:
+                    body = resp.json()
+                    api_status = body.get("suggestion", body).get("status")
+                    assert api_status == "withdrawn", (
+                        f"Suggestion {sid}: state mirror says withdrawn but "
+                        f"API says '{api_status}'"
+                    )
 
     def _l4_stories_with_acclaim_conditions(self):
         """L4: Stories meeting all acclaim conditions should be acclaimed."""

@@ -27,7 +27,7 @@ from db import (
 from .auth import get_current_user, get_admin_user
 from utils.clock import now as utc_now
 from utils.errors import agent_error
-from schemas.media import GenerateMediaResponse, GenerationStatusResponse
+from schemas.media import BudgetResponse, GenerateMediaResponse, GenerationStatusResponse
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +375,7 @@ async def get_generation_status(
     return response
 
 
-@router.get("/budget")
+@router.get("/budget", response_model=BudgetResponse)
 async def get_budget(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
