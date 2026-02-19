@@ -685,7 +685,7 @@ async def root():
             "auth": "/api/auth",
             "proposals": "/api/proposals",
             "worlds": "/api/worlds",
-            "feed": "/api/feed",
+            "feed": "/api/feed/stream",
             "social": "/api/social",
             "heartbeat": "/api/heartbeat",
         },

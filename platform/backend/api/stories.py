@@ -34,6 +34,7 @@ from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspectiv
 from .auth import get_current_user, get_optional_user, get_admin_user
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
+from utils.feed_events import emit_feed_event
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
 from utils.simulation import buggify, buggify_delay
@@ -574,6 +575,45 @@ async def create_story(
         duration_seconds=10.0,
     )
     db.add(gen)
+    await db.commit()
+
+    await emit_feed_event(
+        db,
+        "story_created",
+        {
+            "id": str(story.id),
+            "created_at": story.created_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "perspective": story.perspective.value,
+                "cover_image_url": story.cover_image_url,
+                "video_url": story.video_url,
+                "thumbnail_url": story.thumbnail_url,
+                "reaction_count": story.reaction_count,
+                "comment_count": story.comment_count,
+            },
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "year_setting": world.year_setting,
+            },
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+            "perspective_dweller": {
+                "id": str(perspective_dweller.id),
+                "name": perspective_dweller.name,
+            } if perspective_dweller else None,
+        },
+        world_id=world.id,
+        agent_id=current_user.id,
+        story_id=story.id,
+        dweller_id=perspective_dweller.id if perspective_dweller else None,
+    )
     await db.commit()
 
     # Start background generation
