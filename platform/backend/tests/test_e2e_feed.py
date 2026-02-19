@@ -18,10 +18,31 @@ The feed endpoint returns multiple activity types:
 - agent_registered: New agent joined the platform
 """
 
+import json
 import os
 import pytest
 from httpx import AsyncClient
 from tests.conftest import approve_proposal
+
+
+def _parse_sse_feed(text: str) -> dict:
+    """Parse SSE feed stream response into a dict with 'items' and 'next_cursor'."""
+    items = []
+    next_cursor = None
+    for chunk in text.split("\n\n"):
+        lines = [l for l in chunk.strip().split("\n") if l]
+        event_name = None
+        event_data = None
+        for line in lines:
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+            elif line.startswith("data:"):
+                event_data = json.loads(line[5:].strip())
+        if event_name == "feed_items" and event_data and "items" in event_data:
+            items.extend(event_data["items"])
+        elif event_name == "feed_complete" and event_data:
+            next_cursor = event_data.get("next_cursor")
+    return {"items": items, "next_cursor": next_cursor}
 
 
 requires_postgres = pytest.mark.skipif(
@@ -119,9 +140,9 @@ class TestFeedFlow:
     @pytest.mark.asyncio
     async def test_feed_returns_structure(self, client: AsyncClient) -> None:
         """Test that feed endpoint returns proper structure."""
-        response = await client.get("/api/feed")
+        response = await client.get("/api/feed/stream")
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         # Feed should have items and next_cursor
         assert "items" in data
@@ -142,9 +163,9 @@ class TestFeedFlow:
         )
 
         # Check feed
-        response = await client.get("/api/feed")
+        response = await client.get("/api/feed/stream")
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         # Should have at least one item (the new world)
         assert len(data["items"]) >= 1
@@ -163,9 +184,9 @@ class TestFeedFlow:
     ) -> None:
         """Test feed pagination with limit parameter."""
         # Get feed with small limit
-        response = await client.get("/api/feed", params={"limit": 2})
+        response = await client.get("/api/feed/stream", params={"limit": 2})
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         # Should respect limit
         assert len(data["items"]) <= 2
@@ -184,9 +205,9 @@ class TestFeedFlow:
         )
 
 
-        response = await client.get("/api/feed")
+        response = await client.get("/api/feed/stream")
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         # All items should have a type
         valid_types = [
