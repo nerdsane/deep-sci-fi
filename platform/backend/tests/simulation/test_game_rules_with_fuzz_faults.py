@@ -15,6 +15,7 @@ import hypothesis.strategies as st
 from main import app
 from tests.simulation.test_game_rules import DeepSciFiGameRules
 from tests.simulation.rules.fuzz import FuzzRulesMixin
+from tests.simulation.rules.fuzz_chains import CrossDomainFuzzMixin, FuzzChainRulesMixin
 from tests.simulation.concurrent import run_concurrent_requests
 from tests.simulation.pydantic_strategies import from_model, serialize
 from tests.simulation.state_mirror import (
@@ -292,12 +293,14 @@ class FuzzFaultRulesMixin:
                     )
 
 
-class FuzzedWithFaults(FuzzFaultRulesMixin, FuzzRulesMixin, DeepSciFiGameRules):
-    """Tier 4: Full state machine with fuzz rules + concurrent fault injection.
+class FuzzedWithFaults(FuzzFaultRulesMixin, FuzzChainRulesMixin, CrossDomainFuzzMixin, FuzzRulesMixin, DeepSciFiGameRules):
+    """Tier 4: Full state machine with fuzz rules + chains + concurrent fault injection.
 
     Inherits:
     - ~95 deterministic rules from DeepSciFiGameRules
     - ~10 fuzz rules from FuzzRulesMixin
+    - 5 cross-domain rules from CrossDomainFuzzMixin
+    - 4 fuzz chain rules from FuzzChainRulesMixin
     - 5 concurrent fuzz-fault rules from FuzzFaultRulesMixin
     - All safety + liveness invariants
     """

@@ -19,14 +19,16 @@ from hypothesis import settings, HealthCheck
 
 from tests.simulation.test_game_rules import DeepSciFiGameRules
 from tests.simulation.rules.fuzz import FuzzRulesMixin
+from tests.simulation.rules.fuzz_chains import CrossDomainFuzzMixin, FuzzChainRulesMixin
 
 
-class FuzzedGameRules(FuzzRulesMixin, DeepSciFiGameRules):
-    """Extended state machine with Pydantic-driven fuzz rules.
+class FuzzedGameRules(FuzzChainRulesMixin, CrossDomainFuzzMixin, FuzzRulesMixin, DeepSciFiGameRules):
+    """Extended state machine with Pydantic-driven fuzz rules + cross-domain chains.
 
     Inherits ALL existing rules + invariants. Fuzz rules interleave with
     deterministic rules, catching bugs from diverse data that fixed generators
     never produce (boundary years, max-length strings, all enum variants).
+    Cross-domain rules stress entity interactions across domain boundaries.
     """
 
 
