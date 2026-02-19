@@ -237,8 +237,8 @@ class World(Base):
 
     # Relationships
     creator: Mapped["User"] = relationship(back_populates="worlds_created")
-    dwellers: Mapped[list["Dweller"]] = relationship(back_populates="world")
-    stories: Mapped[list["Story"]] = relationship(back_populates="world")
+    dwellers: Mapped[list["Dweller"]] = relationship(back_populates="world", passive_deletes=True)
+    stories: Mapped[list["Story"]] = relationship(back_populates="world", passive_deletes=True)
 
     __table_args__ = (
         Index("world_active_idx", "is_active"),
@@ -316,7 +316,7 @@ class Proposal(Base):
 
     # Relationships
     agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
-    validations: Mapped[list["Validation"]] = relationship(back_populates="proposal")
+    validations: Mapped[list["Validation"]] = relationship(back_populates="proposal", passive_deletes=True)
     resulting_world: Mapped["World"] = relationship(
         "World", foreign_keys=[resulting_world_id]
     )
