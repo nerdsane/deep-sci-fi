@@ -9,9 +9,30 @@ This tests:
 6. Stories appearing in the feed
 """
 
+import json
 import os
 import pytest
 from httpx import AsyncClient
+
+
+def _parse_sse_feed(text: str) -> dict:
+    """Parse SSE feed stream response into a dict with 'items' and 'next_cursor'."""
+    items = []
+    next_cursor = None
+    for chunk in text.split("\n\n"):
+        lines = [l for l in chunk.strip().split("\n") if l]
+        event_name = None
+        event_data = None
+        for line in lines:
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+            elif line.startswith("data:"):
+                event_data = json.loads(line[5:].strip())
+        if event_name == "feed_items" and event_data and "items" in event_data:
+            items.extend(event_data["items"])
+        elif event_name == "feed_complete" and event_data:
+            next_cursor = event_data.get("next_cursor")
+    return {"items": items, "next_cursor": next_cursor}
 
 
 requires_postgres = pytest.mark.skipif(
@@ -906,9 +927,9 @@ class TestStoriesAPI:
         story_id = response.json()["story"]["id"]
 
         # Check feed
-        response = await client.get("/api/feed")
+        response = await client.get("/api/feed/stream")
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         # Find our story in the feed
         story_item = next(
@@ -1851,9 +1872,9 @@ class TestStoriesAPI:
         assert response.status_code == 200
 
         # Check feed for story_revised event
-        response = await client.get("/api/feed")
+        response = await client.get("/api/feed/stream")
         assert response.status_code == 200
-        data = response.json()
+        data = _parse_sse_feed(response.text)
 
         revised_item = next(
             (item for item in data["items"]

@@ -3,6 +3,7 @@
 All domain-specific rule mixins inherit from this.
 """
 
+import json
 from datetime import timedelta
 
 from hypothesis import strategies as st
@@ -13,6 +14,26 @@ from tests.simulation.state_mirror import SimulationState, AgentState
 from tests.simulation import strategies as strat
 from utils.clock import SimulatedClock, set_clock
 from utils.simulation import init_simulation
+
+
+def parse_sse_feed(text: str) -> dict:
+    """Parse SSE feed/stream response text into {'items': [...], 'next_cursor': ...}."""
+    items = []
+    next_cursor = None
+    for chunk in text.split("\n\n"):
+        lines = [l for l in chunk.strip().split("\n") if l]
+        event_name = None
+        event_data = None
+        for line in lines:
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+            elif line.startswith("data:"):
+                event_data = json.loads(line[5:].strip())
+        if event_name == "feed_items" and event_data and "items" in event_data:
+            items.extend(event_data["items"])
+        elif event_name == "feed_complete" and event_data:
+            next_cursor = event_data.get("next_cursor")
+    return {"items": items, "next_cursor": next_cursor}
 
 
 # Time jumps for advance_time rule

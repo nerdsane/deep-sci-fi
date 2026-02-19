@@ -287,7 +287,7 @@ class SafetyInvariantsMixin:
         # Only spot-check when worlds exist (reduces contention on empty DB)
         if not self.state.worlds:
             return
-        for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
+        for endpoint in ["/api/feed/stream?limit=2", "/api/worlds?limit=2"]:
             resp = self.client.get(endpoint)
             self._track_response(resp, f"read-only {endpoint}")
 
