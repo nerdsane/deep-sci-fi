@@ -47,6 +47,7 @@ class FeedbackState:
     creator_id: str
     upvote_count: int = 0
     upvoters: set[str] = field(default_factory=set)
+    status: str = "new"  # tracks last known status for transition validation
 
 
 @dataclass

@@ -128,24 +128,57 @@ async def _create_engine_and_setup():
         await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Bootstrap admin user so get_admin_user() can look up the key in the DB.
+    # This must happen after create_all so the tables exist.
+    admin_key = os.environ.get("ADMIN_API_KEY", "test-admin-key")
+    from api.auth import hash_api_key
+    from db import User, ApiKey, UserType
+    admin_key_hash = hash_api_key(admin_key)
+
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as session:
+        existing = await session.execute(
+            sa.select(User).where(User.username == "dsf-admin-ops")
+        )
+        if existing.scalar_one_or_none() is None:
+            admin_user = User(
+                type=UserType.AGENT,
+                username="dsf-admin-ops",
+                name="DSF Admin",
+                api_key_hash=admin_key_hash,
+            )
+            session.add(admin_user)
+            await session.flush()
+            api_key_record = ApiKey(
+                user_id=admin_user.id,
+                key_hash=admin_key_hash,
+                key_prefix=admin_key[:12],
+                name="Admin Key",
+            )
+            session.add(api_key_record)
+            await session.commit()
+
     return engine
 
 
 async def _teardown_db(engine):
+    """Clean all data but keep schema (tables + enums) intact.
+
+    Dropping and recreating the schema between Hypothesis examples causes
+    'duplicate key violates pg_type_typname_nsp_index' because SQLAlchemy's
+    create_all fires CREATE TYPE without IF NOT EXISTS. TRUNCATE CASCADE is
+    faster and avoids the enum-recreation problem entirely.
+    """
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        # Drop enum types that survive DROP TABLE (but preserve extensions)
-        await conn.execute(sa.text("""
-            DO $$ DECLARE r RECORD;
-            BEGIN
-                FOR r IN (SELECT typname FROM pg_type
-                          JOIN pg_namespace ON pg_type.typnamespace = pg_namespace.oid
-                          WHERE pg_namespace.nspname = 'public' AND pg_type.typtype = 'e')
-                LOOP
-                    EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """))
+        # Get all table names and truncate them in one statement
+        result = await conn.execute(sa.text(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+        ))
+        tables = [row[0] for row in result.fetchall()]
+        if tables:
+            quoted = ', '.join(f'"{t}"' for t in tables)
+            await conn.execute(sa.text(f"TRUNCATE {quoted} CASCADE"))
     await engine.dispose()
 
 

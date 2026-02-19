@@ -141,8 +141,16 @@ class FeedPaginationRulesMixin:
             return  # No cursor when fewer than limit items exist
 
         try:
-            datetime.fromisoformat(cursor.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
+            # Cursor format: "ISO_TIMESTAMP~UUID" (or legacy "|" separator)
+            sep = "~" if "~" in cursor else "|" if "|" in cursor else None
+            if sep:
+                ts_part, id_part = cursor.split(sep, 1)
+                datetime.fromisoformat(ts_part.replace("Z", "+00:00"))
+                from uuid import UUID as _UUID
+                _UUID(id_part)  # Validates UUID format
+            else:
+                datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+        except (ValueError, AttributeError) as e:
             raise AssertionError(
-                f"Feed cursor is not a valid ISO timestamp: {cursor}"
+                f"Feed cursor is not valid (expected 'ISO_TIMESTAMP~UUID'): {cursor} — {e}"
             )

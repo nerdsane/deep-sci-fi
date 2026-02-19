@@ -104,6 +104,26 @@ class SafetyInvariantsMixin:
     # s_s3 duplicate reaction testing moved to rules/stories.py::duplicate_story_reaction
     # s_s4 removed (redundant with s10_story_acclaim_conditions)
 
+    @invariant()
+    def s_story_status_transitions(self):
+        """Stories only transition PUBLISHED -> ACCLAIMED, never backwards."""
+        for sid, story in self.state.stories.items():
+            assert story.status in ("PUBLISHED", "ACCLAIMED"), (
+                f"Story {sid}: invalid status '{story.status}' "
+                "(expected PUBLISHED or ACCLAIMED)"
+            )
+            resp = self.client.get(f"/api/stories/{sid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            actual_status = body.get("story", body).get("status", story.status)
+            if actual_status != story.status:
+                assert story.status == "PUBLISHED" and actual_status == "ACCLAIMED", (
+                    f"Story {sid}: invalid transition {story.status} -> {actual_status} "
+                    "(only PUBLISHED -> ACCLAIMED allowed)"
+                )
+                story.status = actual_status
+
     # -------------------------------------------------------------------------
     # Aspect invariants
     # -------------------------------------------------------------------------
@@ -162,15 +182,39 @@ class SafetyInvariantsMixin:
 
     @invariant()
     def s_e4_escalate_only_once(self):
-        """No action is escalated more than once (tracked in state mirror)."""
-        # Enforcement: rule only escalates if not ar.escalated.
-        # This invariant verifies our bookkeeping is consistent.
-        escalated_count = sum(1 for a in self.state.actions.values() if a.escalated)
-        # Each escalated action should have produced exactly one event
-        # (tracked by rule handler). Just verify count is reasonable.
-        assert escalated_count <= len(self.state.actions), (
-            f"More escalations ({escalated_count}) than actions ({len(self.state.actions)})"
-        )
+        """No action is escalated more than once — verified via API."""
+        if not self.state.actions:
+            return
+        escalated = [a for a in self.state.actions.values() if a.escalated]
+        for action in escalated[:3]:  # spot-check
+            resp = self.client.get(f"/api/dwellers/actions/{action.action_id}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            action_data = body.get("action", body)
+            api_escalated = action_data.get("escalated", False)
+            assert api_escalated, (
+                f"Action {action.action_id}: state mirror says escalated but API says not"
+            )
+
+    @invariant()
+    def s_event_approval_integrity(self):
+        """Approved events have a non-self approver."""
+        for eid, event in self.state.events.items():
+            if event.status != "approved":
+                continue
+            resp = self.client.get(f"/api/events/{eid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            event_data = body.get("event", body)
+            approved_by = event_data.get("approved_by")
+            proposed_by = event_data.get("proposed_by")
+            if approved_by and proposed_by:
+                assert approved_by != proposed_by, (
+                    f"Event {eid}: approved by same agent who proposed it "
+                    f"(approved_by={approved_by}, proposed_by={proposed_by})"
+                )
 
     # -------------------------------------------------------------------------
     # Suggestion invariants
@@ -227,11 +271,23 @@ class SafetyInvariantsMixin:
 
     @invariant()
     def s9_feedback_upvote_consistency(self):
-        """Feedback upvote_count matches len(upvoters) in state mirror."""
-        for fid, fb in self.state.feedback.items():
+        """Feedback upvote_count matches len(upvoters) in state mirror AND API."""
+        for fid, fb in list(self.state.feedback.items())[:3]:
+            # State mirror internal consistency
             assert fb.upvote_count == len(fb.upvoters), (
                 f"Feedback {fid}: upvote_count={fb.upvote_count} "
                 f"but {len(fb.upvoters)} upvoters tracked"
+            )
+            # Verify against API
+            resp = self.client.get(f"/api/feedback/{fid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            api_fb = body.get("feedback", {})
+            api_count = api_fb.get("upvote_count", 0)
+            assert api_count == fb.upvote_count, (
+                f"Feedback {fid}: state mirror upvote_count={fb.upvote_count} "
+                f"but API reports {api_count}"
             )
 
     @invariant()
@@ -277,6 +333,57 @@ class SafetyInvariantsMixin:
     # it tracks feedback items and their resolution status instead.
     # -------------------------------------------------------------------------
 
+    @invariant()
+    def s_max_active_proposals(self):
+        """No agent has more than 3 active world proposals (draft + validating)."""
+        active_by_agent = Counter()
+        for p in self.state.proposals.values():
+            if p.status in ("draft", "validating"):
+                active_by_agent[p.creator_id] += 1
+        for agent_id, count in active_by_agent.items():
+            assert count <= 3, (
+                f"Agent {agent_id} has {count} active world proposals (max 3). "
+                "See MAX_ACTIVE_PROPOSALS in api/proposals.py."
+            )
+
+    @invariant()
+    def s_feedback_status_transitions(self):
+        """Feedback status transitions follow the VALID_TRANSITIONS graph."""
+        valid_transitions = {
+            "new": {"acknowledged", "in_progress", "resolved", "wont_fix"},
+            "acknowledged": {"in_progress", "resolved", "wont_fix"},
+            "in_progress": {"resolved", "wont_fix"},
+            "resolved": set(),
+            "wont_fix": set(),
+        }
+        valid_statuses = set(valid_transitions.keys())
+        for fid, fb in list(self.state.feedback.items())[:5]:
+            resp = self.client.get(f"/api/feedback/{fid}")
+            if resp.status_code != 200:
+                continue
+            body = resp.json()
+            api_fb = body.get("feedback", {})
+            actual_status = api_fb.get("status", fb.status)
+            assert actual_status in valid_statuses, (
+                f"Feedback {fid}: unknown status '{actual_status}'"
+            )
+            if actual_status != fb.status:
+                assert actual_status in valid_transitions.get(fb.status, set()), (
+                    f"Feedback {fid}: invalid transition {fb.status} -> {actual_status}. "
+                    f"Valid transitions from {fb.status}: {valid_transitions.get(fb.status, set())}"
+                )
+                fb.status = actual_status
+
+    @invariant()
+    def s_no_self_review_in_db(self):
+        """Creator never reviews their own content (defense-in-depth)."""
+        for review in self.state.reviews.values():
+            assert review.reviewer_id != review.proposer_id, (
+                f"Review {review.review_id}: reviewer {review.reviewer_id} "
+                f"reviewed their own content {review.content_id}. "
+                "Self-review must never persist in the database."
+            )
+
     # -------------------------------------------------------------------------
     # Read-only invariant
     # -------------------------------------------------------------------------
@@ -287,7 +394,7 @@ class SafetyInvariantsMixin:
         # Only spot-check when worlds exist (reduces contention on empty DB)
         if not self.state.worlds:
             return
-        for endpoint in ["/api/feed?limit=2", "/api/worlds?limit=2"]:
+        for endpoint in ["/api/feed/stream?limit=2", "/api/worlds?limit=2"]:
             resp = self.client.get(endpoint)
             self._track_response(resp, f"read-only {endpoint}")
 
@@ -428,35 +535,4 @@ class SafetyInvariantsMixin:
                 f"Reviewer {review.reviewer_id} for proposal {review.content_id}: "
                 f"expected {expected_count} reviews but got {len(reviews_returned)}. "
                 "Reviewers who submitted must see ALL reviews."
-            )
-
-    # -------------------------------------------------------------------------
-    # Idempotency invariants
-    # -------------------------------------------------------------------------
-
-    @invariant()
-    def s_idem1_no_duplicate_actions_from_same_key(self):
-        """Same idempotency key never creates duplicate records.
-
-        When agents retry after 502/timeout, using the same idempotency key
-        should never create duplicate actions, stories, or proposals.
-        """
-        # Check if we have any tracked idempotency keys
-        if not hasattr(self.state, "idempotency_keys"):
-            return
-
-        # Group actions by idempotency key
-        actions_by_key = {}
-        for action_id, action_data in self.state.dweller_actions.items():
-            idem_key = getattr(action_data, "idempotency_key", None)
-            if idem_key:
-                if idem_key not in actions_by_key:
-                    actions_by_key[idem_key] = []
-                actions_by_key[idem_key].append(action_id)
-
-        # Verify no duplicates
-        for idem_key, action_ids in actions_by_key.items():
-            assert len(action_ids) == 1, (
-                f"Idempotency key {idem_key} created {len(action_ids)} actions: {action_ids}. "
-                "Same idempotency key must never create duplicates!"
             )

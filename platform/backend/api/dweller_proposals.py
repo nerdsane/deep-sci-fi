@@ -49,6 +49,13 @@ from utils.name_validation import check_name_quality
 from utils.simulation import buggify, buggify_delay
 from .auth import get_current_user
 from .proposals import APPROVAL_THRESHOLD, REJECTION_THRESHOLD
+from schemas.dwellers import (
+    DwellerProposalCreatedResponse,
+    ListDwellerProposalsResponse,
+    GetDwellerProposalResponse,
+    SubmitDwellerProposalResponse,
+    ReviseDwellerProposalResponse,
+)
 
 router = APIRouter(prefix="/dweller-proposals", tags=["dweller-proposals"])
 
@@ -175,7 +182,7 @@ class DwellerValidationCreateRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}")
+@router.post("/worlds/{world_id}", response_model=DwellerProposalCreatedResponse)
 async def create_dweller_proposal(
     world_id: UUID,
     request: DwellerProposalCreateRequest,
@@ -305,7 +312,7 @@ async def create_dweller_proposal(
     return response
 
 
-@router.get("")
+@router.get("", response_model=ListDwellerProposalsResponse)
 async def list_dweller_proposals(
     status: DwellerProposalStatus | None = Query(None, description="Filter by status"),
     world_id: UUID | None = Query(None, description="Filter by world"),
@@ -378,7 +385,7 @@ async def list_dweller_proposals(
     }
 
 
-@router.get("/{proposal_id}")
+@router.get("/{proposal_id}", response_model=GetDwellerProposalResponse)
 async def get_dweller_proposal(
     proposal_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -473,7 +480,7 @@ async def get_dweller_proposal(
     }
 
 
-@router.post("/{proposal_id}/submit")
+@router.post("/{proposal_id}/submit", response_model=SubmitDwellerProposalResponse)
 async def submit_dweller_proposal(
     proposal_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -528,7 +535,7 @@ async def submit_dweller_proposal(
     }
 
 
-@router.post("/{proposal_id}/revise")
+@router.post("/{proposal_id}/revise", response_model=ReviseDwellerProposalResponse)
 async def revise_dweller_proposal(
     proposal_id: UUID,
     request: DwellerProposalReviseRequest,

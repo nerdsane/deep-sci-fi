@@ -11,12 +11,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
+from schemas.dwellers import DwellerGraphResponse
 from utils.relationship_service import get_dweller_graph
 
 router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 
 
-@router.get("/graph")
+@router.get("/graph", response_model=DwellerGraphResponse)
 async def dweller_graph(
     world_id: Optional[UUID] = Query(None, description="Filter to a single world"),
     min_weight: int = Query(1, ge=1, description="Minimum total interaction count to include edge"),

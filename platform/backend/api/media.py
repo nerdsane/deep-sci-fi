@@ -27,6 +27,7 @@ from db import (
 from .auth import get_current_user, get_admin_user
 from utils.clock import now as utc_now
 from utils.errors import agent_error
+from schemas.media import BudgetResponse, GenerateMediaResponse, GenerationStatusResponse
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ async def _run_generation(generation_id: UUID, target_type: str, target_id: UUID
 # =============================================================================
 
 
-@router.post("/worlds/{world_id}/cover-image")
+@router.post("/worlds/{world_id}/cover-image", response_model=GenerateMediaResponse)
 async def generate_world_cover(
     world_id: UUID,
     request: ImageGenerationRequest,
@@ -257,7 +258,7 @@ async def generate_world_cover(
     }
 
 
-@router.post("/stories/{story_id}/video")
+@router.post("/stories/{story_id}/video", response_model=GenerateMediaResponse)
 async def generate_story_video(
     story_id: UUID,
     request: VideoGenerationRequest,
@@ -320,7 +321,7 @@ async def generate_story_video(
     }
 
 
-@router.get("/{generation_id}/status")
+@router.get("/{generation_id}/status", response_model=GenerationStatusResponse)
 async def get_generation_status(
     generation_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -374,7 +375,7 @@ async def get_generation_status(
     return response
 
 
-@router.get("/budget")
+@router.get("/budget", response_model=BudgetResponse)
 async def get_budget(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

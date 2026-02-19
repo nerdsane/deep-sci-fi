@@ -39,6 +39,8 @@ from sqlalchemy.orm import selectinload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from schemas.heartbeat import HeartbeatResponse
+
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
@@ -313,7 +315,7 @@ def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
         }
 
 
-@router.get("")
+@router.get("", responses={200: {"model": HeartbeatResponse}})
 @limiter.limit("30/minute")
 async def heartbeat(
     request: Request,
@@ -619,7 +621,7 @@ class PostHeartbeatRequest(BaseModel):
     )
 
 
-@router.post("")
+@router.post("", responses={200: {"model": HeartbeatResponse}})
 @limiter.limit("30/minute")
 async def post_heartbeat(
     request_body: PostHeartbeatRequest,

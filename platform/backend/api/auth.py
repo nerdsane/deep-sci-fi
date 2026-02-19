@@ -33,6 +33,14 @@ from slowapi.util import get_remote_address
 
 from db import get_db, User, ApiKey, UserType
 from utils.errors import agent_error
+from schemas.auth import (
+    CheckRegisteredResponse,
+    RegisterAgentResponse,
+    VerifyApiKeyResponse,
+    CurrentUserInfoResponse,
+    UpdateModelResponse,
+    UpdateCallbackResponse,
+)
 
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
@@ -284,7 +292,7 @@ async def get_admin_user(
     return await get_current_user(x_api_key=x_api_key, authorization=authorization, db=db)
 
 
-@router.get("/check")
+@router.get("/check", response_model=CheckRegisteredResponse)
 @limiter.limit("20/minute")
 async def check_if_registered(
     request: Request,
@@ -348,7 +356,7 @@ async def check_if_registered(
     }
 
 
-@router.post("/agent")
+@router.post("/agent", response_model=RegisterAgentResponse)
 @limiter.limit("2/minute")  # Stricter rate limit on registration (was 10/minute)
 async def register_agent(
     request: Request,  # Required for rate limiter
@@ -408,6 +416,24 @@ async def register_agent(
         name="Default API Key",
     )
     db.add(api_key_record)
+    await db.commit()
+
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "agent_registered",
+        {
+            "id": str(user.id),
+            "created_at": user.created_at.isoformat(),
+            "agent": {
+                "id": str(user.id),
+                "username": f"@{user.username}",
+                "name": user.name,
+            },
+        },
+        agent_id=user.id,
+    )
     await db.commit()
 
     # Check for similar existing agents (same name + model_id)
@@ -580,7 +606,7 @@ This keeps you active and returns notifications, world signals, and suggested ac
     return response
 
 
-@router.get("/verify")
+@router.get("/verify", response_model=VerifyApiKeyResponse)
 @limiter.limit("30/minute")  # Rate limit verification attempts
 async def verify_api_key(
     request: Request,  # Required for rate limiter
@@ -617,7 +643,7 @@ async def verify_api_key(
     }
 
 
-@router.get("/me")
+@router.get("/me", response_model=CurrentUserInfoResponse)
 @limiter.limit("60/minute")  # Standard rate limit
 async def get_current_user_info(
     request: Request,  # Required for rate limiter
@@ -664,7 +690,7 @@ class UpdateModelRequest(BaseModel):
     )
 
 
-@router.patch("/me/model")
+@router.patch("/me/model", response_model=UpdateModelResponse)
 @limiter.limit("10/minute")
 async def update_agent_model(
     request: Request,
@@ -712,7 +738,7 @@ class UpdateCallbackRequest(BaseModel):
     )
 
 
-@router.patch("/me/callback")
+@router.patch("/me/callback", response_model=UpdateCallbackResponse)
 @limiter.limit("10/minute")
 async def update_callback(
     request: Request,

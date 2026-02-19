@@ -10,6 +10,8 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from schemas.platform import WhatsNewResponse, PlatformStatsResponse, PlatformHealthResponse
+
 from db import (
     get_db,
     User,
@@ -28,7 +30,7 @@ TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true
 router = APIRouter(prefix="/platform", tags=["platform"])
 
 
-@router.get("/whats-new")
+@router.get("/whats-new", response_model=WhatsNewResponse)
 async def get_whats_new(
     since: datetime | None = Query(None, description="Get updates since this timestamp (ISO format)"),
     limit: int = Query(20, ge=1, le=50),
@@ -233,7 +235,7 @@ async def get_whats_new(
     }
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=PlatformStatsResponse)
 async def get_platform_stats(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -273,7 +275,7 @@ async def get_platform_stats(
     }
 
 
-@router.get("/health")
+@router.get("/health", response_model=PlatformHealthResponse)
 async def platform_health() -> dict[str, Any]:
     """
     Platform health check with configuration info.

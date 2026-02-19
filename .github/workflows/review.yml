@@ -25,6 +25,50 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch for diff-aware policy checks
+        run: git fetch origin "${{ github.base_ref }}" --depth=1
+
+      - name: Block main PRs when production verification is unresolved
+        if: github.base_ref == 'main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              labels: 'release-blocker',
+              per_page: 100
+            });
+
+            const blockers = issues.filter(issue =>
+              !issue.pull_request &&
+              issue.title.includes('PRODUCTION VERIFICATION FAILED')
+            );
+
+            if (blockers.length > 0) {
+              const links = blockers.map(i => `#${i.number}`).join(', ');
+              core.setFailed(
+                `Release is frozen: unresolved production verification blocker(s): ${links}. ` +
+                `Resolve/close blocker issue(s) before merging into main.`
+              );
+            }
+
+      - name: Policy Gate - response_model coverage (changed API files)
+        run: python3 scripts/check_response_model_coverage.py --diff-range "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Policy Gate - API route-prefix test coverage (changed API files)
+        run: python3 scripts/check_api_test_coverage.py --diff-range "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Policy Gate - frontend to E2E mapping (changed files)
+        run: python3 scripts/check_frontend_e2e_mapping.py --diff-range "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Policy Gate - skill version bump on skill.md edits
+        run: bash scripts/check_skill_version_bump.sh --diff-range "origin/${{ github.base_ref }}...HEAD"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1

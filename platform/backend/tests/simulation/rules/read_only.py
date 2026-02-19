@@ -9,7 +9,7 @@ class ReadOnlyRulesMixin:
     @rule()
     def browse_feed(self):
         """Browse the platform feed (no auth required)."""
-        resp = self.client.get("/api/feed?limit=5")
+        resp = self.client.get("/api/feed/stream?limit=5")
         self._track_response(resp, "browse feed")
 
     @rule()

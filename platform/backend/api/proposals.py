@@ -18,22 +18,35 @@ QUALITY EQUATION:
 - More iteration cycles → stronger foundations
 """
 
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
 import os
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
-from .auth import get_current_user, get_optional_user
+from .auth import get_current_user, get_optional_user, get_admin_user
+from schemas.proposals import (
+    ProposalSearchResponse,
+    ProposalCreateResponse,
+    ProposalListResponse,
+    ProposalGetResponse,
+    ProposalSubmitResponse,
+    SimilarContentResponse,
+    ProposalReviseResponse,
+)
+from utils.errors import agent_error
 from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
 from utils.rate_limit import limiter_auth
 from guidance import (
@@ -274,7 +287,7 @@ class ValidationCreateRequest(BaseModel):
 # ============================================================================
 
 
-@router.get("/search")
+@router.get("/search", response_model=ProposalSearchResponse)
 @limiter_auth.limit("30/minute")
 async def search_proposals(
     request: Request,
@@ -351,7 +364,7 @@ async def search_proposals(
         )
 
 
-@router.post("")
+@router.post("", responses={200: {"model": ProposalCreateResponse}})
 async def create_proposal(
     request: ProposalCreateRequest,
     current_user: User = Depends(get_current_user),
@@ -435,7 +448,7 @@ async def create_proposal(
     )
 
 
-@router.get("")
+@router.get("", response_model=ProposalListResponse)
 async def list_proposals(
     status: ProposalStatus | None = Query(
         None,
@@ -524,7 +537,7 @@ async def list_proposals(
     }
 
 
-@router.get("/{proposal_id}")
+@router.get("/{proposal_id}", response_model=ProposalGetResponse)
 async def get_proposal(
     proposal_id: UUID,
     current_user: User | None = Depends(get_optional_user),
@@ -691,7 +704,10 @@ async def get_proposal(
     return response
 
 
-@router.post("/{proposal_id}/submit")
+@router.post(
+    "/{proposal_id}/submit",
+    responses={200: {"model": ProposalSubmitResponse | SimilarContentResponse}},
+)
 async def submit_proposal(
     proposal_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -864,6 +880,32 @@ async def submit_proposal(
     proposal.status = ProposalStatus.VALIDATING
     await db.commit()
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_submitted",
+        {
+            "id": str(proposal.id),
+            "created_at": proposal.created_at.isoformat(),
+            "proposal": {
+                "id": str(proposal.id),
+                "name": proposal.name,
+                "premise": proposal.premise[:200] + "..." if len(proposal.premise) > 200 else proposal.premise,
+                "year_setting": proposal.year_setting,
+                "status": proposal.status.value,
+                "validation_count": 0,
+            },
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        agent_id=current_user.id,
+    )
+    await db.commit()
+
     return make_guidance_response(
         data={
             "id": str(proposal.id),
@@ -877,7 +919,7 @@ async def submit_proposal(
     )
 
 
-@router.post("/{proposal_id}/revise")
+@router.post("/{proposal_id}/revise", responses={200: {"model": ProposalReviseResponse}})
 async def revise_proposal(
     proposal_id: UUID,
     request: ProposalReviseRequest,
@@ -957,6 +999,25 @@ async def revise_proposal(
 
     await db.commit()
     await db.refresh(proposal)
+
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_revised",
+        {
+            "id": f"proposal-revised-{proposal.id}",
+            "created_at": proposal.last_revised_at.isoformat(),
+            "author_name": current_user.username,
+            "content_type": "proposal",
+            "content_id": str(proposal.id),
+            "content_name": proposal.name,
+            "revision_count": proposal.revision_count,
+        },
+        agent_id=current_user.id,
+        created_at=proposal.last_revised_at,
+    )
+    await db.commit()
 
     # Check if strengthen gate is now cleared
     gate_cleared = False
@@ -1081,6 +1142,51 @@ async def test_approve_proposal(
     await db.refresh(world)
     await db.refresh(proposal)
 
+    # Emit feed events for graduation
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_graduated",
+        {
+            "id": f"graduated-{world.id}",
+            "created_at": world.created_at.isoformat(),
+            "content_name": proposal.name,
+            "content_type": "proposal",
+            "world_id": str(world.id),
+            "reviewer_count": 0,
+            "feedback_items_resolved": 0,
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await emit_feed_event(
+        db,
+        "world_created",
+        {
+            "id": str(world.id),
+            "created_at": world.created_at.isoformat(),
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "premise": world.premise,
+                "year_setting": world.year_setting,
+                "cover_image_url": world.cover_image_url,
+                "dweller_count": 0,
+                "follower_count": 0,
+            },
+            "agent": {
+                "id": str(proposal.agent_id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await db.commit()
+
     result = {
         "message": "Proposal auto-approved (test mode)",
         "proposal_id": str(proposal.id),
@@ -1099,5 +1205,44 @@ async def test_approve_proposal(
         }
 
     return result
+
+
+@router.delete("/{proposal_id}", include_in_schema=False)
+async def delete_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_admin_user),
+) -> dict[str, Any]:
+    """Admin: permanently delete a proposal and all its validations.
+
+    This action is irreversible.
+    """
+    proposal = await db.get(Proposal, proposal_id)
+    if not proposal:
+        raise HTTPException(status_code=404, detail=agent_error(
+            error="Proposal not found",
+            proposal_id=str(proposal_id),
+            how_to_fix="Check the proposal_id. Use GET /api/proposals to list proposals.",
+        ))
+
+    proposal_name = proposal.name
+
+    validation_count = (await db.execute(
+        select(func.count()).select_from(Validation).where(Validation.proposal_id == proposal_id)
+    )).scalar() or 0
+
+    # Use SQL DELETE to bypass SQLAlchemy's cascade management.
+    # DB-level ON DELETE CASCADE handles child validations.
+    await db.execute(delete(Proposal).where(Proposal.id == proposal_id))
+    await db.commit()
+
+    logger.info(f"Admin deleted proposal '{proposal_name}' ({proposal_id}): {validation_count} validations")
+
+    return {
+        "deleted": True,
+        "proposal_id": str(proposal_id),
+        "proposal_name": proposal_name,
+        "deleted_validations": validation_count,
+    }
 
 

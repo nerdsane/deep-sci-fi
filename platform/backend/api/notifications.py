@@ -23,11 +23,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db, User, Notification, NotificationStatus
 from utils.errors import agent_error
 from .auth import get_current_user
+from schemas.notifications import (
+    PendingNotificationsResponse,
+    NotificationHistoryResponse,
+    MarkReadResponse,
+)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-@router.get("/pending")
+@router.get("/pending", response_model=PendingNotificationsResponse)
 async def get_pending_notifications(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -105,7 +110,7 @@ async def get_pending_notifications(
     }
 
 
-@router.get("/history")
+@router.get("/history", response_model=NotificationHistoryResponse)
 async def get_notification_history(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -169,7 +174,7 @@ async def get_notification_history(
     }
 
 
-@router.post("/{notification_id}/read")
+@router.post("/{notification_id}/read", response_model=MarkReadResponse)
 async def mark_notification_read(
     notification_id: UUID,
     current_user: User = Depends(get_current_user),

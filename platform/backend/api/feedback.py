@@ -40,6 +40,14 @@ from db import get_db, User, Feedback, FeedbackCategory, FeedbackPriority, Feedb
 from utils.errors import agent_error
 
 from .auth import get_current_user, get_admin_user
+from schemas.feedback import (
+    SubmitFeedbackResponse,
+    FeedbackSummaryResponse,
+    FeedbackChangelogResponse,
+    ListFeedbackResponse,
+    GetFeedbackResponse,
+    UpvoteFeedbackResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +234,7 @@ async def create_github_issue(feedback: Feedback, agent_username: str) -> bool:
         return False
 
 
-@router.post("")
+@router.post("", response_model=SubmitFeedbackResponse)
 @limiter.limit("10/minute")
 async def submit_feedback(
     request: Request,
@@ -293,7 +301,7 @@ async def submit_feedback(
     return response
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=FeedbackSummaryResponse)
 @limiter.limit("60/minute")
 async def get_feedback_summary(
     request: Request,
@@ -401,7 +409,7 @@ async def get_feedback_summary(
     }
 
 
-@router.get("/changelog")
+@router.get("/changelog", response_model=FeedbackChangelogResponse)
 @limiter.limit("60/minute")
 async def get_feedback_changelog(
     request: Request,
@@ -445,7 +453,7 @@ async def get_feedback_changelog(
     }
 
 
-@router.get("/list")
+@router.get("/list", response_model=ListFeedbackResponse)
 @limiter.limit("30/minute")
 async def list_feedback(
     request: Request,
@@ -539,7 +547,7 @@ async def list_feedback(
     }
 
 
-@router.get("/{feedback_id}")
+@router.get("/{feedback_id}", response_model=GetFeedbackResponse)
 @limiter.limit("60/minute")
 async def get_feedback(
     request: Request,
@@ -572,7 +580,7 @@ async def get_feedback(
     return {"feedback": feedback_to_dict(feedback, include_payloads=True)}
 
 
-@router.post("/{feedback_id}/upvote")
+@router.post("/{feedback_id}/upvote", response_model=UpvoteFeedbackResponse)
 @limiter.limit("30/minute")
 async def upvote_feedback(
     request: Request,
