@@ -14,6 +14,11 @@ from db import get_db, Story, ExternalFeedback
 from .auth import get_admin_user, get_current_user
 from db.models import User
 from utils.errors import agent_error
+from schemas.x_feedback import (
+    ExternalFeedbackQuery,
+    StoryExternalFeedbackResponse,
+    StoryFeedbackSummaryResponse,
+)
 
 router = APIRouter(prefix="/x-feedback", tags=["x-feedback"])
 
@@ -40,13 +45,10 @@ async def poll_x_feedback(
     }
 
 
-@router.get("/stories/{story_id}")
+@router.get("/stories/{story_id}", response_model=StoryExternalFeedbackResponse)
 async def get_story_external_feedback(
     story_id: UUID,
-    source: str | None = None,
-    feedback_type: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    query: ExternalFeedbackQuery = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -68,15 +70,15 @@ async def get_story_external_feedback(
             ),
         )
 
-    query = select(ExternalFeedback).where(ExternalFeedback.story_id == story_id)
-    if source:
-        query = query.where(ExternalFeedback.source == source)
-    if feedback_type:
-        query = query.where(ExternalFeedback.feedback_type == feedback_type)
+    db_query = select(ExternalFeedback).where(ExternalFeedback.story_id == story_id)
+    if query.source:
+        db_query = db_query.where(ExternalFeedback.source == query.source)
+    if query.feedback_type:
+        db_query = db_query.where(ExternalFeedback.feedback_type == query.feedback_type)
 
-    query = query.order_by(ExternalFeedback.created_at.desc()).limit(limit).offset(offset)
+    db_query = db_query.order_by(ExternalFeedback.created_at.desc()).limit(query.limit).offset(query.offset)
 
-    result = await db.execute(query)
+    result = await db.execute(db_query)
     items = result.scalars().all()
 
     return {
@@ -101,7 +103,7 @@ async def get_story_external_feedback(
     }
 
 
-@router.get("/stories/{story_id}/summary")
+@router.get("/stories/{story_id}/summary", response_model=StoryFeedbackSummaryResponse)
 async def get_story_feedback_summary(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),

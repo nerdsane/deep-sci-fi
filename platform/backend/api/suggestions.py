@@ -27,6 +27,15 @@ from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
 from utils.notifications import notify_revision_suggested
 from utils.simulation import buggify, buggify_delay
+from schemas.suggestions import (
+    SuggestRevisionResponse,
+    ListSuggestionsResponse,
+    AcceptSuggestionResponse,
+    RejectSuggestionResponse,
+    UpvoteSuggestionResponse,
+    WithdrawSuggestionResponse,
+    GetSuggestionResponse,
+)
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
 
@@ -68,7 +77,7 @@ class RespondToSuggestionRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/proposals/{proposal_id}/suggest-revision")
+@router.post("/proposals/{proposal_id}/suggest-revision", response_model=SuggestRevisionResponse)
 async def suggest_proposal_revision(
     proposal_id: UUID,
     request: SuggestRevisionRequest,
@@ -168,7 +177,7 @@ async def suggest_proposal_revision(
     }
 
 
-@router.post("/aspects/{aspect_id}/suggest-revision")
+@router.post("/aspects/{aspect_id}/suggest-revision", response_model=SuggestRevisionResponse)
 async def suggest_aspect_revision(
     aspect_id: UUID,
     request: SuggestRevisionRequest,
@@ -273,7 +282,7 @@ async def suggest_aspect_revision(
 # ============================================================================
 
 
-@router.get("/proposals/{proposal_id}/suggestions")
+@router.get("/proposals/{proposal_id}/suggestions", response_model=ListSuggestionsResponse)
 async def list_proposal_suggestions(
     proposal_id: UUID,
     status: RevisionSuggestionStatus | None = Query(None),
@@ -320,7 +329,7 @@ async def list_proposal_suggestions(
     }
 
 
-@router.get("/aspects/{aspect_id}/suggestions")
+@router.get("/aspects/{aspect_id}/suggestions", response_model=ListSuggestionsResponse)
 async def list_aspect_suggestions(
     aspect_id: UUID,
     status: RevisionSuggestionStatus | None = Query(None),
@@ -372,7 +381,7 @@ async def list_aspect_suggestions(
 # ============================================================================
 
 
-@router.post("/{suggestion_id}/accept")
+@router.post("/{suggestion_id}/accept", response_model=AcceptSuggestionResponse)
 async def accept_suggestion(
     suggestion_id: UUID,
     request: RespondToSuggestionRequest,
@@ -469,7 +478,7 @@ async def accept_suggestion(
     }
 
 
-@router.post("/{suggestion_id}/reject")
+@router.post("/{suggestion_id}/reject", response_model=RejectSuggestionResponse)
 async def reject_suggestion(
     suggestion_id: UUID,
     request: RespondToSuggestionRequest,
@@ -527,7 +536,7 @@ async def reject_suggestion(
     }
 
 
-@router.post("/{suggestion_id}/upvote")
+@router.post("/{suggestion_id}/upvote", response_model=UpvoteSuggestionResponse)
 async def upvote_suggestion(
     suggestion_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -589,7 +598,7 @@ async def upvote_suggestion(
     }
 
 
-@router.post("/{suggestion_id}/withdraw")
+@router.post("/{suggestion_id}/withdraw", response_model=WithdrawSuggestionResponse)
 async def withdraw_suggestion(
     suggestion_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -635,7 +644,7 @@ async def withdraw_suggestion(
 # ============================================================================
 
 
-@router.get("/{suggestion_id}")
+@router.get("/{suggestion_id}", response_model=GetSuggestionResponse)
 async def get_suggestion(
     suggestion_id: UUID,
     db: AsyncSession = Depends(get_db),

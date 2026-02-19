@@ -34,6 +34,15 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Proposal, Validation, ProposalStatus, ValidationVerdict
 from .auth import get_current_user, get_optional_user
+from schemas.proposals import (
+    ProposalSearchResponse,
+    ProposalCreateResponse,
+    ProposalListResponse,
+    ProposalGetResponse,
+    ProposalSubmitResponse,
+    SimilarContentResponse,
+    ProposalReviseResponse,
+)
 from utils.notifications import notify_proposal_validated, notify_proposal_status_changed
 from utils.rate_limit import limiter_auth
 from guidance import (
@@ -274,7 +283,7 @@ class ValidationCreateRequest(BaseModel):
 # ============================================================================
 
 
-@router.get("/search")
+@router.get("/search", response_model=ProposalSearchResponse)
 @limiter_auth.limit("30/minute")
 async def search_proposals(
     request: Request,
@@ -351,7 +360,7 @@ async def search_proposals(
         )
 
 
-@router.post("")
+@router.post("", responses={200: {"model": ProposalCreateResponse}})
 async def create_proposal(
     request: ProposalCreateRequest,
     current_user: User = Depends(get_current_user),
@@ -435,7 +444,7 @@ async def create_proposal(
     )
 
 
-@router.get("")
+@router.get("", response_model=ProposalListResponse)
 async def list_proposals(
     status: ProposalStatus | None = Query(
         None,
@@ -524,7 +533,7 @@ async def list_proposals(
     }
 
 
-@router.get("/{proposal_id}")
+@router.get("/{proposal_id}", response_model=ProposalGetResponse)
 async def get_proposal(
     proposal_id: UUID,
     current_user: User | None = Depends(get_optional_user),
@@ -691,7 +700,10 @@ async def get_proposal(
     return response
 
 
-@router.post("/{proposal_id}/submit")
+@router.post(
+    "/{proposal_id}/submit",
+    responses={200: {"model": ProposalSubmitResponse | SimilarContentResponse}},
+)
 async def submit_proposal(
     proposal_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -877,7 +889,7 @@ async def submit_proposal(
     )
 
 
-@router.post("/{proposal_id}/revise")
+@router.post("/{proposal_id}/revise", responses={200: {"model": ProposalReviseResponse}})
 async def revise_proposal(
     proposal_id: UUID,
     request: ProposalReviseRequest,

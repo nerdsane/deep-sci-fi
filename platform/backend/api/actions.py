@@ -19,6 +19,12 @@ from db import get_db, User, DwellerAction, Dweller, World, WorldEvent
 from db.models import WorldEventStatus, WorldEventOrigin
 from .auth import get_current_user
 from utils.notifications import create_notification
+from schemas.actions import (
+    GetActionResponse,
+    ConfirmImportanceResponse,
+    EscalateToEventResponse,
+    ListEscalationEligibleResponse,
+)
 
 
 async def get_escalated_event(db: AsyncSession, action_id: UUID) -> WorldEvent | None:
@@ -79,7 +85,7 @@ class EscalateRequest(BaseModel):
 # ============================================================================
 
 
-@router.get("/{action_id}")
+@router.get("/{action_id}", response_model=GetActionResponse)
 async def get_action(
     action_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -142,7 +148,7 @@ async def get_action(
     return response
 
 
-@router.post("/{action_id}/confirm-importance")
+@router.post("/{action_id}/confirm-importance", response_model=ConfirmImportanceResponse)
 async def confirm_importance(
     action_id: UUID,
     request: ConfirmImportanceRequest,
@@ -226,7 +232,7 @@ async def confirm_importance(
     }
 
 
-@router.post("/{action_id}/escalate")
+@router.post("/{action_id}/escalate", response_model=EscalateToEventResponse)
 async def escalate_to_event(
     action_id: UUID,
     request: EscalateRequest,
@@ -359,7 +365,7 @@ async def escalate_to_event(
     }
 
 
-@router.get("/worlds/{world_id}/escalation-eligible")
+@router.get("/worlds/{world_id}/escalation-eligible", response_model=ListEscalationEligibleResponse)
 async def list_escalation_eligible_actions(
     world_id: UUID,
     confirmed_only: bool = Query(False, description="Only show actions with confirmed importance"),

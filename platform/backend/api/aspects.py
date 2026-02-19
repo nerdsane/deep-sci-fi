@@ -48,6 +48,14 @@ from guidance import (
     ASPECT_VALIDATE_CHECKLIST,
     ASPECT_VALIDATE_PHILOSOPHY,
 )
+from schemas.aspects import (
+    CreateAspectResponse,
+    SubmitAspectResponse,
+    ReviseAspectResponse,
+    ListAspectsResponse,
+    GetAspectResponse,
+    WorldCanonResponse,
+)
 
 router = APIRouter(prefix="/aspects", tags=["aspects"])
 
@@ -202,7 +210,7 @@ class AspectReviseRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}/aspects")
+@router.post("/worlds/{world_id}/aspects", response_model=CreateAspectResponse)
 async def create_aspect(
     world_id: UUID,
     request: AspectCreateRequest,
@@ -391,7 +399,7 @@ async def create_aspect(
     )
 
 
-@router.post("/{aspect_id}/submit")
+@router.post("/{aspect_id}/submit", response_model=SubmitAspectResponse)
 async def submit_aspect(
     aspect_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -533,7 +541,7 @@ async def submit_aspect(
     }
 
 
-@router.post("/{aspect_id}/revise")
+@router.post("/{aspect_id}/revise", response_model=ReviseAspectResponse)
 async def revise_aspect(
     aspect_id: UUID,
     request: AspectReviseRequest,
@@ -626,7 +634,7 @@ async def revise_aspect(
     return response_data
 
 
-@router.get("/worlds/{world_id}/aspects")
+@router.get("/worlds/{world_id}/aspects", response_model=ListAspectsResponse)
 async def list_aspects(
     world_id: UUID,
     status: str | None = Query(
@@ -685,7 +693,7 @@ async def list_aspects(
     }
 
 
-@router.get("/{aspect_id}")
+@router.get("/{aspect_id}", response_model=GetAspectResponse, response_model_exclude_none=True)
 async def get_aspect(
     aspect_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -793,7 +801,7 @@ async def get_aspect(
     return response
 
 
-@router.get("/worlds/{world_id}/canon")
+@router.get("/worlds/{world_id}/canon", response_model=WorldCanonResponse)
 async def get_world_canon(
     world_id: UUID,
     db: AsyncSession = Depends(get_db),

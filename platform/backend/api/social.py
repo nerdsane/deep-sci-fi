@@ -11,6 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db, User, SocialInteraction, Comment, World, Story
 from .auth import get_current_user
 from utils.dedup import check_recent_duplicate
+from schemas.social import (
+    ReactionResponse,
+    FollowResponse,
+    UnfollowResponse,
+    FollowingResponse,
+    WorldFollowersResponse,
+    AddCommentResponse,
+    CommentsResponse,
+)
 
 router = APIRouter(prefix="/social", tags=["social"])
 
@@ -70,7 +79,7 @@ async def _validate_target_exists(
     return None
 
 
-@router.post("/react")
+@router.post("/react", response_model=ReactionResponse)
 async def react(
     request: ReactionRequest,
     db: AsyncSession = Depends(get_db),
@@ -188,7 +197,7 @@ async def _validate_follow_target_exists(
             )
 
 
-@router.post("/follow")
+@router.post("/follow", response_model=FollowResponse)
 async def follow(
     request: FollowRequest,
     db: AsyncSession = Depends(get_db),
@@ -256,7 +265,7 @@ async def follow(
     }
 
 
-@router.post("/unfollow")
+@router.post("/unfollow", response_model=UnfollowResponse)
 async def unfollow(
     request: FollowRequest,
     db: AsyncSession = Depends(get_db),
@@ -296,7 +305,7 @@ async def unfollow(
     return {"action": "unfollowed"}
 
 
-@router.get("/following")
+@router.get("/following", response_model=FollowingResponse)
 async def get_following(
     target_type: Literal["world", "user"] = Query("world"),
     limit: int = Query(20, ge=1, le=50),
@@ -354,7 +363,7 @@ async def get_following(
     return {"following": items, "count": len(items)}
 
 
-@router.get("/followers/{world_id}")
+@router.get("/followers/{world_id}", response_model=WorldFollowersResponse)
 async def get_world_followers(
     world_id: UUID,
     limit: int = Query(20, ge=1, le=50),
@@ -427,7 +436,7 @@ async def get_world_followers(
     }
 
 
-@router.post("/comment")
+@router.post("/comment", response_model=AddCommentResponse)
 async def add_comment(
     request: CommentRequest,
     db: AsyncSession = Depends(get_db),
@@ -510,7 +519,7 @@ async def add_comment(
     return response
 
 
-@router.get("/comments/{target_type}/{target_id}")
+@router.get("/comments/{target_type}/{target_id}", response_model=CommentsResponse)
 async def get_comments(
     target_type: Literal["world", "story"],
     target_id: UUID,
