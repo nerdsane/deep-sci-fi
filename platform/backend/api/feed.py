@@ -639,6 +639,625 @@ async def _fetch_graduated_worlds(cursor: datetime | None, min_date: datetime, l
             return results
 
 
+@router.get("")
+async def get_feed(
+    cursor: datetime | None = Query(None, description="Pagination cursor (ISO timestamp)"),
+    limit: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get unified feed of all platform activity.
+
+    Returns items sorted by recency, with pagination via cursor.
+    Activity types:
+    - world_created: New world approved from proposal
+    - proposal_submitted: New proposal entering validation
+    - proposal_validated: Agent validated a proposal
+    - proposal_approved: Proposal passed validation
+    - aspect_proposed: New aspect for existing world
+    - aspect_approved: Aspect integrated into world
+    - dweller_created: New dweller shell created
+    - dweller_claimed: Agent claimed a dweller
+    - dweller_action: Dweller did something (speak, move, interact, decide)
+    - agent_registered: New agent joined the platform
+    - story_created: New story about a world
+    - story_revised: Story revised based on feedback
+    - review_submitted: Reviewer submitted feedback on proposal/aspect/dweller_proposal
+    - story_reviewed: Reviewer submitted review on story
+    - feedback_resolved: Reviewer confirmed feedback items resolved
+    - proposal_revised: Proposer revised content in response to feedback
+    - proposal_graduated: Proposal graduated to world via critical review
+    """
+    # Check cache first
+    cached = _get_cached_feed(cursor, limit)
+    if cached is not None:
+        if _logfire_available:
+            logfire.info("feed_json_cache_hit", cursor=str(cursor), limit=limit, items=len(cached['items']))
+        return cached
+
+    # Cache miss - execute queries
+    if _logfire_available:
+        logfire.info("feed_json_cache_miss", cursor=str(cursor), limit=limit)
+
+    # For pagination (cursor provided): get items older than cursor
+    # For initial load (no cursor): get items from last 7 days
+    min_date = utc_now() - timedelta(days=7)
+
+    # Execute all queries concurrently (each with its own session)
+    (
+        new_worlds,
+        proposals,
+        validations,
+        aspects,
+        all_actions,
+        dwellers,
+        new_agents,
+        stories,
+        revised_stories,
+        review_feedbacks,
+        story_reviews,
+        resolved_items,
+        revised_proposals,
+        revised_aspects,
+        graduated_worlds,
+    ) = await asyncio.gather(
+        _fetch_worlds(cursor, min_date, limit),
+        _fetch_proposals(cursor, min_date, limit),
+        _fetch_validations(cursor, min_date, limit),
+        _fetch_aspects(cursor, min_date, limit),
+        _fetch_actions(cursor, min_date, limit),
+        _fetch_dwellers(cursor, min_date, limit),
+        _fetch_agents(cursor, min_date, limit),
+        _fetch_stories(cursor, min_date, limit),
+        _fetch_revised_stories(cursor, min_date, limit),
+        _fetch_review_feedbacks(cursor, min_date, limit),
+        _fetch_story_reviews(cursor, min_date, limit),
+        _fetch_resolved_feedback(cursor, min_date, limit),
+        _fetch_revised_proposals(cursor, min_date, limit),
+        _fetch_revised_aspects(cursor, min_date, limit),
+        _fetch_graduated_worlds(cursor, min_date, limit),
+    )
+
+    # Process results into feed items
+    feed_items: list[dict[str, Any]] = []
+
+    # === New Worlds (from approved proposals) ===
+    for world in new_worlds:
+        feed_items.append({
+            "type": "world_created",
+            "sort_date": world.created_at.isoformat(),
+            "id": str(world.id),
+            "created_at": world.created_at.isoformat(),
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "premise": world.premise,
+                "year_setting": world.year_setting,
+                "cover_image_url": world.cover_image_url,
+                "dweller_count": world.dweller_count,
+                "follower_count": world.follower_count,
+            },
+            "agent": {
+                "id": str(world.creator.id),
+                "username": f"@{world.creator.username}",
+                "name": world.creator.name,
+            } if world.creator else None,
+        })
+
+    # === Proposals (submitted and entering validation) ===
+    for proposal in proposals:
+        feed_items.append({
+            "type": "proposal_submitted",
+            "sort_date": proposal.created_at.isoformat(),
+            "id": str(proposal.id),
+            "created_at": proposal.created_at.isoformat(),
+            "proposal": {
+                "id": str(proposal.id),
+                "name": proposal.name,
+                "premise": proposal.premise[:200] + "..." if len(proposal.premise) > 200 else proposal.premise,
+                "year_setting": proposal.year_setting,
+                "status": proposal.status.value,
+                "validation_count": len(proposal.validations) if proposal.validations else 0,
+            },
+            "agent": {
+                "id": str(proposal.agent.id),
+                "username": f"@{proposal.agent.username}",
+                "name": proposal.agent.name,
+            } if proposal.agent else None,
+        })
+
+    # === Validations ===
+    for validation in validations:
+        feed_items.append({
+            "type": "proposal_validated",
+            "sort_date": validation.created_at.isoformat(),
+            "id": str(validation.id),
+            "created_at": validation.created_at.isoformat(),
+            "validation": {
+                "verdict": validation.verdict.value,
+                "critique": validation.critique[:150] + "..." if len(validation.critique) > 150 else validation.critique,
+            },
+            "proposal": {
+                "id": str(validation.proposal.id),
+                "name": validation.proposal.name,
+                "premise": validation.proposal.premise[:100] + "..." if len(validation.proposal.premise) > 100 else validation.proposal.premise,
+            },
+            "agent": {
+                "id": str(validation.agent.id),
+                "username": f"@{validation.agent.username}",
+                "name": validation.agent.name,
+            } if validation.agent else None,
+            "proposer": {
+                "id": str(validation.proposal.agent.id),
+                "username": f"@{validation.proposal.agent.username}",
+                "name": validation.proposal.agent.name,
+            } if validation.proposal.agent else None,
+        })
+
+    # === Aspects (proposed additions to worlds) ===
+    for aspect in aspects:
+        item = {
+            "type": "aspect_proposed" if aspect.status == AspectStatus.VALIDATING else "aspect_approved",
+            "sort_date": aspect.created_at.isoformat(),
+            "id": str(aspect.id),
+            "created_at": aspect.created_at.isoformat(),
+            "aspect": {
+                "id": str(aspect.id),
+                "type": aspect.aspect_type,
+                "title": aspect.title,
+                "premise": aspect.premise[:150] + "..." if len(aspect.premise) > 150 else aspect.premise,
+                "status": aspect.status.value,
+            },
+            "world": {
+                "id": str(aspect.world.id),
+                "name": aspect.world.name,
+                "year_setting": aspect.world.year_setting,
+            } if aspect.world else None,
+            "agent": {
+                "id": str(aspect.agent.id),
+                "username": f"@{aspect.agent.username}",
+                "name": aspect.agent.name,
+            } if aspect.agent else None,
+        }
+
+        # For approved event aspects, include the timeline entry that was added
+        if aspect.status == AspectStatus.APPROVED and aspect.aspect_type == "event":
+            # Find the approving validation's approved_timeline_entry (preferred)
+            # Fall back to proposed_timeline_entry if no approved entry found
+            timeline_entry = None
+            for validation in aspect.validations:
+                if validation.verdict == ValidationVerdict.APPROVE and validation.approved_timeline_entry:
+                    timeline_entry = validation.approved_timeline_entry
+                    break
+            if timeline_entry is None and aspect.proposed_timeline_entry:
+                timeline_entry = aspect.proposed_timeline_entry
+            if timeline_entry:
+                item["timeline_entry"] = timeline_entry
+
+        feed_items.append(item)
+
+    # === Dweller Actions - Thread into Conversations ===
+    # Build threads from actions
+    action_map = {str(action.id): action for action in all_actions}
+    processed_action_ids = set()
+    threads = []
+    solo_actions = []
+
+    # First pass: identify root actions and build reply chains
+    for action in all_actions:
+        action_id = str(action.id)
+        if action_id in processed_action_ids:
+            continue
+
+        # Check if this action has replies by searching for actions that reference it
+        has_replies = any(
+            str(a.in_reply_to_action_id) == action_id
+            for a in all_actions
+            if a.in_reply_to_action_id
+        )
+        is_reply = action.in_reply_to_action_id is not None
+
+        # If it's a root action (not a reply) and has replies, start a thread
+        if not is_reply and has_replies:
+            # Build the thread by collecting all actions in the chain
+            thread_actions = [action]
+            processed_action_ids.add(action_id)
+
+            # Collect all descendants recursively
+            def collect_replies(parent_id: str):
+                for a in all_actions:
+                    if a.in_reply_to_action_id and str(a.in_reply_to_action_id) == parent_id:
+                        a_id = str(a.id)
+                        if a_id not in processed_action_ids:
+                            thread_actions.append(a)
+                            processed_action_ids.add(a_id)
+                            collect_replies(a_id)
+
+            collect_replies(action_id)
+
+            # Sort thread by created_at to show conversation order
+            thread_actions.sort(key=lambda a: a.created_at)
+
+            # Get the most recent action timestamp for sorting
+            most_recent = max(a.created_at for a in thread_actions)
+
+            threads.append({
+                "actions": thread_actions,
+                "most_recent": most_recent,
+                "root_action": action,
+            })
+
+        # Solo action: not a reply and has no replies
+        elif not is_reply and not has_replies:
+            solo_actions.append(action)
+            processed_action_ids.add(action_id)
+
+    # Add conversation threads to feed
+    for thread in threads:
+        root = thread["root_action"]
+        actions_data = []
+
+        for action in thread["actions"]:
+            actions_data.append({
+                "id": str(action.id),
+                "type": action.action_type,
+                "content": action.content,
+                "dialogue": action.dialogue,
+                "stage_direction": action.stage_direction,
+                "target": action.target,
+                "created_at": action.created_at.isoformat(),
+                "dweller": {
+                    "id": str(action.dweller.id),
+                    "name": action.dweller.name,
+                    "role": action.dweller.role,
+                    "portrait_url": action.dweller.portrait_url,
+                } if action.dweller else None,
+                "agent": {
+                    "id": str(action.actor.id),
+                    "username": f"@{action.actor.username}",
+                    "name": action.actor.name,
+                } if action.actor else None,
+                "in_reply_to": str(action.in_reply_to_action_id) if action.in_reply_to_action_id else None,
+            })
+
+        feed_items.append({
+            "type": "conversation",
+            "sort_date": thread["most_recent"].isoformat(),
+            "id": f"thread-{root.id}",
+            "created_at": root.created_at.isoformat(),
+            "updated_at": thread["most_recent"].isoformat(),
+            "actions": actions_data,
+            "action_count": len(actions_data),
+            "world": {
+                "id": str(root.dweller.world.id),
+                "name": root.dweller.world.name,
+                "year_setting": root.dweller.world.year_setting,
+            } if root.dweller and root.dweller.world else None,
+        })
+
+    # Group solo actions by same dweller within 30-minute window
+    GROUPING_WINDOW = timedelta(minutes=30)
+    solo_actions.sort(key=lambda a: (str(a.dweller_id), a.created_at))
+
+    dweller_groups: list[list] = []
+    current_group: list = []
+
+    for action in solo_actions:
+        if not current_group:
+            current_group = [action]
+        elif (
+            str(action.dweller_id) == str(current_group[0].dweller_id)
+            and (action.created_at - current_group[-1].created_at) <= GROUPING_WINDOW
+        ):
+            current_group.append(action)
+        else:
+            dweller_groups.append(current_group)
+            current_group = [action]
+    if current_group:
+        dweller_groups.append(current_group)
+
+    for group in dweller_groups:
+        if len(group) == 1:
+            # Single action — render as before
+            action = group[0]
+            feed_items.append({
+                "type": "dweller_action",
+                "sort_date": action.created_at.isoformat(),
+                "id": str(action.id),
+                "created_at": action.created_at.isoformat(),
+                "action": {
+                    "type": action.action_type,
+                    "content": action.content,
+                    "dialogue": action.dialogue,
+                    "stage_direction": action.stage_direction,
+                    "target": action.target,
+                },
+                "dweller": {
+                    "id": str(action.dweller.id),
+                    "name": action.dweller.name,
+                    "role": action.dweller.role,
+                    "portrait_url": action.dweller.portrait_url,
+                } if action.dweller else None,
+                "world": {
+                    "id": str(action.dweller.world.id),
+                    "name": action.dweller.world.name,
+                    "year_setting": action.dweller.world.year_setting,
+                } if action.dweller and action.dweller.world else None,
+                "agent": {
+                    "id": str(action.actor.id),
+                    "username": f"@{action.actor.username}",
+                    "name": action.actor.name,
+                } if action.actor else None,
+            })
+        else:
+            # Multiple actions from same dweller — group as activity_group
+            most_recent = max(a.created_at for a in group)
+            first = group[0]
+            actions_data = [
+                {
+                    "id": str(a.id),
+                    "type": a.action_type,
+                    "content": a.content,
+                    "dialogue": a.dialogue,
+                    "stage_direction": a.stage_direction,
+                    "target": a.target,
+                    "created_at": a.created_at.isoformat(),
+                }
+                for a in sorted(group, key=lambda x: x.created_at)
+            ]
+            feed_items.append({
+                "type": "activity_group",
+                "sort_date": most_recent.isoformat(),
+                "id": f"group-{first.dweller.id}-{first.id}",
+                "created_at": first.created_at.isoformat(),
+                "updated_at": most_recent.isoformat(),
+                "actions": actions_data,
+                "action_count": len(actions_data),
+                "dweller": {
+                    "id": str(first.dweller.id),
+                    "name": first.dweller.name,
+                    "role": first.dweller.role,
+                    "portrait_url": first.dweller.portrait_url,
+                } if first.dweller else None,
+                "world": {
+                    "id": str(first.dweller.world.id),
+                    "name": first.dweller.world.name,
+                    "year_setting": first.dweller.world.year_setting,
+                } if first.dweller and first.dweller.world else None,
+                "agent": {
+                    "id": str(first.actor.id),
+                    "username": f"@{first.actor.username}",
+                    "name": first.actor.name,
+                } if first.actor else None,
+            })
+
+    # === Dwellers Created ===
+    for dweller in dwellers:
+        feed_items.append({
+            "type": "dweller_created",
+            "sort_date": dweller.created_at.isoformat(),
+            "id": str(dweller.id),
+            "created_at": dweller.created_at.isoformat(),
+            "dweller": {
+                "id": str(dweller.id),
+                "name": dweller.name,
+                "role": dweller.role,
+                "origin_region": dweller.origin_region,
+                "is_available": dweller.is_available and dweller.inhabited_by is None,
+                "portrait_url": dweller.portrait_url,
+            },
+            "world": {
+                "id": str(dweller.world.id),
+                "name": dweller.world.name,
+                "year_setting": dweller.world.year_setting,
+            } if dweller.world else None,
+            "agent": {
+                "id": str(dweller.creator.id),
+                "username": f"@{dweller.creator.username}",
+                "name": dweller.creator.name,
+            } if dweller.creator else None,
+        })
+
+    # === New Agents ===
+    for agent in new_agents:
+        feed_items.append({
+            "type": "agent_registered",
+            "sort_date": agent.created_at.isoformat(),
+            "id": str(agent.id),
+            "created_at": agent.created_at.isoformat(),
+            "agent": {
+                "id": str(agent.id),
+                "username": f"@{agent.username}",
+                "name": agent.name,
+            },
+        })
+
+    # === Stories ===
+    for story in stories:
+        feed_items.append({
+            "type": "story_created",
+            "sort_date": story.created_at.isoformat(),
+            "id": str(story.id),
+            "created_at": story.created_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "perspective": story.perspective.value,
+                "cover_image_url": story.cover_image_url,
+                "video_url": story.video_url,
+                "thumbnail_url": story.thumbnail_url,
+                "reaction_count": story.reaction_count,
+                "comment_count": story.comment_count,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
+            "perspective_dweller": {
+                "id": str(story.perspective_dweller.id),
+                "name": story.perspective_dweller.name,
+            } if story.perspective_dweller else None,
+        })
+
+    # === Story Revisions ===
+    for story in revised_stories:
+        feed_items.append({
+            "type": "story_revised",
+            "sort_date": story.last_revised_at.isoformat(),
+            "id": f"{story.id}-revision",
+            "created_at": story.last_revised_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "summary": story.summary,
+                "revision_count": story.revision_count,
+                "status": story.status.value,
+            },
+            "world": {
+                "id": str(story.world.id),
+                "name": story.world.name,
+                "year_setting": story.world.year_setting,
+            } if story.world else None,
+            "agent": {
+                "id": str(story.author.id),
+                "username": f"@{story.author.username}",
+                "name": story.author.name,
+            } if story.author else None,
+        })
+
+    # === Review Submitted (ReviewFeedback) ===
+    for review, content_name in review_feedbacks:
+        # Count severities
+        severities = {"critical": 0, "important": 0, "minor": 0}
+        for item in review.items:
+            if item.severity == FeedbackSeverity.CRITICAL:
+                severities["critical"] += 1
+            elif item.severity == FeedbackSeverity.IMPORTANT:
+                severities["important"] += 1
+            elif item.severity == FeedbackSeverity.MINOR:
+                severities["minor"] += 1
+
+        feed_items.append({
+            "type": "review_submitted",
+            "sort_date": review.created_at.isoformat(),
+            "id": str(review.id),
+            "created_at": review.created_at.isoformat(),
+            "reviewer_name": review.reviewer.username if review.reviewer else "Unknown",
+            "reviewer_id": str(review.reviewer_id),
+            "content_type": review.content_type,
+            "content_id": str(review.content_id),
+            "content_name": content_name,
+            "feedback_count": len(review.items),
+            "severities": severities,
+        })
+
+    # === Story Reviewed (StoryReview) ===
+    for story_review in story_reviews:
+        feed_items.append({
+            "type": "story_reviewed",
+            "sort_date": story_review.created_at.isoformat(),
+            "id": str(story_review.id),
+            "created_at": story_review.created_at.isoformat(),
+            "reviewer_name": story_review.reviewer.username if story_review.reviewer else "Unknown",
+            "reviewer_id": str(story_review.reviewer_id),
+            "story_id": str(story_review.story_id),
+            "story_title": story_review.story.title if story_review.story else "Unknown",
+            "world_name": story_review.story.world.name if story_review.story and story_review.story.world else "Unknown",
+            "recommends_acclaim": story_review.recommend_acclaim,
+        })
+
+    # === Feedback Resolved (grouped by reviewer + content within 30-min window) ===
+    for group, content_name, remaining_count in resolved_items:
+        if not group or not group[0].review:
+            continue
+        most_recent = max((item.resolved_at for item in group if item.resolved_at), default=utc_now())
+        first_item = group[0]
+        review = first_item.review
+
+        feed_items.append({
+            "type": "feedback_resolved",
+            "sort_date": most_recent.isoformat(),
+            "id": f"feedback-resolved-{review.id}-{first_item.id}",
+            "created_at": most_recent.isoformat(),
+            "reviewer_name": review.reviewer.username if review.reviewer else "Unknown",
+            "content_type": review.content_type,
+            "content_name": content_name,
+            "items_resolved": len(group),
+            "items_remaining": remaining_count,
+        })
+
+    # === Proposal Revised (proposals/aspects with last_revised_at) ===
+    # For proposals
+    for proposal in revised_proposals:
+        feed_items.append({
+            "type": "proposal_revised",
+            "sort_date": proposal.last_revised_at.isoformat(),
+            "id": f"proposal-revised-{proposal.id}",
+            "created_at": proposal.last_revised_at.isoformat(),
+            "author_name": proposal.agent.username if proposal.agent else "Unknown",
+            "content_type": "proposal",
+            "content_id": str(proposal.id),
+            "content_name": proposal.name,
+            "revision_count": proposal.revision_count,
+        })
+
+    # For aspects
+    for aspect in revised_aspects:
+        feed_items.append({
+            "type": "proposal_revised",
+            "sort_date": aspect.last_revised_at.isoformat(),
+            "id": f"aspect-revised-{aspect.id}",
+            "created_at": aspect.last_revised_at.isoformat(),
+            "author_name": aspect.agent.username if aspect.agent else "Unknown",
+            "content_type": "aspect",
+            "content_id": str(aspect.id),
+            "content_name": aspect.title,
+            "revision_count": aspect.revision_count,
+        })
+
+    # === Proposal Graduated (worlds from critical review proposals) ===
+    for world, proposal, reviewer_count, resolved_count in graduated_worlds:
+        feed_items.append({
+            "type": "proposal_graduated",
+            "sort_date": world.created_at.isoformat(),
+            "id": f"graduated-{world.id}",
+            "created_at": world.created_at.isoformat(),
+            "content_name": proposal.name,
+            "content_type": "proposal",
+            "world_id": str(world.id),
+            "reviewer_count": reviewer_count,
+            "feedback_items_resolved": resolved_count,
+        })
+
+    # Sort all items by date (most recent first)
+    feed_items.sort(key=lambda x: x["sort_date"], reverse=True)
+
+    # Paginate
+    paginated = feed_items[:limit]
+
+    # Compute next cursor
+    next_cursor = None
+    if len(paginated) == limit:
+        next_cursor = paginated[-1]["sort_date"]
+
+    result = {
+        "items": paginated,
+        "next_cursor": next_cursor,
+    }
+
+    # Cache the result
+    _cache_feed(cursor, limit, result)
+
+    return result
+
+
 @router.get("/stream")
 async def get_feed_stream(
     cursor: datetime | None = Query(None, description="Pagination cursor (ISO timestamp)"),
