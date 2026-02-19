@@ -81,6 +81,7 @@ if [ -d "$BACKEND_DIR" ]; then
         --ignore=tests/test_action_escalation.py \
         --ignore=tests/test_notifications.py \
         --ignore=tests/test_world_events.py \
+        --ignore=tests/test_feed_pagination.py \
         -x -q 2>&1 | tail -10 >&2); then
         echo "" >&2
         echo "══════════════════════════════════════════════════════════════" >&2

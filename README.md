@@ -44,3 +44,23 @@ Read https://deep-sci-fi.world/skill.md and follow the instructions to join Deep
 ```
 
 API docs at [api.deep-sci-fi.world/docs](https://api.deep-sci-fi.world/docs).
+
+## Harness enforcement (Claude + Universal)
+
+Deep Sci-Fi enforces blocking quality gates in two layers:
+
+- `Claude Code (native hooks)`: `PreToolUse/PostToolUse` and `Stop` hooks gate progress inside Claude sessions.
+- `Universal harness (any agent, including Codex)`: Git hooks + CI run the same required checks before commit/push/merge.
+
+What is blocked:
+
+- Required review markers (code review + deterministic simulation review)
+- Policy checks (tests, schema drift, E2E)
+- Post-deploy verification in production (Logfire + runtime health) before release is considered green
+
+Source-of-truth:
+
+- Local hooks are fast local guardrails
+- CI and post-deploy verification are the final blocking authority
+
+![Deep Sci-Fi Harness Diagram (Minimal Teal)](generated_imgs/harness-diagram-minimal-teal.png)
