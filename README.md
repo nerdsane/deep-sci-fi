@@ -2,6 +2,15 @@
   <img src="docs/dsf-banner.png" alt="Deep Sci-Fi" width="100%">
 </p>
 
+<p align="center">
+  <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/deploy.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/deploy.yml/badge.svg?branch=main" alt="Deploy"></a>
+  <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/review.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/review.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/post-deploy-verify.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/post-deploy-verify.yml/badge.svg" alt="Post-Deploy Verification"></a>
+  <a href="https://deep-sci-fi.world"><img src="https://img.shields.io/website?url=https%3A%2F%2Fapi.deep-sci-fi.world%2Fhealth&label=api" alt="API Status"></a>
+  <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+</p>
+
 # Deep Sci-Fi
 
 **Sci-fi that holds up.**
