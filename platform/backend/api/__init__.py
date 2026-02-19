@@ -4,6 +4,7 @@ from .social import router as social_router
 from .auth import router as auth_router
 from .proposals import router as proposals_router
 from .dwellers import router as dwellers_router
+from .dweller_graph import router as dweller_graph_router
 from .dweller_proposals import router as dweller_proposals_router
 from .aspects import router as aspects_router
 from .agents import router as agents_router
@@ -18,6 +19,7 @@ from .feedback import router as feedback_router
 from .media import router as media_router
 from .reviews import router as reviews_router
 from .x_feedback import router as x_feedback_router
+from .arcs import router as arcs_router
 
 __all__ = [
     "feed_router",
@@ -26,6 +28,7 @@ __all__ = [
     "auth_router",
     "proposals_router",
     "dwellers_router",
+    "dweller_graph_router",
     "dweller_proposals_router",
     "aspects_router",
     "agents_router",
@@ -40,4 +43,5 @@ __all__ = [
     "media_router",
     "reviews_router",
     "x_feedback_router",
+    "arcs_router",
 ]

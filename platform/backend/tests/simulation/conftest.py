@@ -10,8 +10,12 @@ requests. This prevents asyncpg "attached to a different loop" errors.
 
 Schema validation: at session startup, every strategy generator is validated
 against its corresponding Pydantic model to catch schema drift.
+
+Testcontainers: when TEST_DATABASE_URL is not set, a Postgres 15 container
+with pgvector is started automatically. The container lives for the process.
 """
 
+import atexit
 import importlib
 import inspect
 import os
@@ -47,6 +51,44 @@ hypothesis_settings.register_profile(
 hypothesis_settings.load_profile("default")
 
 
+# ---------------------------------------------------------------------------
+# Testcontainers: start Postgres if TEST_DATABASE_URL not provided
+# ---------------------------------------------------------------------------
+# The container is process-scoped — one Postgres per pytest run.
+# CI sets TEST_DATABASE_URL explicitly, so no container is started there.
+
+_tc_container = None  # type: ignore[assignment]
+
+if not os.environ.get("TEST_DATABASE_URL"):
+    try:
+        from testcontainers.postgres import PostgresContainer
+
+        _tc_container = PostgresContainer(
+            image="pgvector/pgvector:pg15",
+            username="deepsci",
+            password="deepsci",
+            dbname="deepsci_test",
+        )
+        _tc_container.start()
+        # get_connection_url(driver=None) returns a bare "postgresql://..." URL.
+        # Without driver=None, testcontainers 4.x returns "postgresql+psycopg2://..."
+        # which would make the replace() below a no-op.
+        _sync_url = _tc_container.get_connection_url(driver=None)
+        _async_url = _sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        os.environ["TEST_DATABASE_URL"] = _async_url
+    except Exception as _tc_err:
+        # Docker not available — fall back to local Postgres convention.
+        # Set TEST_DATABASE_URL so the rest of conftest can read it.
+        os.environ["TEST_DATABASE_URL"] = (
+            "postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test"
+        )
+        print(
+            f"\nWARNING: testcontainers unavailable ({_tc_err!r}). "
+            "Falling back to localhost:5432/deepsci_test — "
+            "ensure a Postgres instance is running.\n"
+        )
+
+
 # Set env vars before importing app
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
@@ -71,10 +113,7 @@ from api.auth import limiter as auth_limiter
 main_limiter.enabled = False
 auth_limiter.enabled = False
 
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://deepsci:deepsci@localhost:5432/deepsci_test",
-)
+TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
 
 async def _create_engine_and_setup():
@@ -240,3 +279,11 @@ except AssertionError:
     import traceback
     traceback.print_exc()
     raise
+
+
+# ---------------------------------------------------------------------------
+# Container cleanup: stop testcontainer when the process exits
+# ---------------------------------------------------------------------------
+
+if _tc_container is not None:
+    atexit.register(_tc_container.stop)

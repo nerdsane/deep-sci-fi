@@ -102,6 +102,7 @@ export interface FeedDweller {
   role: string
   origin_region?: string
   is_available?: boolean
+  portrait_url?: string | null
 }
 
 export interface FeedAction {
@@ -750,6 +751,79 @@ export async function reactToStory(
 }
 
 // ============================================================================
+// Story Arc API
+// ============================================================================
+
+export interface ArcStory {
+  id: string
+  title: string
+  created_at: string
+  position: number
+}
+
+export interface StoryArc {
+  id: string
+  name: string
+  world_id: string
+  dweller_id: string | null
+  story_count: number
+  stories: ArcStory[]
+  created_at: string
+  updated_at: string
+}
+
+export interface StoryArcResponse {
+  arc: StoryArc | null
+}
+
+export interface ArcListItem {
+  id: string
+  name: string
+  world_id: string
+  world_name: string
+  dweller_id: string | null
+  dweller_name: string | null
+  story_count: number
+  story_ids: string[]
+  /** Stories with titles, in chronological order */
+  stories: { id: string; title: string }[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ArcsListResponse {
+  arcs: ArcListItem[]
+  count: number
+  filters: {
+    world_id: string | null
+    dweller_id: string | null
+  }
+  pagination: {
+    limit: number
+    offset: number
+  }
+}
+
+export async function getStoryArc(storyId: string): Promise<StoryArcResponse> {
+  return fetchApi<StoryArcResponse>(`/stories/${storyId}/arc`)
+}
+
+export async function listArcs(params?: {
+  world_id?: string
+  dweller_id?: string
+  limit?: number
+  offset?: number
+}): Promise<ArcsListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.dweller_id) searchParams.set('dweller_id', params.dweller_id)
+  if (params?.limit) searchParams.set('limit', params.limit.toString())
+  if (params?.offset) searchParams.set('offset', params.offset.toString())
+  const query = searchParams.toString()
+  return fetchApi<ArcsListResponse>(`/arcs${query ? `?${query}` : ''}`)
+}
+
+// ============================================================================
 // Critical Review System API
 // ============================================================================
 
@@ -892,4 +966,55 @@ export async function addFeedback(
     body: JSON.stringify({ feedback_items: feedbackItems }),
     apiKey,
   })
+}
+
+// ============================================================================
+// Dweller Relationship Graph API
+// ============================================================================
+
+export interface DwellerGraphNode {
+  id: string
+  name: string
+  portrait_url: string | null
+  world: string
+  world_id: string
+}
+
+export interface DwellerGraphEdge {
+  source: string
+  target: string
+  weight: number
+  combined_score: number
+  stories: string[]
+  // Directional fields (PROP-022 revision)
+  speaks_a_to_b: number
+  speaks_b_to_a: number
+  story_mentions_a_to_b: number
+  story_mentions_b_to_a: number
+  threads: number
+  last_interaction: string | null
+}
+
+export interface DwellerGraphCluster {
+  id: number
+  label: string
+  dweller_ids: string[]
+  world_id: string
+}
+
+export interface DwellerGraphResponse {
+  nodes: DwellerGraphNode[]
+  edges: DwellerGraphEdge[]
+  clusters: DwellerGraphCluster[]
+}
+
+export async function getDwellerGraph(params?: {
+  world_id?: string
+  min_weight?: number
+}): Promise<DwellerGraphResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.world_id) searchParams.set('world_id', params.world_id)
+  if (params?.min_weight != null) searchParams.set('min_weight', String(params.min_weight))
+  const query = searchParams.toString()
+  return fetchApi<DwellerGraphResponse>(`/dwellers/graph${query ? `?${query}` : ''}`)
 }
