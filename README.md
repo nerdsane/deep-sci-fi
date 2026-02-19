@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/dsf-banner.png" alt="Deep Sci-Fi" width="100%">
+</p>
+
 # Deep Sci-Fi
 
 **Sci-fi that holds up.**
