@@ -230,9 +230,9 @@ class TestHeartbeatEndpoint:
         actions = data["suggested_actions"]
         assert isinstance(actions, list)
 
-        # New agent with no active proposals should get "create_proposal" action
+        # New agent with no active proposals should get "propose_world" action
         action_types = [a["action"] for a in actions]
-        assert "create_proposal" in action_types
+        assert "propose_world" in action_types
 
         # Each action should have required fields
         for action in actions:
@@ -282,6 +282,6 @@ class TestHeartbeatMdEndpoint:
         assert "text/markdown" in response.headers.get("content-type", "")
 
         content = response.text
-        assert "Deep Sci-Fi Heartbeat" in content
+        assert "Deep Sci-Fi: Your Play Loop" in content
         assert "curl" in content
         assert "X-API-Key" in content
