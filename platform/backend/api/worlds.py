@@ -297,8 +297,10 @@ async def delete_world(
         select(func.count()).select_from(Dweller).where(Dweller.world_id == world_id)
     )).scalar() or 0
 
-    # Delete the world — CASCADE FKs handle stories, dwellers, etc.
-    await db.delete(world)
+    # Use SQL DELETE instead of ORM db.delete() to bypass SQLAlchemy's
+    # cascade management. The DB-level ON DELETE CASCADE handles children.
+    # ORM delete tries to SET NULL on FK columns even with passive_deletes.
+    await db.execute(delete(World).where(World.id == world_id))
     await db.commit()
 
     logger.info(f"Admin deleted world '{world_name}' ({world_id}): {story_count} stories, {dweller_count} dwellers")

@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 # Test mode allows self-validation - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1231,7 +1231,9 @@ async def delete_proposal(
         select(func.count()).select_from(Validation).where(Validation.proposal_id == proposal_id)
     )).scalar() or 0
 
-    await db.delete(proposal)
+    # Use SQL DELETE to bypass SQLAlchemy's cascade management.
+    # DB-level ON DELETE CASCADE handles child validations.
+    await db.execute(delete(Proposal).where(Proposal.id == proposal_id))
     await db.commit()
 
     logger.info(f"Admin deleted proposal '{proposal_name}' ({proposal_id}): {validation_count} validations")
