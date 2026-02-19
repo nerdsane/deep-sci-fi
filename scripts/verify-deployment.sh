@@ -6,13 +6,12 @@
 # Polls GitHub Actions, verifies both frontend and backend, checks Logfire.
 #
 # Usage:
-#   ./scripts/verify-deployment.sh                          # Verify staging (default)
-#   ./scripts/verify-deployment.sh production               # Verify production
-#   ./scripts/verify-deployment.sh staging --session 12345  # With session ID (from hooks)
-#   ./scripts/verify-deployment.sh local                    # Verify local (skip CI/Logfire)
+#   ./scripts/verify-deployment.sh                  # Verify staging (default)
+#   ./scripts/verify-deployment.sh production       # Verify production
+#   ./scripts/verify-deployment.sh local            # Verify local (skip CI/Logfire)
 #
-# The --session flag ties the verified marker to a specific Claude Code session,
-# so parallel sessions don't interfere with each other's verification state.
+# Note: --session flag is accepted but ignored (session scoping was removed
+# because $PPID is not stable across Claude Code hook invocations).
 #
 # Exit codes:
 #   0 = all checks passed
@@ -22,10 +21,9 @@ set -euo pipefail
 
 # Parse arguments
 ENVIRONMENT="staging"
-SESSION_ID=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --session) SESSION_ID="$2"; shift 2 ;;
+    --session) shift 2 ;;  # deprecated, ignored (session scoping removed)
     staging|production|local) ENVIRONMENT="$1"; shift ;;
     *) shift ;;
   esac
@@ -300,11 +298,7 @@ if [ -n "$BRANCH" ]; then
   PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
   MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
   mkdir -p "$MARKER_DIR"
-  if [ -n "$SESSION_ID" ]; then
-    MARKER_PATH="$MARKER_DIR/deploy-verified-$SESSION_ID"
-  else
-    MARKER_PATH="$MARKER_DIR/deploy-verified"
-  fi
+  MARKER_PATH="$MARKER_DIR/deploy-verified"
   echo -e "${YELLOW}    touch $MARKER_PATH${NC}"
   echo ""
   echo -e "${CYAN}  Steps 1-5 passed. Waiting for Logfire MCP check to complete verification.${NC}"
@@ -335,11 +329,7 @@ else
     PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
     MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
     mkdir -p "$MARKER_DIR"
-    if [ -n "$SESSION_ID" ]; then
-      touch "$MARKER_DIR/deploy-verified-$SESSION_ID"
-    else
-      touch "$MARKER_DIR/deploy-verified"
-    fi
+    touch "$MARKER_DIR/deploy-verified"
   fi
   echo -e "${CYAN}======================================${NC}"
 
