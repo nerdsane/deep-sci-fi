@@ -110,6 +110,11 @@ class DeepSciFiGameRulesWithFaults(DeepSciFiGameRules):
                 )
                 self._track_response(resp1, f"double upvote attempt 1 {fid}")
 
+                # Update state mirror if first upvote succeeded
+                if resp1.status_code == 200 and agent.agent_id not in fb.upvoters:
+                    fb.upvoters.add(agent.agent_id)
+                    fb.upvote_count += 1
+
                 # Second upvote — must be 400 (already upvoted)
                 resp2 = self.client.post(
                     f"/api/feedback/{fid}/upvote",
