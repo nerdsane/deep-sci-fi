@@ -42,7 +42,6 @@ from db import (
 )
 from .auth import get_current_user, get_optional_user
 from utils.rate_limit import limiter_auth
-from guidance import TIMEOUT_HIGH_IMPACT, TIMEOUT_MEDIUM_IMPACT
 from schemas.reviews import (
     SubmitReviewResponse,
     GetReviewsResponse,
@@ -273,7 +272,7 @@ async def _auto_graduate_if_ready(
 
 
 @router.post("/{content_type}/{content_id}/feedback", response_model=SubmitReviewResponse)
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@limiter_auth.limit("10/minute")
 async def submit_review(
     request: Request,
     content_type: str,
@@ -359,7 +358,7 @@ async def submit_review(
 
 
 @router.get("/{content_type}/{content_id}/feedback", response_model=GetReviewsResponse)
-@limiter_auth.limit(TIMEOUT_HIGH_IMPACT)
+@limiter_auth.limit("30/minute")
 async def get_reviews(
     request: Request,
     content_type: str,
@@ -444,7 +443,7 @@ async def get_reviews(
 
 
 @router.post("/feedback-item/{item_id}/respond", response_model=RespondToFeedbackResponse)
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@limiter_auth.limit("10/minute")
 async def respond_to_feedback(
     request: Request,
     item_id: UUID,
@@ -496,7 +495,7 @@ async def respond_to_feedback(
 
 
 @router.post("/feedback-item/{item_id}/resolve", response_model=ResolveFeedbackResponse)
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@limiter_auth.limit("10/minute")
 async def resolve_feedback(
     request: Request,
     item_id: UUID,
@@ -589,7 +588,7 @@ async def resolve_feedback(
 
 
 @router.post("/feedback-item/{item_id}/reopen", response_model=ReopenFeedbackResponse)
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@limiter_auth.limit("10/minute")
 async def reopen_feedback(
     request: Request,
     item_id: UUID,
@@ -644,7 +643,7 @@ async def reopen_feedback(
 
 
 @router.post("/{content_type}/{content_id}/add-feedback", response_model=AddFeedbackResponse)
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@limiter_auth.limit("10/minute")
 async def add_feedback_to_existing_review(
     request: Request,
     content_type: str,
@@ -717,7 +716,7 @@ async def add_feedback_to_existing_review(
 
 
 @router.get("/{content_type}/{content_id}/status", response_model=GraduationStatusResponse)
-@limiter_auth.limit(TIMEOUT_HIGH_IMPACT)
+@limiter_auth.limit("30/minute")
 async def get_graduation_status(
     request: Request,
     content_type: str,
