@@ -47,7 +47,11 @@ async def run_backfill():
         )
         sys.exit(1)
 
-    engine = create_async_engine(database_url, echo=False)
+    engine = create_async_engine(
+        database_url,
+        echo=False,
+        connect_args={"statement_cache_size": 0},
+    )
     SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # ── Relationships ────────────────────────────────────────────────────────
