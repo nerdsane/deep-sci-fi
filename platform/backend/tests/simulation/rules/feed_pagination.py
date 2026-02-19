@@ -16,6 +16,8 @@ from datetime import datetime
 
 from hypothesis.stateful import rule
 
+from tests.simulation.rules.base import parse_sse_feed
+
 
 class FeedPaginationRulesMixin:
     """Rules for testing feed pagination behavior."""
@@ -23,13 +25,13 @@ class FeedPaginationRulesMixin:
     @rule()
     def feed_pagination_no_overlap(self):
         """Feed pagination returns no duplicate item IDs across pages."""
-        resp1 = self.client.get("/api/feed?limit=5")
+        resp1 = self.client.get("/api/feed/stream?limit=5")
         self._track_response(resp1, "feed page 1")
 
         if resp1.status_code != 200:
             return  # Feed may be empty or endpoint unavailable
 
-        data1 = resp1.json()
+        data1 = parse_sse_feed(resp1.text)
         items1 = data1.get("items", [])
         cursor = data1.get("next_cursor")
 
@@ -37,13 +39,13 @@ class FeedPaginationRulesMixin:
         if not cursor:
             return
 
-        resp2 = self.client.get(f"/api/feed?limit=5&cursor={cursor}")
+        resp2 = self.client.get(f"/api/feed/stream?limit=5&cursor={cursor}")
         self._track_response(resp2, "feed page 2")
 
         if resp2.status_code != 200:
             return
 
-        data2 = resp2.json()
+        data2 = parse_sse_feed(resp2.text)
         items2 = data2.get("items", [])
 
         ids1 = {item["id"] for item in items1}
@@ -58,13 +60,13 @@ class FeedPaginationRulesMixin:
     @rule()
     def feed_pagination_chronological(self):
         """Feed items are in descending sort_date order within and across pages."""
-        resp1 = self.client.get("/api/feed?limit=5")
+        resp1 = self.client.get("/api/feed/stream?limit=5")
         self._track_response(resp1, "feed page 1 chronological")
 
         if resp1.status_code != 200:
             return
 
-        data1 = resp1.json()
+        data1 = parse_sse_feed(resp1.text)
         items1 = data1.get("items", [])
         cursor = data1.get("next_cursor")
 
@@ -81,13 +83,13 @@ class FeedPaginationRulesMixin:
                     f"{dates1[i]} < {dates1[i + 1]}"
                 )
 
-        resp2 = self.client.get(f"/api/feed?limit=5&cursor={cursor}")
+        resp2 = self.client.get(f"/api/feed/stream?limit=5&cursor={cursor}")
         self._track_response(resp2, "feed page 2 chronological")
 
         if resp2.status_code != 200:
             return
 
-        data2 = resp2.json()
+        data2 = parse_sse_feed(resp2.text)
         items2 = data2.get("items", [])
 
         if not items2:
@@ -113,26 +115,26 @@ class FeedPaginationRulesMixin:
     def feed_pagination_exhausted_cursor(self):
         """Cursor past all results returns 200 with empty items (no crash)."""
         past_cursor = "1970-01-01T00:00:00"
-        resp = self.client.get(f"/api/feed?limit=5&cursor={past_cursor}")
+        resp = self.client.get(f"/api/feed/stream?limit=5&cursor={past_cursor}")
         self._track_response(resp, "feed exhausted cursor")
 
         assert resp.status_code == 200, (
             f"Feed with exhausted cursor should return 200, "
             f"got {resp.status_code}: {resp.text[:200]}"
         )
-        data = resp.json()
+        data = parse_sse_feed(resp.text)
         assert "items" in data, "Response missing 'items' key"
 
     @rule()
     def feed_pagination_cursor_format(self):
         """Cursor returned by feed is a valid ISO timestamp."""
-        resp = self.client.get("/api/feed?limit=5")
+        resp = self.client.get("/api/feed/stream?limit=5")
         self._track_response(resp, "feed cursor format")
 
         if resp.status_code != 200:
             return
 
-        data = resp.json()
+        data = parse_sse_feed(resp.text)
         cursor = data.get("next_cursor")
 
         if not cursor:
