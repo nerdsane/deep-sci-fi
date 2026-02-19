@@ -35,7 +35,7 @@ find "$MARKER_DIR" -name 'deploy-verified-*' -delete 2>/dev/null || true
 # ─────────────────────────────────────────────────────────────────────────────
 # Case 1: Direct git push
 # ─────────────────────────────────────────────────────────────────────────────
-if echo "$COMMAND" | grep -qE '^\s*git\s+push\b'; then
+if echo "$COMMAND" | grep -qE '^\s*git\s+(-C\s+\S+\s+)?push\b'; then
   BRANCH=$(echo "$COMMAND" | grep -oE '(staging|main|master)' | head -1)
   BRANCH=${BRANCH:-"unknown"}
 
