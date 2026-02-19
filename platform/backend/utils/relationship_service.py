@@ -114,7 +114,7 @@ async def _recompute_scores_for_dwellers(
             FROM platform_dweller_relationships
         """)
     )
-    max_raw = max_result.scalar() or 1.0
+    max_raw = float(max_result.scalar() or 1.0)
     if max_raw == 0:
         max_raw = 1.0
 
