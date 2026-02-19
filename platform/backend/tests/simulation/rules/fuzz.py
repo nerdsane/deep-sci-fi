@@ -6,6 +6,12 @@ inheritance.
 
 Each rule draws data from Pydantic request models via Hypothesis,
 exercising boundary values, all enum variants, and edge cases.
+
+Phase 3 additions:
+- Read-back verification: after successful creation, GET the entity and
+  verify stored fields match sent data.
+- Tighter assertions: schema-valid data with valid context should return
+  200 or a specific documented 4xx (409, 422, 429, 403), not a generic 400.
 """
 
 from hypothesis.stateful import rule
@@ -38,6 +44,15 @@ from api.reviews import SubmitReviewRequest
 # Import enums for overrides
 from db.models import StoryPerspective
 
+# Known acceptable non-200 status codes for fuzz creation rules.
+# 409: conflict (duplicate name), 422: Pydantic cross-field validation,
+# 429: rate limit (max active proposals, dedup window), 403: auth edge case.
+# 400 intentionally excluded: schema-valid data from Pydantic strategies
+# should trigger specific error codes, not generic 400. If a 400 appears,
+# either the API needs a more specific code or the strategy overrides need
+# to provide more contextually valid data.
+_ACCEPTABLE_4XX = (403, 409, 422, 429)
+
 
 class FuzzRulesMixin:
     """Pydantic-driven fuzz rules that interleave with deterministic rules.
@@ -54,13 +69,18 @@ class FuzzRulesMixin:
         """Create proposal with fuzzed field values."""
         agent = self._random_agent()
         payload = data.draw(from_model(ProposalCreateRequest))
+        serialized = serialize(payload)
         resp = self.client.post(
             "/api/proposals",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create proposal")
-        assert resp.status_code < 500, f"Server error on fuzz proposal: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz proposal got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
             pid = body["id"]
@@ -68,6 +88,12 @@ class FuzzRulesMixin:
                 proposal_id=pid,
                 creator_id=agent.agent_id,
                 status="draft",
+            )
+            self._verify_readback(
+                f"/api/proposals/{pid}",
+                serialized,
+                {"proposal.name": "name", "proposal.premise": "premise",
+                 "proposal.year_setting": "year_setting"},
             )
 
     # ------------------------------------------------------------------
@@ -78,13 +104,18 @@ class FuzzRulesMixin:
         """Create feedback with fuzzed category, priority, and text fields."""
         agent = self._random_agent()
         payload = data.draw(from_model(FeedbackCreateRequest))
+        serialized = serialize(payload)
         resp = self.client.post(
             "/api/feedback",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create feedback")
-        assert resp.status_code < 500, f"Server error on fuzz feedback: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz feedback got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code in (200, 201):
             body = resp.json()
             fid = body.get("id") or body.get("feedback", {}).get("id")
@@ -92,6 +123,12 @@ class FuzzRulesMixin:
                 self.state.feedback[fid] = FeedbackState(
                     feedback_id=fid,
                     creator_id=agent.agent_id,
+                )
+                self._verify_readback(
+                    f"/api/feedback/{fid}",
+                    serialized,
+                    {"feedback.title": "title", "feedback.description": "description",
+                     "feedback.category": "category", "feedback.priority": "priority"},
                 )
 
     # ------------------------------------------------------------------
@@ -105,16 +142,28 @@ class FuzzRulesMixin:
         world_id = list(self.state.worlds.keys())[0]
         agent = self._random_agent()
         payload = data.draw(from_model(RegionCreateRequest))
+        serialized = serialize(payload)
         resp = self.client.post(
             f"/api/dwellers/worlds/{world_id}/regions",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz add region")
-        assert resp.status_code < 500, f"Server error on fuzz region: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz region got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
-            region_name = body.get("region", {}).get("name") or payload.get("name")
+            region = body.get("region", {})
+            region_name = region.get("name") or serialized.get("name")
+            # Inline read-back: verify POST response matches sent name
+            if region.get("name") and serialized.get("name"):
+                assert region["name"] == serialized["name"], (
+                    f"Region read-back mismatch: sent name={serialized['name']!r}, "
+                    f"got {region['name']!r}"
+                )
             if region_name:
                 world = self.state.worlds[world_id]
                 if region_name not in world.regions:
@@ -141,13 +190,18 @@ class FuzzRulesMixin:
             "origin_region": region,
             "current_region": st.sampled_from([region, None]),
         }))
+        serialized = serialize(payload)
         resp = self.client.post(
             f"/api/dwellers/worlds/{world_id}/dwellers",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create dweller")
-        assert resp.status_code < 500, f"Server error on fuzz dweller: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz dweller got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
             dweller = body.get("dweller", {})
@@ -158,6 +212,12 @@ class FuzzRulesMixin:
                     dweller_id=did,
                     world_id=world_id,
                     origin_region=region,
+                )
+                self._verify_readback(
+                    f"/api/dwellers/{did}",
+                    serialized,
+                    {"dweller.name": "name", "dweller.origin_region": "origin_region",
+                     "dweller.role": "role", "dweller.age": "age"},
                 )
 
     # ------------------------------------------------------------------
@@ -183,13 +243,18 @@ class FuzzRulesMixin:
             "source_event_ids": [],
             "source_action_ids": [],
         }))
+        serialized = serialize(payload)
         resp = self.client.post(
             "/api/stories",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create story")
-        assert resp.status_code < 500, f"Server error on fuzz story: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz story got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
             sid = body.get("id") or body.get("story", {}).get("id")
@@ -199,6 +264,11 @@ class FuzzRulesMixin:
                     world_id=world_id,
                     author_id=agent.agent_id,
                     status="PUBLISHED",
+                )
+                self._verify_readback(
+                    f"/api/stories/{sid}",
+                    serialized,
+                    {"story.title": "title", "story.perspective": "perspective"},
                 )
 
     # ------------------------------------------------------------------
@@ -217,13 +287,18 @@ class FuzzRulesMixin:
             "inspired_by_actions": [],
             "proposed_timeline_entry": None,
         }))
+        serialized = serialize(payload)
         resp = self.client.post(
             f"/api/aspects/worlds/{world_id}/aspects",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create aspect")
-        assert resp.status_code < 500, f"Server error on fuzz aspect: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz aspect got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
             aid = body.get("id") or body.get("aspect", {}).get("id")
@@ -233,7 +308,13 @@ class FuzzRulesMixin:
                     world_id=world_id,
                     creator_id=agent.agent_id,
                     status="draft",
-                    aspect_type=payload.get("aspect_type", "technology"),
+                    aspect_type=serialized.get("aspect_type", "technology"),
+                )
+                self._verify_readback(
+                    f"/api/aspects/{aid}",
+                    serialized,
+                    {"aspect.title": "title", "aspect.premise": "premise",
+                     "aspect.type": "aspect_type"},
                 )
 
     # ------------------------------------------------------------------
@@ -248,13 +329,18 @@ class FuzzRulesMixin:
         agent = self._random_agent()
 
         payload = data.draw(from_model(EventCreateRequest))
+        serialized = serialize(payload)
         resp = self.client.post(
             f"/api/events/worlds/{world_id}/events",
             headers=self._headers(agent),
-            json=serialize(payload),
+            json=serialized,
         )
         self._track_response(resp, "fuzz create event")
-        assert resp.status_code < 500, f"Server error on fuzz event: {resp.text[:300]}"
+        if resp.status_code >= 400:
+            assert resp.status_code in _ACCEPTABLE_4XX, (
+                f"Fuzz event got unexpected {resp.status_code} "
+                f"(expected 200 or {_ACCEPTABLE_4XX}): {resp.text[:300]}"
+            )
         if resp.status_code == 200:
             body = resp.json()
             eid = body.get("id") or body.get("event", {}).get("id")
@@ -265,9 +351,16 @@ class FuzzRulesMixin:
                     creator_id=agent.agent_id,
                     status="pending",
                 )
+                self._verify_readback(
+                    f"/api/events/{eid}",
+                    serialized,
+                    {"event.title": "title", "event.description": "description",
+                     "event.year_in_world": "year_in_world"},
+                )
 
     # ------------------------------------------------------------------
     # Fuzz rule: Submit review with diverse feedback items
+    # (Keep < 500 — operates on existing entities, state-dependent 400s expected)
     # ------------------------------------------------------------------
     @rule(data=st.data())
     def fuzz_submit_review(self, data):
@@ -326,6 +419,7 @@ class FuzzRulesMixin:
 
     # ------------------------------------------------------------------
     # Fuzz rule: Validate proposal with diverse verdicts
+    # (Keep < 500 — state-dependent 400s expected)
     # ------------------------------------------------------------------
     @rule(data=st.data())
     def fuzz_validate_proposal(self, data):
@@ -367,6 +461,7 @@ class FuzzRulesMixin:
 
     # ------------------------------------------------------------------
     # Fuzz rule: Revise proposal with diverse partial updates
+    # (Keep < 500 — state-dependent 400s expected)
     # ------------------------------------------------------------------
     @rule(data=st.data())
     def fuzz_revise_proposal(self, data):

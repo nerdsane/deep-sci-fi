@@ -114,6 +114,29 @@ class DeepSciFiBaseRules(RuleBasedStateMachine):
                 return d
         return None
 
+    def _verify_readback(self, get_url: str, sent: dict, field_map: dict, headers: dict | None = None):
+        """GET an entity and verify stored fields match what was sent.
+
+        field_map: {response_path: sent_key} — response_path supports dot notation.
+        """
+        resp = self.client.get(get_url, headers=headers or {})
+        if resp.status_code != 200:
+            return  # Entity may have been deleted/modified by another rule
+        body = resp.json()
+        for resp_path, sent_key in field_map.items():
+            actual = body
+            for part in resp_path.split("."):
+                actual = actual.get(part, {}) if isinstance(actual, dict) else None
+            if actual is None:
+                continue
+            expected = sent.get(sent_key) if isinstance(sent_key, str) else sent_key
+            if expected is None:
+                continue
+            assert actual == expected, (
+                f"Read-back mismatch at '{resp_path}': "
+                f"sent {sent_key}={expected!r}, got {actual!r}"
+            )
+
     # -------------------------------------------------------------------------
     # Rules: Setup and Time
     # -------------------------------------------------------------------------
