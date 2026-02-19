@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function MapPage() {
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="absolute inset-0 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="shrink-0 px-6 md:px-8 lg:px-12 py-4 border-b border-white/5">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
