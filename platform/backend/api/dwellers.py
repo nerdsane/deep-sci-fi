@@ -1861,6 +1861,17 @@ async def take_action(
         )
         notification_sent = True
 
+    # Update directional relationship graph for speak actions.
+    # Uses a savepoint so a failure rolls back only the relationship writes,
+    # leaving the action itself (and other writes above) intact.
+    if action.action_type == "speak" and action.target:
+        from utils.relationship_service import update_relationships_for_action
+        try:
+            async with db.begin_nested():
+                await update_relationships_for_action(db, action)
+        except Exception:
+            logger.exception("Failed to update relationships for action %s", action.id)
+
     await db.commit()
     await db.refresh(action)
 
