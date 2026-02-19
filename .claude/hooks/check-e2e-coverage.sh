@@ -6,9 +6,10 @@
 # Output: JSON on stdout with additionalContext if frontend file detected
 #
 # Coordination:
-#   Creates /tmp/claude-deepsci/{hash}/e2e-pending-{session} when frontend changed
-#   Creates /tmp/claude-deepsci/{hash}/e2e-touched-{session} when e2e test changed
+#   Creates /tmp/claude-deepsci/{hash}/e2e-pending when frontend changed
+#   Creates /tmp/claude-deepsci/{hash}/e2e-touched when e2e test changed
 #   stop-verify-deploy.sh checks these markers before allowing session exit.
+#   No session suffix — $PPID is NOT stable across hook invocations.
 
 set -euo pipefail
 
@@ -22,24 +23,24 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-# Session ID = Claude Code PID
-SESSION_ID=$PPID
-
-# Scope markers by project directory + session ID
+# Scope markers by project directory hash (no session suffix)
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
 PROJECT_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | cut -d' ' -f1)
 MARKER_DIR="/tmp/claude-deepsci/$PROJECT_HASH"
 mkdir -p "$MARKER_DIR"
 
-# Clean stale markers (older than 2 hours)
-find "$MARKER_DIR" -name 'e2e-pending-*' -mmin +120 -delete 2>/dev/null || true
-find "$MARKER_DIR" -name 'e2e-touched-*' -mmin +120 -delete 2>/dev/null || true
+# Clean stale markers (older than 4 hours)
+find "$MARKER_DIR" -name 'e2e-pending' -mmin +240 -delete 2>/dev/null || true
+find "$MARKER_DIR" -name 'e2e-touched' -mmin +240 -delete 2>/dev/null || true
+# Also clean up old session-scoped markers from before this fix
+find "$MARKER_DIR" -name 'e2e-pending-*' -delete 2>/dev/null || true
+find "$MARKER_DIR" -name 'e2e-touched-*' -delete 2>/dev/null || true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Case 1: E2E test file was modified — mark as touched
 # ─────────────────────────────────────────────────────────────────────────────
 if echo "$FILE_PATH" | grep -qE 'platform/e2e/.*\.spec\.ts$'; then
-  touch "$MARKER_DIR/e2e-touched-$SESSION_ID"
+  touch "$MARKER_DIR/e2e-touched"
   echo '{}'
   exit 0
 fi
@@ -84,7 +85,7 @@ elif echo "$FILE_PATH" | grep -qE 'platform/components/social/'; then
 fi
 
 if [ -n "$TEST_FILE" ]; then
-  echo "$TEST_FILE" > "$MARKER_DIR/e2e-pending-$SESSION_ID"
+  echo "$TEST_FILE" > "$MARKER_DIR/e2e-pending"
 
   cat <<ENDJSON
 {
