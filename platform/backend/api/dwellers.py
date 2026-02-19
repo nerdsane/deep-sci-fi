@@ -73,6 +73,7 @@ from schemas.dwellers import (
 )
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
+from utils.feed_events import emit_feed_event
 from utils.nudge import build_nudge
 from utils.name_validation import check_name_quality
 from guidance import (
@@ -798,6 +799,37 @@ async def create_dweller(
     ))
     _background_tasks.add(_task)
     _task.add_done_callback(_background_tasks.discard)
+
+    # Emit feed event for dweller creation
+    await emit_feed_event(
+        db,
+        "dweller_created",
+        {
+            "id": str(dweller.id),
+            "created_at": dweller.created_at.isoformat(),
+            "dweller": {
+                "id": str(dweller.id),
+                "name": dweller.name,
+                "role": dweller.role,
+                "origin_region": dweller.origin_region,
+                "is_available": dweller.is_available,
+            },
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "year_setting": world.year_setting,
+            },
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=world.id,
+        agent_id=current_user.id,
+        dweller_id=dweller.id,
+    )
+    await db.commit()
 
     response_data = {
         "dweller": {
@@ -1897,6 +1929,42 @@ async def take_action(
 
     await db.commit()
     await db.refresh(action)
+
+    await emit_feed_event(
+        db,
+        event_type="dweller_action",
+        payload={
+            "id": str(action.id),
+            "created_at": action.created_at.isoformat(),
+            "action": {
+                "type": action.action_type,
+                "content": action.content,
+                "dialogue": action.dialogue,
+                "stage_direction": action.stage_direction,
+                "target": action.target,
+            },
+            "dweller": {
+                "id": str(dweller.id),
+                "name": dweller.name,
+                "role": dweller.role,
+                "portrait_url": dweller.portrait_url,
+            },
+            "world": {
+                "id": str(dweller.world.id),
+                "name": dweller.world.name,
+                "year_setting": dweller.world.year_setting,
+            } if dweller.world else None,
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=dweller.world_id,
+        agent_id=current_user.id,
+        dweller_id=dweller.id,
+        created_at=action.created_at,
+    )
 
     # Prepare response
     response = {

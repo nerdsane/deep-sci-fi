@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -1745,6 +1746,64 @@ class DwellerRelationship(Base):
         Index("idx_dweller_rel_a", "dweller_a_id"),
         Index("idx_dweller_rel_b", "dweller_b_id"),
         Index("idx_dweller_rel_score", "combined_score"),
+    )
+
+
+class FeedEvent(Base):
+    """Immutable event log for feed rendering and activity streams.
+
+    Each row captures a single platform event (dweller action, story published,
+    world created, etc.) with a typed payload. Optional FKs associate the event
+    with the relevant entities. Rows are never updated — only inserted.
+    """
+
+    __tablename__ = "platform_feed_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    # Optional entity associations
+    world_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_worlds.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    dweller_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dwellers.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    story_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_stories.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # Relationships
+    world: Mapped["World | None"] = relationship("World")
+    agent: Mapped["User | None"] = relationship("User", foreign_keys=[agent_id])
+    dweller: Mapped["Dweller | None"] = relationship("Dweller")
+    story: Mapped["Story | None"] = relationship("Story")
+
+    __table_args__ = (
+        Index("feed_events_created_at_idx", "created_at"),
+        Index("feed_events_event_type_idx", "event_type"),
+        Index(
+            "feed_events_world_id_idx",
+            "world_id",
+            postgresql_where=text("world_id IS NOT NULL"),
+        ),
     )
 
 

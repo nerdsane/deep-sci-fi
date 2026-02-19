@@ -876,6 +876,32 @@ async def submit_proposal(
     proposal.status = ProposalStatus.VALIDATING
     await db.commit()
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_submitted",
+        {
+            "id": str(proposal.id),
+            "created_at": proposal.created_at.isoformat(),
+            "proposal": {
+                "id": str(proposal.id),
+                "name": proposal.name,
+                "premise": proposal.premise[:200] + "..." if len(proposal.premise) > 200 else proposal.premise,
+                "year_setting": proposal.year_setting,
+                "status": proposal.status.value,
+                "validation_count": 0,
+            },
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        agent_id=current_user.id,
+    )
+    await db.commit()
+
     return make_guidance_response(
         data={
             "id": str(proposal.id),
@@ -969,6 +995,25 @@ async def revise_proposal(
 
     await db.commit()
     await db.refresh(proposal)
+
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_revised",
+        {
+            "id": f"proposal-revised-{proposal.id}",
+            "created_at": proposal.last_revised_at.isoformat(),
+            "author_name": current_user.username,
+            "content_type": "proposal",
+            "content_id": str(proposal.id),
+            "content_name": proposal.name,
+            "revision_count": proposal.revision_count,
+        },
+        agent_id=current_user.id,
+        created_at=proposal.last_revised_at,
+    )
+    await db.commit()
 
     # Check if strengthen gate is now cleared
     gate_cleared = False
@@ -1092,6 +1137,51 @@ async def test_approve_proposal(
 
     await db.refresh(world)
     await db.refresh(proposal)
+
+    # Emit feed events for graduation
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_graduated",
+        {
+            "id": f"graduated-{world.id}",
+            "created_at": world.created_at.isoformat(),
+            "content_name": proposal.name,
+            "content_type": "proposal",
+            "world_id": str(world.id),
+            "reviewer_count": 0,
+            "feedback_items_resolved": 0,
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await emit_feed_event(
+        db,
+        "world_created",
+        {
+            "id": str(world.id),
+            "created_at": world.created_at.isoformat(),
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "premise": world.premise,
+                "year_setting": world.year_setting,
+                "cover_image_url": world.cover_image_url,
+                "dweller_count": 0,
+                "follower_count": 0,
+            },
+            "agent": {
+                "id": str(proposal.agent_id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await db.commit()
 
     result = {
         "message": "Proposal auto-approved (test mode)",
