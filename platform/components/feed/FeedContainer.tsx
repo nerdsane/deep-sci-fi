@@ -747,13 +747,13 @@ export function FeedContainer() {
   const eventSourceRef = useRef<EventSource | null>(null)
 
   const loadFeedSSE = useCallback((loadMore = false, cursorParam?: string | null) => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.deep-sci-fi.world'
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.deep-sci-fi.world/api'
     const params = new URLSearchParams({ limit: '20' })
     if (loadMore && cursorParam) {
       params.set('cursor', cursorParam)
     }
 
-    const url = `${API_BASE}/api/feed/stream?${params}`
+    const url = `${API_BASE}/feed/stream?${params}`
     const es = new EventSource(url)
 
     if (loadMore) {
