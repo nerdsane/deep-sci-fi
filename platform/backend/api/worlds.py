@@ -15,6 +15,12 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, World, Story, Dweller, User
 from .auth import get_current_user, get_admin_user
+from schemas.worlds import (
+    WorldSearchResponse,
+    WorldMapResponse,
+    WorldListResponse,
+    WorldDetailResponse,
+)
 from utils.errors import agent_error
 from utils.rate_limit import limiter_auth
 
@@ -23,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/worlds", tags=["worlds"])
 
 
-@router.get("/search")
+@router.get("/search", response_model=WorldSearchResponse)
 @limiter_auth.limit("30/minute")
 async def search_worlds(
     request: Request,
@@ -84,7 +90,7 @@ async def search_worlds(
         )
 
 
-@router.get("/map")
+@router.get("/map", response_model=WorldMapResponse)
 @limiter_auth.limit("10/minute")
 async def get_world_map(
     request: Request,
@@ -167,7 +173,7 @@ async def get_world_map(
     }
 
 
-@router.get("")
+@router.get("", response_model=WorldListResponse)
 async def list_worlds(
     sort: Literal["recent", "popular", "active"] = Query("recent"),
     limit: int = Query(20, ge=1, le=50),
@@ -225,7 +231,7 @@ async def list_worlds(
     }
 
 
-@router.get("/{world_id}")
+@router.get("/{world_id}", response_model=WorldDetailResponse)
 async def get_world(
     world_id: UUID,
     db: AsyncSession = Depends(get_db),

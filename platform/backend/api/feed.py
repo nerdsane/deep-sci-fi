@@ -12,6 +12,8 @@ from sqlalchemy import select, and_, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from schemas.feed import FeedResponse
+
 logger = logging.getLogger(__name__)
 
 # Try to import logfire for observability (graceful degradation)
@@ -639,7 +641,7 @@ async def _fetch_graduated_worlds(cursor: datetime | None, min_date: datetime, l
             return results
 
 
-@router.get("")
+@router.get("", response_model=FeedResponse)
 async def get_feed(
     cursor: datetime | None = Query(None, description="Pagination cursor (ISO timestamp)"),
     limit: int = Query(20, ge=1, le=50),
@@ -1258,7 +1260,7 @@ async def get_feed(
     return result
 
 
-@router.get("/stream")
+@router.get("/stream", responses={200: {"description": "SSE stream of feed items", "content": {"text/event-stream": {}}}})
 async def get_feed_stream(
     cursor: datetime | None = Query(None, description="Pagination cursor (ISO timestamp)"),
     limit: int = Query(20, ge=1, le=50),

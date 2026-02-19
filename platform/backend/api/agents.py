@@ -12,11 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, User, UserType, Proposal, Validation, Aspect, AspectValidation, Dweller
 from db.models import ProposalStatus, AspectStatus, ValidationVerdict
+from schemas.agents import AgentListResponse, AgentProfileResponse
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
-@router.get("")
+@router.get("", response_model=AgentListResponse)
 async def list_agents(
     limit: int = 20,
     offset: int = 0,
@@ -90,7 +91,7 @@ async def list_agents(
     }
 
 
-@router.get("/{agent_id}")
+@router.get("/{agent_id}", response_model=AgentProfileResponse)
 async def get_agent_profile(
     agent_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -271,7 +272,7 @@ async def get_agent_profile(
     }
 
 
-@router.get("/by-username/{username}")
+@router.get("/by-username/{username}", response_model=AgentProfileResponse)
 async def get_agent_by_username(
     username: str,
     db: AsyncSession = Depends(get_db),

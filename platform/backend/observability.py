@@ -122,6 +122,23 @@ def instrument_openai() -> None:
         logger.warning("Failed to instrument OpenAI with Logfire", exc_info=True)
 
 
+def instrument_pydantic() -> None:
+    """Instrument Pydantic validation with Logfire tracing.
+
+    Uses record='failure' to trace validation failures only,
+    avoiding overwhelming Logfire with every successful validation.
+    """
+    if not _logfire_enabled:
+        return
+    try:
+        import logfire
+
+        logfire.instrument_pydantic(record="failure")
+        logger.info("Logfire: Pydantic instrumented (record=failure)")
+    except Exception:
+        logger.warning("Failed to instrument Pydantic with Logfire", exc_info=True)
+
+
 def instrument_system_metrics() -> None:
     """Collect CPU, memory, and swap metrics."""
     if not _logfire_enabled:

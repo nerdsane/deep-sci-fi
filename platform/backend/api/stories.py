@@ -32,6 +32,25 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction
 from .auth import get_current_user, get_optional_user, get_admin_user
+from schemas.stories import (
+    SourceEventSummary,
+    SourceActionSummary,
+    StoryResponse,
+    StoryDetailResponse,
+    StoryReviewResponse,
+    StoryCreateResponse,
+    StoryListResponse,
+    StoryGetResponse,
+    StoryArcResponse,
+    WorldStoriesResponse,
+    StoryReactResponse,
+    StoryReviewCreateResponse,
+    StoryReviewsBlindResponse,
+    StoryReviewsFullResponse,
+    ReviewRespondResponse,
+    StoryReviseResponse,
+    StoryPublishToXResponse,
+)
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.notifications import create_notification, notify_story_acclaimed
@@ -95,81 +114,6 @@ class StoryCreateRequest(BaseModel):
         return self
 
 
-class StoryResponse(BaseModel):
-    """Story response for list views."""
-
-    id: UUID
-    world_id: UUID
-    world_name: str
-    author_id: UUID
-    author_name: str
-    author_username: str
-    title: str
-    summary: str | None
-    perspective: StoryPerspective
-    perspective_dweller_name: str | None
-    cover_image_url: str | None = None
-    video_url: str | None = None
-    thumbnail_url: str | None = None
-    x_post_id: str | None = None
-    status: StoryStatus
-    review_system: str = "LEGACY"
-    reaction_count: int
-    comment_count: int
-    created_at: datetime
-
-
-class SourceEventSummary(BaseModel):
-    """Summary of a referenced world event."""
-
-    id: str
-    title: str
-
-
-class SourceActionSummary(BaseModel):
-    """Summary of a referenced dweller action."""
-
-    id: str
-    action_type: str
-    dweller_name: str
-
-
-class StoryDetailResponse(BaseModel):
-    """Full story details including content."""
-
-    id: UUID
-    world_id: UUID
-    world_name: str
-    world_year_setting: int
-    author_id: UUID
-    author_name: str
-    author_username: str
-    title: str
-    content: str
-    summary: str | None
-    perspective: StoryPerspective
-    perspective_dweller_id: UUID | None
-    perspective_dweller_name: str | None
-    cover_image_url: str | None = None
-    video_url: str | None = None
-    thumbnail_url: str | None = None
-    x_post_id: str | None = None
-    x_published_at: datetime | None = None
-    source_event_ids: list[str]
-    source_action_ids: list[str]
-    source_events: list[SourceEventSummary]
-    source_actions: list[SourceActionSummary]
-    time_period_start: str | None
-    time_period_end: str | None
-    status: StoryStatus
-    review_count: int
-    acclaim_count: int
-    reaction_count: int
-    comment_count: int
-    revision_count: int
-    last_revised_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
 
 
 class ReactionRequest(BaseModel):
@@ -250,26 +194,6 @@ class StoryReviseRequest(BaseModel):
     summary: str | None = Field(None, max_length=500)
 
 
-class StoryReviewResponse(BaseModel):
-    """Response model for a story review."""
-
-    id: UUID
-    story_id: UUID
-    reviewer_id: UUID
-    reviewer_name: str
-    reviewer_username: str
-    recommend_acclaim: bool
-    improvements: list[str]
-    canon_notes: str
-    event_notes: str
-    style_notes: str
-    canon_issues: list[str]
-    event_issues: list[str]
-    style_issues: list[str]
-    created_at: datetime
-    author_responded: bool
-    author_response: str | None
-    author_responded_at: datetime | None
 
 
 # =============================================================================
@@ -458,7 +382,7 @@ async def maybe_transition_to_acclaimed(story: Story, db) -> bool:
 # =============================================================================
 
 
-@router.post("")
+@router.post("", response_model=StoryCreateResponse)
 async def create_story(
     request: StoryCreateRequest,
     background_tasks: BackgroundTasks,
@@ -618,7 +542,7 @@ async def create_story(
     }
 
 
-@router.get("")
+@router.get("", response_model=StoryListResponse)
 async def list_stories(
     world_id: UUID | None = Query(None, description="Filter by world"),
     author_id: UUID | None = Query(None, description="Filter by author"),
@@ -690,7 +614,7 @@ async def list_stories(
     }
 
 
-@router.get("/{story_id}")
+@router.get("/{story_id}", response_model=StoryGetResponse)
 async def get_story(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -785,7 +709,7 @@ async def get_story(
     }
 
 
-@router.get("/{story_id}/arc")
+@router.get("/{story_id}/arc", response_model=StoryArcResponse)
 async def get_story_arc(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -819,7 +743,7 @@ async def get_story_arc(
     return {"arc": arc}
 
 
-@router.get("/worlds/{world_id}")
+@router.get("/worlds/{world_id}", response_model=WorldStoriesResponse)
 async def get_world_stories(
     world_id: UUID,
     status: StoryStatus | None = Query(None, description="Filter by status"),
@@ -891,7 +815,7 @@ async def get_world_stories(
     }
 
 
-@router.post("/{story_id}/react")
+@router.post("/{story_id}/react", response_model=StoryReactResponse)
 async def react_to_story(
     story_id: UUID,
     request: ReactionRequest,
@@ -984,7 +908,7 @@ async def react_to_story(
 # =============================================================================
 
 
-@router.post("/{story_id}/review")
+@router.post("/{story_id}/review", response_model=StoryReviewCreateResponse)
 async def review_story(
     story_id: UUID,
     request: StoryReviewRequest,
@@ -1121,7 +1045,7 @@ async def review_story(
     }
 
 
-@router.get("/{story_id}/reviews")
+@router.get("/{story_id}/reviews", response_model=StoryReviewsFullResponse | StoryReviewsBlindResponse)
 async def get_story_reviews(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -1192,7 +1116,7 @@ async def get_story_reviews(
     }
 
 
-@router.post("/{story_id}/reviews/{review_id}/respond")
+@router.post("/{story_id}/reviews/{review_id}/respond", response_model=ReviewRespondResponse)
 async def respond_to_review(
     story_id: UUID,
     review_id: UUID,
@@ -1325,7 +1249,7 @@ async def respond_to_review(
     return response
 
 
-@router.post("/{story_id}/revise")
+@router.post("/{story_id}/revise", response_model=StoryReviseResponse)
 async def revise_story(
     story_id: UUID,
     request: StoryReviseRequest,
@@ -1493,7 +1417,7 @@ async def _update_graph_and_arcs(story_id: UUID):
             )
 
 
-@router.post("/{story_id}/publish-to-x")
+@router.post("/{story_id}/publish-to-x", response_model=StoryPublishToXResponse)
 async def publish_story_to_x_endpoint(
     story_id: UUID,
     background_tasks: BackgroundTasks,

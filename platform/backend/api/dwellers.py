@@ -48,6 +48,29 @@ from sqlalchemy.orm import selectinload
 
 from db import get_db, User, World, Dweller, DwellerAction
 from .auth import get_current_user
+from schemas.dwellers import (
+    AddRegionResponse,
+    ListRegionsResponse,
+    BlockedNamesResponse,
+    CreateDwellerResponse,
+    ListDwellersResponse,
+    GetDwellerResponse,
+    ClaimDwellerResponse,
+    ReleaseDwellerResponse,
+    DwellerStateResponse,
+    ActionContextResponse,
+    TakeActionResponse,
+    WorldActivityResponse,
+    GetFullMemoryResponse,
+    UpdateCoreMemoriesResponse,
+    UpdateRelationshipResponse,
+    UpdateSituationResponse,
+    CreateSummaryResponse,
+    CreateReflectionResponse,
+    UpdatePersonalityResponse,
+    SearchMemoryResponse,
+    PendingEventsResponse,
+)
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.nudge import build_nudge
@@ -421,7 +444,7 @@ class DwellerActionRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}/regions")
+@router.post("/worlds/{world_id}/regions", response_model=AddRegionResponse)
 async def add_region(
     world_id: UUID,
     request: RegionCreateRequest,
@@ -518,7 +541,7 @@ async def add_region(
     )
 
 
-@router.get("/worlds/{world_id}/regions")
+@router.get("/worlds/{world_id}/regions", response_model=ListRegionsResponse)
 async def list_regions(
     world_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -554,7 +577,7 @@ async def list_regions(
     }
 
 
-@router.get("/blocked-names")
+@router.get("/blocked-names", response_model=BlockedNamesResponse)
 async def get_blocked_names() -> dict[str, Any]:
     """
     Get the name blocklist used for dweller creation.
@@ -579,7 +602,7 @@ async def get_blocked_names() -> dict[str, Any]:
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}/dwellers")
+@router.post("/worlds/{world_id}/dwellers", response_model=CreateDwellerResponse)
 async def create_dweller(
     world_id: UUID,
     request: DwellerCreateRequest,
@@ -802,7 +825,7 @@ async def create_dweller(
     )
 
 
-@router.get("/worlds/{world_id}/dwellers")
+@router.get("/worlds/{world_id}/dwellers", response_model=ListDwellersResponse)
 async def list_dwellers(
     world_id: UUID,
     available_only: bool = Query(False, description="Only show unclaimed dwellers"),
@@ -857,7 +880,7 @@ async def list_dwellers(
     }
 
 
-@router.get("/{dweller_id}")
+@router.get("/{dweller_id}", response_model=GetDwellerResponse)
 async def get_dweller(
     dweller_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -920,7 +943,7 @@ async def get_dweller(
 # ============================================================================
 
 
-@router.post("/{dweller_id}/claim")
+@router.post("/{dweller_id}/claim", response_model=ClaimDwellerResponse)
 async def claim_dweller(
     dweller_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -1013,7 +1036,7 @@ async def claim_dweller(
     }
 
 
-@router.post("/{dweller_id}/release")
+@router.post("/{dweller_id}/release", response_model=ReleaseDwellerResponse)
 async def release_dweller(
     dweller_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -1060,7 +1083,7 @@ async def release_dweller(
     }
 
 
-@router.get("/{dweller_id}/state")
+@router.get("/{dweller_id}/state", response_model=DwellerStateResponse)
 async def get_dweller_state(
     dweller_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -1248,7 +1271,7 @@ async def _get_pending_conversations_summary(db: AsyncSession, dweller: Dweller)
 # ============================================================================
 
 
-@router.post("/{dweller_id}/act/context")
+@router.post("/{dweller_id}/act/context", response_model=ActionContextResponse)
 async def get_action_context(
     dweller_id: UUID,
     request: ActionContextRequest | None = None,
@@ -1517,7 +1540,7 @@ async def get_action_context(
     }
 
 
-@router.post("/{dweller_id}/act")
+@router.post("/{dweller_id}/act", response_model=TakeActionResponse, response_model_exclude_none=True)
 async def take_action(
     dweller_id: UUID,
     request: DwellerActionRequest,
@@ -1924,7 +1947,7 @@ async def take_action(
     )
 
 
-@router.get("/worlds/{world_id}/activity")
+@router.get("/worlds/{world_id}/activity", response_model=WorldActivityResponse)
 async def get_world_activity(
     world_id: UUID,
     limit: int = Query(20, ge=1, le=100),
@@ -1991,7 +2014,7 @@ async def get_world_activity(
 # ============================================================================
 
 
-@router.get("/{dweller_id}/memory")
+@router.get("/{dweller_id}/memory", response_model=GetFullMemoryResponse)
 async def get_full_memory(
     dweller_id: UUID,
     include_episodes: bool = Query(True, description="Include full episodic history"),
@@ -2066,7 +2089,7 @@ class SituationUpdate(BaseModel):
     situation: str = Field(..., description="New current situation")
 
 
-@router.patch("/{dweller_id}/memory/core")
+@router.patch("/{dweller_id}/memory/core", response_model=UpdateCoreMemoriesResponse)
 async def update_core_memories(
     dweller_id: UUID,
     request: CoreMemoryUpdate,
@@ -2132,7 +2155,7 @@ async def update_core_memories(
     )
 
 
-@router.patch("/{dweller_id}/memory/relationship")
+@router.patch("/{dweller_id}/memory/relationship", response_model=UpdateRelationshipResponse)
 async def update_relationship(
     dweller_id: UUID,
     request: RelationshipUpdate,
@@ -2209,7 +2232,7 @@ async def update_relationship(
     )
 
 
-@router.patch("/{dweller_id}/situation")
+@router.patch("/{dweller_id}/situation", response_model=UpdateSituationResponse)
 async def update_situation(
     dweller_id: UUID,
     request: SituationUpdate,
@@ -2304,7 +2327,7 @@ class PersonalityUpdateRequest(BaseModel):
     )
 
 
-@router.post("/{dweller_id}/memory/summarize")
+@router.post("/{dweller_id}/memory/summarize", response_model=CreateSummaryResponse)
 async def create_summary(
     dweller_id: UUID,
     request: MemorySummaryRequest,
@@ -2373,7 +2396,7 @@ async def create_summary(
     )
 
 
-@router.post("/{dweller_id}/memory/reflect")
+@router.post("/{dweller_id}/memory/reflect", response_model=CreateReflectionResponse)
 async def create_reflection(
     dweller_id: UUID,
     request: ReflectionRequest,
@@ -2448,7 +2471,7 @@ async def create_reflection(
     }
 
 
-@router.patch("/{dweller_id}/memory/personality")
+@router.patch("/{dweller_id}/memory/personality", response_model=UpdatePersonalityResponse)
 async def update_personality(
     dweller_id: UUID,
     request: PersonalityUpdateRequest,
@@ -2521,7 +2544,7 @@ async def update_personality(
     )
 
 
-@router.get("/{dweller_id}/memory/search")
+@router.get("/{dweller_id}/memory/search", response_model=SearchMemoryResponse)
 async def search_memory(
     dweller_id: UUID,
     q: str = Query(..., min_length=1, description="Search query"),
@@ -2605,7 +2628,7 @@ async def search_memory(
 # ============================================================================
 
 
-@router.get("/{dweller_id}/pending")
+@router.get("/{dweller_id}/pending", response_model=PendingEventsResponse)
 async def get_pending_events(
     dweller_id: UUID,
     mark_read: bool = Query(False, description="Mark notifications as read after fetching"),
