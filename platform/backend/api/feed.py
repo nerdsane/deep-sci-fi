@@ -9,10 +9,11 @@ import logging
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
+from uuid import UUID as _UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db, FeedEvent
@@ -40,7 +41,7 @@ router = APIRouter(prefix="/feed", tags=["feed"])
 
 @router.get("/stream", responses={200: {"description": "SSE stream of feed items", "content": {"text/event-stream": {}}}})
 async def get_feed_stream(
-    cursor: str | None = Query(None, description="Pagination cursor (ISO timestamp)"),
+    cursor: str | None = Query(None, description="Pagination cursor (ISO_TIMESTAMP~UUID)"),
     limit: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
@@ -66,17 +67,19 @@ async def get_feed_stream(
             )
             if cursor:
                 try:
-                    # Cursor format: "ISO_TIMESTAMP|UUID" for stable pagination
-                    # Falls back to timestamp-only for backwards compat
-                    if "|" in cursor:
-                        ts_part, id_part = cursor.split("|", 1)
+                    # Cursor format: "ISO_TIMESTAMP~UUID" for stable keyset pagination
+                    # Also accepts legacy "|" separator for backwards compat
+                    sep = "~" if "~" in cursor else "|" if "|" in cursor else None
+                    if sep:
+                        ts_part, id_part = cursor.split(sep, 1)
                         cursor_dt = datetime.fromisoformat(ts_part)
-                        from uuid import UUID as _UUID
                         cursor_id = _UUID(id_part)
-                        # Keyset pagination: skip rows with same timestamp but earlier id
-                        from sqlalchemy import or_, and_, tuple_
+                        # Keyset pagination: (created_at < cursor) OR (created_at = cursor AND id < cursor_id)
                         query = query.where(
-                            tuple_(FeedEvent.created_at, FeedEvent.id) < tuple_(cursor_dt, cursor_id)
+                            or_(
+                                FeedEvent.created_at < cursor_dt,
+                                and_(FeedEvent.created_at == cursor_dt, FeedEvent.id < cursor_id),
+                            )
                         )
                     else:
                         cursor_dt = datetime.fromisoformat(cursor)
@@ -98,10 +101,12 @@ async def get_feed_stream(
         # Send all items in one batch
         yield f"event: feed_items\ndata: {json.dumps({'items': items, 'partial': False})}\n\n"
 
-        # Compute next cursor — composite (timestamp|id) for stable keyset pagination
+        # Compute next cursor — composite (timestamp~id) for stable keyset pagination
+        # Use Z suffix instead of +00:00 so the cursor is URL-safe (+ decodes as space)
         if items:
             last = events[-1]
-            next_cursor = f"{last.created_at.isoformat()}|{last.id}"
+            ts = last.created_at.isoformat().replace("+00:00", "Z")
+            next_cursor = f"{ts}~{last.id}"
         else:
             next_cursor = None
 
