@@ -9,6 +9,7 @@ import asyncio
 import base64
 import logging
 import os
+import re
 
 import httpx
 
@@ -70,8 +71,6 @@ def sanitize_video_prompt(prompt: str) -> str:
     Artistic medium words cause Grok to generate anime/illustration style.
     Hand descriptions cause anatomical artifacts (Grok can't render hands well).
     """
-    import re
-
     # Remove artistic medium phrases
     medium_patterns = [
         r'\bwatercolor\s+(painting|illustration)\s+of\b',
