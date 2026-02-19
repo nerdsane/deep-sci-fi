@@ -34,7 +34,6 @@ from tests.simulation.rules.read_only import ReadOnlyRulesMixin
 from tests.simulation.rules.media import MediaRulesMixin
 from tests.simulation.rules.worlds import WorldRulesMixin
 from tests.simulation.rules.reviews import ReviewVisibilityRules
-from tests.simulation.rules.feed_pagination import FeedPaginationRulesMixin
 from tests.simulation.rules.arcs import ArcRulesMixin
 
 # Invariant mixins
@@ -64,7 +63,6 @@ class DeepSciFiGameRules(
     MediaRulesMixin,
     WorldRulesMixin,
     ReviewVisibilityRules,
-    FeedPaginationRulesMixin,
     ArcRulesMixin,
     # Base (must be last — provides RuleBasedStateMachine)
     DeepSciFiBaseRules,

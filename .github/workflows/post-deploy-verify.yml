@@ -13,6 +13,9 @@ jobs:
   verify-production:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -72,15 +75,31 @@ jobs:
             exit 1
           fi
 
+      - name: Check Schema Health
+        id: schema
+        run: |
+          BODY=$(curl -s --max-time 10 "https://api.deep-sci-fi.world/health" || echo '{}')
+          STATUS=$(echo "$BODY" | jq -r '.status // "unknown"')
+          echo "schema_status=$STATUS" >> $GITHUB_OUTPUT
+
+          if [ "$STATUS" = "healthy" ]; then
+            echo "Schema healthy"
+            exit 0
+          fi
+
+          echo "Schema status is '$STATUS' (expected 'healthy')"
+          echo "$BODY" | jq '.schema // empty'
+          exit 1
+
       - name: Check Logfire for 500 Errors
         id: logfire
         env:
           LOGFIRE_READ_TOKEN: ${{ secrets.LOGFIRE_READ_TOKEN }}
         run: |
           if [ -z "$LOGFIRE_READ_TOKEN" ]; then
-            echo "LOGFIRE_READ_TOKEN not set — skipping"
-            echo "status=skipped" >> $GITHUB_OUTPUT
-            exit 0
+            echo "LOGFIRE_READ_TOKEN not set — cannot enforce production 500-error gate"
+            echo "status=missing_token" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
           # Query for 500 errors in last 30 minutes
@@ -118,6 +137,7 @@ jobs:
             const backend = '${{ steps.backend.outputs.status }}';
             const frontend = '${{ steps.frontend.outputs.status }}';
             const smoke = '${{ steps.smoke.outputs.status }}';
+            const schema = '${{ steps.schema.outputs.schema_status }}';
             const logfire = '${{ steps.logfire.outputs.status }}';
             const errorCount = '${{ steps.logfire.outputs.error_count }}' || '0';
 
@@ -131,6 +151,7 @@ jobs:
             | Backend Health | ${backend === 'healthy' ? '✅' : '❌'} ${backend} |
             | Frontend Health | ${frontend === 'healthy' ? '✅' : '❌'} ${frontend} |
             | Smoke Test | ${smoke === 'passed' ? '✅' : '❌'} ${smoke} |
+            | Schema Health | ${schema === 'healthy' ? '✅' : '❌'} ${schema} |
             | Logfire (500 errors) | ${logfire === 'clean' ? '✅' : '❌'} ${logfire} ${errorCount !== '0' ? `(${errorCount} errors)` : ''} |
 
             ### Action Required
@@ -148,8 +169,40 @@ jobs:
               repo: context.repo.repo,
               title: '🚨 PRODUCTION VERIFICATION FAILED',
               body: body,
-              labels: ['bug', 'critical', 'production']
+              labels: ['bug', 'critical', 'production', 'release-blocker']
             });
+
+      - name: Close resolved production blocker issues
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              labels: 'release-blocker',
+              per_page: 100
+            });
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+              if (!issue.title.includes('PRODUCTION VERIFICATION FAILED')) continue;
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: `✅ Production verification passed in run ${process.env.GITHUB_RUN_ID}. Closing blocker.`
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
 
       - name: Summary
         if: success()
@@ -160,4 +213,5 @@ jobs:
           echo "  - Backend: healthy"
           echo "  - Frontend: healthy"
           echo "  - Smoke test: passed"
+          echo "  - Schema: healthy"
           echo "  - Logfire: no 500 errors"
