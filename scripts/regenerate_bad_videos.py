@@ -6,7 +6,9 @@ rewrites the prompt using GPT-4o-mini, regenerates the video via Grok, and
 updates the DB.
 
 Usage:
-    python regenerate_bad_videos.py [--dry-run] [--limit N]
+    cd platform/backend
+    source .venv/bin/activate
+    python ../../scripts/regenerate_bad_videos.py [--dry-run] [--limit N]
 
 Flags:
     --dry-run   Print rewritten prompts without generating videos
@@ -18,12 +20,21 @@ import asyncio
 import logging
 import os
 import ssl
+import sys
 import uuid
-from datetime import datetime
+from pathlib import Path
 
-import sqlalchemy as sa
 from openai import OpenAI
 from sqlalchemy import create_engine, text
+
+# Allow importing from the backend (media.generator, storage.r2, etc.)
+backend_dir = Path(__file__).parent.parent / "platform" / "backend"
+sys.path.insert(0, str(backend_dir))
+
+# Load .env from platform/
+from dotenv import load_dotenv  # noqa: E402
+env_path = Path(__file__).parent.parent / "platform" / ".env"
+load_dotenv(env_path)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -74,6 +85,8 @@ def make_engine():
         DATABASE_URL,
         connect_args={"ssl": ssl_ctx, "statement_cache_size": 0},
         pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
     )
 
 
@@ -128,7 +141,7 @@ def rewrite_prompt(client: OpenAI, original_prompt: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-async def process_story(story: dict, dry_run: bool, openai_client: OpenAI) -> None:
+async def process_story(story: dict, dry_run: bool, openai_client: OpenAI, engine) -> None:
     story_id = str(story["id"])
     title = story["title"]
     original_prompt = story["video_prompt"]
@@ -156,7 +169,6 @@ async def process_story(story: dict, dry_run: bool, openai_client: OpenAI) -> No
     video_url = upload_media(video_bytes, key, "video/mp4")
     logger.info(f"Uploaded: {video_url}")
 
-    engine = make_engine()
     with engine.connect() as conn:
         update_story_video(conn, story_id, video_url, rewritten)
     logger.info(f"DB updated for story {story_id}")
@@ -181,7 +193,7 @@ async def main() -> None:
 
     for story in stories:
         try:
-            await process_story(story, dry_run=args.dry_run, openai_client=openai_client)
+            await process_story(story, dry_run=args.dry_run, openai_client=openai_client, engine=engine)
         except Exception as e:
             logger.error(f"Failed for story {story['id']}: {e}", exc_info=True)
 
