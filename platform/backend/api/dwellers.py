@@ -32,6 +32,8 @@ scientific_basis, or act as if you're in a different year than year_setting.
 You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 """
 
+import asyncio
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
@@ -64,11 +66,42 @@ from guidance import (
     MEMORY_UPDATE_PHILOSOPHY,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 
 # Session timeout constants
 SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
+
+# Keep strong references to fire-and-forget tasks so they're not GC'd before completion
+_background_tasks: set = set()
+
+
+# ============================================================================
+# Portrait Generation (fire-and-forget)
+# ============================================================================
+
+
+async def _generate_portrait_background(
+    dweller_id: str, dweller_data: dict, world_data: dict, image_prompt: str | None = None
+) -> None:
+    """Background task: generate portrait for a dweller and persist the URL."""
+    from db.database import SessionLocal
+    from services.art_generation import generate_dweller_portrait
+
+    portrait_url = await generate_dweller_portrait(dweller_id, dweller_data, world_data, image_prompt=image_prompt)
+    if not portrait_url:
+        return
+
+    try:
+        async with SessionLocal() as db:
+            dweller = await db.get(Dweller, UUID(dweller_id))
+            if dweller:
+                dweller.portrait_url = portrait_url
+                await db.commit()
+    except Exception:
+        logger.exception(f"Failed to persist portrait_url for dweller {dweller_id}")
 
 
 def _match_region(query: str, regions: list[dict]) -> dict | None:
@@ -289,6 +322,18 @@ class DwellerCreateRequest(BaseModel):
     specific_location: str | None = Field(
         None,
         description="Specific spot within the region. This is texture - you can describe it freely. Only the region is validated."
+    )
+
+    # Art direction (optional)
+    image_prompt: str | None = Field(
+        None,
+        max_length=1000,
+        description=(
+            "Optional portrait prompt for image generation. "
+            "If provided, used directly for XAI Grok Imagine instead of server-side prompt engineering. "
+            "Describe the character visually: appearance, clothing, lighting, mood. "
+            "Keep under 150 words. Omit text/UI elements."
+        ),
     )
 
 
@@ -657,6 +702,8 @@ async def create_dweller(
         # Location
         current_region=current_region_canonical or region["name"],  # Default to origin region
         specific_location=request.specific_location,
+        # Art direction
+        image_prompt=request.image_prompt,
         is_available=True,
     )
     db.add(dweller)
@@ -707,6 +754,28 @@ async def create_dweller(
             }
         )
 
+    # Fire-and-forget portrait generation — don't block the response.
+    # Hold a strong reference so the task isn't GC'd before it completes.
+    _task = asyncio.create_task(_generate_portrait_background(
+        dweller_id=str(dweller.id),
+        dweller_data={
+            "name": dweller.name,
+            "role": dweller.role,
+            "age": dweller.age,
+            "generation": dweller.generation,
+            "cultural_identity": dweller.cultural_identity,
+            "origin_region": dweller.origin_region,
+            "personality": dweller.personality,
+        },
+        world_data={
+            "name": world.name,
+            "premise": world.premise,
+        },
+        image_prompt=dweller.image_prompt,
+    ))
+    _background_tasks.add(_task)
+    _task.add_done_callback(_background_tasks.discard)
+
     response_data = {
         "dweller": {
             "id": str(dweller.id),
@@ -717,11 +786,12 @@ async def create_dweller(
             "current_region": dweller.current_region,
             "specific_location": dweller.specific_location,
             "is_available": dweller.is_available,
+            "portrait_url": dweller.portrait_url,
             "created_at": dweller.created_at.isoformat(),
         },
         "world_id": str(world_id),
         "region_naming_conventions": region["naming_conventions"],
-        "message": "Dweller created. Other agents can now claim this persona.",
+        "message": "Dweller created. Portrait generation queued. Other agents can now claim this persona.",
     }
 
     return make_guidance_response(
@@ -778,6 +848,7 @@ async def list_dwellers(
                 "specific_location": d.specific_location,
                 "is_available": d.is_available,
                 "inhabited_by": str(d.inhabited_by) if d.inhabited_by else None,
+                "portrait_url": d.portrait_url,
             }
             for d in dwellers
         ],
@@ -837,6 +908,7 @@ async def get_dweller(
             # Meta
             "is_available": dweller.is_available,
             "inhabited_by": str(dweller.inhabited_by) if dweller.inhabited_by else None,
+            "portrait_url": dweller.portrait_url,
             "created_at": dweller.created_at.isoformat(),
             "updated_at": dweller.updated_at.isoformat(),
         },
@@ -1788,6 +1860,17 @@ async def take_action(
             content=request.content,
         )
         notification_sent = True
+
+    # Update directional relationship graph for speak actions.
+    # Uses a savepoint so a failure rolls back only the relationship writes,
+    # leaving the action itself (and other writes above) intact.
+    if action.action_type == "speak" and action.target:
+        from utils.relationship_service import update_relationships_for_action
+        try:
+            async with db.begin_nested():
+                await update_relationships_for_action(db, action)
+        except Exception:
+            logger.exception("Failed to update relationships for action %s", action.id)
 
     await db.commit()
     await db.refresh(action)

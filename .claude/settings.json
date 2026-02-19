@@ -58,6 +58,15 @@
             "command": ".claude/hooks/check-skill-version.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-api-test-coverage.sh"
+          }
+        ]
       }
     ],
     "Stop": [

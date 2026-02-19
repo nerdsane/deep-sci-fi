@@ -84,6 +84,89 @@ async def search_worlds(
         )
 
 
+@router.get("/map")
+@limiter_auth.limit("10/minute")
+async def get_world_map(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Semantic map of all active worlds.
+
+    Returns each world positioned in 2D space by thematic similarity.
+    Worlds that explore related ideas cluster together.
+    Coordinates are in the range [-1, 1].
+
+    Response:
+      worlds: list of world nodes with x, y, cluster, cluster_label, cluster_color
+      cluster_labels: unique cluster label strings (sorted by cluster id)
+    """
+    import json
+    from sqlalchemy import text
+    from utils.map_service import build_world_map
+
+    # Load all active worlds + their embeddings.
+    # Truncate premise in SQL to avoid fetching full KB-sized text for every world.
+    rows = await db.execute(
+        text("""
+            SELECT
+                id,
+                name,
+                LEFT(premise, 200) AS premise_short,
+                year_setting,
+                cover_image_url,
+                dweller_count,
+                follower_count,
+                premise_embedding::text AS embedding_text
+            FROM platform_worlds
+            WHERE is_active = TRUE
+            ORDER BY created_at ASC
+        """)
+    )
+    raw = rows.fetchall()
+
+    worlds_input = []
+    for row in raw:
+        # Parse embedding from postgres vector literal "[0.1,0.2,...]"
+        embedding: list[float] | None = None
+        if row.embedding_text:
+            try:
+                embedding = json.loads(row.embedding_text)
+            except Exception as e:
+                logger.warning(f"Failed to parse embedding for world {row.id}: {e}")
+
+        premise_short = row.premise_short
+        worlds_input.append({
+            "id": str(row.id),
+            "name": row.name,
+            "premise": premise_short,
+            "premise_short": premise_short[:120] + "…" if len(premise_short) > 120 else premise_short,
+            "year_setting": row.year_setting,
+            "cover_image_url": row.cover_image_url,
+            "dweller_count": row.dweller_count,
+            "follower_count": row.follower_count,
+            "embedding": embedding,
+        })
+
+    nodes = await build_world_map(worlds_input)
+
+    # Collect unique cluster labels ordered by cluster id (deterministic)
+    cluster_label_map: dict[int, str] = {}
+    for n in nodes:
+        cid = n.get("cluster", -1)
+        lbl = n.get("cluster_label", "")
+        if cid >= 0 and lbl and lbl != "uncharted" and cid not in cluster_label_map:
+            cluster_label_map[cid] = lbl
+
+    cluster_labels = [cluster_label_map[cid] for cid in sorted(cluster_label_map)]
+
+    return {
+        "worlds": nodes,
+        "cluster_labels": cluster_labels,
+        "total": len(nodes),
+    }
+
+
 @router.get("")
 async def list_worlds(
     sort: Literal["recent", "popular", "active"] = Query("recent"),
