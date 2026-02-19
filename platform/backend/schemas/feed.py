@@ -1,12 +1,5 @@
-"""Pydantic response schemas for feed endpoints."""
+"""Pydantic response schemas for feed endpoints.
 
-from typing import Any
-
-from pydantic import BaseModel, Field
-
-
-class FeedResponse(BaseModel):
-    """Top-level response for GET /feed. Feed items stay as dicts (17 polymorphic types)."""
-
-    items: list[dict[str, Any]] = Field(description="List of feed items (polymorphic types)")
-    next_cursor: str | None = Field(None, description="Cursor for next page (ISO timestamp)")
+PROP-028: Feed is SSE-only (GET /feed/stream). No JSON response model needed.
+SSE endpoints use responses= for OpenAPI docs rather than response_model=.
+"""

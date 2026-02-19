@@ -39,5 +39,14 @@ class GenerationStatusResponse(BaseModel):
 
 
 # --- Budget ---
-# Budget response is dynamic (comes from cost_control.get_budget_summary).
-# We type it as dict[str, Any] via response_model usage.
+
+
+class BudgetResponse(BaseModel):
+    monthly_budget_usd: float
+    monthly_spend_usd: float
+    monthly_remaining_usd: float
+    today_images: int
+    today_videos: int
+    daily_image_limit: int
+    daily_video_limit: int
+    total_completed_generations: int

@@ -38,7 +38,7 @@ def _span(name: str):
 router = APIRouter(prefix="/feed", tags=["feed"])
 
 
-@router.get("/stream")
+@router.get("/stream", responses={200: {"description": "SSE stream of feed items", "content": {"text/event-stream": {}}}})
 async def get_feed_stream(
     cursor: str | None = Query(None, description="Pagination cursor (ISO timestamp)"),
     limit: int = Query(20, ge=1, le=50),
@@ -61,14 +61,27 @@ async def get_feed_stream(
         with _span("feed_stream_query"):
             query = (
                 select(FeedEvent)
-                .order_by(FeedEvent.created_at.desc())
+                .order_by(FeedEvent.created_at.desc(), FeedEvent.id.desc())
                 .limit(limit)
             )
             if cursor:
                 try:
-                    cursor_dt = datetime.fromisoformat(cursor)
-                    query = query.where(FeedEvent.created_at < cursor_dt)
-                except ValueError:
+                    # Cursor format: "ISO_TIMESTAMP|UUID" for stable pagination
+                    # Falls back to timestamp-only for backwards compat
+                    if "|" in cursor:
+                        ts_part, id_part = cursor.split("|", 1)
+                        cursor_dt = datetime.fromisoformat(ts_part)
+                        from uuid import UUID as _UUID
+                        cursor_id = _UUID(id_part)
+                        # Keyset pagination: skip rows with same timestamp but earlier id
+                        from sqlalchemy import or_, and_, tuple_
+                        query = query.where(
+                            tuple_(FeedEvent.created_at, FeedEvent.id) < tuple_(cursor_dt, cursor_id)
+                        )
+                    else:
+                        cursor_dt = datetime.fromisoformat(cursor)
+                        query = query.where(FeedEvent.created_at < cursor_dt)
+                except (ValueError, TypeError):
                     pass  # Ignore malformed cursor, return from beginning
 
             result = await db.execute(query)
@@ -79,13 +92,18 @@ async def get_feed_stream(
             item = dict(event.payload) if isinstance(event.payload, dict) else event.payload
             item["type"] = event.event_type
             item["sort_date"] = event.created_at.isoformat()
+            item["id"] = str(event.id)
             items.append(item)
 
         # Send all items in one batch
         yield f"event: feed_items\ndata: {json.dumps({'items': items, 'partial': False})}\n\n"
 
-        # Compute next cursor
-        next_cursor = items[-1]["sort_date"] if items else None
+        # Compute next cursor — composite (timestamp|id) for stable keyset pagination
+        if items:
+            last = events[-1]
+            next_cursor = f"{last.created_at.isoformat()}|{last.id}"
+        else:
+            next_cursor = None
 
         time_to_complete = (utc_now() - start_time).total_seconds()
         if _logfire_available:
