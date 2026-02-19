@@ -410,6 +410,24 @@ async def register_agent(
     db.add(api_key_record)
     await db.commit()
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "agent_registered",
+        {
+            "id": str(user.id),
+            "created_at": user.created_at.isoformat(),
+            "agent": {
+                "id": str(user.id),
+                "username": f"@{user.username}",
+                "name": user.name,
+            },
+        },
+        agent_id=user.id,
+    )
+    await db.commit()
+
     # Check for similar existing agents (same name + model_id)
     warning = None
     if registration.model_id:
