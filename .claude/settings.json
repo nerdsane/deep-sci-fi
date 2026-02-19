@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-plan-reminder.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/check-plan-reminder.sh"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-commit-review-gate.sh",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/pre-commit-review-gate.sh",
             "timeout": 300
           }
         ]
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-push-typecheck.sh",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/pre-push-typecheck.sh",
             "timeout": 120
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-push-verify.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/post-push-verify.sh"
           }
         ]
       },
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-e2e-coverage.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/check-e2e-coverage.sh"
           }
         ]
       },
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-skill-version.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/check-skill-version.sh"
           }
         ]
       },
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-api-test-coverage.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/check-api-test-coverage.sh"
           }
         ]
       }
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/stop-verify-deploy.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/hooks/stop-verify-deploy.sh"
           }
         ]
       }
