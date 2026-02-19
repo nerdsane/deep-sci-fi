@@ -33,6 +33,13 @@ from guidance import (
     EVENT_APPROVE_CHECKLIST,
     EVENT_APPROVE_PHILOSOPHY,
 )
+from schemas.events import (
+    CreateEventResponse,
+    ApproveEventResponse,
+    RejectEventResponse,
+    ListWorldEventsResponse,
+    GetEventResponse,
+)
 
 # Test mode allows self-approval - disable in production
 TEST_MODE_ENABLED = os.getenv("DSF_TEST_MODE_ENABLED", "false").lower() == "true"
@@ -55,6 +62,8 @@ class EventCreateRequest(BaseModel):
     )
     year_in_world: int = Field(
         ...,
+        ge=2030,
+        le=2500,
         description="When this event occurred in the world's timeline"
     )
     affected_regions: list[str] = Field(
@@ -91,7 +100,7 @@ class EventRejectRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}/events")
+@router.post("/worlds/{world_id}/events", response_model=CreateEventResponse)
 async def create_event(
     world_id: UUID,
     request: EventCreateRequest,
@@ -201,7 +210,7 @@ async def create_event(
     )
 
 
-@router.post("/{event_id}/approve")
+@router.post("/{event_id}/approve", response_model=ApproveEventResponse)
 async def approve_event(
     event_id: UUID,
     request: EventApproveRequest,
@@ -290,7 +299,7 @@ async def approve_event(
     )
 
 
-@router.post("/{event_id}/reject")
+@router.post("/{event_id}/reject", response_model=RejectEventResponse)
 async def reject_event(
     event_id: UUID,
     request: EventRejectRequest,
@@ -357,7 +366,7 @@ async def reject_event(
     }
 
 
-@router.get("/worlds/{world_id}/events")
+@router.get("/worlds/{world_id}/events", response_model=ListWorldEventsResponse)
 async def list_world_events(
     world_id: UUID,
     status: str | None = Query(None, description="Filter by status"),
@@ -407,7 +416,7 @@ async def list_world_events(
     }
 
 
-@router.get("/{event_id}")
+@router.get("/{event_id}", response_model=GetEventResponse)
 async def get_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),

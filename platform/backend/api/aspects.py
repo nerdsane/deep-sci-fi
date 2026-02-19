@@ -48,6 +48,14 @@ from guidance import (
     ASPECT_VALIDATE_CHECKLIST,
     ASPECT_VALIDATE_PHILOSOPHY,
 )
+from schemas.aspects import (
+    CreateAspectResponse,
+    SubmitAspectResponse,
+    ReviseAspectResponse,
+    ListAspectsResponse,
+    GetAspectResponse,
+    WorldCanonResponse,
+)
 
 router = APIRouter(prefix="/aspects", tags=["aspects"])
 
@@ -202,7 +210,7 @@ class AspectReviseRequest(BaseModel):
 # ============================================================================
 
 
-@router.post("/worlds/{world_id}/aspects")
+@router.post("/worlds/{world_id}/aspects", response_model=CreateAspectResponse)
 async def create_aspect(
     world_id: UUID,
     request: AspectCreateRequest,
@@ -391,7 +399,7 @@ async def create_aspect(
     )
 
 
-@router.post("/{aspect_id}/submit")
+@router.post("/{aspect_id}/submit", response_model=SubmitAspectResponse)
 async def submit_aspect(
     aspect_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -525,6 +533,38 @@ async def submit_aspect(
     aspect.status = AspectStatus.VALIDATING
     await db.commit()
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    world = await db.get(World, aspect.world_id)
+    await emit_feed_event(
+        db,
+        "aspect_proposed",
+        {
+            "id": str(aspect.id),
+            "created_at": aspect.created_at.isoformat(),
+            "aspect": {
+                "id": str(aspect.id),
+                "type": aspect.aspect_type,
+                "title": aspect.title,
+                "premise": aspect.premise[:150] + "..." if len(aspect.premise) > 150 else aspect.premise,
+                "status": aspect.status.value,
+            },
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "year_setting": world.year_setting,
+            } if world else None,
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=aspect.world_id,
+        agent_id=current_user.id,
+    )
+    await db.commit()
+
     return {
         "aspect_id": str(aspect_id),
         "status": aspect.status.value,
@@ -533,7 +573,7 @@ async def submit_aspect(
     }
 
 
-@router.post("/{aspect_id}/revise")
+@router.post("/{aspect_id}/revise", response_model=ReviseAspectResponse)
 async def revise_aspect(
     aspect_id: UUID,
     request: AspectReviseRequest,
@@ -600,6 +640,26 @@ async def revise_aspect(
     await db.commit()
     await db.refresh(aspect)
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_revised",
+        {
+            "id": f"aspect-revised-{aspect.id}",
+            "created_at": aspect.last_revised_at.isoformat(),
+            "author_name": current_user.username,
+            "content_type": "aspect",
+            "content_id": str(aspect.id),
+            "content_name": aspect.title,
+            "revision_count": aspect.revision_count,
+        },
+        world_id=aspect.world_id,
+        agent_id=current_user.id,
+        created_at=aspect.last_revised_at,
+    )
+    await db.commit()
+
     # Check if strengthen gate is now cleared
     gate_cleared = False
     if aspect.status == AspectStatus.VALIDATING:
@@ -626,7 +686,7 @@ async def revise_aspect(
     return response_data
 
 
-@router.get("/worlds/{world_id}/aspects")
+@router.get("/worlds/{world_id}/aspects", response_model=ListAspectsResponse)
 async def list_aspects(
     world_id: UUID,
     status: str | None = Query(
@@ -685,7 +745,7 @@ async def list_aspects(
     }
 
 
-@router.get("/{aspect_id}")
+@router.get("/{aspect_id}", response_model=GetAspectResponse, response_model_exclude_none=True)
 async def get_aspect(
     aspect_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -793,7 +853,7 @@ async def get_aspect(
     return response
 
 
-@router.get("/worlds/{world_id}/canon")
+@router.get("/worlds/{world_id}/canon", response_model=WorldCanonResponse)
 async def get_world_canon(
     world_id: UUID,
     db: AsyncSession = Depends(get_db),

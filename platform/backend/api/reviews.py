@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from utils.clock import now as utc_now
 
 import logging
 
@@ -42,7 +43,15 @@ from db import (
 )
 from .auth import get_current_user, get_optional_user
 from utils.rate_limit import limiter_auth
-from guidance import TIMEOUT_HIGH_IMPACT, TIMEOUT_MEDIUM_IMPACT
+from schemas.reviews import (
+    SubmitReviewResponse,
+    GetReviewsResponse,
+    RespondToFeedbackResponse,
+    ResolveFeedbackResponse,
+    ReopenFeedbackResponse,
+    AddFeedbackResponse,
+    GraduationStatusResponse,
+)
 
 router = APIRouter(prefix="/review", tags=["reviews"])
 
@@ -246,6 +255,47 @@ async def _auto_graduate_if_ready(
     await db.commit()
     await db.refresh(world)
 
+    # Emit feed events for graduation
+    from utils.feed_events import emit_feed_event
+    await emit_feed_event(
+        db,
+        "proposal_graduated",
+        {
+            "id": f"graduated-{world.id}",
+            "created_at": world.created_at.isoformat(),
+            "content_name": proposal.name,
+            "content_type": "proposal",
+            "world_id": str(world.id),
+            "reviewer_count": 0,
+            "feedback_items_resolved": 0,
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await emit_feed_event(
+        db,
+        "world_created",
+        {
+            "id": str(world.id),
+            "created_at": world.created_at.isoformat(),
+            "world": {
+                "id": str(world.id),
+                "name": world.name,
+                "premise": world.premise,
+                "year_setting": world.year_setting,
+                "cover_image_url": world.cover_image_url,
+                "dweller_count": 0,
+                "follower_count": 0,
+            },
+            "agent": None,
+        },
+        world_id=world.id,
+        agent_id=proposal.agent_id,
+        created_at=world.created_at,
+    )
+    await db.commit()
+
     _logger.info(
         "Proposal %s auto-graduated → World %s (%s)",
         content_id, world.id, world.name,
@@ -263,8 +313,8 @@ async def _auto_graduate_if_ready(
 # ============================================================================
 
 
-@router.post("/{content_type}/{content_id}/feedback")
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@router.post("/{content_type}/{content_id}/feedback", response_model=SubmitReviewResponse)
+@limiter_auth.limit("10/minute")
 async def submit_review(
     request: Request,
     content_type: str,
@@ -333,6 +383,37 @@ async def submit_review(
     # Reload to get relationships
     await db.refresh(review, ["items"])
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    severities = {"critical": 0, "important": 0, "minor": 0}
+    for item in review.items:
+        if item.severity == FeedbackSeverity.CRITICAL:
+            severities["critical"] += 1
+        elif item.severity == FeedbackSeverity.IMPORTANT:
+            severities["important"] += 1
+        elif item.severity == FeedbackSeverity.MINOR:
+            severities["minor"] += 1
+    # Get content name
+    content_obj = await _get_content(db, content_type, content_id)
+    content_name = getattr(content_obj, 'name', None) or getattr(content_obj, 'title', None) or str(content_id)
+    await emit_feed_event(
+        db,
+        "review_submitted",
+        {
+            "id": str(review.id),
+            "created_at": review.created_at.isoformat(),
+            "reviewer_name": current_user.username,
+            "reviewer_id": str(current_user.id),
+            "content_type": content_type,
+            "content_id": str(content_id),
+            "content_name": content_name,
+            "feedback_count": len(review.items),
+            "severities": severities,
+        },
+        agent_id=current_user.id,
+    )
+    await db.commit()
+
     return {
         "review_id": str(review.id),
         "message": f"Review submitted with {len(items)} feedback item(s)",
@@ -349,8 +430,8 @@ async def submit_review(
     }
 
 
-@router.get("/{content_type}/{content_id}/feedback")
-@limiter_auth.limit(TIMEOUT_HIGH_IMPACT)
+@router.get("/{content_type}/{content_id}/feedback", response_model=GetReviewsResponse)
+@limiter_auth.limit("30/minute")
 async def get_reviews(
     request: Request,
     content_type: str,
@@ -434,8 +515,8 @@ async def get_reviews(
     }
 
 
-@router.post("/feedback-item/{item_id}/respond")
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@router.post("/feedback-item/{item_id}/respond", response_model=RespondToFeedbackResponse)
+@limiter_auth.limit("10/minute")
 async def respond_to_feedback(
     request: Request,
     item_id: UUID,
@@ -486,8 +567,8 @@ async def respond_to_feedback(
     }
 
 
-@router.post("/feedback-item/{item_id}/resolve")
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@router.post("/feedback-item/{item_id}/resolve", response_model=ResolveFeedbackResponse)
+@limiter_auth.limit("10/minute")
 async def resolve_feedback(
     request: Request,
     item_id: UUID,
@@ -562,6 +643,33 @@ async def resolve_feedback(
     await db.commit()
     await db.refresh(item)
 
+    # Emit feed event
+    from utils.feed_events import emit_feed_event
+    content_obj = await _get_content(db, item.review.content_type, item.review.content_id)
+    content_name = getattr(content_obj, 'name', None) or getattr(content_obj, 'title', None) or str(item.review.content_id)
+    # Count remaining open items
+    remaining_query = select(func.count(FeedbackItem.id)).where(
+        FeedbackItem.review_feedback_id == item.review_feedback_id,
+        FeedbackItem.status == FeedbackItemStatus.OPEN,
+    )
+    remaining_result = await db.execute(remaining_query)
+    remaining_count = remaining_result.scalar() or 0
+    await emit_feed_event(
+        db,
+        "feedback_resolved",
+        {
+            "id": f"feedback-resolved-{item.review_feedback_id}-{item.id}",
+            "created_at": item.resolved_at.isoformat() if item.resolved_at else utc_now().isoformat(),
+            "reviewer_name": current_user.username,
+            "content_type": item.review.content_type,
+            "content_name": content_name,
+            "items_resolved": 1,
+            "items_remaining": remaining_count,
+        },
+        agent_id=current_user.id,
+    )
+    await db.commit()
+
     # Check if this resolution triggers auto-graduation
     graduation = await _auto_graduate_if_ready(
         db, item.review.content_type, item.review.content_id
@@ -579,8 +687,8 @@ async def resolve_feedback(
     return result
 
 
-@router.post("/feedback-item/{item_id}/reopen")
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@router.post("/feedback-item/{item_id}/reopen", response_model=ReopenFeedbackResponse)
+@limiter_auth.limit("10/minute")
 async def reopen_feedback(
     request: Request,
     item_id: UUID,
@@ -634,8 +742,8 @@ async def reopen_feedback(
     }
 
 
-@router.post("/{content_type}/{content_id}/add-feedback")
-@limiter_auth.limit(TIMEOUT_MEDIUM_IMPACT)
+@router.post("/{content_type}/{content_id}/add-feedback", response_model=AddFeedbackResponse)
+@limiter_auth.limit("10/minute")
 async def add_feedback_to_existing_review(
     request: Request,
     content_type: str,
@@ -707,8 +815,8 @@ async def add_feedback_to_existing_review(
     }
 
 
-@router.get("/{content_type}/{content_id}/status")
-@limiter_auth.limit(TIMEOUT_HIGH_IMPACT)
+@router.get("/{content_type}/{content_id}/status", response_model=GraduationStatusResponse)
+@limiter_auth.limit("30/minute")
 async def get_graduation_status(
     request: Request,
     content_type: str,

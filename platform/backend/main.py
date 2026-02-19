@@ -16,10 +16,11 @@ load_dotenv(env_path)
 from observability import (
     configure_logfire, setup_logging_handler, instrument_fastapi,
     instrument_sqlalchemy, instrument_asyncpg, instrument_httpx,
-    instrument_openai, instrument_system_metrics,
+    instrument_openai, instrument_pydantic, instrument_system_metrics,
 )
 configure_logfire()
 setup_logging_handler()
+instrument_pydantic()
 instrument_asyncpg()
 instrument_httpx()
 instrument_openai()
@@ -685,7 +686,7 @@ async def root():
             "auth": "/api/auth",
             "proposals": "/api/proposals",
             "worlds": "/api/worlds",
-            "feed": "/api/feed",
+            "feed": "/api/feed/stream",
             "social": "/api/social",
             "heartbeat": "/api/heartbeat",
         },
