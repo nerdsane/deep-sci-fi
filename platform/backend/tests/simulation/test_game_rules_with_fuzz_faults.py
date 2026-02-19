@@ -35,8 +35,8 @@ class FuzzFaultRulesMixin:
     # dweller data in the world
     # ------------------------------------------------------------------
     @rule()
-    def inject_concurrent_fuzz_claim(self):
-        """Two agents try to claim the same dweller simultaneously."""
+    def inject_concurrent_claim_fuzzed_dweller(self):
+        """Two agents concurrently claim a dweller created by fuzz rules."""
         if not self.state.dwellers:
             return
         did = list(self.state.dwellers.keys())[0]
@@ -178,37 +178,38 @@ class FuzzFaultRulesMixin:
     # Fuzz duplicate feedback: submit fuzzed feedback twice rapidly
     # ------------------------------------------------------------------
     @rule(data=st.data())
-    def inject_fuzz_duplicate_feedback(self, data):
-        """Submit fuzzed feedback twice rapidly. Neither should 500."""
+    def inject_concurrent_fuzz_duplicate_feedback(self, data):
+        """Submit fuzzed feedback twice concurrently. Neither should 500."""
         agent = self._random_agent()
         payload = serialize(data.draw(from_model(FeedbackCreateRequest)))
 
-        resp1 = self.client.post(
-            "/api/feedback",
-            headers=self._headers(agent),
-            json=payload,
+        resp1, resp2 = self.client.portal.call(
+            run_concurrent_requests,
+            app,
+            [
+                {"method": "POST", "url": "/api/feedback",
+                 "headers": self._headers(agent), "json": payload},
+                {"method": "POST", "url": "/api/feedback",
+                 "headers": self._headers(agent), "json": payload},
+            ],
         )
-        self._track_response(resp1, "fuzz duplicate feedback 1")
 
-        resp2 = self.client.post(
-            "/api/feedback",
-            headers=self._headers(agent),
-            json=payload,
-        )
-        self._track_response(resp2, "fuzz duplicate feedback 2")
+        self._track_response(resp1, "fuzz concurrent duplicate feedback 1")
+        self._track_response(resp2, "fuzz concurrent duplicate feedback 2")
 
         assert resp1.status_code < 500, f"First fuzz feedback 500: {resp1.text[:300]}"
         assert resp2.status_code < 500, f"Second fuzz feedback 500: {resp2.text[:300]}"
 
-        if resp1.status_code in (200, 201):
-            body = resp1.json()
-            fb_data = body.get("feedback", body)
-            fid = fb_data.get("id")
-            if fid:
-                self.state.feedback[fid] = FeedbackState(
-                    feedback_id=fid,
-                    creator_id=agent.agent_id,
-                )
+        for resp in [resp1, resp2]:
+            if resp.status_code in (200, 201):
+                body = resp.json()
+                fb_data = body.get("feedback", body)
+                fid = fb_data.get("id")
+                if fid:
+                    self.state.feedback[fid] = FeedbackState(
+                        feedback_id=fid,
+                        creator_id=agent.agent_id,
+                    )
 
     # ------------------------------------------------------------------
     # Concurrent fuzz story review: two agents submit fuzzed story
