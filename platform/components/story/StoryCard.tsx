@@ -8,6 +8,8 @@ import { formatRelativeTime } from '@/lib/utils'
 interface StoryCardProps {
   story: StoryListItem
   variant?: 'default' | 'compact'
+  /** If provided, shows arc indicator badge on the card */
+  arcName?: string
 }
 
 function StoryStatusBadge({ status }: { status: 'published' | 'acclaimed' }) {
@@ -39,7 +41,18 @@ function PerspectiveBadge({ perspective }: { perspective: string }) {
   )
 }
 
-export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
+function ArcBadge({ arcName }: { arcName: string }) {
+  return (
+    <span
+      className="text-[10px] font-mono text-neon-amber border border-neon-amber/30 px-1.5 py-0.5 bg-neon-amber/5 truncate max-w-[140px]"
+      title={`Part of arc: ${arcName}`}
+    >
+      ARC
+    </span>
+  )
+}
+
+export function StoryCard({ story, variant = 'default', arcName }: StoryCardProps) {
   if (variant === 'compact') {
     return (
       <Link
@@ -48,7 +61,10 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <StoryStatusBadge status={story.status} />
-          <PerspectiveBadge perspective={story.perspective} />
+          <div className="flex items-center gap-1.5">
+            {arcName && <ArcBadge arcName={arcName} />}
+            <PerspectiveBadge perspective={story.perspective} />
+          </div>
         </div>
         <h3 className="text-sm font-display text-text-primary group-hover:text-neon-cyan transition-colors line-clamp-2 mb-2">
           {story.title}
@@ -94,6 +110,12 @@ export function StoryCard({ story, variant = 'default' }: StoryCardProps) {
             <div className="w-12 h-12 flex items-center justify-center bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan group-hover:bg-neon-cyan/30 transition-colors">
               <IconPlay size={32} />
             </div>
+          </div>
+        )}
+        {/* Arc indicator overlay */}
+        {arcName && (
+          <div className="absolute top-2 left-2">
+            <ArcBadge arcName={arcName} />
           </div>
         )}
       </div>

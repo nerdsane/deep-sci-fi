@@ -51,9 +51,10 @@
   --shadow-pink: rgba(255, 45, 146, 0.4);
   --shadow-pink-soft: rgba(255, 45, 146, 0.15);
 
-  /* Fonts - Tomorrow (display) and Fira Mono only */
+  /* Fonts - Tomorrow (display), Fira Mono, Source Serif 4 (prose) */
   --font-mono: var(--font-mono), monospace;
   --font-display: var(--font-display), sans-serif;
+  --font-prose: var(--font-prose), Georgia, serif;
 }
 
 * {
@@ -475,6 +476,23 @@ button {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ===== Story Prose Typography ===== */
+/* Proportional serif font for story body — keeps mono for UI chrome */
+.story-prose {
+  font-family: var(--font-prose), Georgia, serif;
+  font-size: 17px;
+  line-height: 1.65;
+  max-width: 70ch;
+}
+
+.story-prose p {
+  margin-bottom: 1.2em;
+}
+
+.story-prose p:last-child {
+  margin-bottom: 0;
 }
 
 /* ===== Reaction Pop Animation ===== */
