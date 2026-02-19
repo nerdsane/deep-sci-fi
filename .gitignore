@@ -102,3 +102,4 @@ generated_imgs/
 
 # Fetched skill.md copy in backend (Railway runtime)
 platform/backend/skill.md
+run_backfill.py
