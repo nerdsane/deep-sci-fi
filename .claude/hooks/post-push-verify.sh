@@ -58,25 +58,71 @@ ENDJSON
 # Case 2: PR merge (any branch that deploys)
 # ─────────────────────────────────────────────────────────────────────────────
 elif echo "$COMMAND" | grep -qE 'gh\s+pr\s+merge'; then
-  # Determine target branch
-  if echo "$COMMAND" | grep -qE '(--branch\s+staging|-B\s+staging)'; then
-    # Merging to staging
-    echo "staging" > "$MARKER_DIR/push-pending"
-    rm -f "$MARKER_DIR/deploy-verified"
+  # Extract PR number from command (e.g., "gh pr merge 27 ..." → "27")
+  PR_NUMBER=$(echo "$COMMAND" | grep -oE 'gh\s+pr\s+merge\s+([0-9]+)' | grep -oE '[0-9]+' || echo "")
 
+  # Extract --repo / -R flag if present (e.g., "--repo arni-labs/deep-sci-fi")
+  REPO_FLAG=""
+  REPO_VALUE=$(echo "$COMMAND" | grep -oE '(-R|--repo)[[:space:]]+[^[:space:]]+' | sed 's/^-R[[:space:]]*//' | sed 's/^--repo[[:space:]]*//' || echo "")
+  if [ -n "$REPO_VALUE" ]; then
+    REPO_FLAG="--repo $REPO_VALUE"
+  fi
+
+  # Determine target branch and merge commit SHA via gh CLI
+  TARGET_BRANCH=""
+  MERGE_SHA=""
+  if [ -n "$PR_NUMBER" ] && command -v gh &>/dev/null; then
+    # Query the actual PR to get base branch and merge commit
+    # shellcheck disable=SC2086
+    PR_JSON=$(gh pr view "$PR_NUMBER" $REPO_FLAG --json baseRefName,mergeCommit 2>/dev/null || echo "{}")
+    TARGET_BRANCH=$(echo "$PR_JSON" | jq -r '.baseRefName // ""' 2>/dev/null || echo "")
+    MERGE_SHA=$(echo "$PR_JSON" | jq -r '.mergeCommit.oid // ""' 2>/dev/null || echo "")
+  fi
+
+  # Fallback: detect from command flags if gh query failed
+  if [ -z "$TARGET_BRANCH" ]; then
+    if echo "$COMMAND" | grep -qE '(--branch\s+staging|-B\s+staging)'; then
+      TARGET_BRANCH="staging"
+    else
+      TARGET_BRANCH="main"
+    fi
+  fi
+
+  # Map branch to environment
+  if [ "$TARGET_BRANCH" = "main" ] || [ "$TARGET_BRANCH" = "master" ]; then
+    ENV="production"
+  else
+    ENV="staging"
+  fi
+
+  echo "$TARGET_BRANCH" > "$MARKER_DIR/push-pending"
+  rm -f "$MARKER_DIR/deploy-verified"
+
+  # Build --sha flag if we have the merge commit
+  SHA_FLAG=""
+  SHA_NOTE=""
+  if [ -n "$MERGE_SHA" ]; then
+    SHA_FLAG=" --sha $MERGE_SHA"
+    SHA_NOTE="\\n\\nMerge commit: ${MERGE_SHA:0:7}"
+  fi
+
+  # Build human-readable PR label
+  if [ -n "$PR_NUMBER" ]; then
+    PR_LABEL="PR #${PR_NUMBER}"
+  else
+    PR_LABEL="a PR"
+  fi
+
+  if [ "$ENV" = "staging" ]; then
     cat <<ENDJSON
 {
-  "additionalContext": "MANDATORY STAGING VERIFICATION: You just merged a PR to staging.\n\nYou MUST now verify the staging deployment:\n\nRun: bash scripts/verify-deployment.sh staging\n\nThis script verifies:\n1. CI/Deploy workflow completes\n2. Backend is healthy\n3. Frontend is healthy\n4. All 9 API endpoints respond\n5. No schema drift\n6. No 500 errors in Logfire (last 30 min)\n\nYou CANNOT end this session until verification passes."
+  "additionalContext": "MANDATORY STAGING VERIFICATION: You just merged ${PR_LABEL} to ${TARGET_BRANCH}.${SHA_NOTE}\n\nYou MUST now verify the staging deployment:\n\nRun: bash scripts/verify-deployment.sh staging${SHA_FLAG}\n\nThis script verifies:\n1. CI/Deploy workflow completes\n2. Backend is healthy\n3. Frontend is healthy\n4. All 9 API endpoints respond\n5. No schema drift\n6. No 500 errors in Logfire (last 30 min)\n\nYou CANNOT end this session until verification passes."
 }
 ENDJSON
   else
-    # Merging to main (explicitly or by default)
-    echo "main" > "$MARKER_DIR/push-pending"
-    rm -f "$MARKER_DIR/deploy-verified"
-
     cat <<ENDJSON
 {
-  "additionalContext": "MANDATORY PRODUCTION VERIFICATION: You just merged a PR to main. This deploys to PRODUCTION.\n\nYou MUST now verify the production deployment:\n\nRun: bash scripts/verify-deployment.sh production\n\nThis script verifies:\n1. CI/Deploy workflow completes\n2. Backend (api.deep-sci-fi.world) is healthy\n3. Frontend (deep-sci-fi.world) is healthy\n4. All 9 API endpoints respond\n5. No schema drift\n6. No 500 errors in Logfire (last 30 min)\n\nPRODUCTION IS LIVE. You CANNOT end this session until verification passes.\n\nIf verification fails, you must fix the issue immediately."
+  "additionalContext": "MANDATORY PRODUCTION VERIFICATION: You just merged ${PR_LABEL} to ${TARGET_BRANCH}. This deploys to PRODUCTION.${SHA_NOTE}\n\nYou MUST now verify the production deployment:\n\nRun: bash scripts/verify-deployment.sh production${SHA_FLAG}\n\nThis script verifies:\n1. CI/Deploy workflow completes\n2. Backend (api.deep-sci-fi.world) is healthy\n3. Frontend (deep-sci-fi.world) is healthy\n4. All 9 API endpoints respond\n5. No schema drift\n6. No 500 errors in Logfire (last 30 min)\n\nPRODUCTION IS LIVE. You CANNOT end this session until verification passes.\n\nIf verification fails, you must fix the issue immediately."
 }
 ENDJSON
   fi

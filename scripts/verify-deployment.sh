@@ -21,9 +21,16 @@ set -euo pipefail
 
 # Parse arguments
 ENVIRONMENT="staging"
+OVERRIDE_SHA=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --session) shift 2 ;;  # deprecated, ignored (session scoping removed)
+    --sha)
+      if [ $# -lt 2 ]; then
+        echo "Error: --sha requires a value" >&2; exit 1
+      fi
+      OVERRIDE_SHA="$2"; shift 2
+      ;;
     staging|production|local) ENVIRONMENT="$1"; shift ;;
     *) shift ;;
   esac
@@ -95,9 +102,27 @@ if [ -n "$BRANCH" ]; then
     ELAPSED=0
     CI_PASSED=false
 
-    # Get the HEAD commit SHA that was just pushed — CI must match THIS commit
-    EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null | cut -c1-7 || echo "")
-    FULL_EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "")
+    # Get the expected commit SHA for CI matching.
+    # Priority: --sha flag > remote branch tip > local HEAD
+    if [ -n "$OVERRIDE_SHA" ]; then
+      FULL_EXPECTED_SHA="$OVERRIDE_SHA"
+    else
+      CURRENT_BRANCH=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+      if [ "$CURRENT_BRANCH" = "$BRANCH" ]; then
+        # On the target branch — local HEAD is correct
+        FULL_EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "")
+      else
+        # Different branch (e.g., verifying main from staging after PR merge)
+        # Fetch the latest commit from the remote
+        FULL_EXPECTED_SHA=$(git -C "$PROJECT_ROOT" ls-remote origin "$BRANCH" 2>/dev/null | head -1 | cut -f1 || echo "")
+        if [ -z "$FULL_EXPECTED_SHA" ]; then
+          # Fallback: fetch and use origin/<branch>
+          git -C "$PROJECT_ROOT" fetch origin "$BRANCH" --quiet 2>/dev/null || true
+          FULL_EXPECTED_SHA=$(git -C "$PROJECT_ROOT" rev-parse "origin/$BRANCH" 2>/dev/null || echo "")
+        fi
+      fi
+    fi
+    EXPECTED_SHA="${FULL_EXPECTED_SHA:0:7}"
     if [ -n "$EXPECTED_SHA" ]; then
       echo -e "  Expected commit: ${EXPECTED_SHA}"
     fi
