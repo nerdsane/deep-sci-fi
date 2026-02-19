@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # Default to production URL
-BASE_URL="${1:-https://api.deepsci.fi}"
+BASE_URL="${1:-https://api.deep-sci-fi.world}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -58,7 +58,7 @@ test_endpoint "/docs" 200 "API documentation"
 
 echo ""
 echo "Public API Endpoints:"
-test_endpoint "/api/feed" 200 "Feed endpoint"
+test_endpoint "/api/feed/stream" 200 "Feed endpoint (SSE)"
 test_endpoint "/api/worlds" 200 "Worlds list"
 test_endpoint "/api/proposals" 200 "Proposals list"
 test_endpoint "/api/feedback/summary" 200 "Feedback summary"
