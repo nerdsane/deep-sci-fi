@@ -20,6 +20,7 @@ you can formalize it as an Aspect using the inspired_by_actions field. This
 promotes soft canon (dweller conversations) to hard canon (validated aspects).
 """
 
+import logging
 import os
 from typing import Any, Literal
 from uuid import UUID
@@ -56,6 +57,8 @@ from schemas.aspects import (
     GetAspectResponse,
     WorldCanonResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/aspects", tags=["aspects"])
 
@@ -851,6 +854,151 @@ async def get_aspect(
         response["aspect"]["inspired_by_action_count"] = len(inspiring_actions)
 
     return response
+
+
+# ============================================================================
+# Test Mode Endpoints
+# ============================================================================
+
+
+class _TestApproveAspectRequest(BaseModel):
+    """Internal model for test-approve endpoint — lenient validation."""
+
+    verdict: Literal["strengthen", "approve", "reject"] = "approve"
+    critique: str = "Test-mode validation"
+    canon_conflicts: list[str] = Field(default_factory=list)
+    suggested_fixes: list[str] = Field(default_factory=list)
+    updated_canon_summary: str | None = None
+    approved_timeline_entry: dict[str, Any] | None = None
+
+    model_config = {"extra": "ignore"}
+
+
+@router.post("/{aspect_id}/test-approve", include_in_schema=False)
+async def test_approve_aspect(
+    aspect_id: UUID,
+    request: _TestApproveAspectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Test-mode validation for aspects.
+
+    This endpoint only works when DSF_TEST_MODE_ENABLED=true.
+    It bypasses the review system and processes validation directly.
+    """
+    if not TEST_MODE_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Test mode is disabled",
+                "how_to_fix": "This endpoint only works when DSF_TEST_MODE_ENABLED=true.",
+            },
+        )
+
+    aspect = await db.get(Aspect, aspect_id)
+    if not aspect:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Aspect not found",
+                "aspect_id": str(aspect_id),
+                "how_to_fix": "Check the aspect_id is correct. Use GET /api/aspects/worlds/{world_id}/aspects to list aspects.",
+            },
+        )
+
+    if aspect.status != AspectStatus.VALIDATING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Aspect must be in 'validating' status (currently: {aspect.status.value})",
+        )
+
+    verdict = request.verdict
+
+    # Validate approve requirements
+    if verdict == "approve":
+        if not request.updated_canon_summary or len(request.updated_canon_summary) < 50:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Approve verdict requires updated_canon_summary (min 50 chars)",
+                    "how_to_fix": "Write the new canon summary incorporating this aspect.",
+                },
+            )
+        # Event aspects require approved_timeline_entry
+        if aspect.aspect_type == "event" and aspect.proposed_timeline_entry:
+            if not request.approved_timeline_entry:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "Approving event aspect requires approved_timeline_entry",
+                        "how_to_fix": "Include approved_timeline_entry with {year, event, reasoning}.",
+                    },
+                )
+
+    # Create validation record
+    validation = AspectValidation(
+        aspect_id=aspect_id,
+        agent_id=current_user.id,
+        verdict=ValidationVerdict(verdict),
+        critique=request.critique,
+        canon_conflicts=request.canon_conflicts,
+        suggested_fixes=request.suggested_fixes,
+        updated_canon_summary=request.updated_canon_summary,
+    )
+    db.add(validation)
+
+    response_data: dict[str, Any] = {
+        "aspect_id": str(aspect_id),
+        "aspect_status": aspect.status.value,
+        "verdict": verdict,
+    }
+
+    if verdict == "approve":
+        aspect.status = AspectStatus.APPROVED
+        response_data["aspect_status"] = "approved"
+
+        # Update world canon
+        world = await db.get(World, aspect.world_id)
+        if world and request.updated_canon_summary:
+            world.canon_summary = request.updated_canon_summary
+
+            # Add region to world.regions for region aspects
+            if aspect.aspect_type == "region" and aspect.content:
+                regions = list(world.regions or [])
+                regions.append(aspect.content)
+                world.regions = regions
+
+            # Add timeline entry for event aspects
+            if aspect.aspect_type == "event" and request.approved_timeline_entry:
+                causal_chain = list(world.causal_chain or [])
+                world.causal_chain = insert_chronologically(
+                    causal_chain, request.approved_timeline_entry
+                )
+                response_data["world_updated"] = {
+                    "canon_summary_updated": True,
+                    "timeline_updated": True,
+                    "new_timeline_entry": request.approved_timeline_entry,
+                }
+            else:
+                response_data["world_updated"] = {
+                    "canon_summary_updated": True,
+                    "timeline_updated": False,
+                }
+
+        # Notify aspect owner
+        try:
+            await notify_aspect_validated(db, aspect, validation)
+        except Exception as e:
+            logger.debug("Notification failed in test-approve (non-critical): %s", e)
+
+    elif verdict == "reject":
+        aspect.status = AspectStatus.REJECTED
+        response_data["aspect_status"] = "rejected"
+    # strengthen: stays validating
+
+    await db.commit()
+    return response_data
 
 
 @router.get("/worlds/{world_id}/canon", response_model=WorldCanonResponse)

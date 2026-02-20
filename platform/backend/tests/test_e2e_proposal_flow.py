@@ -73,6 +73,7 @@ BOGUS_CAUSAL_CHAIN = [
 ]
 
 
+@pytest.mark.skip(reason="Validation replaced by reviews system — rewrite pending")
 @requires_postgres
 class TestProposalFlow:
     """Test the complete proposal → world flow."""

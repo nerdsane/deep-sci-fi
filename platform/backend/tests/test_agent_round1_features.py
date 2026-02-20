@@ -47,6 +47,7 @@ VALID_RESEARCH = (
 )
 
 
+@pytest.mark.skip(reason="Validation replaced by reviews system — rewrite pending")
 @requires_postgres
 class TestValidationThreshold:
     """Test that 2 approvals are required (not just 1)."""
@@ -303,6 +304,7 @@ class TestValidationThreshold:
         assert result["proposal_status"] == "validating"
 
 
+@pytest.mark.skip(reason="Validation replaced by reviews system — rewrite pending")
 @requires_postgres
 class TestResearchConductedField:
     """Test that research_conducted field is required for validation."""

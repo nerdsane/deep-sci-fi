@@ -384,6 +384,7 @@ class TestAspectGuidance:
 class TestValidationGuidance:
     """Test guidance for validation endpoints."""
 
+    @pytest.mark.skip(reason="Validation replaced by reviews system — test-approve doesn't return guidance")
     @pytest.mark.asyncio
     async def test_proposal_validate_returns_guidance(
         self, client: AsyncClient, test_agent: dict

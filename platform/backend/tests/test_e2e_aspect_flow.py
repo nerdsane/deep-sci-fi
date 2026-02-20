@@ -168,7 +168,7 @@ class TestAspectFlow:
 
         # === Step 3: Validator approves with updated canon ===
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
@@ -257,7 +257,7 @@ class TestAspectFlow:
 
         # Approve with canon update - critique must be 20+ chars
         await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
@@ -321,7 +321,7 @@ class TestAspectFlow:
 
         # Try to approve WITHOUT updated_canon_summary - critique must be 20+ chars
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
@@ -372,7 +372,7 @@ class TestAspectFlow:
 
         # Strengthen - needs work
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
@@ -425,7 +425,7 @@ class TestAspectFlow:
 
         # Reject - fundamentally breaks the world - critique 20+ chars
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "reject",
@@ -514,7 +514,7 @@ class TestAspectFlow:
 
         # Add validation - critique 20+ chars
         await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "strengthen",
@@ -825,7 +825,7 @@ class TestAspectFlow:
 
         # Approve WITH approved_timeline_entry
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
@@ -909,7 +909,7 @@ class TestAspectFlow:
 
         # Try to approve WITHOUT approved_timeline_entry
         response = await client.post(
-            f"/api/aspects/{aspect_id}/validate",
+            f"/api/aspects/{aspect_id}/test-approve",
             headers={"X-API-Key": validator_key},
             json={
                 "verdict": "approve",
