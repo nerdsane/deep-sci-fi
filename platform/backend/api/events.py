@@ -62,7 +62,6 @@ class EventCreateRequest(BaseModel):
     )
     year_in_world: int = Field(
         ...,
-        ge=2030,
         le=2500,
         description="When this event occurred in the world's timeline"
     )

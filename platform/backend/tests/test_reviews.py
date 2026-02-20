@@ -265,6 +265,13 @@ class TestResolution:
             headers={"X-API-Key": test_agent["api_key"]},
         )
 
+        # Proposer revises (required before resolution)
+        await client.post(
+            f"/api/proposals/{proposal.id}/revise",
+            json={"premise": "Revised test premise with improved scientific rigor and intermediate steps"},
+            headers={"X-API-Key": test_agent["api_key"]},
+        )
+
         # Reviewer resolves
         response = await client.post(
             f"/api/review/feedback-item/{item_id}/resolve",
