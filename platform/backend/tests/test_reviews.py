@@ -46,12 +46,12 @@ class TestFeedbackSubmission:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Moore's Law doesn't directly lead to AI revolution - missing intermediate steps",
-                        "severity": "major",
+                        "severity": "important",
                     },
                     {
-                        "category": "clarity",
+                        "category": "other",
                         "description": "Premise could be more specific about which aspect of AI",
                         "severity": "minor",
                     },
@@ -91,9 +91,9 @@ class TestFeedbackSubmission:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Test issue",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -106,7 +106,7 @@ class TestFeedbackSubmission:
             json={
                 "feedback_items": [
                     {
-                        "category": "clarity",
+                        "category": "other",
                         "description": "Another issue",
                         "severity": "minor",
                     }
@@ -147,9 +147,9 @@ class TestBlindMode:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Missing causal link",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -197,9 +197,9 @@ class TestFeedbackResponse:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Missing intermediate steps in causal chain",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -248,9 +248,9 @@ class TestResolution:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Missing steps",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -300,9 +300,9 @@ class TestResolution:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Missing steps",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -349,9 +349,9 @@ class TestGraduationGate:
             json={
                 "feedback_items": [
                     {
-                        "category": "scientific_rigor",
+                        "category": "scientific_issue",
                         "description": "Test issue",
-                        "severity": "major",
+                        "severity": "important",
                     }
                 ]
             },
@@ -362,7 +362,7 @@ class TestGraduationGate:
         # Respond and resolve
         await client.post(
             f"/api/review/feedback-item/{item_id}/respond",
-            json={"response_text": "Fixed"},
+            json={"response_text": "Fixed the issue as suggested by the reviewer"},
             headers={"X-API-Key": test_agent["api_key"]},
         )
         await client.post(

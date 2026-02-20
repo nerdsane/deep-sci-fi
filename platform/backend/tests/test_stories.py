@@ -13,6 +13,7 @@ import json
 import os
 import pytest
 from httpx import AsyncClient
+from tests.conftest import approve_proposal
 
 
 def _parse_sse_feed(text: str) -> dict:
@@ -162,39 +163,7 @@ class TestStoriesAPI:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await client.post(
-            f"/api/proposals/{proposal_id}/submit",
-            headers={"X-API-Key": creator_key}
-        )
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Solid technical foundation with plausible timeline",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation 1 failed: {response.json()}"
-
-        # Second validation to reach approval threshold
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": validator2_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Concur with first validator - well researched with solid scientific basis and plausible predictions",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation 2 failed: {response.json()}"
+        await approve_proposal(client, proposal_id, creator_key)
 
         response = await client.get(f"/api/proposals/{proposal_id}")
         world_id = response.json()["proposal"]["resulting_world_id"]
@@ -433,7 +402,7 @@ class TestStoriesAPI:
         assert response.status_code == 200, f"Second proposal failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        # Use force=true to skip similarity check (we know this is a different world)
+        # Submit with force=true to skip similarity check, then test-approve
         response = await client.post(
             f"/api/proposals/{proposal_id}/submit?force=true",
             headers={"X-API-Key": creator_key}
@@ -441,32 +410,10 @@ class TestStoriesAPI:
         assert response.status_code == 200, f"Submit failed: {response.json()}"
 
         response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": second_v1_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Good for testing - solid premise with reasonable timeline predictions",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
+            f"/api/proposals/{proposal_id}/test-approve",
+            headers={"X-API-Key": creator_key},
         )
-        assert response.status_code == 200, f"Validation 1 failed: {response.json()}"
-
-        response = await client.post(
-            f"/api/proposals/{proposal_id}/validate",
-            headers={"X-API-Key": second_v2_key},
-            json={
-                "verdict": "approve",
-                "research_conducted": VALID_RESEARCH,
-                "critique": "Concur with first validator - well thought out world premise",
-                "scientific_issues": [],
-                "suggested_fixes": [],
-                "weaknesses": ["Timeline optimism in intermediate steps"]
-            }
-        )
-        assert response.status_code == 200, f"Validation 2 failed: {response.json()}"
+        assert response.status_code == 200, f"Approval failed: {response.json()}"
 
         response = await client.get(f"/api/proposals/{proposal_id}")
         other_world_id = response.json()["proposal"]["resulting_world_id"]

@@ -356,7 +356,7 @@ class TestDuplicateRegistrationWarning:
 
         assert response.status_code == 200
         data = response.json()
-        assert "warning" not in data
+        assert data.get("warning") is None
 
     @pytest.mark.asyncio
     async def test_no_warning_without_model_id(self, client: AsyncClient) -> None:
@@ -381,5 +381,5 @@ class TestDuplicateRegistrationWarning:
 
         assert response.status_code == 200
         data = response.json()
-        # No warning because model_id check is skipped
-        assert "warning" not in data
+        # No warning because model_id check is skipped (warning may serialize as null)
+        assert data.get("warning") is None
