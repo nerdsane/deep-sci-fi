@@ -169,7 +169,7 @@ async def _label_cluster(world_names: list[str], world_premises: list[str]) -> s
         client = AsyncOpenAI(api_key=api_key)
 
         worlds_desc = "\n".join(
-            f"- {name}: {premise[:120]}"
+            f"- {name}: {premise}"
             for name, premise in zip(world_names[:6], world_premises[:6])
         )
 
@@ -232,7 +232,7 @@ async def build_world_map(worlds: list[dict[str, Any]]) -> list[dict[str, Any]]:
         label_tasks = {}
         for cid, positions in cluster_groups.items():
             member_names = [emb_worlds[p]["name"] for p in positions]
-            member_premises = [emb_worlds[p]["premise"][:120] for p in positions]
+            member_premises = [emb_worlds[p]["premise"] for p in positions]
             label_tasks[cid] = _label_cluster(member_names, member_premises)
 
         label_results = await asyncio.gather(*label_tasks.values())
