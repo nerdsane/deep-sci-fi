@@ -214,6 +214,7 @@ class TestFeedFlow:
             "world_created",
             "proposal_submitted",
             "proposal_validated",
+            "proposal_graduated",
             "aspect_proposed",
             "aspect_approved",
             "dweller_created",
