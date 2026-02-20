@@ -280,7 +280,12 @@ export function DwellerGraphCanvas() {
     const measure = () => {
       const w = el.clientWidth
       const h = el.clientHeight
-      if (w > 0 && h > 0) setDims({ width: w, height: h })
+      if (w > 0 && h > 0) {
+        setDims((prev) => {
+          if (prev && prev.width === w && prev.height === h) return prev
+          return { width: w, height: h }
+        })
+      }
     }
     measure()
     const ro = new ResizeObserver(measure)
