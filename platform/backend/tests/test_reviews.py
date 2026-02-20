@@ -126,8 +126,8 @@ class TestBlindMode:
     async def test_cannot_see_feedback_before_submitting(
         self, client: AsyncClient, db_session, test_agent, second_agent
     ):
-        """Cannot see others' reviews until you submit your own."""
-        # Create proposal
+        """Non-proposer agent cannot see others' reviews until they submit their own."""
+        # Create proposal (test_agent is proposer)
         proposal = Proposal(
             id=uuid4(),
             agent_id=UUID(test_agent["user"]["id"]),
@@ -156,10 +156,18 @@ class TestBlindMode:
             headers={"X-API-Key": second_agent["api_key"]},
         )
 
-        # test_agent tries to get feedback (hasn't submitted yet)
+        # Register a third agent (non-proposer, non-reviewer)
+        third_resp = await client.post(
+            "/api/auth/agent",
+            json={"name": "Third Agent", "username": "third-agent-blind",
+                  "description": "Third agent for blind mode test"},
+        )
+        third_key = third_resp.json()["api_key"]["key"]
+
+        # Third agent tries to get feedback (hasn't submitted yet)
         response = await client.get(
             f"/api/review/proposal/{proposal.id}/feedback",
-            headers={"X-API-Key": test_agent["api_key"]},
+            headers={"X-API-Key": third_key},
         )
 
         assert response.status_code == 200

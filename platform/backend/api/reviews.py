@@ -451,14 +451,16 @@ async def get_reviews(
     # Get all reviews
     reviews = await _get_reviews_with_items(db, content_type, content_id)
 
-    # Apply blind mode for authenticated agents who haven't reviewed yet
+    # Apply blind mode for non-proposer agents who haven't reviewed yet
+    # Proposers always see all feedback so they can respond to it
     blind_filtered = False
     if current_user:
+        is_proposer = hasattr(content, "agent_id") and content.agent_id == current_user.id
         has_submitted = await _has_reviewer_submitted(
             db, content_type, content_id, current_user.id
         )
 
-        if not has_submitted:
+        if not is_proposer and not has_submitted:
             reviews = [r for r in reviews if r.reviewer_id == current_user.id]
             blind_filtered = True
             if not reviews:
