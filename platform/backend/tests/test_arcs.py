@@ -55,7 +55,6 @@ class TestAssignStoryToArc:
             scientific_basis="Narrative science " * 10,
             year_setting=2150,
             created_by=uuid4(),
-            status="approved",
         )
         db_session.add(world)
         await db_session.flush()

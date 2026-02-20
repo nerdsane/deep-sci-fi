@@ -33,6 +33,7 @@ async def test_world(client: AsyncClient, test_agent: dict) -> dict:
             "year_setting": 2087,
             "causal_chain": SAMPLE_CAUSAL_CHAIN,
             "scientific_basis": "Based on current trends in AI-generated media and the increasing importance of visual content in digital platforms.",
+            "image_prompt": "Cinematic wide shot of a futuristic test facility at golden hour with advanced technological infrastructure and dramatic lighting.",
         },
     )
     assert proposal_resp.status_code == 200
