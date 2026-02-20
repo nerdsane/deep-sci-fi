@@ -230,6 +230,9 @@ function FilterBar({
 
 interface SimNode extends DwellerGraphNode, d3.SimulationNodeDatum {
   color: string
+  _dragStartX?: number
+  _dragStartY?: number
+  _wasDragged?: boolean
 }
 
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
@@ -408,11 +411,7 @@ export function DwellerGraphCanvas() {
         })
       })
       .on('mousemove', function (event) {
-        const rect = containerRef.current?.getBoundingClientRect()
-        setTooltip((prev) => ({
-          ...prev,
-          pos: { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) },
-        }))
+        updateTooltipPos(event.clientX, event.clientY)
       })
       .on('mouseleave', function (_, d) {
         d3.select(this).attr('stroke-opacity', 0.08 + 0.28 * (d.weight / maxWeight))
@@ -494,7 +493,26 @@ export function DwellerGraphCanvas() {
         .text((d) => d.name.toUpperCase())
     }
 
+    // ── RAF-throttled tooltip position update ────────────────────────────────
+    let rafId: number | null = null
+    const updateTooltipPos = (clientX: number, clientY: number) => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const rect = containerRef.current?.getBoundingClientRect()
+        setTooltip((prev) => ({
+          ...prev,
+          pos: { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) },
+        }))
+        rafId = null
+      })
+    }
+
     // ── Interactions ─────────────────────────────────────────────────────────
+
+    // Touch tap tracking (mobile — touchstart/touchend with distance threshold)
+    let _touchStartX = 0
+    let _touchStartY = 0
+
     nodeSel
       .on('mouseenter', function (event, d) {
         d3.select(this).select('circle').transition().duration(120).attr('r', NODE_R + 6)
@@ -506,34 +524,56 @@ export function DwellerGraphCanvas() {
         })
       })
       .on('mousemove', function (event) {
-        const rect = containerRef.current?.getBoundingClientRect()
-        setTooltip((prev) => ({
-          ...prev,
-          pos: { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) },
-        }))
+        updateTooltipPos(event.clientX, event.clientY)
       })
       .on('mouseleave', function () {
         d3.select(this).select('circle').transition().duration(120).attr('r', NODE_R + 4)
         setTooltip({ node: null, edge: null, pos: { x: 0, y: 0 } })
       })
       .on('click', (_, d) => {
-        router.push(`/dweller/${d.id}`)
+        // Only navigate if the node was not meaningfully dragged
+        if (!d._wasDragged) router.push(`/dweller/${d.id}`)
+      })
+      .on('touchstart.tap', function (event) {
+        const te = event as unknown as TouchEvent
+        const t = te.touches[0]
+        _touchStartX = t.clientX
+        _touchStartY = t.clientY
+      })
+      .on('touchend.tap', function (event, d) {
+        const te = event as unknown as TouchEvent
+        const t = te.changedTouches[0]
+        const dx = t.clientX - _touchStartX
+        const dy = t.clientY - _touchStartY
+        if (Math.sqrt(dx * dx + dy * dy) < 10) {
+          router.push(`/dweller/${d.id}`)
+        }
       })
 
     // ── Drag ─────────────────────────────────────────────────────────────────
     const drag = d3
       .drag<SVGGElement, SimNode>()
       .on('start', (event, d) => {
+        d._dragStartX = event.x
+        d._dragStartY = event.y
+        d._wasDragged = false
         if (!event.active) simulation.alphaTarget(0.3).restart()
         d.fx = d.x
         d.fy = d.y
       })
       .on('drag', (event, d) => {
+        const dx = event.x - (d._dragStartX ?? event.x)
+        const dy = event.y - (d._dragStartY ?? event.y)
+        if (Math.sqrt(dx * dx + dy * dy) > 5) d._wasDragged = true
         d.fx = event.x
         d.fy = event.y
       })
       .on('end', (event, d) => {
-        if (!event.active) simulation.alphaTarget(0)
+        if (!event.active) {
+          simulation.alphaTarget(0)
+          // Cap alpha so the simulation settles quickly after drag instead of jittering
+          if (simulation.alpha() > 0.1) simulation.alpha(0.1)
+        }
         d.fx = null
         d.fy = null
       })
@@ -543,6 +583,7 @@ export function DwellerGraphCanvas() {
     // ── Force simulation ──────────────────────────────────────────────────────
     const simulation = d3
       .forceSimulation<SimNode>(simNodes)
+      .alphaDecay(0.05) // 2x faster than default (0.0228) — settles quickly, less jitter
       .force(
         'link',
         d3
@@ -569,6 +610,13 @@ export function DwellerGraphCanvas() {
       }).strength(0.04))
 
     simulationRef.current = simulation
+
+    // After initial layout settles (~2s with alphaDecay 0.05), hard-stop any residual jitter
+    const settleTimer = setTimeout(() => {
+      if (simulationRef.current === simulation && simulation.alpha() < 0.05) {
+        simulation.alpha(0)
+      }
+    }, 2000)
 
     simulation.on('tick', () => {
       edgeSel
@@ -605,6 +653,8 @@ export function DwellerGraphCanvas() {
 
     return () => {
       simulation.stop()
+      clearTimeout(settleTimer)
+      if (rafId !== null) cancelAnimationFrame(rafId)
     }
   }, [filteredData, dims, router, data])
 
