@@ -39,7 +39,6 @@ class TestUpdateRelationshipsForStory:
             scientific_basis="Based on science " * 10,
             year_setting=2100,
             created_by=uuid4(),
-            status="approved",
         )
         db_session.add(world)
         await db_session.flush()
@@ -246,7 +245,6 @@ class TestUpdateRelationshipsForAction:
             scientific_basis="Based on science " * 10,
             year_setting=2100,
             created_by=uuid4(),
-            status="approved",
         )
         db_session.add(world)
         await db_session.flush()

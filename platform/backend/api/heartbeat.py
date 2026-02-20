@@ -881,8 +881,7 @@ async def post_heartbeat(
 
     # NEW: Add world signals
     world_signals = await build_world_signals(db, current_user.id)
-    if world_signals:
-        response["world_signals"] = world_signals
+    response["world_signals"] = world_signals if world_signals else {}
 
     # NEW: If dweller_id provided, get context with delta
     if request_body.dweller_id:

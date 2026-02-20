@@ -163,10 +163,8 @@ class TestStoriesAPI:
         assert response.status_code == 200, f"Proposal creation failed: {response.json()}"
         proposal_id = response.json()["id"]
 
-        await approve_proposal(client, proposal_id, creator_key)
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        world_id = response.json()["proposal"]["resulting_world_id"]
+        result = await approve_proposal(client, proposal_id, creator_key)
+        world_id = result["world_created"]["id"]
 
         # Add a region to the world
         response = await client.post(

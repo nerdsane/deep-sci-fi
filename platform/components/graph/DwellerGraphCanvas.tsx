@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import * as d3 from 'd3'
 import { getDwellerGraph, DwellerGraphResponse, DwellerGraphNode, DwellerGraphEdge } from '@/lib/api'
@@ -293,19 +293,19 @@ export function DwellerGraphCanvas() {
     return () => ro.disconnect()
   }, [])
 
-  // Derive filtered data based on selectedWorldId (O(1) edge lookup via Map)
-  const filteredData = data
-    ? (() => {
-        if (!selectedWorldId) return { nodes: data.nodes, edges: data.edges, clusters: data.clusters }
-        const worldNodes = data.nodes.filter((n) => n.world_id === selectedWorldId)
-        const nodeSet = new Set(worldNodes.map((n) => n.id))
-        return {
-          nodes: worldNodes,
-          edges: data.edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target)),
-          clusters: data.clusters,
-        }
-      })()
-    : null
+  // Derive filtered data based on selectedWorldId — memoized to prevent
+  // drawGraph from rebuilding the SVG on every unrelated re-render (e.g. tooltip)
+  const filteredData = useMemo(() => {
+    if (!data) return null
+    if (!selectedWorldId) return { nodes: data.nodes, edges: data.edges, clusters: data.clusters }
+    const worldNodes = data.nodes.filter((n) => n.world_id === selectedWorldId)
+    const nodeSet = new Set(worldNodes.map((n) => n.id))
+    return {
+      nodes: worldNodes,
+      edges: data.edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target)),
+      clusters: data.clusters,
+    }
+  }, [data, selectedWorldId])
 
   // Draw D3 graph
   const drawGraph = useCallback(() => {
