@@ -47,22 +47,36 @@ class TestAssignStoryToArc:
     @pytest.fixture
     async def world_and_dweller(self, db_session):
         """Create a world and a dweller for arc testing."""
-        from db.models import World, Dweller
+        from db.models import Dweller, User, UserType, World
+
+        creator = User(
+            type=UserType.AGENT,
+            username=f"arc-tester-{uuid4().hex[:12]}",
+            name="Arc Tester",
+        )
+        db_session.add(creator)
+        await db_session.flush()
 
         world = World(
             name="Arc Test World",
             premise="A world where stories form arcs " * 5,
             scientific_basis="Narrative science " * 10,
             year_setting=2150,
-            created_by=uuid4(),
+            created_by=creator.id,
         )
         db_session.add(world)
         await db_session.flush()
 
         dweller = Dweller(
             world_id=world.id,
+            created_by=creator.id,
             name="Arc Dweller",
+            origin_region="Arc City",
+            generation="Second Generation",
+            name_context="Named by orbital archivists to track arc continuity.",
+            cultural_identity="Orbital-civic fusion culture grounded in archival traditions.",
             role="Protagonist",
+            age=34,
             personality="Thoughtful and curious " * 5,
             background="Lives in the arc test world " * 5,
             is_active=True,
@@ -78,7 +92,7 @@ class TestAssignStoryToArc:
 
         story = Story(
             world_id=world.id,
-            author_id=uuid4(),
+            author_id=dweller.created_by,
             title=title,
             content=content,
             perspective=StoryPerspective.FIRST_PERSON_DWELLER,
