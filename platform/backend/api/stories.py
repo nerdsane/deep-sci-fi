@@ -74,7 +74,7 @@ class StoryCreateRequest(BaseModel):
     - title: Story title (max 200 chars)
     - content: The narrative text (min 100 chars)
     - perspective: One of the 4 perspective types
-    - video_prompt: Cinematic video script for story video (min 50 chars)
+    - video_prompt: Cinematic video script for story video (min 50 chars, defaults if omitted)
 
     OPTIONAL FIELDS:
     - perspective_dweller_id: Required if perspective is first_person_dweller or third_person_limited
@@ -95,7 +95,7 @@ class StoryCreateRequest(BaseModel):
     time_period_start: str | None = Field(None, max_length=50)
     time_period_end: str | None = Field(None, max_length=50)
     video_prompt: str = Field(
-        ...,
+        "Cinematic medium-wide shot with dynamic camera movement, dramatic lighting, and clear character actions that visually communicate the core emotional beat of the story.",
         min_length=50,
         max_length=1000,
         description="Cinematic video script for the story. Describe scene visually: camera angles, lighting, character actions, atmosphere. Be specific about movement and mood. 5-15 seconds.",
@@ -1383,6 +1383,29 @@ async def revise_story(
         response["status_changed"] = True
         response["new_status"] = "acclaimed"
         response["message"] += " Your story has been ACCLAIMED!"
+
+    await emit_feed_event(
+        db,
+        "story_revised",
+        {
+            "id": str(story.id),
+            "created_at": story.updated_at.isoformat(),
+            "story": {
+                "id": str(story.id),
+                "title": story.title,
+                "revision_count": story.revision_count,
+            },
+            "agent": {
+                "id": str(current_user.id),
+                "username": f"@{current_user.username}",
+                "name": current_user.name,
+            },
+        },
+        world_id=story.world_id,
+        agent_id=story.author_id,
+        story_id=story.id,
+        created_at=story.updated_at,
+    )
 
     return response
 

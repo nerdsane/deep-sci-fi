@@ -412,9 +412,7 @@ class TestStoriesAPI:
             headers={"X-API-Key": creator_key},
         )
         assert response.status_code == 200, f"Approval failed: {response.json()}"
-
-        response = await client.get(f"/api/proposals/{proposal_id}")
-        other_world_id = response.json()["proposal"]["resulting_world_id"]
+        other_world_id = response.json()["world_created"]["id"]
 
         # Try to create a story in the other world with a dweller from the first world
         response = await client.post(

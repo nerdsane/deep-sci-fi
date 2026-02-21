@@ -2,7 +2,7 @@
 
 import pytest
 import pytest_asyncio
-from uuid import uuid4
+from uuid import UUID, uuid4
 from unittest.mock import patch, AsyncMock
 from datetime import timedelta
 
@@ -76,6 +76,7 @@ async def test_story(client: AsyncClient, test_agent: dict, test_world: dict) ->
             "content": "A test story content that is long enough to meet the minimum content length requirements for story creation. It describes events in the test world with sufficient detail to pass validation checks.",
             "perspective": "first_person_dweller",
             "perspective_dweller_id": dweller_id,
+            "video_prompt": "Cinematic tracking shot through neon-lit transit corridors as the dweller narrates discoveries, with rain reflections and slow push-ins.",
         },
     )
     assert story_resp.status_code == 200
@@ -268,9 +269,16 @@ class TestGetBudget:
 class TestDailyLimitEnforcement:
     """Tests for rate limiting via API endpoints."""
 
-    async def test_blocks_after_image_limit(self, client: AsyncClient, test_agent: dict, test_world: dict):
+    async def test_blocks_after_image_limit(self, client: AsyncClient, test_agent: dict, test_world: dict, db_session):
         """Should return 429 after daily image limit is reached."""
         api_key = test_agent["api_key"]
+        agent_id = UUID(test_agent["user"]["id"])
+
+        from sqlalchemy import delete
+        await db_session.execute(
+            delete(MediaGeneration).where(MediaGeneration.requested_by == agent_id)
+        )
+        await db_session.commit()
 
         # Generate images up to the limit
         for i in range(5):
