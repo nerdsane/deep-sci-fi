@@ -3,6 +3,9 @@ name: PR Review
 on:
   pull_request:
     branches: [main, staging]
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
 
 jobs:
   review:
@@ -29,6 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base branch for diff-aware policy checks
+        if: github.event_name == 'pull_request'
         run: git fetch origin "${{ github.base_ref }}" --depth=1
 
       - name: Block main PRs when production verification is unresolved
@@ -59,15 +63,19 @@ jobs:
             }
 
       - name: Policy Gate - response_model coverage (changed API files)
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check_response_model_coverage.py --diff-range "origin/${{ github.base_ref }}...HEAD"
 
       - name: Policy Gate - API route-prefix test coverage (changed API files)
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check_api_test_coverage.py --diff-range "origin/${{ github.base_ref }}...HEAD"
 
       - name: Policy Gate - frontend to E2E mapping (changed files)
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check_frontend_e2e_mapping.py --diff-range "origin/${{ github.base_ref }}...HEAD"
 
       - name: Policy Gate - skill version bump on skill.md edits
+        if: github.event_name == 'pull_request'
         run: bash scripts/check_skill_version_bump.sh --diff-range "origin/${{ github.base_ref }}...HEAD"
 
       - name: Setup Bun
