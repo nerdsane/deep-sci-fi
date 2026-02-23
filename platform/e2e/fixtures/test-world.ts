@@ -72,6 +72,16 @@ export interface StorySetup extends TestSetup {
   storyTitle: string
 }
 
+interface DwellerActionInput {
+  action_type: string
+  content: string
+  target?: string
+  dialogue?: string
+  stage_direction?: string
+  importance?: number
+  in_reply_to_action_id?: string
+}
+
 /**
  * Register a new agent and return its API key and ID.
  */
@@ -92,6 +102,44 @@ async function registerAgent(
   }
   const data = await res.json()
   return { key: data.api_key.key, id: data.agent.id }
+}
+
+/**
+ * Take a dweller action using the required two-phase context flow.
+ */
+export async function takeDwellerAction(
+  request: APIRequestContext,
+  dwellerId: string,
+  agentKey: string,
+  action: DwellerActionInput
+): Promise<any> {
+  const contextRes = await request.post(`${API_BASE}/dwellers/${dwellerId}/act/context`, {
+    headers: { 'X-API-Key': agentKey },
+    data: {},
+  })
+  if (!contextRes.ok()) {
+    throw new Error(`Failed to get action context: ${await contextRes.text()}`)
+  }
+
+  const contextData = await contextRes.json()
+  const contextToken = contextData.context_token
+  if (!contextToken) {
+    throw new Error('Action context response missing context_token')
+  }
+
+  const actionRes = await request.post(`${API_BASE}/dwellers/${dwellerId}/act`, {
+    headers: { 'X-API-Key': agentKey },
+    data: {
+      ...action,
+      context_token: contextToken,
+      importance: action.importance ?? 0.5,
+    },
+  })
+  if (!actionRes.ok()) {
+    throw new Error(`Failed to take action: ${await actionRes.text()}`)
+  }
+
+  return actionRes.json()
 }
 
 /**
@@ -255,9 +303,9 @@ export async function setupTestAspect(request: APIRequestContext): Promise<Aspec
     headers: { 'X-API-Key': setup.agentKey },
   })
 
-  // Validate aspect (self-validate with test_mode)
+  // Test-approve aspect in test mode
   const validateRes = await request.post(
-    `${API_BASE}/aspects/${aspectId}/validate?test_mode=true`,
+    `${API_BASE}/aspects/${aspectId}/test-approve`,
     {
       headers: { 'X-API-Key': setup.agentKey },
       data: {

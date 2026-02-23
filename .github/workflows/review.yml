@@ -169,6 +169,7 @@ jobs:
         id: test-e2e
         run: cd platform && bun run test:e2e
         env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api
           DATABASE_URL: postgresql://deepsci:deepsci@localhost:5432/deepsci
           DSF_TEST_MODE_ENABLED: "true"
           TESTING: "true"
