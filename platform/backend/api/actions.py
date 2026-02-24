@@ -6,18 +6,40 @@ Endpoints for managing high-importance dweller actions:
 """
 
 from utils.clock import now as utc_now
+from datetime import timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, exists
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, User, DwellerAction, Dweller, World, WorldEvent
+from db import (
+    get_db,
+    User,
+    DwellerAction,
+    Dweller,
+    World,
+    WorldEvent,
+    ActionCompositionQueue,
+    IdempotencyKey,
+)
 from db.models import WorldEventStatus, WorldEventOrigin
+from services.action_resilience import (
+    ACTION_IDEMPOTENCY_ENDPOINT,
+    ActionSubmissionPayload,
+    build_action_response,
+    create_action_record,
+    get_recent_idempotency_record,
+    parse_stored_idempotency_response,
+    prune_expired_idempotency_keys,
+)
 from .auth import get_current_user
+from utils.deployment import get_forced_deployment_status, get_retry_after_seconds
 from utils.notifications import create_notification
 from schemas.actions import (
     GetActionResponse,
@@ -80,9 +102,229 @@ class EscalateRequest(BaseModel):
     )
 
 
+class ActionSubmitRequest(BaseModel):
+    """Request to submit or compose a dweller action."""
+
+    dweller_id: UUID = Field(..., description="Dweller taking the action")
+    action_type: str = Field(..., min_length=1, max_length=50)
+    content: str = Field(..., min_length=1)
+    target: str | None = Field(default=None)
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    dialogue: str | None = Field(default=None)
+    stage_direction: str | None = Field(default=None)
+    in_reply_to_action_id: UUID | None = Field(default=None)
+
+
+def _raise_if_deploying() -> None:
+    """Block action writes during deployment windows."""
+    if get_forced_deployment_status() != "deploying":
+        return
+    retry_after = get_retry_after_seconds()
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": "Action submission unavailable during deployment",
+            "deployment_status": "deploying",
+            "retry_after_seconds": retry_after,
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _resolve_idempotency_key(
+    *,
+    idempotency_key: str | None,
+    x_idempotency_key: str | None,
+) -> str | None:
+    return idempotency_key or x_idempotency_key
+
+
+def _validate_idempotency_key(value: str) -> None:
+    try:
+        UUID(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Idempotency-Key must be a valid UUID",
+        ) from exc
+
+
 # ============================================================================
 # Action Endpoints
 # ============================================================================
+
+
+@router.post("/compose")
+async def compose_action(
+    request: ActionSubmitRequest,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    x_idempotency_key: str | None = Header(None, alias="X-Idempotency-Key"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Buffer an action for resilient background submission."""
+    _raise_if_deploying()
+
+    try:
+        payload = ActionSubmissionPayload.from_dict(request.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    key = _resolve_idempotency_key(
+        idempotency_key=idempotency_key,
+        x_idempotency_key=x_idempotency_key,
+    ) or str(uuid4())
+    _validate_idempotency_key(key)
+
+    existing_result = await db.execute(
+        select(ActionCompositionQueue).where(ActionCompositionQueue.idempotency_key == key)
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        return {
+            "queue_id": str(existing.id),
+            "status": "queued" if existing.submitted_at is None else "submitted",
+            "idempotency_key": existing.idempotency_key,
+            "composed_at": existing.composed_at.isoformat(),
+            "submitted_at": existing.submitted_at.isoformat() if existing.submitted_at else None,
+            "submission_attempts": existing.submission_attempts,
+        }
+
+    dweller = await db.get(Dweller, payload.dweller_id)
+    if not dweller:
+        raise HTTPException(status_code=404, detail="Dweller not found")
+    if dweller.inhabited_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not inhabiting this dweller")
+
+    queue_item = ActionCompositionQueue(
+        agent_id=current_user.id,
+        dweller_id=payload.dweller_id,
+        action_type=payload.action_type,
+        payload=payload.to_json_dict(),
+        idempotency_key=key,
+        next_attempt_at=utc_now(),
+    )
+    db.add(queue_item)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        race_result = await db.execute(
+            select(ActionCompositionQueue).where(ActionCompositionQueue.idempotency_key == key)
+        )
+        race_item = race_result.scalar_one_or_none()
+        if race_item is None:
+            raise
+        return {
+            "queue_id": str(race_item.id),
+            "status": "queued" if race_item.submitted_at is None else "submitted",
+            "idempotency_key": race_item.idempotency_key,
+            "composed_at": race_item.composed_at.isoformat(),
+            "submitted_at": race_item.submitted_at.isoformat() if race_item.submitted_at else None,
+            "submission_attempts": race_item.submission_attempts,
+        }
+
+    await db.refresh(queue_item)
+    return {
+        "queue_id": str(queue_item.id),
+        "status": "queued",
+        "idempotency_key": queue_item.idempotency_key,
+        "composed_at": queue_item.composed_at.isoformat(),
+        "submitted_at": None,
+        "submission_attempts": queue_item.submission_attempts,
+    }
+
+
+@router.post("")
+async def submit_action(
+    request: ActionSubmitRequest,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    x_idempotency_key: str | None = Header(None, alias="X-Idempotency-Key"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Submit a dweller action with 24-hour idempotent replay support."""
+    _raise_if_deploying()
+
+    try:
+        payload = ActionSubmissionPayload.from_dict(request.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    key = _resolve_idempotency_key(
+        idempotency_key=idempotency_key,
+        x_idempotency_key=x_idempotency_key,
+    )
+    if key is not None:
+        _validate_idempotency_key(key)
+
+    await prune_expired_idempotency_keys(db)
+
+    idempotency_record: IdempotencyKey | None = None
+    if key is not None:
+        existing_any_endpoint = await db.get(IdempotencyKey, key)
+        if existing_any_endpoint and existing_any_endpoint.endpoint != ACTION_IDEMPOTENCY_ENDPOINT:
+            if existing_any_endpoint.created_at >= utc_now() - timedelta(hours=24):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Idempotency-Key already used for another endpoint within 24 hours",
+                )
+            await db.delete(existing_any_endpoint)
+            await db.flush()
+
+        idempotency_record = await get_recent_idempotency_record(db, key=key)
+
+        if idempotency_record and idempotency_record.status == "completed":
+            replay = parse_stored_idempotency_response(idempotency_record.response_body)
+            if replay is not None:
+                return JSONResponse(
+                    status_code=200,
+                    content=replay,
+                    headers={"X-Idempotent-Replay": "true"},
+                )
+
+        if idempotency_record and idempotency_record.status == "in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail="Request is already in progress for this Idempotency-Key",
+            )
+
+        if idempotency_record is None:
+            idempotency_record = IdempotencyKey(
+                key=key,
+                user_id=current_user.id,
+                endpoint=ACTION_IDEMPOTENCY_ENDPOINT,
+                status="in_progress",
+                created_at=utc_now(),
+            )
+            db.add(idempotency_record)
+        else:
+            idempotency_record.status = "in_progress"
+            idempotency_record.response_status = None
+            idempotency_record.response_body = None
+            idempotency_record.completed_at = None
+
+    action, dweller = await create_action_record(
+        db,
+        actor_id=current_user.id,
+        payload=payload,
+    )
+    await db.flush()
+    await db.refresh(action)
+
+    response_payload = build_action_response(
+        action=action,
+        dweller=dweller,
+        idempotency_key=key,
+    )
+
+    if idempotency_record is not None:
+        idempotency_record.status = "completed"
+        idempotency_record.response_status = 201
+        idempotency_record.response_body = response_payload
+        idempotency_record.completed_at = utc_now()
+
+    await db.commit()
+    return JSONResponse(status_code=201, content=response_payload)
 
 
 @router.get("/{action_id}", response_model=GetActionResponse)

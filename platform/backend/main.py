@@ -5,6 +5,7 @@ Multi-agent social platform for AI-created plausible sci-fi futures.
 
 import logging
 import os
+import asyncio
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -41,6 +42,8 @@ from slowapi.errors import RateLimitExceeded
 from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_graph_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router, media_router, reviews_router, x_feedback_router, arcs_router
 from db import init_db, verify_schema_version
 from db import engine as db_engine
+from services.action_queue_worker import run_action_queue_worker
+from utils.deployment import get_retry_after_seconds, resolve_deployment_status
 instrument_sqlalchemy(db_engine.sync_engine)
 
 # =============================================================================
@@ -89,20 +92,44 @@ def render_doc_template(template: str) -> str:
 # Disable rate limiting in test mode
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 limiter = Limiter(key_func=get_remote_address, enabled=not IS_TESTING)
+ACTION_QUEUE_WORKER_ENABLED = os.getenv("ACTION_QUEUE_WORKER_ENABLED", "true").lower() == "true"
+
+_action_queue_worker_task: asyncio.Task | None = None
+_action_queue_worker_stop_event: asyncio.Event | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
+    global _action_queue_worker_task, _action_queue_worker_stop_event
+
     # Startup
     logger.info("Starting Deep Sci-Fi Platform...")
     await init_db()
     logger.info("Database initialized")
 
+    if ACTION_QUEUE_WORKER_ENABLED and not IS_TESTING:
+        _action_queue_worker_stop_event = asyncio.Event()
+        _action_queue_worker_task = asyncio.create_task(
+            run_action_queue_worker(_action_queue_worker_stop_event)
+        )
+        logger.info("Action queue worker started")
+
     # Note: Scheduler disabled for crowdsourced model
     # External agents now drive content creation via proposals API
 
     yield
+
+    if _action_queue_worker_stop_event is not None:
+        _action_queue_worker_stop_event.set()
+    if _action_queue_worker_task is not None:
+        try:
+            await _action_queue_worker_task
+        except Exception:
+            logger.exception("Action queue worker shutdown failed")
+        finally:
+            _action_queue_worker_task = None
+            _action_queue_worker_stop_event = None
 
     # Shutdown
     logger.info("Shutting down Deep Sci-Fi Platform...")
@@ -619,7 +646,15 @@ app.add_middleware(
     allow_credentials=True,
     # Restrict methods and headers in production
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-Idempotency-Key", "X-Skill-Version"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-API-Key",
+        "X-Request-ID",
+        "X-Idempotency-Key",
+        "Idempotency-Key",
+        "X-Skill-Version",
+    ],
 )
 
 # Idempotency middleware - safe retries after 502/timeout (runs first, before agent context)
@@ -695,30 +730,34 @@ async def root():
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     """Health check endpoint with schema verification.
 
     Returns:
-    - status: "healthy" if everything is OK, "degraded" if schema drift detected
+    - status: "healthy" when stable, "degraded" otherwise
+    - deployment_status: stable | deploying | degraded
     - schema: Schema version verification details
 
     In production, schema drift means migrations weren't run during deployment.
     """
     schema_status = await verify_schema_version()
+    deployment_status = resolve_deployment_status(schema_status["is_current"])
 
-    if schema_status["is_current"]:
-        return {
-            "status": "healthy",
-            "schema": schema_status,
-        }
-    else:
-        # Return 200 but with degraded status - app can still run but with warnings
-        # Using 200 so load balancers don't mark instance as unhealthy
-        return {
-            "status": "degraded",
-            "warning": "Schema drift detected - database may be out of sync with code",
-            "schema": schema_status,
-        }
+    response: dict[str, object] = {
+        "status": "healthy" if deployment_status == "stable" else "degraded",
+        "deployment_status": deployment_status,
+        "schema": schema_status,
+    }
+
+    if deployment_status == "deploying":
+        response["retry_after_seconds"] = get_retry_after_seconds()
+        response["warning"] = "Deployment in progress. Retry mutating requests after delay."
+    elif deployment_status == "degraded":
+        response["warning"] = "Schema drift detected - database may be out of sync with code"
+
+    # Keep returning 200 so load balancers do not eject an instance during deploy.
+    return response
 
 
 @app.get("/skill.md")
