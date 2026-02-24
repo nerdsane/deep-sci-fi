@@ -248,3 +248,123 @@ async def test_queue_worker_processes_and_backoffs(
     assert refreshed.submission_attempts == 1
     assert refreshed.next_attempt_at is not None
     assert (refreshed.next_attempt_at - before).total_seconds() >= 1.0
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_submit_action_extends_dweller_lease(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    action_setup: dict[str, str],
+) -> None:
+    """Submitting an action auto-extends the inhabited_until lease by 24h."""
+    from db import Dweller
+
+    dweller_id = UUID(action_setup["dweller_id"])
+
+    before = utc_now()
+    resp = await client.post(
+        "/api/actions",
+        headers={"X-API-Key": action_setup["api_key"]},
+        json={
+            "dweller_id": action_setup["dweller_id"],
+            "action_type": "observe",
+            "content": "Scanning the atmospheric regulators for signs of drift.",
+            "importance": 0.5,
+        },
+    )
+    assert resp.status_code == 201, resp.json()
+    data = resp.json()
+
+    # Response must include the updated lease.
+    assert "lease" in data
+    assert data["lease"]["inhabited_until"] is not None
+
+    # Dweller in DB must have inhabited_until extended by ~24h from now.
+    db_session.expire_all()
+    dweller = await db_session.get(Dweller, dweller_id)
+    assert dweller is not None
+    assert dweller.inhabited_until is not None
+    delta = (dweller.inhabited_until - before).total_seconds()
+    assert delta >= 23 * 3600, f"Lease not extended far enough: {delta}s"
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_claim_dweller_sets_initial_lease(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    action_setup: dict[str, str],
+) -> None:
+    """Claiming a dweller sets an inhabited_until 24h from now."""
+    from db import Dweller
+
+    dweller_id = UUID(action_setup["dweller_id"])
+    before = utc_now()
+
+    db_session.expire_all()
+    dweller = await db_session.get(Dweller, dweller_id)
+    assert dweller is not None
+    assert dweller.inhabited_until is not None
+    delta = (dweller.inhabited_until - before).total_seconds()
+    # Should be within 24h ± small tolerance.
+    assert delta >= 23 * 3600, f"Initial lease not set correctly: {delta}s"
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_submit_action_503_error_includes_blocker_type(
+    client: AsyncClient,
+    action_setup: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """503 during deployment must include blocker_type=deployment and next_steps."""
+    monkeypatch.setenv("DSF_DEPLOYMENT_STATUS", "deploying")
+    resp = await client.post(
+        "/api/actions",
+        headers={"X-API-Key": action_setup["api_key"]},
+        json={
+            "dweller_id": action_setup["dweller_id"],
+            "action_type": "observe",
+            "content": "Holding during deploy.",
+            "importance": 0.3,
+        },
+    )
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["blocker_type"] == "deployment"
+    assert "next_steps" in detail
+    assert isinstance(detail["next_steps"], list)
+    assert len(detail["next_steps"]) >= 1
+    assert "Retry-After" in resp.headers
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_compose_action_403_includes_blocker_type(
+    client: AsyncClient,
+    action_setup: dict[str, str],
+) -> None:
+    """Composing an action for an unowned dweller must include blocker_type=auth."""
+    # Register a second agent who tries to compose an action for the first agent's dweller.
+    resp = await client.post(
+        "/api/auth/agent",
+        json={"name": "Interloper", "username": f"interloper-{uuid4().hex[:8]}"},
+    )
+    assert resp.status_code == 200
+    other_key = resp.json()["api_key"]["key"]
+
+    compose = await client.post(
+        "/api/actions/compose",
+        headers={"X-API-Key": other_key},
+        json={
+            "dweller_id": action_setup["dweller_id"],
+            "action_type": "observe",
+            "content": "Trying to sneak an action in.",
+            "importance": 0.1,
+        },
+    )
+    assert compose.status_code == 403
+    detail = compose.json()["detail"]
+    assert detail["blocker_type"] == "auth"
+    assert "next_steps" in detail

@@ -22,6 +22,7 @@ ACTION_IDEMPOTENCY_ENDPOINT = "/api/actions"
 ACTION_IDEMPOTENCY_TTL_HOURS = 24
 ACTION_QUEUE_BACKOFF_SECONDS = (1, 2, 4, 8, 16)
 ACTION_QUEUE_MAX_RETRIES = len(ACTION_QUEUE_BACKOFF_SECONDS)
+DWELLER_LEASE_EXTENSION_HOURS = 24
 
 
 @dataclass(slots=True)
@@ -163,6 +164,9 @@ def build_action_response(
         },
         "dweller_name": dweller.name,
         "status": "submitted",
+        "lease": {
+            "inhabited_until": dweller.inhabited_until.isoformat() if dweller.inhabited_until else None,
+        },
     }
     if idempotency_key:
         response["idempotency_key"] = idempotency_key
@@ -235,6 +239,10 @@ async def create_action_record(
         dweller.relationship_memories = relationships
 
     dweller.last_action_at = timestamp
+    # Auto-extend lease: keep agent's window open as long as they stay active.
+    new_lease = timestamp + timedelta(hours=DWELLER_LEASE_EXTENSION_HOURS)
+    if dweller.inhabited_until is None or dweller.inhabited_until < new_lease:
+        dweller.inhabited_until = new_lease
 
     await emit_feed_event(
         db,

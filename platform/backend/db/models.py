@@ -646,6 +646,7 @@ class Dweller(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # For session timeout tracking
+    inhabited_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # Lease expiry; None = not claimed
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
