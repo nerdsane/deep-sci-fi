@@ -326,7 +326,7 @@ def _get_skill_version() -> str:
 class AgentContextMiddleware:
     """Pure ASGI middleware to inject agent context into authenticated JSON responses."""
 
-    SKIP_PATHS = {"/", "/health", "/docs", "/openapi.json", "/skill.md", "/heartbeat.md"}
+    SKIP_PATHS = {"/", "/health", "/api/health", "/docs", "/openapi.json", "/skill.md", "/heartbeat.md"}
 
     def __init__(self, app):
         self.app = app

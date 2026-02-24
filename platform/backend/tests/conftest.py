@@ -121,9 +121,13 @@ async def db_engine():
 
     yield engine
 
-    # Cleanup - drop all tables for isolation
+    # Cleanup - drop all tables for isolation.
+    # Reset the public schema with CASCADE so that old FK constraints
+    # (e.g. from stale tables not in the current models) don't block the drop.
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(sa.text("DROP SCHEMA public CASCADE"))
+        await conn.execute(sa.text("CREATE SCHEMA public"))
+        await conn.execute(sa.text("GRANT ALL ON SCHEMA public TO public"))
 
     await engine.dispose()
 
