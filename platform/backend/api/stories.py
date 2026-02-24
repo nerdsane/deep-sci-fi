@@ -18,19 +18,20 @@ REVIEW SYSTEM:
 
 import logging
 from datetime import datetime
+from datetime import timedelta
 from utils.clock import now as utc_now
 from typing import Any, Literal
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction
+from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction, StoryWritingGuidance, GuidanceToken
 from .auth import get_current_user, get_optional_user, get_admin_user
 from schemas.stories import (
     SourceEventSummary,
@@ -57,6 +58,14 @@ from utils.feed_events import emit_feed_event
 from utils.notifications import create_notification, notify_story_acclaimed
 from utils.nudge import build_nudge
 from utils.simulation import buggify, buggify_delay
+from utils.guidance_tokens import (
+    GuidanceTokenExpiredError,
+    GuidanceTokenInvalidError,
+    TOKEN_TTL_MINUTES,
+    create_guidance_token,
+    hash_guidance_token,
+    validate_guidance_token,
+)
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -378,6 +387,60 @@ async def maybe_transition_to_acclaimed(story: Story, db) -> bool:
     return False
 
 
+async def get_active_story_writing_guidance(db: AsyncSession) -> StoryWritingGuidance | None:
+    """Get the currently active story writing guidance (if any)."""
+    result = await db.execute(
+        select(StoryWritingGuidance)
+        .where(StoryWritingGuidance.is_active.is_(True))
+        .order_by(desc(StoryWritingGuidance.created_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def guidance_payload(guidance: StoryWritingGuidance) -> dict[str, Any]:
+    """Serialize guidance content for API responses."""
+    return {
+        "version": guidance.version,
+        "rules": guidance.rules,
+        "examples": guidance.examples or [],
+    }
+
+
+async def issue_story_guidance_token(
+    db: AsyncSession,
+    guidance: StoryWritingGuidance,
+) -> tuple[str, datetime]:
+    """Create, persist, and return a one-time guidance token."""
+    token = create_guidance_token(guidance.version)
+    expires_at = utc_now() + timedelta(minutes=TOKEN_TTL_MINUTES)
+    db.add(
+        GuidanceToken(
+            token_hash=hash_guidance_token(token),
+            guidance_version=guidance.version,
+            expires_at=expires_at,
+            consumed=False,
+        )
+    )
+    await db.commit()
+    return token, expires_at
+
+
+async def guidance_precondition_detail(
+    db: AsyncSession,
+    guidance: StoryWritingGuidance,
+    error: str = "Guidance token required",
+) -> dict[str, Any]:
+    """Build 428 response payload and issue a fresh token."""
+    token, expires_at = await issue_story_guidance_token(db, guidance)
+    return {
+        "error": error,
+        "guidance": guidance_payload(guidance),
+        "token": token,
+        "token_expires_at": expires_at.isoformat(),
+    }
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -387,6 +450,7 @@ async def maybe_transition_to_acclaimed(story: Story, db) -> bool:
 async def create_story(
     request: StoryCreateRequest,
     background_tasks: BackgroundTasks,
+    x_guidance_token: str | None = Header(None, alias="X-Guidance-Token"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -422,6 +486,74 @@ async def create_story(
                 "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
             },
         )
+
+    # Enforce story writing guidance token when active guidance exists.
+    active_guidance = await get_active_story_writing_guidance(db)
+    guidance_token_record: GuidanceToken | None = None
+    guidance_version_used: str | None = None
+    if active_guidance:
+        now = utc_now()
+        if active_guidance.expires_at and active_guidance.expires_at <= now:
+            raise HTTPException(
+                status_code=428,
+                detail={
+                    "error": "Current guidance expired, refresh required",
+                    "guidance": guidance_payload(active_guidance),
+                },
+            )
+
+        if not x_guidance_token:
+            raise HTTPException(
+                status_code=428,
+                detail=await guidance_precondition_detail(db, active_guidance),
+            )
+
+        try:
+            claims = validate_guidance_token(x_guidance_token)
+        except GuidanceTokenExpiredError:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "Token expired, request new guidance"},
+            )
+        except GuidanceTokenInvalidError:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "Invalid token"},
+            )
+
+        token_result = await db.execute(
+            select(GuidanceToken)
+            .where(GuidanceToken.token_hash == hash_guidance_token(x_guidance_token))
+            .with_for_update()
+        )
+        guidance_token_record = token_result.scalar_one_or_none()
+        if not guidance_token_record:
+            raise HTTPException(status_code=401, detail={"error": "Invalid token"})
+
+        if guidance_token_record.consumed:
+            raise HTTPException(status_code=401, detail={"error": "Token already consumed"})
+
+        if guidance_token_record.expires_at <= now:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "Token expired, request new guidance"},
+            )
+
+        claim_version = claims.get("guidance_version")
+        if guidance_token_record.guidance_version != claim_version:
+            raise HTTPException(status_code=401, detail={"error": "Invalid token"})
+
+        if guidance_token_record.guidance_version != active_guidance.version:
+            raise HTTPException(
+                status_code=428,
+                detail=await guidance_precondition_detail(
+                    db,
+                    active_guidance,
+                    error="Guidance updated, request a new token",
+                ),
+            )
+
+        guidance_version_used = guidance_token_record.guidance_version
 
     # Dedup: prevent duplicate stories from rapid re-submissions
     # Check by author+world (60s) AND by author+title (5min, catches retries after errors)
@@ -481,9 +613,15 @@ async def create_story(
         time_period_start=request.time_period_start,
         time_period_end=request.time_period_end,
         video_prompt=request.video_prompt,
+        guidance_version_used=guidance_version_used,
     )
     db.add(story)
     await db.flush()
+
+    if guidance_token_record:
+        guidance_token_record.consumed = True
+        guidance_token_record.consumed_at = utc_now()
+        guidance_token_record.story_id = story.id
 
     # Auto-trigger video generation (same logic as POST /api/media/stories/{id}/video)
     from db import MediaGeneration, MediaType, MediaGenerationStatus
