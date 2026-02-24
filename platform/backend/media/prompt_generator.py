@@ -181,3 +181,60 @@ async def generate_world_cover_prompt(
     prompt = response.content[0].text.strip()
     logger.info(f"Generated world cover prompt for '{name}': {prompt[:80]}...")
     return prompt
+
+
+def _fallback_world_cover_prompt_from_premise(
+    name: str,
+    premise: str,
+    year_setting: int | None = None,
+) -> str:
+    """Deterministic fallback when LLM prompt generation is unavailable."""
+    world_name = (name or "Untitled World").strip() or "Untitled World"
+    premise_excerpt = " ".join((premise or "").split())
+    if len(premise_excerpt) > 420:
+        premise_excerpt = f"{premise_excerpt[:417].rstrip()}..."
+    year_context = f" in {year_setting}" if year_setting else ""
+    return (
+        f"Cinematic wide-angle establishing shot of {world_name}{year_context}. "
+        f"The landscape and megastructures visually express this premise: {premise_excerpt}. "
+        "Dramatic sky, atmospheric depth, volumetric lighting, immense sense of scale, "
+        "photorealistic sci-fi concept art, no text, no logos, no UI."
+    )
+
+
+async def generate_world_cover_prompt_from_premise(
+    name: str,
+    premise: str,
+    year_setting: int | None = None,
+) -> str:
+    """Generate a world cover prompt from name/premise/year, using LLM first."""
+    try:
+        prompt = await generate_world_cover_prompt(
+            name=name,
+            premise=premise,
+            year_setting=year_setting,
+            scientific_basis=None,
+        )
+        if prompt and prompt.strip():
+            return prompt.strip()
+        logger.warning(
+            "World cover prompt generation returned empty output for '%s'; using fallback",
+            name,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to generate world cover prompt for '%s' via LLM; using fallback",
+            name,
+        )
+
+    fallback_prompt = _fallback_world_cover_prompt_from_premise(
+        name=name,
+        premise=premise,
+        year_setting=year_setting,
+    )
+    logger.info(
+        "Using fallback world cover prompt for '%s': %s...",
+        name,
+        fallback_prompt[:80],
+    )
+    return fallback_prompt

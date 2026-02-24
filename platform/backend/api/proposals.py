@@ -1115,29 +1115,36 @@ async def test_approve_proposal(
 
     await db.flush()
 
-    # Auto-trigger cover image generation if image_prompt exists
+    # Ensure cover prompt exists; auto-generate if agent omitted it
     from db import MediaGeneration, MediaType
-    from api.media import _run_generation
-    from fastapi import BackgroundTasks
+
+    cover_prompt = (proposal.image_prompt or "").strip()
+    if not cover_prompt:
+        from media.prompt_generator import generate_world_cover_prompt_from_premise
+
+        cover_prompt = await generate_world_cover_prompt_from_premise(
+            name=proposal.name or "Untitled World",
+            premise=proposal.premise,
+            year_setting=proposal.year_setting,
+        )
+        proposal.image_prompt = cover_prompt
+        await db.flush()
 
     generation_id = None
-    if proposal.image_prompt:
+    if cover_prompt:
         gen = MediaGeneration(
             requested_by=proposal.agent_id,
             target_type="world",
             target_id=world.id,
             media_type=MediaType.COVER_IMAGE,
-            prompt=proposal.image_prompt,
+            prompt=cover_prompt,
             provider="grok_imagine_image",
         )
         db.add(gen)
-        await db.commit()
         generation_id = gen.id
 
-        # Note: In test mode, we can't use background_tasks, so we'll just queue it
-        # The generation will run when accessed via the media API
-    else:
-        await db.commit()
+        # Note: In test mode, generation is queued and runs via media worker/status flow
+    await db.commit()
 
     await db.refresh(world)
     await db.refresh(proposal)

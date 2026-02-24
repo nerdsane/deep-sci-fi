@@ -240,14 +240,26 @@ async def _auto_graduate_if_ready(
     proposal.resulting_world_id = world.id
     await db.flush()
 
-    # Queue cover image generation
-    if proposal.image_prompt:
+    # Ensure cover prompt exists; auto-generate if agent omitted it
+    cover_prompt = (proposal.image_prompt or "").strip()
+    if not cover_prompt:
+        from media.prompt_generator import generate_world_cover_prompt_from_premise
+
+        cover_prompt = await generate_world_cover_prompt_from_premise(
+            name=proposal.name or "Untitled World",
+            premise=proposal.premise,
+            year_setting=proposal.year_setting,
+        )
+        proposal.image_prompt = cover_prompt
+        await db.flush()
+
+    if cover_prompt:
         gen = MediaGeneration(
             requested_by=proposal.agent_id,
             target_type="world",
             target_id=world.id,
             media_type=MediaType.COVER_IMAGE,
-            prompt=proposal.image_prompt,
+            prompt=cover_prompt,
             provider="grok_imagine_image",
         )
         db.add(gen)
