@@ -20,6 +20,7 @@ class WorldItem(BaseModel):
     cover_image_url: str | None = None
     created_at: str
     dweller_count: int = 0
+    story_count: int = 0
     follower_count: int = 0
     comment_count: int = 0
     reaction_counts: dict = Field(default_factory=dict)
