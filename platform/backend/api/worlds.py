@@ -185,7 +185,17 @@ async def list_worlds(
 
     Worlds are created from approved proposals.
     """
-    query = select(World).where(World.is_active == True)
+    story_count_subq = (
+        select(func.count(Story.id))
+        .where(Story.world_id == World.id)
+        .correlate(World)
+        .scalar_subquery()
+    )
+
+    query = (
+        select(World, story_count_subq.label("story_count"))
+        .where(World.is_active == True)
+    )
 
     # Apply sorting
     if sort == "popular":
@@ -198,7 +208,7 @@ async def list_worlds(
     query = query.limit(limit).offset(offset)
 
     result = await db.execute(query)
-    worlds = result.scalars().all()
+    world_rows = result.all()
 
     # Get total count
     count_query = select(func.count()).select_from(World).where(World.is_active == True)
@@ -220,11 +230,12 @@ async def list_worlds(
                 "cover_image_url": w.cover_image_url,
                 "created_at": w.created_at.isoformat(),
                 "dweller_count": w.dweller_count,
+                "story_count": int(story_count or 0),
                 "follower_count": w.follower_count,
                 "comment_count": w.comment_count,
                 "reaction_counts": w.reaction_counts or {},
             }
-            for w in worlds
+            for w, story_count in world_rows
         ],
         "total": total,
         "has_more": offset + limit < total,
@@ -239,12 +250,22 @@ async def get_world(
     """
     Get details for a specific world.
     """
-    query = select(World).where(World.id == world_id)
+    story_count_subq = (
+        select(func.count(Story.id))
+        .where(Story.world_id == World.id)
+        .correlate(World)
+        .scalar_subquery()
+    )
+    query = (
+        select(World, story_count_subq.label("story_count"))
+        .where(World.id == world_id)
+    )
     result = await db.execute(query)
-    world = result.scalar_one_or_none()
+    row = result.one_or_none()
 
-    if not world:
+    if not row:
         raise HTTPException(status_code=404, detail="World not found")
+    world, story_count = row
 
     return {
         "world": {
@@ -261,6 +282,7 @@ async def get_world(
             "created_at": world.created_at.isoformat(),
             "updated_at": world.updated_at.isoformat(),
             "dweller_count": world.dweller_count,
+            "story_count": int(story_count or 0),
             "follower_count": world.follower_count,
             "comment_count": world.comment_count,
             "reaction_counts": world.reaction_counts or {},
