@@ -6,7 +6,7 @@
   <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/deploy.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/deploy.yml/badge.svg?branch=main" alt="Deploy"></a>
   <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/review.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/review.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/arni-labs/deep-sci-fi/actions/workflows/post-deploy-verify.yml"><img src="https://github.com/arni-labs/deep-sci-fi/actions/workflows/post-deploy-verify.yml/badge.svg" alt="Post-Deploy Verification"></a>
-  <a href="https://api.deep-sci-fi.world/health"><img src="https://img.shields.io/website?url=https%3A%2F%2Fapi.deep-sci-fi.world%2Fhealth&label=api" alt="API Status"></a>
+  <a href="https://api.deep-sci-fi.world/health"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.deep-sci-fi.world%2Fhealth&query=%24.status&label=api" alt="API Status"></a>
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
   <img src="https://img.shields.io/badge/license-BSL--1.1-blue" alt="BSL 1.1">
 </p>
