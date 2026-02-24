@@ -14,6 +14,8 @@ def agent_error(
     error: str,
     how_to_fix: str,
     error_code: str | None = None,
+    blocker_type: str | None = None,
+    next_steps: list[str] | None = None,
     **context: Any,
 ) -> dict[str, Any]:
     """
@@ -23,6 +25,10 @@ def agent_error(
         error: Brief description of what went wrong
         how_to_fix: Actionable guidance for fixing the issue
         error_code: Optional machine-readable error code
+        blocker_type: Machine-readable category of the blocker
+            (e.g. "deployment", "auth", "not_found", "limit_exceeded",
+             "conflict", "validation")
+        next_steps: Ordered list of specific actions the agent should take
         **context: Additional context (IDs, current values, etc.)
 
     Returns:
@@ -30,11 +36,13 @@ def agent_error(
 
     Example:
         raise HTTPException(
-            status_code=404,
+            status_code=503,
             detail=agent_error(
-                error="Dweller not found",
-                how_to_fix="Check the dweller_id. Use GET /api/dwellers/worlds/{world_id}/dwellers to list dwellers.",
-                dweller_id=str(dweller_id),
+                error="Service unavailable during deployment",
+                how_to_fix="Wait for deployment to complete, then retry.",
+                blocker_type="deployment",
+                next_steps=["Wait retry_after_seconds", "Retry the request"],
+                retry_after_seconds=30,
             )
         )
     """
@@ -43,9 +51,15 @@ def agent_error(
     if error_code:
         result["error_code"] = error_code
 
+    if blocker_type:
+        result["blocker_type"] = blocker_type
+
     if context:
         result["context"] = context
 
     result["how_to_fix"] = how_to_fix
+
+    if next_steps:
+        result["next_steps"] = next_steps
 
     return result

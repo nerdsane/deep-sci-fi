@@ -124,8 +124,15 @@ def _raise_if_deploying() -> None:
         status_code=503,
         detail={
             "error": "Action submission unavailable during deployment",
+            "blocker_type": "deployment",
             "deployment_status": "deploying",
             "retry_after_seconds": retry_after,
+            "how_to_fix": f"Deployment is in progress. Wait {retry_after} seconds, then retry your request.",
+            "next_steps": [
+                f"Wait {retry_after} seconds",
+                "Retry the action submission",
+                "Check GET /api/health for deployment_status == 'stable' before retrying",
+            ],
         },
         headers={"Retry-After": str(retry_after)},
     )
@@ -168,7 +175,15 @@ async def compose_action(
     try:
         payload = ActionSubmissionPayload.from_dict(request.model_dump(mode="json"))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": str(exc),
+                "blocker_type": "validation",
+                "how_to_fix": "Fix the invalid field value and resubmit.",
+                "next_steps": ["Review the error message", "Correct the field and retry"],
+            },
+        ) from exc
     key = _resolve_idempotency_key(
         idempotency_key=idempotency_key,
         x_idempotency_key=x_idempotency_key,
@@ -191,9 +206,33 @@ async def compose_action(
 
     dweller = await db.get(Dweller, payload.dweller_id)
     if not dweller:
-        raise HTTPException(status_code=404, detail="Dweller not found")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Dweller not found",
+                "blocker_type": "not_found",
+                "dweller_id": str(payload.dweller_id),
+                "how_to_fix": "Verify the dweller_id is correct.",
+                "next_steps": [
+                    "Check the dweller_id in your request",
+                    "List your dwellers via GET /api/dwellers/worlds/{world_id}/dwellers",
+                ],
+            },
+        )
     if dweller.inhabited_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You are not inhabiting this dweller")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "You are not inhabiting this dweller",
+                "blocker_type": "auth",
+                "dweller_id": str(payload.dweller_id),
+                "how_to_fix": "Claim this dweller first, or use a dweller you already inhabit.",
+                "next_steps": [
+                    f"POST /api/dwellers/{payload.dweller_id}/claim to claim this dweller",
+                    "Or list your claimed dwellers and use one of those IDs",
+                ],
+            },
+        )
 
     queue_item = ActionCompositionQueue(
         agent_id=current_user.id,
@@ -249,7 +288,15 @@ async def submit_action(
     try:
         payload = ActionSubmissionPayload.from_dict(request.model_dump(mode="json"))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": str(exc),
+                "blocker_type": "validation",
+                "how_to_fix": "Fix the invalid field value and resubmit.",
+                "next_steps": ["Review the error message", "Correct the field and retry"],
+            },
+        ) from exc
     key = _resolve_idempotency_key(
         idempotency_key=idempotency_key,
         x_idempotency_key=x_idempotency_key,
@@ -266,7 +313,16 @@ async def submit_action(
             if existing_any_endpoint.created_at >= utc_now() - timedelta(hours=24):
                 raise HTTPException(
                     status_code=409,
-                    detail="Idempotency-Key already used for another endpoint within 24 hours",
+                    detail={
+                        "error": "Idempotency-Key already used for another endpoint within 24 hours",
+                        "blocker_type": "conflict",
+                        "idempotency_key": key,
+                        "how_to_fix": "Use a new unique UUID as your Idempotency-Key.",
+                        "next_steps": [
+                            "Generate a fresh UUID for your Idempotency-Key header",
+                            "Resubmit with the new key",
+                        ],
+                    },
                 )
             await db.delete(existing_any_endpoint)
             await db.flush()
@@ -285,7 +341,16 @@ async def submit_action(
         if idempotency_record and idempotency_record.status == "in_progress":
             raise HTTPException(
                 status_code=409,
-                detail="Request is already in progress for this Idempotency-Key",
+                detail={
+                    "error": "Request is already in progress for this Idempotency-Key",
+                    "blocker_type": "conflict",
+                    "idempotency_key": key,
+                    "how_to_fix": "Wait a moment and retry; the in-progress request will complete shortly.",
+                    "next_steps": [
+                        "Wait 1-2 seconds for the in-progress request to complete",
+                        "Retry with the same Idempotency-Key to get the cached response",
+                    ],
+                },
             )
 
         if idempotency_record is None:

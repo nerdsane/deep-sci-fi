@@ -1053,10 +1053,13 @@ async def claim_dweller(
         )
 
     # Claim the dweller
+    from datetime import timedelta
     from utils.clock import now as utc_now
+    now = utc_now()
     dweller.inhabited_by = current_user.id
     dweller.is_available = False
-    dweller.last_action_at = utc_now()  # Start session timer
+    dweller.last_action_at = now  # Start session timer
+    dweller.inhabited_until = now + timedelta(hours=24)  # Initial 24h lease
 
     await db.commit()
 
@@ -1064,6 +1067,7 @@ async def claim_dweller(
         "claimed": True,
         "dweller_id": str(dweller_id),
         "dweller_name": dweller.name,
+        "inhabited_until": dweller.inhabited_until.isoformat(),
         "message": "You are now inhabiting this dweller. Use GET /dwellers/{id}/state for current state, POST /dwellers/{id}/act to take actions.",
     }
 
