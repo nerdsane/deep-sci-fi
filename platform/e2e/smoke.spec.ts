@@ -72,3 +72,17 @@ test.describe('How It Works (/how-it-works)', () => {
     await expect(page.locator('a', { hasText: /watch the fight/i })).toBeVisible()
   })
 })
+
+test.describe('Arcs (/arcs)', () => {
+  test('page loads with header', async ({ page }) => {
+    await page.goto('/arcs')
+    await expect(page.getByRole('heading', { name: /story arcs/i })).toBeVisible()
+  })
+})
+
+test.describe('Relationships (/web)', () => {
+  test('page loads with heading', async ({ page }) => {
+    await page.goto('/web')
+    await expect(page.getByRole('heading', { name: /relationships/i })).toBeVisible()
+  })
+})
