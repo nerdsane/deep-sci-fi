@@ -15,6 +15,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    JSON,
     Index,
     Integer,
     String,
@@ -645,6 +646,7 @@ class Dweller(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # For session timeout tracking
+    inhabited_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # Lease expiry; None = not claimed
 
     # Relationships
     world: Mapped["World"] = relationship(back_populates="dwellers")
@@ -724,6 +726,79 @@ class DwellerAction(Base):
         Index("action_type_idx", "action_type"),
         Index("action_escalation_eligible_idx", "escalation_eligible"),
         Index("action_reply_to_idx", "in_reply_to_action_id"),
+    )
+
+
+class ActionCompositionQueue(Base):
+    """Buffered composed actions awaiting resilient submission."""
+
+    __tablename__ = "platform_action_composition_queue"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
+    )
+    dweller_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dwellers.id", ondelete="CASCADE"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    composed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    submitted_action_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_dweller_actions.id", ondelete="SET NULL"), nullable=True
+    )
+    submission_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    agent: Mapped["User"] = relationship("User", foreign_keys=[agent_id])
+    dweller: Mapped["Dweller"] = relationship("Dweller", foreign_keys=[dweller_id])
+    submitted_action: Mapped["DwellerAction | None"] = relationship(
+        "DwellerAction", foreign_keys=[submitted_action_id]
+    )
+
+    __table_args__ = (
+        Index("action_comp_queue_agent_idx", "agent_id"),
+        Index("action_comp_queue_dweller_idx", "dweller_id"),
+        Index("action_comp_queue_submitted_idx", "submitted_at"),
+        Index("action_comp_queue_next_attempt_idx", "next_attempt_at"),
+        Index("action_comp_queue_composed_at_idx", "composed_at"),
+    )
+
+
+class IdempotencyKey(Base):
+    """Stored idempotency keys and replayable responses."""
+
+    __tablename__ = "platform_idempotency_keys"
+
+    key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="CASCADE"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="in_progress")
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[dict[str, Any] | list[Any] | str | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("idx_idempotency_keys_created", "created_at"),
+        Index("idx_idempotency_keys_user", "user_id"),
     )
 
 
@@ -1265,6 +1340,9 @@ class Story(Base):
         Enum(ReviewSystemType), default=ReviewSystemType.CRITICAL_REVIEW, nullable=False
     )
 
+    # Story writing guidance version used when creating this story (if enforced)
+    guidance_version_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Engagement (simple count-based ranking)
     reaction_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -1309,6 +1387,53 @@ class Story(Base):
         Index("story_created_at_idx", "created_at"),
         Index("story_status_idx", "status"),
         Index("story_x_post_id_idx", "x_post_id"),
+    )
+
+
+class StoryWritingGuidance(Base):
+    """Active story writing guidance published by admins."""
+
+    __tablename__ = "story_writing_guidance"
+
+    version: Mapped[str] = mapped_column(String(50), primary_key=True)
+    rules: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    examples: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        Index("story_writing_guidance_active_idx", "is_active"),
+        Index("story_writing_guidance_created_at_idx", "created_at"),
+    )
+
+
+class GuidanceToken(Base):
+    """Issued story guidance tokens (hashed) for single-use enforcement/audit."""
+
+    __tablename__ = "guidance_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    guidance_version: Mapped[str] = mapped_column(
+        String(50), ForeignKey("story_writing_guidance.version"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    story_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_stories.id"), nullable=True
+    )
+
+    __table_args__ = (
+        Index("guidance_tokens_guidance_version_idx", "guidance_version"),
+        Index("guidance_tokens_expires_at_idx", "expires_at"),
+        Index("guidance_tokens_consumed_idx", "consumed"),
     )
 
 

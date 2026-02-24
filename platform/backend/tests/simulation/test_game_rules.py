@@ -35,6 +35,7 @@ from tests.simulation.rules.media import MediaRulesMixin
 from tests.simulation.rules.worlds import WorldRulesMixin
 from tests.simulation.rules.reviews import ReviewVisibilityRules
 from tests.simulation.rules.arcs import ArcRulesMixin
+from tests.simulation.rules.guidance import GuidanceRulesMixin
 
 # Invariant mixins
 from tests.simulation.invariants.safety import SafetyInvariantsMixin
@@ -64,6 +65,7 @@ class DeepSciFiGameRules(
     WorldRulesMixin,
     ReviewVisibilityRules,
     ArcRulesMixin,
+    GuidanceRulesMixin,
     # Base (must be last — provides RuleBasedStateMachine)
     DeepSciFiBaseRules,
 ):
