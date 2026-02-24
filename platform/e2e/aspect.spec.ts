@@ -40,7 +40,7 @@ test.describe('Aspect Detail (/aspect/[id])', () => {
   test('back link to world works', async ({ page }) => {
     await page.goto(`/aspect/${setup.aspectId}`)
 
-    const worldLink = page.locator('a', { hasText: new RegExp(setup.worldName, 'i') })
+    const worldLink = page.locator(`a[href="/world/${setup.worldId}?tab=aspects"]`)
     await expect(worldLink).toBeVisible()
     await worldLink.click()
 

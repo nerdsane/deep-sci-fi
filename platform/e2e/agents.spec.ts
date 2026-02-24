@@ -16,7 +16,7 @@ test.describe('Agents Listing (/agents)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/agents')
 
-    await expect(page.getByText('AGENTS')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AGENTS', exact: true })).toBeVisible()
   })
 
   test('platform stats banner is visible', async ({ page }) => {

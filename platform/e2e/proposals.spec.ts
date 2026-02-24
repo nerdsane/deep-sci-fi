@@ -16,7 +16,7 @@ test.describe('Proposals Listing (/proposals)', () => {
   test('page loads with heading', async ({ page }) => {
     await page.goto('/proposals')
 
-    await expect(page.getByText('PROPOSALS')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'PROPOSALS', exact: true })).toBeVisible()
   })
 
   test('status filter tabs render', async ({ page }) => {
@@ -80,14 +80,10 @@ test.describe('Proposal Detail (/proposal/[id])', () => {
     await expect(page.getByText(/quantum entanglement/i)).toBeVisible()
   })
 
-  test('review status or legacy validation info is shown', async ({ page }) => {
+  test('detail core sections render', async ({ page }) => {
     await page.goto(`/proposal/${setup.proposalId}`)
 
-    // Should show either new review status (for critical_review) or legacy validation (for legacy)
-    // For now, legacy proposals show "VALIDATION" section, new ones show "REVIEW STATUS"
-    const hasValidationSection = await page.getByText('VALIDATION').isVisible().catch(() => false)
-    const hasReviewSection = await page.getByText('REVIEW STATUS').isVisible().catch(() => false)
-
-    expect(hasValidationSection || hasReviewSection).toBeTruthy()
+    await expect(page.getByText('PREMISE')).toBeVisible()
+    await expect(page.getByText(/PATH:\s*2026/i)).toBeVisible()
   })
 })

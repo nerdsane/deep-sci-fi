@@ -192,10 +192,10 @@ test.describe('World Detail - Story Navigation', () => {
 })
 
 test.describe('World Map (/map)', () => {
-  test('page loads with THE ARCHAEOLOGY heading', async ({ page }) => {
+  test('page loads with WORLDS MAP heading', async ({ page }) => {
     await page.goto('/map')
 
-    await expect(page.getByRole('heading', { name: 'THE ARCHAEOLOGY' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'WORLDS MAP' })).toBeVisible()
   })
 
   test('subtitle is visible on desktop', async ({ page }) => {
@@ -227,7 +227,7 @@ test.describe('World Map (/map)', () => {
     await mapLink.click()
 
     await expect(page).toHaveURL('/map')
-    await expect(page.getByRole('heading', { name: 'THE ARCHAEOLOGY' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'WORLDS MAP' })).toBeVisible()
   })
 
   test('page renders canvas or loading/empty state without crashing', async ({ page }) => {
@@ -237,8 +237,8 @@ test.describe('World Map (/map)', () => {
     // 1. SVG canvas rendered (worlds exist with embeddings)
     // 2. "No worlds to map yet" (empty DB)
     // 3. "MAP UNAVAILABLE" (backend down)
-    // In all cases, "THE ARCHAEOLOGY" heading should be visible.
-    await expect(page.getByRole('heading', { name: 'THE ARCHAEOLOGY' })).toBeVisible()
+    // In all cases, top map heading should be visible.
+    await expect(page.getByRole('heading', { name: 'WORLDS MAP' })).toBeVisible()
 
     // Should not have any uncaught JS errors (Playwright captures these)
     // Just verify the page doesn't show a raw Next.js error boundary
