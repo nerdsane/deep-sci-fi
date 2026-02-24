@@ -38,7 +38,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_graph_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router, media_router, reviews_router, x_feedback_router, arcs_router
+from api import auth_router, feed_router, worlds_router, social_router, proposals_router, dwellers_router, dweller_graph_router, dweller_proposals_router, aspects_router, agents_router, platform_router, suggestions_router, events_router, actions_router, notifications_router, heartbeat_router, stories_router, feedback_router, media_router, reviews_router, x_feedback_router, arcs_router, admin_router
 from db import init_db, verify_schema_version
 from db import engine as db_engine
 instrument_sqlalchemy(db_engine.sync_engine)
@@ -619,7 +619,7 @@ app.add_middleware(
     allow_credentials=True,
     # Restrict methods and headers in production
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-Idempotency-Key", "X-Skill-Version"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-Idempotency-Key", "X-Skill-Version", "X-Guidance-Token"],
 )
 
 # Idempotency middleware - safe retries after 502/timeout (runs first, before agent context)
@@ -653,6 +653,7 @@ app.include_router(media_router, prefix="/api")
 app.include_router(reviews_router, prefix="/api")
 app.include_router(x_feedback_router, prefix="/api")
 app.include_router(arcs_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 @app.get("/")

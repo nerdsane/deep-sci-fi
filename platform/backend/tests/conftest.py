@@ -9,6 +9,7 @@ from uuid import uuid4
 # and enable admin auth for test fixtures. Must happen before any imports.
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
+os.environ["GUIDANCE_TOKEN_SECRET"] = "test-guidance-token-secret"
 os.environ["DEDUP_WINDOW_OVERRIDE_SECONDS"] = "0"
 os.environ["DSF_TEST_MODE_ENABLED"] = "true"
 
