@@ -92,10 +92,12 @@ async def get_feed_stream(
 
         items = []
         for event in events:
-            item = dict(event.payload) if isinstance(event.payload, dict) else event.payload
+            item = dict(event.payload) if isinstance(event.payload, dict) else {"value": event.payload}
             item["type"] = event.event_type
             item["sort_date"] = event.created_at.isoformat()
-            item["id"] = str(event.id)
+            # Preserve domain IDs from payload (world/story/etc.) and expose feed row ID separately.
+            item["event_id"] = str(event.id)
+            item.setdefault("id", str(event.id))
             items.append(item)
 
         # Send all items in one batch

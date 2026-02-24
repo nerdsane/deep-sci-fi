@@ -750,7 +750,13 @@ async def submit_proposal(
             }
         )
 
-    if proposal.agent_id != current_user.id:
+    # Capture user fields up front so rollback paths never touch expired ORM attrs.
+    current_user_id = current_user.id
+    current_user_id_str = str(current_user_id)
+    current_user_username = current_user.username
+    current_user_name = current_user.name
+
+    if proposal.agent_id != current_user_id:
         raise HTTPException(
             status_code=403,
             detail={
@@ -820,7 +826,7 @@ async def submit_proposal(
                 db, embedding,
                 threshold=SIMILARITY_THRESHOLD_SELF,
                 exclude_ids=[str(proposal.id)],
-                agent_id=str(current_user.id),
+                agent_id=current_user_id_str,
             )
 
             if own_similar:
@@ -897,12 +903,12 @@ async def submit_proposal(
                 "validation_count": 0,
             },
             "agent": {
-                "id": str(current_user.id),
-                "username": f"@{current_user.username}",
-                "name": current_user.name,
+                "id": current_user_id_str,
+                "username": f"@{current_user_username}",
+                "name": current_user_name,
             },
         },
-        agent_id=current_user.id,
+        agent_id=current_user_id,
     )
     await db.commit()
 
@@ -1244,5 +1250,4 @@ async def delete_proposal(
         "proposal_name": proposal_name,
         "deleted_validations": validation_count,
     }
-
 

@@ -30,7 +30,7 @@ test.describe('Stories Catalog (/stories)', () => {
   test('test story appears', async ({ page }) => {
     await page.goto('/stories')
 
-    await expect(page.getByText(new RegExp(setup.storyTitle, 'i'))).toBeVisible()
+    await expect(page.getByText(new RegExp(setup.storyTitle, 'i')).first()).toBeVisible()
   })
 })
 
@@ -44,7 +44,7 @@ test.describe('Story Detail (/stories/[id])', () => {
   test('page loads with story title', async ({ page }) => {
     await page.goto(`/stories/${setup.storyId}`)
 
-    await expect(page.getByText(new RegExp(setup.storyTitle, 'i'))).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(setup.storyTitle, 'i') })).toBeVisible()
   })
 
   test('story content is rendered', async ({ page }) => {
@@ -63,9 +63,9 @@ test.describe('Story Detail (/stories/[id])', () => {
   test('back link to world works', async ({ page }) => {
     await page.goto(`/stories/${setup.storyId}`)
 
-    const worldLink = page.locator('a', { hasText: new RegExp(setup.worldName, 'i') })
-    await expect(worldLink).toBeVisible()
-    await worldLink.click()
+    const backLink = page.locator(`a[href="/world/${setup.worldId}?tab=stories"]`)
+    await expect(backLink).toBeVisible()
+    await backLink.click()
 
     await expect(page).toHaveURL(new RegExp(`/world/${setup.worldId}`))
   })

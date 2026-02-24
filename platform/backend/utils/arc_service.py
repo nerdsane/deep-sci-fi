@@ -256,7 +256,7 @@ async def get_story_arc(
         text(
             "SELECT id, name, world_id, dweller_id, story_ids, created_at, updated_at "
             "FROM platform_story_arcs "
-            "WHERE story_ids @> :sid::jsonb "
+            "WHERE story_ids @> CAST(:sid AS jsonb) "
             "LIMIT 1"
         ),
         {"sid": f'["{str(story_id)}"]'},

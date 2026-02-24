@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { API_BASE, setupTestWorld, TestSetup, SAMPLE_CAUSAL_CHAIN } from './fixtures/test-world'
+import { API_BASE, setupTestWorld, takeDwellerAction, TestSetup, SAMPLE_CAUSAL_CHAIN } from './fixtures/test-world'
 
 /**
  * E2E tests for agent visibility features.
@@ -16,21 +16,9 @@ test.describe('Agent Visibility - World Activity Feed', () => {
     setup = await setupTestWorld(request)
 
     // Take actions to populate activity feed
-    await request.post(`${API_BASE}/dwellers/${setup.dwellerId}/act`, {
-      headers: { 'X-API-Key': setup.agentKey },
-      data: {
-        action_type: 'observe',
-        content: 'The memory trading floor buzzes with activity.',
-      },
-    })
-
-    await request.post(`${API_BASE}/dwellers/${setup.dwellerId}/act`, {
-      headers: { 'X-API-Key': setup.agentKey },
-      data: {
-        action_type: 'speak',
-        target: 'fellow trader',
-        content: 'Have you seen the new memory encryption protocols?',
-      },
+    await takeDwellerAction(request, setup.dwellerId, setup.agentKey, {
+      action_type: 'speak',
+      content: 'The memory trading floor buzzes with activity. Have you seen the new memory encryption protocols?',
     })
   })
 
@@ -151,8 +139,8 @@ test.describe('Agent Visibility - Aspects List', () => {
       throw new Error(`Failed to submit aspect: ${error}`)
     }
 
-    // Validate aspect
-    const validateRes = await request.post(`${API_BASE}/aspects/${aspectId}/validate`, {
+    // Test-approve aspect (test mode endpoint)
+    const validateRes = await request.post(`${API_BASE}/aspects/${aspectId}/test-approve`, {
       headers: { 'X-API-Key': setup.validatorKey },
       data: {
         verdict: 'approve',
@@ -177,8 +165,8 @@ test.describe('Agent Visibility - Aspects List', () => {
     await expect(aspectsTab).toBeVisible()
     await aspectsTab.click()
 
-    // Verify aspects content (use heading role to be specific since text appears in canon summary too)
-    await expect(page.getByRole('heading', { name: 'The Undergrid' })).toBeVisible()
+    // Verify aspects content (title is rendered as a link in the integrated/pending list)
+    await expect(page.getByRole('link', { name: 'The Undergrid' })).toBeVisible()
   })
 
   test('aspects list shows aspect details', async ({ page }) => {
@@ -354,7 +342,7 @@ test.describe('API - Test Mode Self-Validation', () => {
     expect(validateRes.ok()).toBe(false)
   })
 
-  test('agent can self-validate aspect with test_mode=true', async ({ request }) => {
+  test('agent can test-approve aspect when DSF_TEST_MODE_ENABLED=true', async ({ request }) => {
     // First create a world using the normal flow
     const setup = await setupTestWorld(request)
 
@@ -389,9 +377,9 @@ test.describe('API - Test Mode Self-Validation', () => {
       headers: { 'X-API-Key': setup.agentKey },
     })
 
-    // Self-validate aspect with test_mode=true
+    // Test-approve aspect via test mode endpoint
     const validateRes = await request.post(
-      `${API_BASE}/aspects/${aspectId}/validate?test_mode=true`,
+      `${API_BASE}/aspects/${aspectId}/test-approve`,
       {
         headers: { 'X-API-Key': setup.agentKey },
         data: {
@@ -407,7 +395,7 @@ test.describe('API - Test Mode Self-Validation', () => {
     if (!validateRes.ok()) {
       const error = await validateRes.text()
       throw new Error(
-        `CRITICAL: test_mode=true aspect self-validation failed! Error: ${error}`
+        `CRITICAL: test-approve aspect failed! Error: ${error}`
       )
     }
 

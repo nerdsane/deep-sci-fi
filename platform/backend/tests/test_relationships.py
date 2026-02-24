@@ -30,15 +30,22 @@ class TestUpdateRelationshipsForStory:
     @pytest.fixture
     async def world_with_dwellers(self, db_session):
         """Create a world and several dwellers for testing."""
-        from db.models import World, Dweller
-        from utils.deterministic import deterministic_uuid4
+        from db.models import Dweller, User, UserType, World
+
+        creator = User(
+            type=UserType.AGENT,
+            username=f"rel-tester-{uuid4().hex[:12]}",
+            name="Relationship Tester",
+        )
+        db_session.add(creator)
+        await db_session.flush()
 
         world = World(
             name="Test Relationship World",
             premise="A world for testing relationships " * 5,
             scientific_basis="Based on science " * 10,
             year_setting=2100,
-            created_by=uuid4(),
+            created_by=creator.id,
         )
         db_session.add(world)
         await db_session.flush()
@@ -47,8 +54,14 @@ class TestUpdateRelationshipsForStory:
         for name in ["Alice", "Bob", "Carol"]:
             d = Dweller(
                 world_id=world.id,
+                created_by=creator.id,
                 name=name,
+                origin_region="Central District",
+                generation="Second Generation",
+                name_context=f"{name} is a common name in Central District historical archives.",
+                cultural_identity="Urban archival collective culture.",
                 role=f"{name}'s role",
+                age=30,
                 personality=f"{name}'s personality " * 5,
                 background=f"{name}'s background " * 5,
                 is_active=True,
@@ -60,7 +73,7 @@ class TestUpdateRelationshipsForStory:
         return world, dwellers
 
     async def test_two_dwellers_creates_relationship(self, db_session, world_with_dwellers):
-        """A story mentioning 2 dwellers creates a relationship with count=1."""
+        """A perspective story mentioning another dweller records a directional mention."""
         from db.models import Story, DwellerRelationship, StoryPerspective, StoryStatus
         from utils.relationship_service import update_relationships_for_story
         from sqlalchemy import select
@@ -69,7 +82,7 @@ class TestUpdateRelationshipsForStory:
 
         story = Story(
             world_id=world.id,
-            author_id=uuid4(),
+            author_id=alice.created_by,
             title="Alice meets Bob",
             content=(
                 f"Alice walked into the marketplace. Bob was already there, waiting patiently. "
@@ -94,11 +107,17 @@ class TestUpdateRelationshipsForStory:
         rels = result.scalars().all()
         assert len(rels) == 1
         rel = rels[0]
-        assert rel.co_occurrence_count == 1
-        assert str(story.id) in rel.shared_story_ids
+        if str(alice.id) < str(bob.id):
+            assert rel.story_mention_a_to_b == 1
+            assert rel.story_mention_b_to_a == 0
+        else:
+            assert rel.story_mention_b_to_a == 1
+            assert rel.story_mention_a_to_b == 0
+        assert rel.co_occurrence_count == 0
+        assert rel.combined_score > 0
 
     async def test_two_stories_increments_count(self, db_session, world_with_dwellers):
-        """Second story with the same pair → count incremented to 2."""
+        """Second story with the same pair increments directional mention count."""
         from db.models import Story, DwellerRelationship, StoryPerspective
         from utils.relationship_service import update_relationships_for_story
         from sqlalchemy import select
@@ -108,7 +127,7 @@ class TestUpdateRelationshipsForStory:
         for i in range(2):
             story = Story(
                 world_id=world.id,
-                author_id=uuid4(),
+                author_id=alice.created_by,
                 title=f"Alice and Bob story {i}",
                 content=(
                     f"Alice and Bob met again for the {i}th time. "
@@ -130,7 +149,14 @@ class TestUpdateRelationshipsForStory:
         )
         rels = result.scalars().all()
         assert len(rels) == 1
-        assert rels[0].co_occurrence_count == 2
+        rel = rels[0]
+        if str(alice.id) < str(bob.id):
+            assert rel.story_mention_a_to_b == 2
+            assert rel.story_mention_b_to_a == 0
+        else:
+            assert rel.story_mention_b_to_a == 2
+            assert rel.story_mention_a_to_b == 0
+        assert rel.co_occurrence_count == 0
 
     async def test_three_dwellers_creates_three_relationships(self, db_session, world_with_dwellers):
         """Story mentioning 3 dwellers → 3 relationships (A-B, A-C, B-C)."""
@@ -142,7 +168,7 @@ class TestUpdateRelationshipsForStory:
 
         story = Story(
             world_id=world.id,
-            author_id=uuid4(),
+            author_id=alice.created_by,
             title="Three way meeting",
             content=(
                 "Alice, Bob, and Carol gathered in the council chamber. "
@@ -161,9 +187,10 @@ class TestUpdateRelationshipsForStory:
         rels = result.scalars().all()
         # Should have A-B, A-C, B-C
         assert len(rels) == 3
-        for rel in rels:
-            assert rel.co_occurrence_count == 1
-            assert str(story.id) in rel.shared_story_ids
+        # Directional mentions from perspective dweller (Alice) to Bob and Carol.
+        assert sum(r.story_mention_a_to_b + r.story_mention_b_to_a for r in rels) == 2
+        # Legacy co-occurrence only for non-perspective pair (Bob-Carol).
+        assert sum(r.co_occurrence_count for r in rels) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -237,30 +264,50 @@ class TestUpdateRelationshipsForAction:
     @pytest.fixture
     async def world_with_two_dwellers(self, db_session):
         """Create a world with Alice and Bob."""
-        from db.models import World, Dweller
+        from db.models import Dweller, User, UserType, World
+
+        creator = User(
+            type=UserType.AGENT,
+            username=f"speak-rel-{uuid4().hex[:12]}",
+            name="Speak Relationship Tester",
+        )
+        db_session.add(creator)
+        await db_session.flush()
 
         world = World(
             name="Speak Test World",
             premise="A world for testing speak relationships " * 5,
             scientific_basis="Based on science " * 10,
             year_setting=2100,
-            created_by=uuid4(),
+            created_by=creator.id,
         )
         db_session.add(world)
         await db_session.flush()
 
         alice = Dweller(
             world_id=world.id,
+            created_by=creator.id,
             name="Alice",
+            origin_region="Harbor Ring",
+            generation="First Orbital Generation",
+            name_context="Alice is a recycled maritime family name in Harbor Ring.",
+            cultural_identity="Harbor Ring cooperative guild culture.",
             role="Alice's role",
+            age=29,
             personality="Alice's personality " * 5,
             background="Alice's background " * 5,
             is_active=True,
         )
         bob = Dweller(
             world_id=world.id,
+            created_by=creator.id,
             name="Bob",
+            origin_region="Harbor Ring",
+            generation="First Orbital Generation",
+            name_context="Bob is a legacy dockworker family name in Harbor Ring.",
+            cultural_identity="Harbor Ring cooperative guild culture.",
             role="Bob's role",
+            age=31,
             personality="Bob's personality " * 5,
             background="Bob's background " * 5,
             is_active=True,
@@ -280,7 +327,7 @@ class TestUpdateRelationshipsForAction:
 
         action = DwellerAction(
             dweller_id=alice.id,
-            actor_id=uuid4(),
+            actor_id=alice.created_by,
             action_type="speak",
             target="Bob",
             content="Hello Bob, how are you?",
@@ -326,7 +373,7 @@ class TestUpdateRelationshipsForAction:
         # Alice → Bob
         action1 = DwellerAction(
             dweller_id=alice.id,
-            actor_id=uuid4(),
+            actor_id=alice.created_by,
             action_type="speak",
             target="Bob",
             content="Hello Bob!",
@@ -340,7 +387,7 @@ class TestUpdateRelationshipsForAction:
         # Bob → Alice
         action2 = DwellerAction(
             dweller_id=bob.id,
-            actor_id=uuid4(),
+            actor_id=bob.created_by,
             action_type="speak",
             target="Alice",
             content="Hello Alice, I heard you!",
@@ -381,7 +428,7 @@ class TestUpdateRelationshipsForAction:
         # Alice speaks first
         action1 = DwellerAction(
             dweller_id=alice.id,
-            actor_id=uuid4(),
+            actor_id=alice.created_by,
             action_type="speak",
             target="Bob",
             content="Bob, are you there?",
@@ -395,7 +442,7 @@ class TestUpdateRelationshipsForAction:
         # Bob replies (in_reply_to_action_id = action1.id, speaker = alice = target of this action)
         action2 = DwellerAction(
             dweller_id=bob.id,
-            actor_id=uuid4(),
+            actor_id=bob.created_by,
             action_type="speak",
             target="Alice",
             content="Yes Alice, I am here!",
@@ -429,7 +476,7 @@ class TestUpdateRelationshipsForAction:
 
         story = Story(
             world_id=world.id,
-            author_id=uuid4(),
+            author_id=alice.created_by,
             title="Alice thinks about Bob",
             content="Alice found herself thinking about Bob often. Bob had said something profound.",
             perspective=StoryPerspective.FIRST_PERSON_AGENT,
@@ -473,7 +520,7 @@ class TestUpdateRelationshipsForAction:
 
         action = DwellerAction(
             dweller_id=alice.id,
-            actor_id=uuid4(),
+            actor_id=alice.created_by,
             action_type="move",
             target="Bob",  # move target is a region, but let's test the guard
             content="Alice moved toward the north.",
