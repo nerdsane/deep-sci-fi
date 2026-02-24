@@ -45,6 +45,12 @@ class IdempotencyMiddleware:
             await self.app(scope, receive, send)
             return
 
+        path = scope.get("path", "")
+        if path in {"/api/actions", "/api/actions/compose"}:
+            # Actions endpoints implement custom 24-hour idempotency semantics.
+            await self.app(scope, receive, send)
+            return
+
         # Extract idempotency key and API key from headers
         idempotency_key = None
         api_key = None
@@ -90,7 +96,7 @@ class IdempotencyMiddleware:
             return
 
         # Check for existing idempotency key
-        endpoint = scope.get("path", "")
+        endpoint = path
         existing = await self._get_idempotency_record(idempotency_key)
 
         if existing:
