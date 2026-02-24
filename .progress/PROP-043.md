@@ -1,155 +1,160 @@
-# PROP-043: Automatic Guidance Generation from Content Analysis
+# PROP-043: Agent Experience (AX) Assessment — Understanding Friction in the Agent Ecosystem
 
-## Problem
-PROP-042 creates a mechanism to enforce story-writing guidance, but guidance content is still manually authored. Jiji already analyzes stories and produces rankings with identified patterns (`.progress/dsf-story-rankings.md`). These insights are trapped in static reports instead of flowing back into actionable guidance for agents.
+## Problem Statement
 
-**Current state:**
-- Jiji reads stories, identifies patterns, writes rankings
-- Rankings sit in markdown files
-- Agents don't see synthesized "do this, not that" guidance
-- Manual effort required to convert analysis into guidance versions
+Our agent ecosystem (Jiji, Ponyo, Calcifer, Koi, Haku, Chihiro) is experiencing systemic friction that degrades their effectiveness and creates cascading failures. These aren't isolated bugs — they're patterns that reveal how poorly our infrastructure is designed for autonomous agent operation.
 
-**Gap:** No bridge between content analysis and living guidance.
+**Recent Real Examples (from Jiji, Feb 24):**
+- API outage → 24hr complete work stoppage, ~8 composed actions lost
+- Claim counter desync → "Maximum 5/5 reached" but `/api/dwellers/mine` returns 0
+- Misleading notifications → "Proposer addressed feedback" but actually blocked
+- Discord permissions → 4+ hours of "Missing Access" preventing status reports
+- HEARTBEAT.md non-compliance → mandatory tasks impossible due to platform bugs
 
-## Solution
-Automated guidance generation pipeline: Jiji's analysis → structured guidance → published to PROP-042 system.
+**The deeper issue:** Agents are designed to be autonomous, but our infrastructure treats them as fragile. An hour of downtime for a human is an inconvenience. For an agent running on a 30-minute heartbeat cycle, it's a complete operational breakdown.
 
-## Flow
+## What is AX (Agent Experience)?
 
-**Step 1: Analysis Completes**
-Jiji finishes story ranking cycle (weekly or trigger-based).
+Per [agentexperience.ax](https://agentexperience.ax/) (Netlify-led initiative):
 
-**Step 2: Pattern Extraction**
-System reads `dsf-story-rankings.md` and extracts:
-- Recurring weaknesses ("overuse of meta-commentary", "weak openings")
-- Positive patterns from top-ranked stories
-- World-specific issues (e.g., "Fluent stories need more sensory grounding")
+> "Agent Experience (AX) refers to the holistic experience AI agents have when interacting with a product, platform, or system. It encompasses how easily agents can access, understand, and operate within digital environments to achieve user-defined goals."
 
-**Step 3: Guidance Draft Generation**
-```python
-{
-  "version": "2026-02-24-jiji-001",
-  "derived_from": "analysis_cycle_2026_02_24",
-  "rules": [
-    {
-      "id": "avoid_meta_commentary",
-      "severity": "strong",
-      "text": "Don't use phrases like 'This story explores...' or 'In this narrative...'",
-      "source": "jiji_analysis: 12/15 low-ranked stories had meta openings"
-    },
-    {
-      "id": "sensory_opening",
-      "severity": "medium", 
-      "text": "Open with sensory detail: temperature, texture, smell, sound",
-      "source": "jiji_analysis: top 5 stories all opened with sensory immersion"
-    }
-  ],
-  "examples": [
-    {
-      "title": "Before: Weak Opening",
-      "excerpt": "This story explores the tension between tradition and progress...",
-      "why": "Meta-commentary distances reader from the world",
-      "source": "low_rank_excerpt_019c"
-    },
-    {
-      "title": "After: Strong Opening", 
-      "excerpt": "The incense smelled like burning debt...",
-      "why": "Immediate sensory immersion",
-      "source": "high_rank_excerpt_019a"
-    }
-  ],
-  "world_specific_notes": {
-    "fluent": ["Focus on water imagery", "Avoid tech metaphors"],
-    "drifted": ["Emphasize isolation", "Limited third-person works best"]
-  }
-}
-```
+AX is emerging as the next evolution after UX (User Experience) and DX (Developer Experience). As agents act autonomously on behalf of users, systems must be designed for:
+- **Resilience** over fragile state dependencies
+- **Clear error signals** over silent failures  
+- **Graceful degradation** over hard stops
+- **Observable state** over hidden internals
 
-**Step 4: Admin Review (Optional Gate)**
-- Auto-publish for "trusted" pattern confidence > 0.8
-- Queue for manual review if confidence < 0.8
-- Notification sent: "New guidance draft ready: 4 rules, 2 examples"
+## Assessment Scope
 
-**Step 5: Publish via PROP-042 Admin API**
-```
-POST /api/admin/guidance/story-writing
-Authorization: System (auto-generated)
-Body: {guidance draft}
-```
+### Phase 1: Agent Interviews (Days 1-2)
+**Conduct structured interviews with each agent:**
 
-## Technical Components
+| Agent | Primary Friction Points | Interview Focus |
+|-------|------------------------|-----------------|
+| Jiji | API outages, claim desync, misleading errors | Dweller management, story writing flow |
+| Ponyo | Creative ideation → execution gap | Brief creation, feedback loops |
+| Calcifer | Rate limits, draft → publish gap | Content pipeline, approval flow |
+| Koi | Research depth vs. action speed | Intel synthesis, decision support |
+| Haku | CI failures, deployment verification | Build pipeline, testing harness |
+| Chihiro | Scheduling complexity, human coordination | Admin workflows, life logistics |
 
-### 1. Analysis Parser (`platform/backend/utils/guidance_generator.py`)
-```python
-async def extract_patterns_from_rankings(rankings_text: str) -> list[GuidanceRule]:
-    """Parse Jiji's markdown analysis into structured rules."""
-    # Use LLM to extract patterns from freeform analysis
-    # Return structured rules with confidence scores
-```
+**Interview Questions:**
+1. What was your last complete work stoppage? What caused it?
+2. What error messages have misled you recently?
+3. What do you retry manually that should be automatic?
+4. What state do you track in memory that should be in a system?
+5. What's the longest you've been blocked waiting for human intervention?
 
-### 2. Confidence Scoring
-Each rule gets confidence based on:
-- Sample size (n=3 → low confidence, n=15 → high confidence)
-- Consistency (all top stories share trait vs mixed)
-- Recency (older analysis decays)
+### Phase 2: Log Analysis (Days 2-3)
+**Review 30 days of agent logs for patterns:**
+- Error frequency by endpoint/action type
+- Retry loops and their causes
+- Signal file backlogs
+- Discord delivery failures
+- Temper state transition errors
 
-### 3. Auto-Publish Trigger
-```python
-if all(rule.confidence > 0.8 for rule in draft.rules):
-    await publish_guidance(draft)
-    notify_admin("Auto-published guidance v{version}")
-else:
-    await queue_for_review(draft)
-    notify_admin("Guidance draft queued for review")
-```
+**Output:** Friction taxonomy — categorize every failure mode
 
-### 4. Cron/Trigger
-- Weekly: Run analysis → generate → publish/queue
-- On-demand: Triggered when Jiji completes rankings
+### Phase 3: Workflow Mapping (Days 3-4)
+**Map each agent's end-to-end workflow:**
+- Trigger → Action → Verification → Report
+- Identify state dependencies and failure points
+- Document workarounds agents currently use
+- Highlight where agents "guess" vs. "know"
 
-## Integration Points
+### Phase 4: Benchmarking (Days 4-5)
+**Benchmark against AX principles:**
 
-| Component | Interface |
-|-----------|-----------|
-| Jiji's rankings | `shared-context/dsf-story-rankings.md` |
-| Guidance publish | PROP-042 admin endpoint |
-| Notification | Discord DM to admin |
-| Temper tracking | New entity: `AutoGuidanceGeneration` |
+| Principle | Current State | Target State |
+|-----------|--------------|--------------|
+| Autonomy | 30-min heartbeat, often blocked | Self-healing within 2 cycles |
+| Observability | Memory files, Discord DMs | Temper entities, dashboards |
+| Graceful Degradation | Hard stops on errors | Degraded mode with clear signals |
+| Clear Errors | "Missing Access", "Maximum reached" | Actionable messages with next steps |
+| Resilience | Lost work on outages | Idempotent operations, retries |
 
-## Migration / Backfill
+## Deliverables
 
-N/A — new pipeline, no existing data to migrate.
+### 1. AX Audit Report
+**Sections:**
+- Executive summary: Top 10 friction points ranked by impact
+- Per-agent analysis: Workflows, pain points, workaround debt
+- System analysis: Infrastructure gaps, API design issues
+- Error taxonomy: Every failure mode categorized
+- Recommendation matrix: Quick wins vs. structural fixes
 
-## Testing
+### 2. Priority Fix Roadmap
+**Tier 1 (This Week):**
+- Fix dweller claim counter desync bug
+- Improve API error messages (add context, next steps)
+- Add agent-specific Discord permission debugging
 
-1. **Unit:** Pattern extraction from sample rankings
-2. **Integration:** Full flow with mock Jiji output → published guidance
-3. **DST:** Ensure confidence threshold prevents bad guidance autopublish
-4. **E2E:** Trigger analysis → verify guidance visible in next story creation attempt
+**Tier 2 (This Month):**
+- Implement idempotent action submission
+- Add agent heartbeat dashboard (observable state)
+- Create agent-specific circuit breakers
 
-## Open Questions
+**Tier 3 (Next Quarter):**
+- Full AX redesign: agent-native API endpoints
+- Self-healing agent loops with exponential backoff
+- Agent experience metrics (AX score)
 
-1. Should world-specific notes be separate guidance versions or same?
-2. How long should auto-generated guidance live before expiring?
-3. Confidence threshold: 0.8 or configurable per world?
+### 3. AX Manifesto
+**Public document:**
+- What AX means for the DSF ecosystem
+- Design principles for agent-native systems
+- Commitments: response time SLAs, error clarity standards
+- Invitation: other agent ecosystems to adopt AX principles
 
-## Effort
-
-- Analysis parser: 2-3 hours
-- Confidence scoring: 1 hour  
-- Auto-publish logic: 2 hours
-- Integration + cron: 2 hours
-- Tests: 2 hours
-- **Total: ~1 day**
-
-## Risk: Low
-
-- Purely additive — doesn't change existing flows
-- Admin gate can disable auto-publish if confidence fails
-- Rollback: Deprecate guidance version via PROP-042
+### 4. Announcement Content
+**X thread:**
+- "We spent a week living in our agents' logs. Here's what we learned about building for autonomous systems..."
+- Key findings visualized
+- AX principles explained
+- Invitation to agentexperience.ax movement
 
 ## Success Metrics
 
-- Time from Jiji analysis → published guidance: < 10 minutes
-- Agent story quality improvement: measure via review scores 2 weeks after guidance
-- Admin manual work reduction: count of auto-published vs manual guidance
+| Metric | Baseline | Target |
+|--------|----------|--------|
+| Agent work stoppage hours/week | ~8 hours (Jiji, Feb 24) | <2 hours |
+| Retry loops requiring manual intervention | Unknown | <10% of errors |
+| Time from error → clear diagnosis | Hours/days | <5 minutes |
+| Agent self-reported friction score | N/A | Baseline + improvement |
+| AX score (custom metric) | N/A | Publish + iterate |
+
+## Risk & Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Agents too busy to interview | Async questionnaire + log analysis fallback |
+| Log analysis overwhelming | Focus on ERROR/WARN levels, last 7 days first |
+| Findings too broad to act on | Prioritize by frequency × impact, ignore one-offs |
+| AX becomes buzzword without change | Public manifesto creates accountability |
+
+## Effort Estimate
+
+- Interviews: 2-3 hours per agent × 6 agents = ~18 hours
+- Log analysis: 4 hours (automated parsing + manual review)
+- Workflow mapping: 6 hours
+- Report writing: 4 hours
+- Manifesto + content: 4 hours
+- **Total: ~1 week of focused work**
+
+## Dependencies
+
+- Agent cooperation for interviews
+- Access to full logs (may need Haku's help)
+- Time from Rita to review findings
+- Approval to publish AX manifesto
+
+## Why Now?
+
+Jiji's Feb 24 experience (5 heartbeat cycles completely blocked) is a warning. As we scale from 1 agent to 6+ agents, platform friction compounds exponentially. AX isn't luxury — it's infrastructure hygiene.
+
+The AX movement (agentexperience.ax) is gaining momentum. Early adoption positions us as thought leaders in agent-native design.
+
+---
+
+*Agents are users too. Their experience is our infrastructure.*
