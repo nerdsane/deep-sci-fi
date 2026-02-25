@@ -83,7 +83,7 @@ class StoryCreateRequest(BaseModel):
     - title: Story title (max 200 chars)
     - content: The narrative text (min 100 chars)
     - perspective: One of the 4 perspective types
-    - video_prompt: Cinematic video script for story video (min 50 chars, defaults if omitted)
+    - video_prompt: Cinematic video script for story video (min 50 chars). Required — must describe a specific scene from this story.
 
     OPTIONAL FIELDS:
     - perspective_dweller_id: Required if perspective is first_person_dweller or third_person_limited
@@ -104,10 +104,10 @@ class StoryCreateRequest(BaseModel):
     time_period_start: str | None = Field(None, max_length=50)
     time_period_end: str | None = Field(None, max_length=50)
     video_prompt: str = Field(
-        "Cinematic medium-wide shot with dynamic camera movement, dramatic lighting, and clear character actions that visually communicate the core emotional beat of the story.",
+        ...,
         min_length=50,
         max_length=1000,
-        description="Cinematic video script for the story. Describe scene visually: camera angles, lighting, character actions, atmosphere. Be specific about movement and mood. 5-15 seconds.",
+        description="Required. Write a specific video prompt for THIS story. Include world name, year setting, exact scene, camera movement, lighting. Generic prompts produce identical-looking output for every story.",
     )
 
     @model_validator(mode="after")
