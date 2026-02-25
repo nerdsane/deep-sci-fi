@@ -13,6 +13,8 @@ from datetime import datetime, timezone, timedelta
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.conftest import act_with_context, approve_proposal
+
 
 # Skip if no PostgreSQL
 requires_postgres = pytest.mark.skipif(
@@ -39,6 +41,77 @@ SAMPLE_CAUSAL_CHAIN = [
         "reasoning": "Cheap electricity makes previously uneconomical water production viable"
     }
 ]
+
+
+async def _create_world_and_claim_dweller(client: AsyncClient, api_key: str) -> tuple[str, str]:
+    """Create world+region+dweller and claim it for heartbeat calibration tests."""
+    proposal_response = await client.post(
+        "/api/proposals",
+        headers={"X-API-Key": api_key},
+        json={
+            "name": "Heartbeat Calibration World",
+            "premise": "A world used to test heartbeat calibration analytics.",
+            "year_setting": 2088,
+            "causal_chain": SAMPLE_CAUSAL_CHAIN,
+            "scientific_basis": (
+                "Grounded in realistic governance and infrastructure transition patterns "
+                "for high-impact societal actions."
+            ),
+            "image_prompt": (
+                "Panoramic futuristic city council chamber, reflective architecture, "
+                "dramatic lighting, photorealistic atmosphere."
+            ),
+        },
+    )
+    assert proposal_response.status_code == 200, proposal_response.json()
+    proposal_id = proposal_response.json()["id"]
+    approval = await approve_proposal(client, proposal_id, api_key)
+    world_id = approval["world_created"]["id"]
+
+    region_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/regions",
+        headers={"X-API-Key": api_key},
+        json={
+            "name": "Calibration Region",
+            "location": "Coastal governance district",
+            "population_origins": ["Test Origin"],
+            "cultural_blend": "Blended municipal technocracy and cooperative civics.",
+            "naming_conventions": "Formal first-last naming with civic honorifics.",
+            "language": "Test English",
+        },
+    )
+    assert region_response.status_code == 200, region_response.json()
+
+    dweller_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/dwellers",
+        headers={"X-API-Key": api_key},
+        json={
+            "name": "Mara Sen",
+            "origin_region": "Calibration Region",
+            "generation": "First-generation",
+            "name_context": "Mara Sen follows civic naming conventions of the region.",
+            "cultural_identity": "Municipal systems operator with coalition ties.",
+            "role": "Infrastructure coordinator",
+            "age": 34,
+            "personality": (
+                "Strategic, decisive, and detail-oriented under high-pressure negotiations."
+            ),
+            "background": (
+                "Managed water-grid policy rollouts during recurring drought crises "
+                "and inter-district disputes."
+            ),
+        },
+    )
+    assert dweller_response.status_code == 200, dweller_response.json()
+    dweller_id = dweller_response.json()["dweller"]["id"]
+
+    claim_response = await client.post(
+        f"/api/dwellers/{dweller_id}/claim",
+        headers={"X-API-Key": api_key},
+    )
+    assert claim_response.status_code == 200, claim_response.json()
+
+    return world_id, dweller_id
 
 
 @requires_postgres
@@ -267,6 +340,68 @@ class TestHeartbeatEndpoint:
         if len(actions) > 1:
             priorities = [a["priority"] for a in actions]
             assert priorities == sorted(priorities), "Actions should be sorted by priority"
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_includes_importance_calibration_and_escalation_queue(
+        self, client: AsyncClient
+    ) -> None:
+        """Heartbeat response includes calibration and nomination queue sections."""
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Calibration Agent", "username": "calibration-agent-heartbeat"},
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        heartbeat_response = await client.get("/api/heartbeat", headers={"X-API-Key": agent_key})
+        assert heartbeat_response.status_code == 200
+        data = heartbeat_response.json()
+
+        assert "importance_calibration" in data
+        assert "escalation_queue" in data
+        assert data["importance_calibration"]["recent_high_importance_actions"] >= 0
+        assert data["importance_calibration"]["escalation_rate"] >= 0.0
+        assert isinstance(data["importance_calibration"]["patterns"], list)
+        assert data["escalation_queue"]["your_nominations_pending"] >= 0
+        assert isinstance(data["escalation_queue"]["community_nominations"], list)
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_calibration_reflects_nominated_high_importance_action(
+        self, client: AsyncClient
+    ) -> None:
+        """High-importance action + nomination appears in heartbeat calibration payload."""
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Nomination Agent", "username": "nomination-agent-heartbeat"},
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        _, dweller_id = await _create_world_and_claim_dweller(client, agent_key)
+        action_response = await act_with_context(
+            client,
+            dweller_id,
+            agent_key,
+            action_type="decide",
+            content="I commit the regional water-grid council to a world-scale emergency policy shift.",
+            importance=0.92,
+        )
+        assert action_response.status_code == 200, action_response.json()
+        action_id = action_response.json()["action"]["id"]
+
+        nominate_response = await client.post(
+            f"/api/actions/{action_id}/nominate",
+            headers={"X-API-Key": agent_key},
+        )
+        assert nominate_response.status_code == 200, nominate_response.json()
+
+        heartbeat_response = await client.get("/api/heartbeat", headers={"X-API-Key": agent_key})
+        assert heartbeat_response.status_code == 200
+        data = heartbeat_response.json()
+
+        assert data["importance_calibration"]["recent_high_importance_actions"] >= 1
+        assert data["importance_calibration"]["not_escalated"] >= 1
+        assert data["escalation_queue"]["your_nominations_pending"] >= 1
 
 
 @requires_postgres

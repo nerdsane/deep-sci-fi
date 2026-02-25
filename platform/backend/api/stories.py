@@ -17,6 +17,8 @@ REVIEW SYSTEM:
 """
 
 import logging
+import re
+from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
 from utils.clock import now as utc_now
@@ -46,6 +48,7 @@ from db import (
     DwellerAction,
     StoryWritingGuidance,
     GuidanceToken,
+    GuidanceComplianceSignal,
     MediaGeneration,
     MediaType,
 )
@@ -228,7 +231,258 @@ class StoryReviseRequest(BaseModel):
 # =============================================================================
 
 
-def story_to_response(story: Story) -> StoryResponse:
+RULE_STOPWORDS = {
+    "with", "from", "that", "this", "into", "then", "than", "your", "story", "write", "using",
+    "over", "under", "after", "before", "about", "must", "should", "have", "has", "had", "not",
+    "for", "and", "the", "a", "an", "to", "of", "on", "in", "by",
+}
+POSITIVE_REVIEW_HINTS = {
+    "strong", "effective", "clear", "good", "great", "excellent", "vivid", "grounded",
+    "compelling", "works", "well", "precise", "immersive", "consistent",
+}
+NEGATIVE_REVIEW_HINTS = {
+    "weak", "missing", "unclear", "confusing", "flat", "rushed", "problem", "issue",
+    "fails", "fail", "didn't", "did not", "lacks", "lack", "conceptual", "generic",
+}
+
+
+def _split_sentences(text: str) -> list[str]:
+    return [part.strip().lower() for part in re.split(r"[.!?;\n]+", text) if part.strip()]
+
+
+def _extract_rule_terms(rule_id: str, rule_text: str) -> set[str]:
+    terms: set[str] = set()
+    for source in (rule_id.replace("_", " "), rule_text):
+        for token in re.findall(r"[a-zA-Z]{3,}", source.lower()):
+            if token not in RULE_STOPWORDS:
+                terms.add(token)
+    if not terms:
+        terms.add(rule_id.lower())
+    return set(sorted(terms, key=len, reverse=True)[:8])
+
+
+def _score_story_review(request: StoryReviewRequest) -> float:
+    base = 4.0 if request.recommend_acclaim else 2.6
+    issue_count = len(request.canon_issues) + len(request.event_issues) + len(request.style_issues)
+    penalty = (0.14 * len(request.improvements)) + (0.22 * issue_count)
+    bonus = 0.2 if request.recommend_acclaim and issue_count == 0 else 0.0
+    return round(max(1.0, min(5.0, base - penalty + bonus)), 2)
+
+
+def _build_rule_signals(
+    *,
+    rules: list[dict[str, Any]],
+    review_request: StoryReviewRequest,
+) -> list[dict[str, Any]]:
+    combined_notes = "\n".join(
+        [
+            review_request.canon_notes,
+            review_request.event_notes,
+            review_request.style_notes,
+            *review_request.improvements,
+        ]
+    )
+    sentences = _split_sentences(combined_notes)
+    improvements_lower = [item.lower() for item in review_request.improvements]
+    issues_lower = [
+        *[item.lower() for item in review_request.canon_issues],
+        *[item.lower() for item in review_request.event_issues],
+        *[item.lower() for item in review_request.style_issues],
+    ]
+
+    signals: list[dict[str, Any]] = []
+    for index, rule in enumerate(rules):
+        rule_id = str(rule.get("id") or f"rule_{index + 1}")
+        rule_text = str(rule.get("text") or rule_id)
+        terms = _extract_rule_terms(rule_id, rule_text)
+
+        relevant_sentences = [s for s in sentences if any(term in s for term in terms)]
+        mentioned = bool(relevant_sentences)
+
+        positive_hits = 0
+        negative_hits = 0
+        for sentence in relevant_sentences:
+            positive_hits += sum(1 for hint in POSITIVE_REVIEW_HINTS if hint in sentence)
+            negative_hits += sum(1 for hint in NEGATIVE_REVIEW_HINTS if hint in sentence)
+
+        for improvement in improvements_lower:
+            if any(term in improvement for term in terms):
+                mentioned = True
+                negative_hits += 1
+
+        for issue in issues_lower:
+            if any(term in issue for term in terms):
+                mentioned = True
+                negative_hits += 1
+
+        if mentioned and positive_hits == 0 and negative_hits == 0:
+            if review_request.recommend_acclaim:
+                positive_hits = 1
+            else:
+                negative_hits = 1
+
+        signals.append(
+            {
+                "rule_id": rule_id,
+                "rule_text": rule_text,
+                "mentioned": mentioned,
+                "positive": positive_hits > 0,
+                "negative": negative_hits > 0,
+                "positive_hits": positive_hits,
+                "negative_hits": negative_hits,
+            }
+        )
+
+    return signals
+
+
+def _compose_guidance_signal(rule_signals: list[dict[str, Any]]) -> str | None:
+    if not rule_signals:
+        return None
+
+    positives = [
+        signal for signal in rule_signals if signal.get("positive") and not signal.get("negative")
+    ]
+    negatives = [signal for signal in rule_signals if signal.get("negative")]
+
+    top_positive = max(positives, key=lambda s: s.get("positive_hits", 0), default=None)
+    top_negative = max(negatives, key=lambda s: s.get("negative_hits", 0), default=None)
+
+    if top_positive and top_negative and top_positive["rule_id"] != top_negative["rule_id"]:
+        return (
+            f"Reviews suggest strong alignment on '{top_positive['rule_id']}'. "
+            f"Focus next on '{top_negative['rule_id']}'."
+        )
+    if top_positive:
+        return f"Reviews suggest strong alignment on '{top_positive['rule_id']}'."
+    if top_negative:
+        return f"Reviews flag recurring gaps on '{top_negative['rule_id']}'."
+    return None
+
+
+def _build_guidance_note_from_rows(signals: list[GuidanceComplianceSignal]) -> str | None:
+    aggregate: dict[str, dict[str, Any]] = {}
+    latest_note: str | None = None
+
+    for row in signals:
+        payload = row.signal_data or {}
+        if not latest_note and isinstance(payload.get("guidance_signal"), str):
+            latest_note = payload["guidance_signal"]
+
+        for rule_signal in payload.get("rule_signals", []):
+            rule_id = str(rule_signal.get("rule_id") or "unknown")
+            entry = aggregate.setdefault(
+                rule_id,
+                {
+                    "rule_id": rule_id,
+                    "positive_hits": 0,
+                    "negative_hits": 0,
+                },
+            )
+            entry["positive_hits"] += int(rule_signal.get("positive_hits") or 0)
+            entry["negative_hits"] += int(rule_signal.get("negative_hits") or 0)
+
+    if aggregate:
+        top_positive = max(aggregate.values(), key=lambda s: s["positive_hits"], default=None)
+        top_negative = max(aggregate.values(), key=lambda s: s["negative_hits"], default=None)
+
+        if (
+            top_positive
+            and top_negative
+            and top_positive["positive_hits"] > 0
+            and top_negative["negative_hits"] > 0
+            and top_positive["rule_id"] != top_negative["rule_id"]
+        ):
+            return (
+                f"Reviews suggest your '{top_positive['rule_id']}' execution is working. "
+                f"'{top_negative['rule_id']}' still needs work."
+            )
+        if top_positive and top_positive["positive_hits"] > 0:
+            return f"Reviews suggest your '{top_positive['rule_id']}' execution is consistently strong."
+        if top_negative and top_negative["negative_hits"] > 0:
+            return f"Reviews repeatedly call out '{top_negative['rule_id']}' for improvement."
+
+    return latest_note
+
+
+async def build_story_guidance_note_map(
+    db: AsyncSession,
+    story_ids: list[UUID],
+) -> dict[UUID, str]:
+    if not story_ids:
+        return {}
+
+    result = await db.execute(
+        select(GuidanceComplianceSignal)
+        .where(GuidanceComplianceSignal.story_id.in_(story_ids))
+        .order_by(GuidanceComplianceSignal.created_at.desc())
+    )
+    rows = result.scalars().all()
+
+    by_story: dict[UUID, list[GuidanceComplianceSignal]] = defaultdict(list)
+    for row in rows:
+        by_story[row.story_id].append(row)
+
+    notes: dict[UUID, str] = {}
+    for story_id, signals in by_story.items():
+        note = _build_guidance_note_from_rows(signals)
+        if note:
+            notes[story_id] = note
+    return notes
+
+
+async def record_guidance_compliance_signal(
+    db: AsyncSession,
+    *,
+    story: Story,
+    review: StoryReview,
+    review_request: StoryReviewRequest,
+) -> GuidanceComplianceSignal | None:
+    guidance_version = story.guidance_version_used
+    if not guidance_version:
+        return None
+
+    guidance_result = await db.execute(
+        select(StoryWritingGuidance).where(StoryWritingGuidance.version == guidance_version)
+    )
+    guidance = guidance_result.scalar_one_or_none()
+    rules = guidance.rules if guidance and isinstance(guidance.rules, list) else []
+
+    rule_signals = _build_rule_signals(rules=rules, review_request=review_request)
+    review_score = _score_story_review(review_request)
+    guidance_signal = _compose_guidance_signal(rule_signals)
+
+    signal_payload = {
+        "review_score": review_score,
+        "recommend_acclaim": review_request.recommend_acclaim,
+        "improvement_count": len(review_request.improvements),
+        "issue_count": (
+            len(review_request.canon_issues)
+            + len(review_request.event_issues)
+            + len(review_request.style_issues)
+        ),
+        "reviewer_notes": {
+            "canon_notes": review_request.canon_notes,
+            "event_notes": review_request.event_notes,
+            "style_notes": review_request.style_notes,
+            "improvements": review_request.improvements,
+        },
+        "rule_signals": rule_signals,
+        "guidance_signal": guidance_signal,
+    }
+
+    signal = GuidanceComplianceSignal(
+        story_id=story.id,
+        guidance_version=guidance_version,
+        review_id=review.id,
+        signal_data=signal_payload,
+    )
+    db.add(signal)
+    await db.flush()
+    return signal
+
+
+def story_to_response(story: Story, guidance_signal: str | None = None) -> StoryResponse:
     """Convert a Story model to a StoryResponse."""
     return StoryResponse(
         id=story.id,
@@ -251,6 +505,7 @@ def story_to_response(story: Story) -> StoryResponse:
         review_system=story.review_system.value if story.review_system else "LEGACY",
         reaction_count=story.reaction_count,
         comment_count=story.comment_count,
+        guidance_signal=guidance_signal,
         created_at=story.created_at,
     )
 
@@ -820,6 +1075,7 @@ async def list_stories(
     limit: int = Query(20, ge=1, le=50),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
 ) -> dict[str, Any]:
     """
     List stories with optional filters.
@@ -866,9 +1122,18 @@ async def list_stories(
 
     result = await db.execute(query)
     stories = result.scalars().all()
+    guidance_notes: dict[UUID, str] = {}
+    if current_user:
+        own_story_ids = [story.id for story in stories if story.author_id == current_user.id]
+        guidance_notes = await build_story_guidance_note_map(db, own_story_ids)
+
+    story_items = [
+        story_to_response(story, guidance_signal=guidance_notes.get(story.id)).model_dump()
+        for story in stories
+    ]
 
     return {
-        "stories": [story_to_response(s).model_dump() for s in stories],
+        "stories": story_items,
         "count": len(stories),
         "filters": {
             "world_id": str(world_id) if world_id else None,
@@ -1265,6 +1530,14 @@ async def review_story(
     )
     db.add(review)
     await db.flush()
+
+    if story.guidance_version_used:
+        await record_guidance_compliance_signal(
+            db,
+            story=story,
+            review=review,
+            review_request=request,
+        )
 
     # Notify the author
     await create_notification(

@@ -48,6 +48,7 @@ class StoryResponse(BaseModel):
     review_system: str = "LEGACY"
     reaction_count: int
     comment_count: int
+    guidance_signal: str | None = None
     created_at: datetime
 
 

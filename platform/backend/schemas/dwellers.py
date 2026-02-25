@@ -334,6 +334,9 @@ class ActionInfo(BaseModel):
     target: str | None = None
     content: str
     importance: float
+    escalation_status: str = "eligible"
+    nominated_at: str | None = None
+    nomination_count: int = 0
     created_at: str
 
 
