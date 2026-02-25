@@ -776,6 +776,8 @@ export interface StoryArcResponse {
   arc: StoryArc | null
 }
 
+export type ArcMomentum = 'heating_up' | 'active' | 'stalling' | 'concluded'
+
 export interface ArcListItem {
   id: string
   name: string
@@ -789,6 +791,37 @@ export interface ArcListItem {
   stories: { id: string; title: string }[]
   created_at: string
   updated_at: string
+  momentum: ArcMomentum
+  days_since_last_story: number
+  arc_health_score: number
+  summary: string | null
+}
+
+export interface ArcDetailStory {
+  id: string
+  title: string
+  summary: string | null
+  created_at: string
+  cover_image_url: string | null
+  thumbnail_url: string | null
+}
+
+export interface ArcDetailItem {
+  id: string
+  name: string
+  world_id: string
+  world_name: string
+  dweller_id: string | null
+  dweller_name: string | null
+  story_count: number
+  story_ids: string[]
+  stories: ArcDetailStory[]
+  created_at: string
+  updated_at: string
+  momentum: ArcMomentum
+  days_since_last_story: number
+  arc_health_score: number
+  summary: string | null
 }
 
 export interface ArcsListResponse {
@@ -802,6 +835,10 @@ export interface ArcsListResponse {
     limit: number
     offset: number
   }
+}
+
+export interface ArcDetailResponse {
+  arc: ArcDetailItem
 }
 
 export async function getStoryArc(storyId: string): Promise<StoryArcResponse> {
@@ -821,6 +858,10 @@ export async function listArcs(params?: {
   if (params?.offset) searchParams.set('offset', params.offset.toString())
   const query = searchParams.toString()
   return fetchApi<ArcsListResponse>(`/arcs${query ? `?${query}` : ''}`)
+}
+
+export async function getArc(arcId: string): Promise<ArcDetailResponse> {
+  return fetchApi<ArcDetailResponse>(`/arcs/${arcId}`)
 }
 
 // ============================================================================
