@@ -111,6 +111,15 @@ SAMPLE_STORY_CONTENT = (
 )
 
 
+SAMPLE_VIDEO_PROMPT = (
+    "Year 2157. Close-up on a data terminal in the Arcturus administrative complex, "
+    "amber light pulsing across server stacks. A figure in maintenance overalls stands "
+    "at the console, hands moving deliberately across haptic interface. Camera slowly "
+    "pulls back to reveal rows of identical terminals extending into darkness. Cool blue "
+    "ambient light from ceiling vents, single warm desk lamp illuminating the operator."
+)
+
+
 @requires_postgres
 class TestStoriesAPI:
     """Test the Stories API endpoints."""
@@ -210,6 +219,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Witnessing the Fusion Revolution",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "summary": "An observer's account of the fusion plant's success.",
                 "perspective": "first_person_agent"
             }
@@ -235,6 +245,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "The Day Everything Changed",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "third_person_omniscient"
             }
         )
@@ -257,6 +268,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "I, Test Dweller",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_dweller",
                 "perspective_dweller_id": dweller_id
             }
@@ -282,6 +294,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Test Dweller's Day",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "third_person_limited",
                 "perspective_dweller_id": dweller_id
             }
@@ -308,6 +321,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Missing Dweller",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_dweller"
                 # Missing perspective_dweller_id
             }
@@ -330,6 +344,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Missing Dweller Limited",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "third_person_limited"
                 # Missing perspective_dweller_id
             }
@@ -350,6 +365,7 @@ class TestStoriesAPI:
                 "world_id": "00000000-0000-0000-0000-000000000000",
                 "title": "Invalid World Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -422,6 +438,7 @@ class TestStoriesAPI:
                 "world_id": other_world_id,
                 "title": "Wrong World Dweller",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_dweller",
                 "perspective_dweller_id": dweller_id  # From first world
             }
@@ -442,6 +459,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Unauthorized Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -462,6 +480,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Short Story",
                 "content": "Too short",  # Less than 100 chars
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -487,6 +506,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Test Story for Listing",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -513,6 +533,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "World Filtered Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -560,6 +581,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "World Stories Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "third_person_omniscient"
             }
         )
@@ -591,6 +613,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Detail Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "summary": "A test summary",
                 "perspective": "first_person_agent",
                 "time_period_start": "2050-01-01",
@@ -638,6 +661,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Reaction Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -671,6 +695,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Toggle Reaction Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -711,6 +736,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Change Reaction Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -753,6 +779,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Social React Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -787,6 +814,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Comment Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -821,6 +849,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Comments List Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -864,6 +893,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Feed Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -902,6 +932,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Immediate Publish Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -926,6 +957,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Review Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -967,6 +999,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "No Improvements Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1010,6 +1043,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Blind Review Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1079,6 +1113,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Self Review Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1116,6 +1151,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Response Test Story",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1166,6 +1202,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Two Acclaim Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1224,6 +1261,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Response Required Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1287,6 +1325,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Full Acclaim Flow Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1377,6 +1416,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Status Filter Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1420,6 +1460,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Will Be Acclaimed",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1433,6 +1474,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Just Published",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1537,6 +1579,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Original Title",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "summary": "Original summary",
                 "perspective": "first_person_agent"
             }
@@ -1587,6 +1630,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Only Author Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1628,6 +1672,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Revision Gate Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1702,6 +1747,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Revision Count Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1750,6 +1796,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Revision Nudge Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
@@ -1801,6 +1848,7 @@ class TestStoriesAPI:
                 "world_id": world_id,
                 "title": "Feed Revision Test",
                 "content": SAMPLE_STORY_CONTENT,
+                "video_prompt": SAMPLE_VIDEO_PROMPT,
                 "perspective": "first_person_agent"
             }
         )
