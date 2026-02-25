@@ -998,7 +998,7 @@ class MaintenanceModeRequest(BaseModel):
     )
 
 
-@router.post("/maintenance")
+@router.post("/maintenance", responses={200: {"description": "Maintenance mode confirmation"}})
 @limiter.limit("10/minute")
 async def set_maintenance_mode(
     body: MaintenanceModeRequest,
