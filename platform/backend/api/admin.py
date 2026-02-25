@@ -56,7 +56,7 @@ def _choose_top_rule(
     return str(ranked[0].get("rule_id"))
 
 
-@router.post("/guidance/story-writing")
+@router.post("/guidance/story-writing", responses={200: {"description": "Published guidance version"}})
 async def publish_story_writing_guidance(
     request: PublishStoryGuidanceRequest,
     db: AsyncSession = Depends(get_db),
@@ -124,7 +124,7 @@ async def publish_story_writing_guidance(
     }
 
 
-@router.get("/guidance/story-writing/analytics")
+@router.get("/guidance/story-writing/analytics", responses={200: {"description": "Guidance compliance analytics"}})
 async def get_story_writing_guidance_analytics(
     version: str | None = Query(
         None,

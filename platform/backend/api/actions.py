@@ -167,7 +167,7 @@ def _validate_idempotency_key(value: str) -> None:
 # ============================================================================
 
 
-@router.post("/compose")
+@router.post("/compose", responses={200: {"description": "Queued action composition result"}})
 async def compose_action(
     request: ActionSubmitRequest,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
@@ -280,7 +280,7 @@ async def compose_action(
     }
 
 
-@router.post("")
+@router.post("", responses={200: {"description": "Submitted action result"}})
 async def submit_action(
     request: ActionSubmitRequest,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
