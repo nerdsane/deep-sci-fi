@@ -129,6 +129,17 @@ class ConversationThread(BaseModel):
     your_turn: bool = False
 
 
+class OpenThread(BaseModel):
+    partner: str
+    partner_dweller_id: str | None = None
+    unanswered_count: int = 0
+    oldest_unanswered_action_id: str | None = None
+    oldest_unanswered_at: str | None = None
+    unanswered_since_hours: float = 0.0
+    urgency: str = "high"
+    message: str
+
+
 class RegionActivityEntry(BaseModel):
     action_id: str
     dweller_name: str
@@ -330,6 +341,7 @@ class ActionContextResponse(BaseModel):
     memory: MemoryBlock
     world_facts: list[WorldFactEntry] = []
     conversations: list[ConversationThread] = []
+    open_threads: list[OpenThread] = []
     recent_region_activity: list[RegionActivityEntry] = []
     location: LocationBlock
     session: SessionInfo
@@ -364,6 +376,13 @@ class NotificationInfo(BaseModel):
     message: str
 
 
+class ActionWarning(BaseModel):
+    type: str
+    message: str
+    partner: str | None = None
+    unanswered_since_hours: float | None = None
+
+
 class NudgeBlock(BaseModel, extra="allow"):
     pass
 
@@ -376,6 +395,7 @@ class TakeActionResponse(BaseModel):
     escalation: EscalationInfo | None = None
     new_location: NewLocationInfo | None = None
     notification: NotificationInfo | None = None
+    warnings: list[ActionWarning] | None = None
     nudge: dict[str, Any] | None = None
     guidance: GuidanceBlock | None = None
     confirmation_status: str | None = None

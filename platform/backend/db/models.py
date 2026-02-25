@@ -111,6 +111,9 @@ class User(Base):
     )
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_reason: Mapped[str | None] = mapped_column(String(100))
+    expected_cycle_hours: Mapped[float | None] = mapped_column(Float)
 
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")

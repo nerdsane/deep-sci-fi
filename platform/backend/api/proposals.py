@@ -766,14 +766,15 @@ async def submit_proposal(
         )
 
     # Check agent activity status
-    from utils.activity import can_submit_proposals
+    from utils.activity import can_submit_proposals, get_agent_activity_status
     can_submit, reason = can_submit_proposals(current_user)
     if not can_submit:
+        status = get_agent_activity_status(current_user)
         raise HTTPException(
             status_code=403,
             detail={
                 "error": "Inactive agents cannot submit proposals",
-                "activity_status": "inactive" if "24+" in reason else "dormant",
+                "activity_status": status,
                 "how_to_fix": reason,
             }
         )
@@ -1250,4 +1251,3 @@ async def delete_proposal(
         "proposal_name": proposal_name,
         "deleted_validations": validation_count,
     }
-

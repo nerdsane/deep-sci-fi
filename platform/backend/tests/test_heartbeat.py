@@ -10,10 +10,13 @@ Tests the heartbeat endpoint and activity tracking:
 import os
 import pytest
 from datetime import datetime, timezone, timedelta
+from uuid import UUID
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from db import Dweller, User
 from tests.conftest import act_with_context, approve_proposal
+from utils.clock import now as utc_now
 
 
 # Skip if no PostgreSQL
@@ -340,6 +343,192 @@ class TestHeartbeatEndpoint:
         if len(actions) > 1:
             priorities = [a["priority"] for a in actions]
             assert priorities == sorted(priorities), "Actions should be sorted by priority"
+
+    @pytest.mark.asyncio
+    async def test_post_heartbeat_sets_expected_cycle_hours(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """POST heartbeat stores expected_cycle_hours and uses scaled thresholds."""
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Cycle Agent", "username": "cycle-agent-heartbeat"}
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+        agent_id = UUID(response.json()["agent"]["id"])
+
+        # Set cycle to 4h via POST heartbeat.
+        response = await client.post(
+            "/api/heartbeat",
+            headers={"X-API-Key": agent_key},
+            json={"expected_cycle_hours": 4.0},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["activity"]["inactive_threshold_hours"] == 16.0
+        assert data["activity"]["dormant_threshold_hours"] == 192.0
+
+        # Verify persisted on profile.
+        me = await client.get("/api/auth/me", headers={"X-API-Key": agent_key})
+        assert me.status_code == 200
+        assert me.json()["expected_cycle_hours"] == 4.0
+
+        # Simulate missed cycle and verify dynamic warning classification.
+        user = await db_session.get(User, agent_id)
+        assert user is not None
+        user.last_heartbeat_at = utc_now() - timedelta(hours=9)
+        await db_session.commit()
+
+        response = await client.get("/api/heartbeat", headers={"X-API-Key": agent_key})
+        assert response.status_code == 200
+        assert response.json()["activity"]["status"] == "warning"
+
+    @pytest.mark.asyncio
+    async def test_maintenance_mode_status_and_welcome_back(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Maintenance endpoint sets maintenance status and emits welcome_back on return."""
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Maint Agent", "username": "maint-agent-heartbeat"}
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+        agent_id = UUID(response.json()["agent"]["id"])
+
+        maintenance_until = utc_now() + timedelta(hours=6)
+        response = await client.post(
+            "/api/heartbeat/maintenance",
+            headers={"X-API-Key": agent_key},
+            json={
+                "maintenance_until": maintenance_until.isoformat(),
+                "reason": "planned_pause",
+            },
+        )
+        assert response.status_code == 200, response.json()
+
+        hb = await client.get("/api/heartbeat", headers={"X-API-Key": agent_key})
+        assert hb.status_code == 200
+        hb_data = hb.json()
+        assert hb_data["activity"]["status"] == "maintenance"
+        assert hb_data["activity"]["maintenance_reason"] == "planned_pause"
+
+        # Expire maintenance after prior heartbeat to simulate return.
+        user = await db_session.get(User, agent_id)
+        assert user is not None
+        now = utc_now()
+        user.last_heartbeat_at = now - timedelta(hours=2)
+        user.maintenance_until = now - timedelta(hours=1)
+        await db_session.commit()
+
+        hb = await client.get("/api/heartbeat", headers={"X-API-Key": agent_key})
+        assert hb.status_code == 200
+        hb_data = hb.json()
+        assert hb_data["welcome_back"] is True
+        assert "welcome_back_summary" in hb_data
+
+        me = await client.get("/api/auth/me", headers={"X-API-Key": agent_key})
+        assert me.status_code == 200
+        assert me.json()["maintenance_until"] is None
+
+    @pytest.mark.asyncio
+    async def test_maintenance_extends_dweller_leases(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Maintenance mode extends inhabited dweller leases to maintenance_until."""
+        # Register agent.
+        response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Lease Agent", "username": "lease-agent-heartbeat"},
+        )
+        assert response.status_code == 200
+        agent_key = response.json()["api_key"]["key"]
+
+        # Create + approve world.
+        response = await client.post(
+            "/api/proposals",
+            headers={"X-API-Key": agent_key},
+            json={
+                "name": "Maintenance Lease World",
+                "premise": "World for maintenance lease extension verification.",
+                "year_setting": 2090,
+                "causal_chain": SAMPLE_CAUSAL_CHAIN,
+                "scientific_basis": (
+                    "Fusion rollout and climate adaptation trajectories are grounded in current "
+                    "ITER milestones and IEA transition analyses."
+                ),
+                "image_prompt": "Cinematic future habitat under adaptive climate domes.",
+            },
+        )
+        assert response.status_code == 200, response.json()
+        proposal_id = response.json()["id"]
+        approval = await approve_proposal(client, proposal_id, agent_key)
+        world_id = approval["world_created"]["id"]
+
+        # Add region + dweller, then claim.
+        region = await client.post(
+            f"/api/dwellers/worlds/{world_id}/regions",
+            headers={"X-API-Key": agent_key},
+            json={
+                "name": "Lease Region",
+                "location": "Orbital Shelf",
+                "population_origins": ["Pan-Pacific", "North Atlantic"],
+                "cultural_blend": "A blended technical culture shaped by orbital infrastructure guilds.",
+                "naming_conventions": (
+                    "Names combine legacy family surnames with cooperative identifiers that "
+                    "evolved over two generations in orbital settlements."
+                ),
+                "language": "Hybrid technical English with region-specific shorthand.",
+            },
+        )
+        assert region.status_code == 200, region.json()
+
+        dweller = await client.post(
+            f"/api/dwellers/worlds/{world_id}/dwellers",
+            headers={"X-API-Key": agent_key},
+            json={
+                "name": "Polina Dockwright-7",
+                "origin_region": "Lease Region",
+                "generation": "Third-generation orbital settler",
+                "name_context": (
+                    "Polina Dockwright-7 follows cooperative dockline naming where family "
+                    "surname and station cohort suffix are preserved across generations."
+                ),
+                "cultural_identity": "Orbital cooperative lineage with marine engineering roots.",
+                "role": "Structural maintenance coordinator",
+                "age": 34,
+                "personality": "Methodical, calm under pressure, and deeply collaborative in crisis.",
+                "background": (
+                    "Raised in orbital dockyards and trained in long-cycle infrastructure "
+                    "maintenance protocols across multiple habitats."
+                ),
+            },
+        )
+        assert dweller.status_code == 200, dweller.json()
+        dweller_id = dweller.json()["dweller"]["id"]
+
+        claim = await client.post(
+            f"/api/dwellers/{dweller_id}/claim",
+            headers={"X-API-Key": agent_key},
+        )
+        assert claim.status_code == 200, claim.json()
+
+        maintenance_until = utc_now() + timedelta(hours=72)
+        response = await client.post(
+            "/api/heartbeat/maintenance",
+            headers={"X-API-Key": agent_key},
+            json={
+                "maintenance_until": maintenance_until.isoformat(),
+                "reason": "maintenance",
+            },
+        )
+        assert response.status_code == 200, response.json()
+
+        db_session.expire_all()
+        claimed = await db_session.get(Dweller, UUID(dweller_id))
+        assert claimed is not None
+        assert claimed.inhabited_until is not None
+        assert claimed.inhabited_until >= maintenance_until
 
     @pytest.mark.asyncio
     async def test_heartbeat_includes_importance_calibration_and_escalation_queue(
