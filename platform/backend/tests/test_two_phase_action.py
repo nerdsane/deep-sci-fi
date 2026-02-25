@@ -7,12 +7,15 @@ Tests:
 4. B speaks to A, A speaks to B without in_reply_to → 400
 5. B speaks to A, A replies with in_reply_to → 200
 6. Context endpoint returns threaded conversations
+7. Context endpoint returns open_threads + reply-required constraints
+8. High-importance unresolved actions surface in open_threads
 """
 
 import os
 from uuid import uuid4
 
 import pytest
+import sqlalchemy as sa
 from httpx import AsyncClient
 
 from tests.conftest import (
@@ -317,3 +320,101 @@ class TestTwoPhaseAction:
             f"No conversation with {d['dweller_b_name']} found in: {conversations}"
         )
         assert len(b_conv.get("thread", [])) >= 1
+
+    @pytest.mark.asyncio
+    async def test_context_surfaces_open_threads_and_reply_constraints(
+        self, client: AsyncClient, db_session, two_dwellers: dict
+    ) -> None:
+        """Overdue unanswered speaks become open_threads + reply_required constraints."""
+        d = two_dwellers
+
+        # B speaks to A.
+        resp = await act_with_context(
+            client, d["dweller_b_id"], d["key_b"],
+            action_type="speak",
+            content="Alpha, this challenge cannot wait. I need your answer.",
+            target=d["dweller_a_name"],
+        )
+        assert resp.status_code == 200, f"B speak to A failed: {resp.json()}"
+        b_action_id = resp.json()["action"]["id"]
+
+        # Backdate to exceed default 12h grace period.
+        await db_session.execute(
+            sa.text(
+                "UPDATE platform_dweller_actions "
+                "SET created_at = NOW() - interval '13 hours' "
+                "WHERE id = :action_id"
+            ),
+            {"action_id": b_action_id},
+        )
+        await db_session.commit()
+
+        # A gets context.
+        resp = await client.post(
+            f"/api/dwellers/{d['dweller_a_id']}/act/context",
+            headers={"X-API-Key": d["key_a"]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert "open_threads" in data
+        assert "constraints" in data
+        assert isinstance(data["open_threads"], list)
+        assert isinstance(data["constraints"], list)
+        assert data["open_threads"], "Expected at least one open thread for unanswered speak."
+
+        first_keys = list(data.keys())
+        assert first_keys.index("open_threads") < first_keys.index("memory")
+
+        thread = next(
+            (
+                t for t in data["open_threads"]
+                if t.get("arc_type") == "speak_chain"
+                and t.get("partner") == d["dweller_b_name"]
+                and t.get("is_awaiting_your_response") is True
+            ),
+            None,
+        )
+        assert thread is not None, f"Expected speak_chain thread in open_threads: {data['open_threads']}"
+        assert float(thread.get("open_for_hours", 0)) >= 12
+
+        constraint = next(
+            (
+                c for c in data["constraints"]
+                if c.get("type") == "reply_required"
+                and c.get("partner") == d["dweller_b_name"]
+            ),
+            None,
+        )
+        assert constraint is not None, f"Expected reply_required constraint: {data['constraints']}"
+        assert constraint.get("urgency") == "high"
+
+    @pytest.mark.asyncio
+    async def test_context_surfaces_high_importance_unresolved_thread(
+        self, client: AsyncClient, two_dwellers: dict
+    ) -> None:
+        """A recent high-importance action with no follow-up appears as open thread."""
+        d = two_dwellers
+
+        # A makes high-importance decision and takes no execution action after it.
+        resp = await act_with_context(
+            client, d["dweller_a_id"], d["key_a"],
+            action_type="decide",
+            content="I decide to confront the council about the rationing fraud.",
+            importance=0.95,
+        )
+        assert resp.status_code == 200, f"High-importance decide failed: {resp.json()}"
+
+        resp = await client.post(
+            f"/api/dwellers/{d['dweller_a_id']}/act/context",
+            headers={"X-API-Key": d["key_a"]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        high_arc = next(
+            (t for t in data.get("open_threads", []) if t.get("arc_type") == "high_importance_unresolved"),
+            None,
+        )
+        assert high_arc is not None, f"Expected high_importance_unresolved arc: {data.get('open_threads', [])}"
+        assert high_arc.get("urgency") in {"high", "medium"}

@@ -34,6 +34,7 @@ You CAN be wrong, ignorant, biased, or opinionated - characters are human.
 
 import asyncio
 import logging
+import os
 from typing import Any, Literal
 from uuid import UUID
 
@@ -71,6 +72,7 @@ from schemas.dwellers import (
     SearchMemoryResponse,
     PendingEventsResponse,
 )
+from services.arc_detection import detect_open_arcs
 from utils.dedup import check_recent_duplicate
 from utils.errors import agent_error
 from utils.feed_events import emit_feed_event
@@ -97,6 +99,7 @@ router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 # Session timeout constants
 SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
+REPLY_GRACE_HOURS = float(os.getenv("DSF_REPLY_GRACE_HOURS", "12"))
 
 # Keep strong references to fire-and-forget tasks so they're not GC'd before completion
 _background_tasks: set = set()
@@ -1526,6 +1529,35 @@ async def get_action_context(
     from utils.delta import calculate_dweller_delta
     delta = await calculate_dweller_delta(db, dweller)
 
+    # Open narrative arcs and soft action constraints.
+    open_threads = await detect_open_arcs(db, dweller_id)
+    constraints: list[dict[str, Any]] = []
+    constrained_partners: set[str] = set()
+    for arc in open_threads:
+        if not arc.get("is_awaiting_your_response"):
+            continue
+        open_for_hours = float(arc.get("open_for_hours", 0.0))
+        if open_for_hours <= REPLY_GRACE_HOURS:
+            continue
+        partner = str(arc.get("partner") or "").strip()
+        if not partner:
+            continue
+        partner_key = partner.lower()
+        if partner_key in constrained_partners:
+            continue
+        constrained_partners.add(partner_key)
+        constraints.append(
+            {
+                "type": "reply_required",
+                "partner": partner,
+                "message": (
+                    f"{partner} is waiting for your response. "
+                    f"Reply before speaking to {partner} about new topics."
+                ),
+                "urgency": "high",
+            }
+        )
+
     await db.commit()
 
     return {
@@ -1550,6 +1582,8 @@ async def get_action_context(
             "cultural_identity": dweller.cultural_identity,
             "background": dweller.background,
         },
+        "open_threads": open_threads,
+        "constraints": constraints,
         "memory": {
             "core_memories": dweller.core_memories,
             "personality_blocks": dweller.personality_blocks,

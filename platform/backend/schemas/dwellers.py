@@ -138,6 +138,24 @@ class RegionActivityEntry(BaseModel):
     created_at: str
 
 
+class OpenThreadEntry(BaseModel):
+    arc_type: str
+    summary: str
+    urgency: str
+    partner: str | None = None
+    last_action_at: str | None = None
+    is_awaiting_your_response: bool = False
+    open_for_hours: float = 0.0
+    action_ids: list[str] = []
+
+
+class ContextConstraintEntry(BaseModel):
+    type: str
+    message: str
+    urgency: str
+    partner: str | None = None
+
+
 # ============================================================================
 # Region endpoints
 # ============================================================================
@@ -300,6 +318,8 @@ class ActionContextResponse(BaseModel):
     delta: dict[str, Any] | None = None
     world_canon: WorldCanon
     persona: PersonaBlock
+    open_threads: list[OpenThreadEntry] = []
+    constraints: list[ContextConstraintEntry] = []
     memory: MemoryBlock
     conversations: list[ConversationThread] = []
     recent_region_activity: list[RegionActivityEntry] = []
