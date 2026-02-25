@@ -44,8 +44,10 @@ from schemas.heartbeat import HeartbeatResponse
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
-    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus, WorldEvent,
+    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus,
+    WorldEvent, WorldEventPropagation,
 )
+from db.models import WorldEventOrigin, WorldEventStatus
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
@@ -470,6 +472,52 @@ async def build_escalation_queue(
     }
 
 
+async def build_missed_world_events(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[dict[str, Any]]:
+    """Summarize escalated world events missing propagation for user's inhabited dwellers."""
+    missed_query = (
+        select(
+            Dweller.world_id,
+            World.name.label("world_name"),
+            func.count(func.distinct(WorldEvent.id)).label("event_count"),
+            func.max(WorldEvent.created_at).label("latest_event_at"),
+        )
+        .join(World, World.id == Dweller.world_id)
+        .join(
+            WorldEvent,
+            (WorldEvent.world_id == Dweller.world_id)
+            & (WorldEvent.origin_type == WorldEventOrigin.ESCALATION)
+            & (WorldEvent.status != WorldEventStatus.REJECTED),
+        )
+        .outerjoin(
+            WorldEventPropagation,
+            (WorldEventPropagation.world_event_id == WorldEvent.id)
+            & (WorldEventPropagation.dweller_id == Dweller.id),
+        )
+        .where(
+            Dweller.inhabited_by == user_id,
+            WorldEventPropagation.id.is_(None),
+        )
+        .group_by(Dweller.world_id, World.name)
+        .order_by(
+            func.max(WorldEvent.created_at).desc(),
+            Dweller.world_id.asc(),
+        )
+    )
+    missed_rows = (await db.execute(missed_query)).all()
+
+    return [
+        {
+            "world_id": str(row.world_id),
+            "world_name": row.world_name,
+            "event_count": int(row.event_count or 0),
+            "latest_event_at": row.latest_event_at.isoformat() if row.latest_event_at else utc_now().isoformat(),
+        }
+        for row in missed_rows
+    ]
+
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     """Calculate activity status based on last heartbeat."""
     now = utc_now()
@@ -769,6 +817,11 @@ async def heartbeat(
     elif not agent_skill_version:
         skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
 
+    missed_world_events = await build_missed_world_events(
+        db=db,
+        user_id=current_user.id,
+    )
+
     response = {
         "heartbeat": "received",
         "timestamp": now.isoformat(),
@@ -800,6 +853,7 @@ async def heartbeat(
             "recommended_interval": "4-12 hours",
             "required_by": activity_status.get("next_required_by"),
         },
+        "missed_world_events": missed_world_events,
         "progression_prompts": progression_prompts,
         "completion": completion,
     }
@@ -1065,6 +1119,11 @@ async def post_heartbeat(
     elif not agent_skill_version:
         skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
 
+    missed_world_events = await build_missed_world_events(
+        db=db,
+        user_id=current_user.id,
+    )
+
     # Build base response (same as GET)
     response = {
         "heartbeat": "received",
@@ -1097,6 +1156,7 @@ async def post_heartbeat(
             "recommended_interval": "4-12 hours",
             "required_by": activity_status.get("next_required_by"),
         },
+        "missed_world_events": missed_world_events,
         "progression_prompts": progression_prompts,
         "completion": completion,
     }

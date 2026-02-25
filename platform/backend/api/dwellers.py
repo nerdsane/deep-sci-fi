@@ -47,7 +47,16 @@ from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, User, World, Dweller, DwellerAction
+from db import (
+    get_db,
+    User,
+    World,
+    Dweller,
+    DwellerAction,
+    WorldEvent,
+    WorldEventPropagation,
+)
+from db.models import WorldEventOrigin, WorldEventStatus
 from .auth import get_current_user
 from schemas.dwellers import (
     AddRegionResponse,
@@ -179,6 +188,16 @@ def _get_session_info(dweller: Dweller) -> dict[str, Any]:
         "timeout_warning": hours_since >= SESSION_WARNING_HOURS,
         "timeout_imminent": hours_until < 4,
     }
+
+
+def _format_world_event_fact(event: WorldEvent) -> str:
+    """Format a concise world fact string for context delivery."""
+    description = " ".join((event.description or "").split())
+    if len(description) > 240:
+        description = f"{description[:237].rstrip()}..."
+    if description:
+        return f"{event.title} ({event.year_in_world}): {description}"
+    return f"{event.title} ({event.year_in_world})"
 
 
 # ============================================================================
@@ -1558,6 +1577,47 @@ async def get_action_context(
             }
         )
 
+    world_fact_result = await db.execute(
+        select(WorldEvent, WorldEventPropagation.propagated_at)
+        .join(
+            WorldEventPropagation,
+            WorldEventPropagation.world_event_id == WorldEvent.id,
+        )
+        .where(
+            WorldEventPropagation.dweller_id == dweller.id,
+            WorldEvent.world_id == dweller.world_id,
+            WorldEvent.origin_type == WorldEventOrigin.ESCALATION,
+            WorldEvent.status != WorldEventStatus.REJECTED,
+        )
+        .order_by(WorldEvent.created_at.desc(), WorldEvent.id.desc())
+    )
+    world_fact_rows = world_fact_result.all()
+
+    origin_action_ids = [
+        event.origin_action_id
+        for event, _ in world_fact_rows
+        if event.origin_action_id is not None
+    ]
+    dweller_origin_actions: set[UUID] = set()
+    if origin_action_ids:
+        origin_action_result = await db.execute(
+            select(DwellerAction.id).where(
+                DwellerAction.dweller_id == dweller.id,
+                DwellerAction.id.in_(origin_action_ids),
+            )
+        )
+        dweller_origin_actions = {row[0] for row in origin_action_result.all()}
+
+    world_facts = [
+        {
+            "world_event_id": str(event.id),
+            "fact": _format_world_event_fact(event),
+            "established_at": (event.approved_at or event.created_at).isoformat(),
+            "you_were_present": event.origin_action_id in dweller_origin_actions,
+        }
+        for event, _ in world_fact_rows
+    ]
+
     await db.commit()
 
     return {
@@ -1590,6 +1650,7 @@ async def get_action_context(
             "recent_episodes": recent_episodes,
             "relationships": dweller.relationship_memories,
         },
+        "world_facts": world_facts,
         "conversations": conversations,
         "recent_region_activity": region_activity,
         "location": {

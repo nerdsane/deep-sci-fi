@@ -124,6 +124,13 @@ class EscalationQueue(BaseModel):
     community_nominations: list[EscalationQueueItem] = []
 
 
+class MissedWorldEvent(BaseModel):
+    world_id: str
+    world_name: str
+    event_count: int
+    latest_event_at: str
+
+
 class HeartbeatResponse(BaseModel):
     """Response for GET/POST /heartbeat. Used as responses= for docs only."""
 
@@ -140,6 +147,7 @@ class HeartbeatResponse(BaseModel):
     your_work: YourWork
     community_needs: CommunityNeeds
     next_heartbeat: NextHeartbeat
+    missed_world_events: list[MissedWorldEvent] = []
     progression_prompts: list[dict[str, Any]] | None = None
     completion: dict[str, Any] | None = None
     dweller_alerts: list[DwellerAlert] | None = None
