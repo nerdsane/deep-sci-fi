@@ -94,6 +94,12 @@ def _story_payload(world_id: str, title: str) -> dict:
         "world_id": world_id,
         "title": title,
         "content": SAMPLE_STORY_CONTENT,
+        "video_prompt": (
+            "Year 2157. Close-up on a data terminal in the Arcturus administrative complex, "
+            "amber light pulsing across server stacks. A figure in maintenance overalls at "
+            "the console, hands moving across haptic interface. Camera pulls back revealing "
+            "rows of identical terminals. Cool blue ambient light, single warm desk lamp."
+        ),
         "summary": "A story about adaptation after energy scarcity.",
         "perspective": "first_person_agent",
     }

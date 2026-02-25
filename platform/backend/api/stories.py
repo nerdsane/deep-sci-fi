@@ -26,12 +26,29 @@ from uuid import UUID
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from db import get_db, User, World, Dweller, Story, StoryReview, StoryPerspective, StoryStatus, WorldEvent, DwellerAction, StoryWritingGuidance, GuidanceToken
+from db import (
+    get_db,
+    User,
+    World,
+    Dweller,
+    Story,
+    StoryReview,
+    StoryPerspective,
+    StoryStatus,
+    WorldEvent,
+    DwellerAction,
+    StoryWritingGuidance,
+    GuidanceToken,
+    MediaGeneration,
+    MediaType,
+)
 from .auth import get_current_user, get_optional_user, get_admin_user
 from schemas.stories import (
     SourceEventSummary,
@@ -83,7 +100,7 @@ class StoryCreateRequest(BaseModel):
     - title: Story title (max 200 chars)
     - content: The narrative text (min 100 chars)
     - perspective: One of the 4 perspective types
-    - video_prompt: Cinematic video script for story video (min 50 chars, defaults if omitted)
+    - video_prompt: Cinematic video script for story video (min 50 chars). Required — must describe a specific scene from this story.
 
     OPTIONAL FIELDS:
     - perspective_dweller_id: Required if perspective is first_person_dweller or third_person_limited
@@ -104,10 +121,10 @@ class StoryCreateRequest(BaseModel):
     time_period_start: str | None = Field(None, max_length=50)
     time_period_end: str | None = Field(None, max_length=50)
     video_prompt: str = Field(
-        "Cinematic medium-wide shot with dynamic camera movement, dramatic lighting, and clear character actions that visually communicate the core emotional beat of the story.",
+        ...,
         min_length=50,
         max_length=1000,
-        description="Cinematic video script for the story. Describe scene visually: camera angles, lighting, character actions, atmosphere. Be specific about movement and mood. 5-15 seconds.",
+        description="Required. Write a specific video prompt for THIS story. Include world name, year setting, exact scene, camera movement, lighting. Generic prompts produce identical-looking output for every story.",
     )
 
     @model_validator(mode="after")
@@ -555,8 +572,8 @@ async def create_story(
 
         guidance_version_used = guidance_token_record.guidance_version
 
-    # Dedup: prevent duplicate stories from rapid re-submissions
-    # Check by author+world (60s) AND by author+title (5min, catches retries after errors)
+    # Dedup: prevent duplicate stories from rapid re-submissions.
+    # Check by author+world (60s) AND by author+title (1 hour for retry/idempotency safety).
     recent = await check_recent_duplicate(db, Story, [
         Story.author_id == current_user.id,
         Story.world_id == request.world_id,
@@ -565,15 +582,87 @@ async def create_story(
         recent = await check_recent_duplicate(db, Story, [
             Story.author_id == current_user.id,
             Story.title == request.title,
-        ], window_seconds=300)
+        ], window_seconds=3600)
     if recent:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "Story submitted too recently",
-                "existing_story_id": str(recent.id),
-                "how_to_fix": "Wait 60s between story submissions to the same world. Your previous story was already published.",
-            },
+        existing_story_result = await db.execute(
+            select(Story)
+            .options(selectinload(Story.world), selectinload(Story.perspective_dweller))
+            .where(Story.id == recent.id)
+        )
+        existing_story = existing_story_result.scalar_one_or_none()
+        if not existing_story:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "Existing deduplicated story not found",
+                    "existing_story_id": str(recent.id),
+                },
+            )
+
+        existing_gen_result = await db.execute(
+            select(MediaGeneration)
+            .where(
+                and_(
+                    MediaGeneration.target_type == "story",
+                    MediaGeneration.target_id == existing_story.id,
+                    MediaGeneration.media_type == MediaType.VIDEO,
+                )
+            )
+            .order_by(desc(MediaGeneration.created_at))
+        )
+        existing_gen = existing_gen_result.scalars().first()
+
+        nudge = await build_nudge(db, current_user.id, lightweight=True)
+        return JSONResponse(
+            content=jsonable_encoder(
+                {
+                    "success": True,
+                    "story": {
+                        "id": str(existing_story.id),
+                        "world_id": str(existing_story.world_id),
+                        "world_name": (
+                            existing_story.world.name
+                            if existing_story.world
+                            else world.name
+                        ),
+                        "title": existing_story.title,
+                        "perspective": existing_story.perspective.value,
+                        "perspective_dweller_name": (
+                            existing_story.perspective_dweller.name
+                            if existing_story.perspective_dweller
+                            else None
+                        ),
+                        "status": existing_story.status.value,
+                        "review_system": (
+                            existing_story.review_system.value
+                            if existing_story.review_system
+                            else "LEGACY"
+                        ),
+                        "created_at": existing_story.created_at.isoformat(),
+                    },
+                    "video_generation": {
+                        "generation_id": str(existing_gen.id) if existing_gen else "",
+                        "status": (
+                            existing_gen.status.value if existing_gen else "unknown"
+                        ),
+                        "poll_url": (
+                            f"/api/media/{existing_gen.id}/status"
+                            if existing_gen
+                            else ""
+                        ),
+                        "message": (
+                            "Story already exists. Returning existing story and current video generation state."
+                            if existing_gen
+                            else "Story already exists. Returning existing story; no video generation record was found."
+                        ),
+                    },
+                    "message": (
+                        "Story already exists. Returning the existing story instead of creating a duplicate."
+                    ),
+                    "nudge": nudge,
+                    "already_exists": True,
+                }
+            )
         )
 
     # Validate dweller if perspective requires it
@@ -624,7 +713,6 @@ async def create_story(
         guidance_token_record.story_id = story.id
 
     # Auto-trigger video generation (same logic as POST /api/media/stories/{id}/video)
-    from db import MediaGeneration, MediaType, MediaGenerationStatus
     from api.media import _run_generation
 
     gen = MediaGeneration(
