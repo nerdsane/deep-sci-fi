@@ -15,10 +15,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
-from utils.arc_service import detect_arcs, list_arcs
+from utils.arc_service import detect_arcs, get_arc_by_id, list_arcs
 from utils.errors import agent_error
 from .auth import get_admin_user
-from schemas.arcs import ArcListQuery, ListArcsResponse, DetectArcsResponse
+from schemas.arcs import ArcDetailResponse, ArcListQuery, DetectArcsResponse, ListArcsResponse
 
 logger = logging.getLogger(__name__)
 
@@ -104,3 +104,22 @@ async def trigger_arc_detection(
         "message": f"Arc detection complete: {len(result)} arc(s) created",
         "arcs": result,
     }
+
+
+@router.get("/{arc_id}", response_model=ArcDetailResponse)
+async def get_arc_detail(
+    arc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a single arc with full story details."""
+    arc = await get_arc_by_id(db=db, arc_id=arc_id)
+    if arc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="Arc not found",
+                how_to_fix="Check the arc_id is correct. Use GET /api/arcs to list available arcs.",
+                arc_id=str(arc_id),
+            ),
+        )
+    return {"arc": arc}
