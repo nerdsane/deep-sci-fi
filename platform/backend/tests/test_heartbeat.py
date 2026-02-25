@@ -86,10 +86,10 @@ async def _create_world_and_claim_dweller(client: AsyncClient, api_key: str) -> 
         f"/api/dwellers/worlds/{world_id}/dwellers",
         headers={"X-API-Key": api_key},
         json={
-            "name": "Mara Sen",
+            "name": "Gretchen Volkov-Singh",
             "origin_region": "Calibration Region",
             "generation": "First-generation",
-            "name_context": "Mara Sen follows civic naming conventions of the region.",
+            "name_context": "Gretchen Volkov-Singh reflects the hyphenated civic convention of mixed-heritage families in formal districts.",
             "cultural_identity": "Municipal systems operator with coalition ties.",
             "role": "Infrastructure coordinator",
             "age": 34,
