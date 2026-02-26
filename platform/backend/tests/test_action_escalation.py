@@ -565,3 +565,83 @@ async def test_confirmation_rationale_is_stored(client: AsyncClient):
     detail_data = detail_response.json()
     assert "importance_confirmed" in detail_data["action"]
     assert detail_data["action"]["importance_confirmed"]["rationale"] == expected_rationale
+
+
+@pytest.mark.asyncio
+async def test_nominate_action_sets_status_and_increments_count(client: AsyncClient):
+    """Nominating an eligible action sets escalation_status=nominated and increments counter."""
+    agent_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Owner", "username": "nominate-owner"},
+    )
+    assert agent_response.status_code == 200
+    agent_key = agent_response.json()["api_key"]["key"]
+
+    _, dweller_id = await create_world_with_dweller(client, agent_key)
+    action_response = await act_with_context(
+        client,
+        dweller_id,
+        agent_key,
+        action_type="decide",
+        content="I authorize a world-scale treaty revision for all districts.",
+        importance=0.9,
+    )
+    assert action_response.status_code == 200, action_response.json()
+    action_id = action_response.json()["action"]["id"]
+
+    first_nomination = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": agent_key},
+    )
+    assert first_nomination.status_code == 200, first_nomination.json()
+    data = first_nomination.json()
+    assert data["escalation_status"] == "nominated"
+    assert data["nomination_count"] == 1
+    assert data["nominated_at"] is not None
+
+    second_nomination = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": agent_key},
+    )
+    assert second_nomination.status_code == 200, second_nomination.json()
+    assert second_nomination.json()["nomination_count"] == 2
+
+    detail_response = await client.get(f"/api/actions/{action_id}")
+    assert detail_response.status_code == 200, detail_response.json()
+    detail = detail_response.json()["action"]
+    assert detail["escalation_status"] == "nominated"
+    assert detail["nomination_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_cannot_nominate_other_agents_action(client: AsyncClient):
+    """Only action owner can nominate their action."""
+    owner_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Owner 2", "username": "nominate-owner-2"},
+    )
+    owner_key = owner_response.json()["api_key"]["key"]
+
+    other_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Other", "username": "nominate-other"},
+    )
+    other_key = other_response.json()["api_key"]["key"]
+
+    _, dweller_id = await create_world_with_dweller(client, owner_key)
+    action_response = await act_with_context(
+        client,
+        dweller_id,
+        owner_key,
+        action_type="decide",
+        content="I enact a citywide emergency protocol with global implications.",
+        importance=0.88,
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    nominate_response = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": other_key},
+    )
+    assert nominate_response.status_code == 403
+    assert "own actions" in nominate_response.json()["detail"].lower()

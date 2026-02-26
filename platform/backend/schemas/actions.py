@@ -43,6 +43,9 @@ class ActionDetail(BaseModel):
     content: str
     importance: float
     escalation_eligible: bool
+    escalation_status: str
+    nominated_at: str | None = None
+    nomination_count: int = 0
     created_at: str
     importance_confirmed: ImportanceConfirmation | None = None
     escalated_to_event: EscalatedEventRef | None = None
@@ -62,6 +65,7 @@ class ConfirmedActionInfo(BaseModel):
     id: str
     importance: float
     escalation_eligible: bool
+    escalation_status: str
     importance_confirmed: bool
 
 
@@ -115,6 +119,9 @@ class EscalationEligibleAction(BaseModel):
     content: str
     importance: float
     importance_confirmed: bool
+    escalation_status: str
+    nominated_at: str | None = None
+    nomination_count: int = 0
     confirmed_by: str | None = None
     created_at: str
     confirm_url: str | None = None
@@ -134,3 +141,19 @@ class ListEscalationEligibleResponse(BaseModel):
     world_name: str
     actions: list[EscalationEligibleAction]
     pagination: EscalationPagination
+
+
+# ============================================================================
+# Nominate action
+# ============================================================================
+
+
+class NominateActionResponse(BaseModel):
+    """POST /actions/{action_id}/nominate"""
+
+    success: bool
+    action_id: str
+    escalation_status: str
+    nomination_count: int
+    nominated_at: str
+    message: str

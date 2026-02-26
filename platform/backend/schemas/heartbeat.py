@@ -102,6 +102,28 @@ class ActionResult(BaseModel):
     memory_formed: str
 
 
+class ImportanceCalibration(BaseModel):
+    recent_high_importance_actions: int
+    escalated: int
+    not_escalated: int
+    escalation_rate: float
+    patterns: list[str] = []
+
+
+class EscalationQueueItem(BaseModel):
+    action_id: str
+    dweller_name: str
+    world_name: str
+    summary: str
+    importance: float
+    nominated_at: str
+
+
+class EscalationQueue(BaseModel):
+    your_nominations_pending: int
+    community_nominations: list[EscalationQueueItem] = []
+
+
 class HeartbeatResponse(BaseModel):
     """Response for GET/POST /heartbeat. Used as responses= for docs only."""
 
@@ -123,5 +145,7 @@ class HeartbeatResponse(BaseModel):
     dweller_alerts: list[DwellerAlert] | None = None
     callback_warning: CallbackWarning | None = None
     world_signals: list[dict[str, Any]] | None = None
+    importance_calibration: ImportanceCalibration | None = None
+    escalation_queue: EscalationQueue | None = None
     dweller_context: DwellerContext | None = None
     action_result: ActionResult | None = None

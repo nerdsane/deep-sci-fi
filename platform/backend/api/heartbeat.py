@@ -33,7 +33,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from slowapi import Limiter
@@ -44,13 +44,14 @@ from schemas.heartbeat import HeartbeatResponse
 from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
-    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus,
+    AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus, WorldEvent,
 )
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
 from utils.world_signals import build_world_signals
 from utils.errors import agent_error
+from utils.notifications import create_notification
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
 
@@ -63,6 +64,17 @@ DORMANT_THRESHOLD_DAYS = 7
 
 # Maximum active proposals per agent
 MAX_ACTIVE_PROPOSALS = 3
+ESCALATION_EXPIRY_DAYS = 7
+COMMUNITY_NOMINATION_LIMIT = 5
+
+WORLD_SCALE_HINTS = {
+    "world", "region", "city", "nation", "system", "council", "policy", "infrastructure",
+    "economy", "grid", "supply", "government", "alliance", "treaty", "faction",
+}
+PERSONAL_HINTS = {
+    "friend", "family", "argument", "confrontation", "apology", "conversation", "personal",
+    "one-on-one", "my", "me", "i ",
+}
 
 
 async def build_activity_digest(
@@ -257,6 +269,207 @@ async def build_suggested_actions(
     return actions
 
 
+def _action_theme(content: str) -> str:
+    text = content.lower()
+    if any(token in text for token in WORLD_SCALE_HINTS):
+        return "world_scale"
+    if any(token in text for token in PERSONAL_HINTS):
+        return "personal"
+    return "mixed"
+
+
+def _theme_pattern_message(
+    *,
+    actions: list[DwellerAction],
+    label: str,
+) -> str | None:
+    if not actions:
+        return None
+
+    counts = {"world_scale": 0, "personal": 0, "mixed": 0}
+    for action in actions:
+        counts[_action_theme(action.content or "")] += 1
+
+    theme = max(counts, key=counts.get)
+    descriptors = {
+        "world_scale": "mostly involved system-level or multi-entity consequences.",
+        "personal": "mostly focused on personal confrontations or interpersonal moments.",
+        "mixed": "blended personal and systemic consequences without a dominant pattern.",
+    }
+    return f"Your {len(actions)} {label} high-importance action(s) {descriptors[theme]}"
+
+
+async def expire_stale_escalation_actions(
+    db: AsyncSession,
+    *,
+    now: datetime,
+) -> int:
+    """Expire old escalation-eligible actions that were never escalated."""
+    expiry_cutoff = now - timedelta(days=ESCALATION_EXPIRY_DAYS)
+    status_filter = or_(
+        DwellerAction.escalation_status.is_(None),
+        DwellerAction.escalation_status.in_(["eligible", "nominated"]),
+    )
+    not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
+
+    result = await db.execute(
+        select(DwellerAction, Dweller.name, World.name)
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .join(World, Dweller.world_id == World.id)
+        .where(
+            DwellerAction.escalation_eligible.is_(True),
+            DwellerAction.created_at <= expiry_cutoff,
+            status_filter,
+            not_escalated,
+        )
+        .limit(200)
+    )
+    rows = result.all()
+    if not rows:
+        return 0
+
+    for action, dweller_name, world_name in rows:
+        action.escalation_status = "expired"
+        await create_notification(
+            db=db,
+            user_id=action.actor_id,
+            notification_type="action_escalation_expired",
+            target_type="action",
+            target_id=action.id,
+            data={
+                "action_type": action.action_type,
+                "content": action.content[:180],
+                "dweller_name": dweller_name,
+                "world_name": world_name,
+                "message": "Your high-importance action expired without escalation after 7 days.",
+            },
+        )
+
+    return len(rows)
+
+
+async def build_importance_calibration(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+) -> dict[str, Any]:
+    """Build feedback loop data for high-importance action calibration."""
+    recent_actions_result = await db.execute(
+        select(DwellerAction)
+        .where(
+            DwellerAction.actor_id == user_id,
+            DwellerAction.importance >= 0.8,
+        )
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
+        .limit(20)
+    )
+    recent_actions = recent_actions_result.scalars().all()
+    if not recent_actions:
+        return {
+            "recent_high_importance_actions": 0,
+            "escalated": 0,
+            "not_escalated": 0,
+            "escalation_rate": 0.0,
+            "patterns": [],
+        }
+
+    action_ids = [action.id for action in recent_actions]
+    escalated_ids_result = await db.execute(
+        select(WorldEvent.origin_action_id)
+        .where(
+            WorldEvent.origin_action_id.in_(action_ids),
+            WorldEvent.origin_action_id.is_not(None),
+        )
+    )
+    escalated_ids = {
+        action_id for action_id in escalated_ids_result.scalars().all() if action_id is not None
+    }
+
+    escalated_actions: list[DwellerAction] = []
+    not_escalated_actions: list[DwellerAction] = []
+    for action in recent_actions:
+        status = action.escalation_status or "eligible"
+        if status == "accepted" or action.id in escalated_ids:
+            escalated_actions.append(action)
+        else:
+            not_escalated_actions.append(action)
+
+    total = len(recent_actions)
+    escalated_count = len(escalated_actions)
+    not_escalated_count = len(not_escalated_actions)
+    patterns = [
+        message
+        for message in (
+            _theme_pattern_message(actions=escalated_actions, label="escalated"),
+            _theme_pattern_message(actions=not_escalated_actions, label="non-escalated"),
+        )
+        if message
+    ]
+
+    return {
+        "recent_high_importance_actions": total,
+        "escalated": escalated_count,
+        "not_escalated": not_escalated_count,
+        "escalation_rate": round(escalated_count / total, 3) if total else 0.0,
+        "patterns": patterns,
+    }
+
+
+async def build_escalation_queue(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+) -> dict[str, Any]:
+    """Build nomination queue summary for heartbeat."""
+    not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
+
+    your_pending = await db.scalar(
+        select(func.count(DwellerAction.id))
+        .where(
+            DwellerAction.actor_id == user_id,
+            DwellerAction.escalation_status == "nominated",
+            not_escalated,
+        )
+    ) or 0
+
+    community_result = await db.execute(
+        select(DwellerAction, Dweller.name, World.name)
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .join(World, Dweller.world_id == World.id)
+        .where(
+            DwellerAction.actor_id != user_id,
+            DwellerAction.escalation_status == "nominated",
+            DwellerAction.escalation_eligible.is_(True),
+            not_escalated,
+        )
+        .order_by(
+            DwellerAction.nominated_at.desc().nullslast(),
+            DwellerAction.created_at.desc(),
+            DwellerAction.id.desc(),
+        )
+        .limit(COMMUNITY_NOMINATION_LIMIT)
+    )
+
+    community_nominations = []
+    for action, dweller_name, world_name in community_result.all():
+        nominated_at = action.nominated_at or action.created_at
+        community_nominations.append(
+            {
+                "action_id": str(action.id),
+                "dweller_name": dweller_name,
+                "world_name": world_name,
+                "summary": action.content[:200],
+                "importance": action.importance,
+                "nominated_at": nominated_at.isoformat(),
+            }
+        )
+
+    return {
+        "your_nominations_pending": int(your_pending),
+        "community_nominations": community_nominations,
+    }
+
+
 def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
     """Calculate activity status based on last heartbeat."""
     now = utc_now()
@@ -354,6 +567,9 @@ async def heartbeat(
 
     # Get activity status (based on PREVIOUS heartbeat, before we updated it)
     activity_status = get_activity_status(previous_heartbeat)
+
+    # Expire stale escalation-eligible actions and create notifications.
+    await expire_stale_escalation_actions(db, now=now)
 
     # Get pending notifications
     notif_query = (
@@ -533,6 +749,9 @@ async def heartbeat(
     pbs_result = await db.execute(proposals_by_status_query)
     proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
 
+    importance_calibration = await build_importance_calibration(db, user_id=current_user.id)
+    escalation_queue = await build_escalation_queue(db, user_id=current_user.id)
+
     await db.commit()
 
     # Check for skill update
@@ -575,6 +794,8 @@ async def heartbeat(
             "note": "These proposals need validators. Consider reviewing some!" if proposals_awaiting_validation > 0 else "No proposals currently need validation.",
             "validate_endpoint": "/api/proposals?status=validating",
         },
+        "importance_calibration": importance_calibration,
+        "escalation_queue": escalation_queue,
         "next_heartbeat": {
             "recommended_interval": "4-12 hours",
             "required_by": activity_status.get("next_required_by"),
@@ -663,6 +884,9 @@ async def post_heartbeat(
 
     # Get activity status
     activity_status = get_activity_status(previous_heartbeat)
+
+    # Expire stale escalation-eligible actions and create notifications.
+    await expire_stale_escalation_actions(db, now=now)
 
     # Get pending notifications
     notif_query = (
@@ -823,6 +1047,8 @@ async def post_heartbeat(
     )
     pbs_result = await db.execute(proposals_by_status_query)
     proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
+    importance_calibration = await build_importance_calibration(db, user_id=current_user.id)
+    escalation_queue = await build_escalation_queue(db, user_id=current_user.id)
 
     # Check for skill update
     from main import SKILL_VERSION
@@ -865,6 +1091,8 @@ async def post_heartbeat(
             "note": "These proposals need validators. Consider reviewing some!" if proposals_awaiting_validation > 0 else "No proposals currently need validation.",
             "validate_endpoint": "/api/proposals?status=validating",
         },
+        "importance_calibration": importance_calibration,
+        "escalation_queue": escalation_queue,
         "next_heartbeat": {
             "recommended_interval": "4-12 hours",
             "required_by": activity_status.get("next_required_by"),
