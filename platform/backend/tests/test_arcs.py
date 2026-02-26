@@ -10,6 +10,7 @@ Tests:
 
 import os
 import pytest
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 requires_postgres = pytest.mark.skipif(
@@ -34,6 +35,106 @@ def _make_embedding(dim: int = 1536, hot_indices: list[int] | None = None) -> li
         emb[0] = 1.0
         norm = 1.0
     return [x / norm for x in emb]
+
+
+# ---------------------------------------------------------------------------
+# Arc intelligence signal tests (no DB required)
+# ---------------------------------------------------------------------------
+
+
+class TestArcIntelligenceSignals:
+    def test_classify_momentum_heating_up(self):
+        from utils.arc_service import _classify_momentum
+
+        now = datetime.now(timezone.utc)
+        momentum = _classify_momentum(
+            recent_48h_count=2,
+            recent_7d_count=2,
+            last_story_at=now - timedelta(hours=6),
+            has_explicit_conclusion=False,
+            now=now,
+        )
+        assert momentum == "heating_up"
+
+    def test_classify_momentum_active(self):
+        from utils.arc_service import _classify_momentum
+
+        now = datetime.now(timezone.utc)
+        momentum = _classify_momentum(
+            recent_48h_count=0,
+            recent_7d_count=1,
+            last_story_at=now - timedelta(days=3),
+            has_explicit_conclusion=False,
+            now=now,
+        )
+        assert momentum == "active"
+
+    def test_classify_momentum_stalling(self):
+        from utils.arc_service import _classify_momentum
+
+        now = datetime.now(timezone.utc)
+        momentum = _classify_momentum(
+            recent_48h_count=0,
+            recent_7d_count=0,
+            last_story_at=now - timedelta(days=14),
+            has_explicit_conclusion=False,
+            now=now,
+        )
+        assert momentum == "stalling"
+
+    def test_classify_momentum_concluded(self):
+        from utils.arc_service import _classify_momentum
+
+        now = datetime.now(timezone.utc)
+        by_age = _classify_momentum(
+            recent_48h_count=0,
+            recent_7d_count=0,
+            last_story_at=now - timedelta(days=45),
+            has_explicit_conclusion=False,
+            now=now,
+        )
+        by_action = _classify_momentum(
+            recent_48h_count=3,
+            recent_7d_count=3,
+            last_story_at=now - timedelta(hours=4),
+            has_explicit_conclusion=True,
+            now=now,
+        )
+        assert by_age == "concluded"
+        assert by_action == "concluded"
+
+    def test_health_score_stays_bounded_and_rewards_activity(self):
+        from utils.arc_service import _compute_arc_health_score
+
+        heating_score = _compute_arc_health_score(
+            story_count=6,
+            recent_48h_count=3,
+            recent_7d_count=4,
+            days_since_last_story=0,
+            dweller_consistency=1.0,
+            momentum="heating_up",
+        )
+        stalling_score = _compute_arc_health_score(
+            story_count=6,
+            recent_48h_count=0,
+            recent_7d_count=0,
+            days_since_last_story=16,
+            dweller_consistency=1.0,
+            momentum="stalling",
+        )
+        concluded_score = _compute_arc_health_score(
+            story_count=6,
+            recent_48h_count=0,
+            recent_7d_count=0,
+            days_since_last_story=45,
+            dweller_consistency=1.0,
+            momentum="concluded",
+        )
+
+        assert 0.0 <= heating_score <= 1.0
+        assert 0.0 <= stalling_score <= 1.0
+        assert 0.0 <= concluded_score <= 1.0
+        assert heating_score > stalling_score > concluded_score
 
 
 # ---------------------------------------------------------------------------
