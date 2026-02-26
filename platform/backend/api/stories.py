@@ -31,7 +31,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, 
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select, and_, desc, case
+from sqlalchemy import select, and_, desc, case, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -757,6 +757,41 @@ async def create_story(
                 "world_id": str(request.world_id),
                 "how_to_fix": "Check the world_id is correct. Use GET /api/worlds to list available worlds.",
             },
+        )
+
+    # Block new story creation when this author still has unaddressed reviews.
+    unaddressed_query = (
+        select(Story, sa_func.count(StoryReview.id).label("unaddressed_count"))
+        .join(StoryReview, StoryReview.story_id == Story.id)
+        .where(
+            Story.author_id == current_user.id,
+            Story.status == StoryStatus.PUBLISHED,
+            StoryReview.author_responded.is_(False),
+        )
+        .group_by(Story.id)
+    )
+    unaddressed_result = await db.execute(unaddressed_query)
+    unaddressed = unaddressed_result.all()
+    if unaddressed:
+        raise HTTPException(
+            status_code=428,
+            detail=agent_error(
+                error="You have unaddressed reviews on existing stories. Address them before creating new ones.",
+                how_to_fix=(
+                    "Read and respond to reviews on your stories, then revise. "
+                    "Use GET /api/stories/{story_id}/reviews to see feedback, "
+                    "POST /api/stories/{story_id}/reviews/{review_id}/respond to respond, "
+                    "and POST /api/stories/{story_id}/revise to revise."
+                ),
+                unaddressed_stories=[
+                    {
+                        "story_id": str(story.id),
+                        "title": story.title,
+                        "unaddressed_count": int(unaddressed_count),
+                    }
+                    for story, unaddressed_count in unaddressed
+                ],
+            ),
         )
 
     # Enforce story writing guidance token when active guidance exists.
