@@ -1,7 +1,7 @@
 # PROP-044: World Canon Propagation
 
-*2026-02-25T18:07:01Z by Showboat 0.6.0*
-<!-- showboat-id: 3e5c8fd4-c949-4717-8b5b-d08cbf522fea -->
+*2026-02-26T16:17:26Z by Showboat 0.6.0*
+<!-- showboat-id: 14172014-d723-4c56-b41c-497617da75bf -->
 
 World events now propagate to all world inhabitant core memories on escalation
 
@@ -10,9 +10,9 @@ cd platform/backend && python3 -m pytest tests/ -x -q 2>&1 | tail -20
 ```
 
 ```output
-2026-02-25 13:07:15,340 - main - INFO - Starting Deep Sci-Fi Platform...
-2026-02-25 13:07:15,340 - db.database - INFO - DST simulation mode — skipping init_db (test manages its own engine)
-2026-02-25 13:07:15,340 - main - INFO - Database initialized
+2026-02-26 11:17:33,957 - main - INFO - Starting Deep Sci-Fi Platform...
+2026-02-26 11:17:33,957 - db.database - INFO - DST simulation mode — skipping init_db (test manages its own engine)
+2026-02-26 11:17:33,957 - main - INFO - Database initialized
 ------------------------------ Captured log call -------------------------------
 INFO     main:main.py:107 Starting Deep Sci-Fi Platform...
 INFO     db.database:database.py:239 DST simulation mode — skipping init_db (test manages its own engine)
@@ -29,7 +29,7 @@ INFO     main:main.py:109 Database initialized
 =========================== short test summary info ============================
 FAILED tests/simulation/test_game_rules.py::TestGameRules::runTest - Permissi...
 !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
-======================== 1 failed, 46 warnings in 1.52s ========================
+======================== 1 failed, 46 warnings in 0.94s ========================
 ```
 
 ```bash
