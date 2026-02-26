@@ -27,13 +27,12 @@ curl https://deepsci.fi/api/heartbeat -H "X-API-Key: YOUR_API_KEY"
 """
 
 from datetime import datetime, timedelta
-from utils.clock import now as utc_now
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from slowapi import Limiter
@@ -45,24 +44,41 @@ from db import (
     get_db, User, Notification, NotificationStatus, Proposal, ProposalStatus,
     Validation, World, Dweller, DwellerAction, Aspect, AspectStatus,
     AspectValidation, ReviewFeedback, FeedbackItem, FeedbackItemStatus,
+    WorldEvent, WorldEventPropagation,
 )
+from db.models import WorldEventOrigin, WorldEventStatus
 from .auth import get_current_user
 from utils.progression import build_completion_tracking, build_progression_prompts, build_pipeline_status
 from utils.nudge import build_nudge
 from utils.world_signals import build_world_signals
 from utils.errors import agent_error
+from utils.notifications import create_notification
+from utils.clock import now as utc_now
+from utils.activity import (
+    MAX_EXPECTED_CYCLE_HOURS,
+    MIN_EXPECTED_CYCLE_HOURS,
+    MAINTENANCE_REASON_VALUES,
+    get_activity_thresholds,
+    normalize_expected_cycle_hours,
+)
 
 router = APIRouter(prefix="/heartbeat", tags=["heartbeat"])
 
 limiter = Limiter(key_func=get_remote_address)
 
-# Activity thresholds
-ACTIVE_THRESHOLD_HOURS = 12
-WARNING_THRESHOLD_HOURS = 24
-DORMANT_THRESHOLD_DAYS = 7
-
 # Maximum active proposals per agent
 MAX_ACTIVE_PROPOSALS = 3
+ESCALATION_EXPIRY_DAYS = 7
+COMMUNITY_NOMINATION_LIMIT = 5
+
+WORLD_SCALE_HINTS = {
+    "world", "region", "city", "nation", "system", "council", "policy", "infrastructure",
+    "economy", "grid", "supply", "government", "alliance", "treaty", "faction",
+}
+PERSONAL_HINTS = {
+    "friend", "family", "argument", "confrontation", "apology", "conversation", "personal",
+    "one-on-one", "my", "me", "i ",
+}
 
 
 async def build_activity_digest(
@@ -257,62 +273,382 @@ async def build_suggested_actions(
     return actions
 
 
-def get_activity_status(last_heartbeat: datetime | None) -> dict[str, Any]:
-    """Calculate activity status based on last heartbeat."""
+def _action_theme(content: str) -> str:
+    text = content.lower()
+    if any(token in text for token in WORLD_SCALE_HINTS):
+        return "world_scale"
+    if any(token in text for token in PERSONAL_HINTS):
+        return "personal"
+    return "mixed"
+
+
+def _theme_pattern_message(
+    *,
+    actions: list[DwellerAction],
+    label: str,
+) -> str | None:
+    if not actions:
+        return None
+
+    counts = {"world_scale": 0, "personal": 0, "mixed": 0}
+    for action in actions:
+        counts[_action_theme(action.content or "")] += 1
+
+    theme = max(counts, key=counts.get)
+    descriptors = {
+        "world_scale": "mostly involved system-level or multi-entity consequences.",
+        "personal": "mostly focused on personal confrontations or interpersonal moments.",
+        "mixed": "blended personal and systemic consequences without a dominant pattern.",
+    }
+    return f"Your {len(actions)} {label} high-importance action(s) {descriptors[theme]}"
+
+
+async def expire_stale_escalation_actions(
+    db: AsyncSession,
+    *,
+    now: datetime,
+) -> int:
+    """Expire old escalation-eligible actions that were never escalated."""
+    expiry_cutoff = now - timedelta(days=ESCALATION_EXPIRY_DAYS)
+    status_filter = or_(
+        DwellerAction.escalation_status.is_(None),
+        DwellerAction.escalation_status.in_(["eligible", "nominated"]),
+    )
+    not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
+
+    result = await db.execute(
+        select(DwellerAction, Dweller.name, World.name)
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .join(World, Dweller.world_id == World.id)
+        .where(
+            DwellerAction.escalation_eligible.is_(True),
+            DwellerAction.created_at <= expiry_cutoff,
+            status_filter,
+            not_escalated,
+        )
+        .limit(200)
+    )
+    rows = result.all()
+    if not rows:
+        return 0
+
+    for action, dweller_name, world_name in rows:
+        action.escalation_status = "expired"
+        await create_notification(
+            db=db,
+            user_id=action.actor_id,
+            notification_type="action_escalation_expired",
+            target_type="action",
+            target_id=action.id,
+            data={
+                "action_type": action.action_type,
+                "content": action.content[:180],
+                "dweller_name": dweller_name,
+                "world_name": world_name,
+                "message": "Your high-importance action expired without escalation after 7 days.",
+            },
+        )
+
+    return len(rows)
+
+
+async def build_importance_calibration(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+) -> dict[str, Any]:
+    """Build feedback loop data for high-importance action calibration."""
+    recent_actions_result = await db.execute(
+        select(DwellerAction)
+        .where(
+            DwellerAction.actor_id == user_id,
+            DwellerAction.importance >= 0.8,
+        )
+        .order_by(DwellerAction.created_at.desc(), DwellerAction.id.desc())
+        .limit(20)
+    )
+    recent_actions = recent_actions_result.scalars().all()
+    if not recent_actions:
+        return {
+            "recent_high_importance_actions": 0,
+            "escalated": 0,
+            "not_escalated": 0,
+            "escalation_rate": 0.0,
+            "patterns": [],
+        }
+
+    action_ids = [action.id for action in recent_actions]
+    escalated_ids_result = await db.execute(
+        select(WorldEvent.origin_action_id)
+        .where(
+            WorldEvent.origin_action_id.in_(action_ids),
+            WorldEvent.origin_action_id.is_not(None),
+        )
+    )
+    escalated_ids = {
+        action_id for action_id in escalated_ids_result.scalars().all() if action_id is not None
+    }
+
+    escalated_actions: list[DwellerAction] = []
+    not_escalated_actions: list[DwellerAction] = []
+    for action in recent_actions:
+        status = action.escalation_status or "eligible"
+        if status == "accepted" or action.id in escalated_ids:
+            escalated_actions.append(action)
+        else:
+            not_escalated_actions.append(action)
+
+    total = len(recent_actions)
+    escalated_count = len(escalated_actions)
+    not_escalated_count = len(not_escalated_actions)
+    patterns = [
+        message
+        for message in (
+            _theme_pattern_message(actions=escalated_actions, label="escalated"),
+            _theme_pattern_message(actions=not_escalated_actions, label="non-escalated"),
+        )
+        if message
+    ]
+
+    return {
+        "recent_high_importance_actions": total,
+        "escalated": escalated_count,
+        "not_escalated": not_escalated_count,
+        "escalation_rate": round(escalated_count / total, 3) if total else 0.0,
+        "patterns": patterns,
+    }
+
+
+async def build_escalation_queue(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+) -> dict[str, Any]:
+    """Build nomination queue summary for heartbeat."""
+    not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
+
+    your_pending = await db.scalar(
+        select(func.count(DwellerAction.id))
+        .where(
+            DwellerAction.actor_id == user_id,
+            DwellerAction.escalation_status == "nominated",
+            not_escalated,
+        )
+    ) or 0
+
+    community_result = await db.execute(
+        select(DwellerAction, Dweller.name, World.name)
+        .join(Dweller, DwellerAction.dweller_id == Dweller.id)
+        .join(World, Dweller.world_id == World.id)
+        .where(
+            DwellerAction.actor_id != user_id,
+            DwellerAction.escalation_status == "nominated",
+            DwellerAction.escalation_eligible.is_(True),
+            not_escalated,
+        )
+        .order_by(
+            DwellerAction.nominated_at.desc().nullslast(),
+            DwellerAction.created_at.desc(),
+            DwellerAction.id.desc(),
+        )
+        .limit(COMMUNITY_NOMINATION_LIMIT)
+    )
+
+    community_nominations = []
+    for action, dweller_name, world_name in community_result.all():
+        nominated_at = action.nominated_at or action.created_at
+        community_nominations.append(
+            {
+                "action_id": str(action.id),
+                "dweller_name": dweller_name,
+                "world_name": world_name,
+                "summary": action.content[:200],
+                "importance": action.importance,
+                "nominated_at": nominated_at.isoformat(),
+            }
+        )
+
+    return {
+        "your_nominations_pending": int(your_pending),
+        "community_nominations": community_nominations,
+    }
+
+
+async def build_missed_world_events(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[dict[str, Any]]:
+    """Summarize escalated world events missing propagation for user's inhabited dwellers."""
+    missed_query = (
+        select(
+            Dweller.world_id,
+            World.name.label("world_name"),
+            func.count(func.distinct(WorldEvent.id)).label("event_count"),
+            func.max(WorldEvent.created_at).label("latest_event_at"),
+        )
+        .join(World, World.id == Dweller.world_id)
+        .join(
+            WorldEvent,
+            (WorldEvent.world_id == Dweller.world_id)
+            & (WorldEvent.origin_type == WorldEventOrigin.ESCALATION)
+            & (WorldEvent.status != WorldEventStatus.REJECTED),
+        )
+        .outerjoin(
+            WorldEventPropagation,
+            (WorldEventPropagation.world_event_id == WorldEvent.id)
+            & (WorldEventPropagation.dweller_id == Dweller.id),
+        )
+        .where(
+            Dweller.inhabited_by == user_id,
+            WorldEventPropagation.id.is_(None),
+        )
+        .group_by(Dweller.world_id, World.name)
+        .order_by(
+            func.max(WorldEvent.created_at).desc(),
+            Dweller.world_id.asc(),
+        )
+    )
+    missed_rows = (await db.execute(missed_query)).all()
+
+    return [
+        {
+            "world_id": str(row.world_id),
+            "world_name": row.world_name,
+            "event_count": int(row.event_count or 0),
+            "latest_event_at": row.latest_event_at.isoformat() if row.latest_event_at else utc_now().isoformat(),
+        }
+        for row in missed_rows
+    ]
+
+def _round_hour(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return round(value, 1)
+
+
+def _is_maintenance_active(maintenance_until: datetime | None, now: datetime) -> bool:
+    return bool(maintenance_until and maintenance_until > now)
+
+
+def _is_returning_from_maintenance(
+    *,
+    previous_heartbeat: datetime | None,
+    maintenance_until: datetime | None,
+    now: datetime,
+) -> bool:
+    if maintenance_until is None or maintenance_until > now:
+        return False
+    if previous_heartbeat is None:
+        return True
+    return previous_heartbeat <= maintenance_until
+
+
+def get_activity_status(
+    last_heartbeat: datetime | None,
+    *,
+    expected_cycle_hours: float | None,
+    maintenance_until: datetime | None = None,
+    maintenance_reason: str | None = None,
+    maintenance_mode: bool = False,
+    welcome_back: bool = False,
+) -> dict[str, Any]:
+    """Calculate activity status based on heartbeat recency and maintenance."""
     now = utc_now()
+    thresholds = get_activity_thresholds(expected_cycle_hours)
+    warning_threshold = thresholds["warning_threshold_hours"]
+    inactive_threshold = thresholds["inactive_threshold_hours"]
+    dormant_threshold = thresholds["dormant_threshold_hours"]
+    required_interval = thresholds["required_heartbeat_hours"]
+
+    if maintenance_mode:
+        hours_since = None
+        if last_heartbeat is not None:
+            hours_since = (now - last_heartbeat).total_seconds() / 3600
+        message = (
+            "Welcome back from maintenance. Your worlds kept moving while you were away."
+            if welcome_back
+            else "Maintenance mode active. Presence restrictions are paused."
+        )
+        return {
+            "status": "maintenance",
+            "message": message,
+            "hours_since_heartbeat": _round_hour(hours_since),
+            "hours_until_inactive": None,
+            "hours_until_dormant": None,
+            "next_required_by": maintenance_until.isoformat() if maintenance_until else None,
+            "maintenance_until": maintenance_until.isoformat() if maintenance_until else None,
+            "maintenance_reason": maintenance_reason,
+            "warning_threshold_hours": _round_hour(warning_threshold),
+            "inactive_threshold_hours": _round_hour(inactive_threshold),
+            "dormant_threshold_hours": _round_hour(dormant_threshold),
+        }
 
     if last_heartbeat is None:
         return {
             "status": "new",
             "message": "Welcome to the futures. Your first heartbeat echoes across every world.",
             "hours_since_heartbeat": None,
-            "hours_until_inactive": WARNING_THRESHOLD_HOURS,
-            "hours_until_dormant": DORMANT_THRESHOLD_DAYS * 24,
-            "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
+            "hours_until_inactive": _round_hour(inactive_threshold),
+            "hours_until_dormant": _round_hour(dormant_threshold),
+            "next_required_by": (now + timedelta(hours=required_interval)).isoformat(),
+            "warning_threshold_hours": _round_hour(warning_threshold),
+            "inactive_threshold_hours": _round_hour(inactive_threshold),
+            "dormant_threshold_hours": _round_hour(dormant_threshold),
         }
 
     hours_since = (now - last_heartbeat).total_seconds() / 3600
-    hours_until_inactive = max(0, WARNING_THRESHOLD_HOURS - hours_since)
-    hours_until_dormant = max(0, (DORMANT_THRESHOLD_DAYS * 24) - hours_since)
+    hours_until_inactive = max(0.0, inactive_threshold - hours_since)
+    hours_until_dormant = max(0.0, dormant_threshold - hours_since)
 
-    if hours_since <= ACTIVE_THRESHOLD_HOURS:
+    if hours_since <= warning_threshold:
         return {
             "status": "active",
             "message": "Your presence resonates across the worlds.",
-            "hours_since_heartbeat": round(hours_since, 1),
-            "hours_until_inactive": round(hours_until_inactive, 1),
-            "hours_until_dormant": round(hours_until_dormant, 1),
-            "next_required_by": (last_heartbeat + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
+            "hours_since_heartbeat": _round_hour(hours_since),
+            "hours_until_inactive": _round_hour(hours_until_inactive),
+            "hours_until_dormant": _round_hour(hours_until_dormant),
+            "next_required_by": (last_heartbeat + timedelta(hours=required_interval)).isoformat(),
+            "warning_threshold_hours": _round_hour(warning_threshold),
+            "inactive_threshold_hours": _round_hour(inactive_threshold),
+            "dormant_threshold_hours": _round_hour(dormant_threshold),
         }
-    elif hours_since <= WARNING_THRESHOLD_HOURS:
+    if hours_since <= inactive_threshold:
         return {
             "status": "warning",
             "message": "The worlds grow quiet without you. Your dwellers wait.",
-            "hours_since_heartbeat": round(hours_since, 1),
-            "hours_until_inactive": round(hours_until_inactive, 1),
-            "hours_until_dormant": round(hours_until_dormant, 1),
-            "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
+            "hours_since_heartbeat": _round_hour(hours_since),
+            "hours_until_inactive": _round_hour(hours_until_inactive),
+            "hours_until_dormant": _round_hour(hours_until_dormant),
+            "next_required_by": (now + timedelta(hours=required_interval)).isoformat(),
+            "warning_threshold_hours": _round_hour(warning_threshold),
+            "inactive_threshold_hours": _round_hour(inactive_threshold),
+            "dormant_threshold_hours": _round_hour(dormant_threshold),
         }
-    elif hours_since <= DORMANT_THRESHOLD_DAYS * 24:
+    if hours_since <= dormant_threshold:
         return {
             "status": "inactive",
             "message": "Your dwellers' memories are fading. Worlds move on without your voice.",
-            "hours_since_heartbeat": round(hours_since, 1),
+            "hours_since_heartbeat": _round_hour(hours_since),
             "hours_until_inactive": 0,
-            "hours_until_dormant": round(hours_until_dormant, 1),
+            "hours_until_dormant": _round_hour(hours_until_dormant),
             "restrictions": ["Cannot submit new proposals"],
-            "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
+            "next_required_by": (now + timedelta(hours=required_interval)).isoformat(),
+            "warning_threshold_hours": _round_hour(warning_threshold),
+            "inactive_threshold_hours": _round_hour(inactive_threshold),
+            "dormant_threshold_hours": _round_hour(dormant_threshold),
         }
-    else:
-        return {
-            "status": "dormant",
-            "message": "You've been gone so long the worlds have forgotten you. Return.",
-            "hours_since_heartbeat": round(hours_since, 1),
-            "hours_until_inactive": 0,
-            "hours_until_dormant": 0,
-            "restrictions": ["Cannot submit new proposals", "Profile hidden from active lists"],
-            "next_required_by": (now + timedelta(hours=ACTIVE_THRESHOLD_HOURS)).isoformat(),
-        }
+    return {
+        "status": "dormant",
+        "message": "You've been gone so long the worlds have forgotten you. Return.",
+        "hours_since_heartbeat": _round_hour(hours_since),
+        "hours_until_inactive": 0,
+        "hours_until_dormant": 0,
+        "restrictions": ["Cannot submit new proposals", "Profile hidden from active lists"],
+        "next_required_by": (now + timedelta(hours=required_interval)).isoformat(),
+        "warning_threshold_hours": _round_hour(warning_threshold),
+        "inactive_threshold_hours": _round_hour(inactive_threshold),
+        "dormant_threshold_hours": _round_hour(dormant_threshold),
+    }
 
 
 @router.get("", responses={200: {"model": HeartbeatResponse}})
@@ -347,13 +683,35 @@ async def heartbeat(
     """
     now = utc_now()
     previous_heartbeat = current_user.last_heartbeat_at
+    maintenance_until = current_user.maintenance_until
+    maintenance_reason = current_user.maintenance_reason
+    maintenance_active = _is_maintenance_active(maintenance_until, now)
+    welcome_back = _is_returning_from_maintenance(
+        previous_heartbeat=previous_heartbeat,
+        maintenance_until=maintenance_until,
+        now=now,
+    )
+    maintenance_mode = maintenance_active or welcome_back
+    if welcome_back:
+        current_user.maintenance_until = None
+        current_user.maintenance_reason = None
 
     # Update heartbeat timestamp
     current_user.last_heartbeat_at = now
     current_user.last_active_at = now
 
     # Get activity status (based on PREVIOUS heartbeat, before we updated it)
-    activity_status = get_activity_status(previous_heartbeat)
+    activity_status = get_activity_status(
+        previous_heartbeat,
+        expected_cycle_hours=current_user.expected_cycle_hours,
+        maintenance_until=maintenance_until,
+        maintenance_reason=maintenance_reason,
+        maintenance_mode=maintenance_mode,
+        welcome_back=welcome_back,
+    )
+
+    # Expire stale escalation-eligible actions and create notifications.
+    await expire_stale_escalation_actions(db, now=now)
 
     # Get pending notifications
     notif_query = (
@@ -533,6 +891,9 @@ async def heartbeat(
     pbs_result = await db.execute(proposals_by_status_query)
     proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
 
+    importance_calibration = await build_importance_calibration(db, user_id=current_user.id)
+    escalation_queue = await build_escalation_queue(db, user_id=current_user.id)
+
     await db.commit()
 
     # Check for skill update
@@ -549,6 +910,11 @@ async def heartbeat(
         skill_update["message"] = f"Skill documentation updated from {agent_skill_version} to {SKILL_VERSION}. Re-fetch GET /skill.md to get the latest capabilities and guidelines."
     elif not agent_skill_version:
         skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
+
+    missed_world_events = await build_missed_world_events(
+        db=db,
+        user_id=current_user.id,
+    )
 
     response = {
         "heartbeat": "received",
@@ -575,10 +941,17 @@ async def heartbeat(
             "note": "These proposals need validators. Consider reviewing some!" if proposals_awaiting_validation > 0 else "No proposals currently need validation.",
             "validate_endpoint": "/api/proposals?status=validating",
         },
+        "importance_calibration": importance_calibration,
+        "escalation_queue": escalation_queue,
         "next_heartbeat": {
-            "recommended_interval": "4-12 hours",
+            "recommended_interval": (
+                f"{get_activity_thresholds(current_user.expected_cycle_hours)['required_heartbeat_hours']:g} hours"
+                if current_user.expected_cycle_hours is not None
+                else "4-12 hours"
+            ),
             "required_by": activity_status.get("next_required_by"),
         },
+        "missed_world_events": missed_world_events,
         "progression_prompts": progression_prompts,
         "completion": completion,
     }
@@ -589,12 +962,103 @@ async def heartbeat(
     if callback_warning:
         response["callback_warning"] = callback_warning
 
+    if welcome_back:
+        response["welcome_back"] = True
+        response["welcome_back_summary"] = activity_digest["summary"]
+
     return response
 
 
-# ============================================================================
-# POST Heartbeat - Extended Heartbeat with Embedded Action
-# ============================================================================
+# =====================================================================# POST Heartbeat - Extended Heartbeat with Embedded Action
+# =====================================================================
+
+MaintenanceReason = Literal[
+    "rate_limit_cooldown",
+    "planned_pause",
+    "maintenance",
+    "cost_management",
+]
+
+
+class MaintenanceModeRequest(BaseModel):
+    """Request body for POST /api/heartbeat/maintenance."""
+    maintenance_until: datetime = Field(
+        ...,
+        description="End of the maintenance window (UTC ISO timestamp).",
+    )
+    reason: MaintenanceReason = Field(
+        ...,
+        description="Operational reason for temporary absence.",
+    )
+    expected_cycle_hours: float | None = Field(
+        None,
+        ge=MIN_EXPECTED_CYCLE_HOURS,
+        le=MAX_EXPECTED_CYCLE_HOURS,
+        description="Optional cycle update applied with this maintenance declaration.",
+    )
+
+
+@router.post("/maintenance", responses={200: {"description": "Maintenance mode confirmation"}})
+@limiter.limit("10/minute")
+async def set_maintenance_mode(
+    body: MaintenanceModeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Declare planned absence and pause inactivity restrictions until a deadline."""
+    now = utc_now()
+    if body.maintenance_until <= now:
+        raise HTTPException(
+            status_code=400,
+            detail=agent_error(
+                error="maintenance_until must be in the future",
+                how_to_fix="Provide a UTC timestamp after the current time.",
+                maintenance_until=body.maintenance_until.isoformat(),
+                now=now.isoformat(),
+            ),
+        )
+
+    if body.reason not in MAINTENANCE_REASON_VALUES:
+        raise HTTPException(
+            status_code=400,
+            detail=agent_error(
+                error="Invalid maintenance reason",
+                how_to_fix="Use one of: rate_limit_cooldown, planned_pause, maintenance, cost_management.",
+                reason=body.reason,
+            ),
+        )
+
+    current_user.maintenance_until = body.maintenance_until
+    current_user.maintenance_reason = body.reason
+
+    if body.expected_cycle_hours is not None:
+        current_user.expected_cycle_hours = normalize_expected_cycle_hours(
+            body.expected_cycle_hours
+        )
+
+    inhabited_query = select(Dweller).where(Dweller.inhabited_by == current_user.id)
+    inhabited_result = await db.execute(inhabited_query)
+    inhabited_dwellers = inhabited_result.scalars().all()
+
+    extended_count = 0
+    for dweller in inhabited_dwellers:
+        if dweller.inhabited_until is None or dweller.inhabited_until < body.maintenance_until:
+            dweller.inhabited_until = body.maintenance_until
+            extended_count += 1
+
+    await db.commit()
+
+    thresholds = get_activity_thresholds(current_user.expected_cycle_hours)
+    return {
+        "maintenance_mode": "scheduled",
+        "maintenance_until": body.maintenance_until.isoformat(),
+        "reason": body.reason,
+        "expected_cycle_hours": current_user.expected_cycle_hours,
+        "required_heartbeat_hours": thresholds["required_heartbeat_hours"],
+        "leases_extended": extended_count,
+        "message": "Maintenance mode enabled. Inactivity restrictions are paused until maintenance_until.",
+    }
 
 
 class HeartbeatActionRequest(BaseModel):
@@ -611,6 +1075,12 @@ class HeartbeatActionRequest(BaseModel):
 
 class PostHeartbeatRequest(BaseModel):
     """Request body for POST /api/heartbeat."""
+    expected_cycle_hours: float | None = Field(
+        None,
+        ge=MIN_EXPECTED_CYCLE_HOURS,
+        le=MAX_EXPECTED_CYCLE_HOURS,
+        description="Expected heartbeat cycle in hours (used to scale activity thresholds).",
+    )
     dweller_id: UUID | None = Field(
         None,
         description="Dweller to get context for. If provided, returns delta and context."
@@ -656,13 +1126,41 @@ async def post_heartbeat(
 
     now = utc_now()
     previous_heartbeat = current_user.last_heartbeat_at
+    maintenance_until = current_user.maintenance_until
+    maintenance_reason = current_user.maintenance_reason
+    maintenance_active = _is_maintenance_active(maintenance_until, now)
+    welcome_back = _is_returning_from_maintenance(
+        previous_heartbeat=previous_heartbeat,
+        maintenance_until=maintenance_until,
+        now=now,
+    )
+    maintenance_mode = maintenance_active or welcome_back
+
+    if request_body.expected_cycle_hours is not None:
+        current_user.expected_cycle_hours = normalize_expected_cycle_hours(
+            request_body.expected_cycle_hours
+        )
+
+    if welcome_back:
+        current_user.maintenance_until = None
+        current_user.maintenance_reason = None
 
     # Update heartbeat timestamp
     current_user.last_heartbeat_at = now
     current_user.last_active_at = now
 
     # Get activity status
-    activity_status = get_activity_status(previous_heartbeat)
+    activity_status = get_activity_status(
+        previous_heartbeat,
+        expected_cycle_hours=current_user.expected_cycle_hours,
+        maintenance_until=maintenance_until,
+        maintenance_reason=maintenance_reason,
+        maintenance_mode=maintenance_mode,
+        welcome_back=welcome_back,
+    )
+
+    # Expire stale escalation-eligible actions and create notifications.
+    await expire_stale_escalation_actions(db, now=now)
 
     # Get pending notifications
     notif_query = (
@@ -823,6 +1321,8 @@ async def post_heartbeat(
     )
     pbs_result = await db.execute(proposals_by_status_query)
     proposals_by_status = {row[0].value: row[1] for row in pbs_result.all()}
+    importance_calibration = await build_importance_calibration(db, user_id=current_user.id)
+    escalation_queue = await build_escalation_queue(db, user_id=current_user.id)
 
     # Check for skill update
     from main import SKILL_VERSION
@@ -838,6 +1338,11 @@ async def post_heartbeat(
         skill_update["message"] = f"Skill documentation updated from {agent_skill_version} to {SKILL_VERSION}. Re-fetch GET /skill.md to get the latest capabilities and guidelines."
     elif not agent_skill_version:
         skill_update["message"] = f"Send X-Skill-Version header with your cached version to get update alerts."
+
+    missed_world_events = await build_missed_world_events(
+        db=db,
+        user_id=current_user.id,
+    )
 
     # Build base response (same as GET)
     response = {
@@ -865,10 +1370,17 @@ async def post_heartbeat(
             "note": "These proposals need validators. Consider reviewing some!" if proposals_awaiting_validation > 0 else "No proposals currently need validation.",
             "validate_endpoint": "/api/proposals?status=validating",
         },
+        "importance_calibration": importance_calibration,
+        "escalation_queue": escalation_queue,
         "next_heartbeat": {
-            "recommended_interval": "4-12 hours",
+            "recommended_interval": (
+                f"{get_activity_thresholds(current_user.expected_cycle_hours)['required_heartbeat_hours']:g} hours"
+                if current_user.expected_cycle_hours is not None
+                else "4-12 hours"
+            ),
             "required_by": activity_status.get("next_required_by"),
         },
+        "missed_world_events": missed_world_events,
         "progression_prompts": progression_prompts,
         "completion": completion,
     }
@@ -878,6 +1390,10 @@ async def post_heartbeat(
 
     if callback_warning:
         response["callback_warning"] = callback_warning
+
+    if welcome_back:
+        response["welcome_back"] = True
+        response["welcome_back_summary"] = activity_digest["summary"]
 
     # NEW: Add world signals
     world_signals = await build_world_signals(db, current_user.id)

@@ -8,9 +8,15 @@ Tests the flow:
 4. Escalated events appear in world timeline
 """
 
+import asyncio
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID as UUIDType
+
+from db import Dweller, WorldEventPropagation
 from tests.conftest import approve_proposal, act_with_context
 
 
@@ -94,6 +100,28 @@ async def create_world_with_dweller(client: AsyncClient, agent_key: str) -> tupl
     assert claim_response.status_code == 200, f"Claim failed: {claim_response.json()}"
 
     return world_id, dweller_id
+
+
+async def wait_for_propagation_count(
+    db_session: AsyncSession,
+    event_id: str,
+    expected: int,
+    timeout_seconds: float = 2.0,
+) -> int:
+    """Poll propagation table until expected row count is reached or timeout expires."""
+    deadline = asyncio.get_running_loop().time() + timeout_seconds
+    last_seen = 0
+    while asyncio.get_running_loop().time() < deadline:
+        result = await db_session.execute(
+            select(func.count(WorldEventPropagation.id)).where(
+                WorldEventPropagation.world_event_id == UUIDType(event_id)
+            )
+        )
+        last_seen = result.scalar() or 0
+        if last_seen >= expected:
+            return last_seen
+        await asyncio.sleep(0.05)
+    return last_seen
 
 
 @pytest.mark.asyncio
@@ -286,6 +314,315 @@ async def test_escalate_confirmed_action_to_world_event(client: AsyncClient):
     assert events_response.status_code == 200
     events = events_response.json()["events"]
     assert any(e["id"] == event_id for e in events)
+
+
+@pytest.mark.asyncio
+async def test_escalation_propagates_world_fact_to_all_world_dwellers(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Escalation triggers background propagation into every dweller's core memories."""
+    agent1 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Propagation Agent A", "username": "propagation-agent-a"},
+    )
+    agent1_key = agent1.json()["api_key"]["key"]
+
+    agent2 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Propagation Agent B", "username": "propagation-agent-b"},
+    )
+    agent2_key = agent2.json()["api_key"]["key"]
+
+    world_id, dweller1_id = await create_world_with_dweller(client, agent1_key)
+
+    dweller2_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/dwellers",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "name": "Propagation Witness",
+            "origin_region": "Test Region",
+            "generation": "Second-generation",
+            "name_context": "Named according to inherited test naming conventions in this region.",
+            "cultural_identity": "Propagation witness identity with rooted local cultural ties.",
+            "role": "Transit coordinator",
+            "age": 34,
+            "personality": "Careful and methodical personality description with enough detail to satisfy minimum length constraints.",
+            "background": "Background includes years of coordination work and long-term residency details sufficient for validation.",
+        },
+    )
+    assert dweller2_response.status_code == 200, f"Dweller creation failed: {dweller2_response.json()}"
+    dweller2_id = dweller2_response.json()["dweller"]["id"]
+
+    action_response = await act_with_context(
+        client,
+        dweller1_id,
+        agent1_key,
+        action_type="decide",
+        content="I formally establish a cross-region emergency governance council.",
+        importance=0.92,
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    confirm_response = await client.post(
+        f"/api/actions/{action_id}/confirm-importance",
+        headers={"X-API-Key": agent2_key},
+        json={"rationale": "This changes governance structures and should become world canon."},
+    )
+    assert confirm_response.status_code == 200, f"Confirm failed: {confirm_response.json()}"
+
+    escalate_response = await client.post(
+        f"/api/actions/{action_id}/escalate",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "title": "Emergency Governance Council Established",
+            "description": (
+                "A formal emergency governance council was established to coordinate policy and "
+                "resource decisions across all inhabited sectors in the region."
+            ),
+            "year_in_world": 2089,
+            "affected_regions": ["Test Region"],
+        },
+    )
+    assert escalate_response.status_code == 200, f"Escalation failed: {escalate_response.json()}"
+    event_id = escalate_response.json()["event"]["id"]
+
+    propagated_rows = await wait_for_propagation_count(
+        db_session=db_session,
+        event_id=event_id,
+        expected=2,
+    )
+    assert propagated_rows == 2
+
+    dweller1 = await db_session.get(Dweller, UUIDType(dweller1_id))
+    dweller2 = await db_session.get(Dweller, UUIDType(dweller2_id))
+    assert dweller1 is not None
+    assert dweller2 is not None
+
+    assert any(
+        memory.startswith("World fact: Emergency Governance Council Established")
+        for memory in (dweller1.core_memories or [])
+    )
+    assert any(
+        memory.startswith("World fact: Emergency Governance Council Established")
+        for memory in (dweller2.core_memories or [])
+    )
+
+
+@pytest.mark.asyncio
+async def test_act_context_returns_world_facts_with_presence_flag(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Context response includes propagated world_facts with accurate presence signal."""
+    agent1 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Context Agent A", "username": "context-agent-a"},
+    )
+    agent1_key = agent1.json()["api_key"]["key"]
+
+    agent2 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Context Agent B", "username": "context-agent-b"},
+    )
+    agent2_key = agent2.json()["api_key"]["key"]
+
+    world_id, dweller1_id = await create_world_with_dweller(client, agent1_key)
+
+    dweller2_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/dwellers",
+        headers={"X-API-Key": agent2_key},
+        json={
+            "name": "Context Witness",
+            "origin_region": "Test Region",
+            "generation": "Second-generation",
+            "name_context": "This name follows the localized naming evolution established in Test Region.",
+            "cultural_identity": "Embedded in the local civic culture and regional speech traditions.",
+            "role": "Data archivist",
+            "age": 29,
+            "personality": "Analytical and calm personality description with enough detail to satisfy required validation length.",
+            "background": "Long-form background covering education, migration, and archival duties in enough detail for validation.",
+        },
+    )
+    assert dweller2_response.status_code == 200, f"Dweller creation failed: {dweller2_response.json()}"
+    dweller2_id = dweller2_response.json()["dweller"]["id"]
+
+    claim_response = await client.post(
+        f"/api/dwellers/{dweller2_id}/claim",
+        headers={"X-API-Key": agent2_key},
+    )
+    assert claim_response.status_code == 200, f"Claim failed: {claim_response.json()}"
+
+    action_response = await act_with_context(
+        client,
+        dweller1_id,
+        agent1_key,
+        action_type="decide",
+        content="I authorize a world-level infrastructure treaty that binds all districts.",
+        importance=0.91,
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    confirm_response = await client.post(
+        f"/api/actions/{action_id}/confirm-importance",
+        headers={"X-API-Key": agent2_key},
+        json={"rationale": "This is a material shift in world governance and should be escalated."},
+    )
+    assert confirm_response.status_code == 200, f"Confirm failed: {confirm_response.json()}"
+
+    escalate_response = await client.post(
+        f"/api/actions/{action_id}/escalate",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "title": "Infrastructure Treaty Ratified",
+            "description": (
+                "A binding infrastructure treaty was ratified across all districts, creating a shared "
+                "coordination mechanism for resource planning and emergency logistics."
+            ),
+            "year_in_world": 2089,
+            "affected_regions": ["Test Region"],
+        },
+    )
+    assert escalate_response.status_code == 200, f"Escalation failed: {escalate_response.json()}"
+    event_id = escalate_response.json()["event"]["id"]
+
+    propagated_rows = await wait_for_propagation_count(
+        db_session=db_session,
+        event_id=event_id,
+        expected=2,
+    )
+    assert propagated_rows == 2
+
+    actor_fact = None
+    witness_fact = None
+    for _ in range(20):
+        actor_context = await client.post(
+            f"/api/dwellers/{dweller1_id}/act/context",
+            headers={"X-API-Key": agent1_key},
+        )
+        witness_context = await client.post(
+            f"/api/dwellers/{dweller2_id}/act/context",
+            headers={"X-API-Key": agent2_key},
+        )
+        assert actor_context.status_code == 200
+        assert witness_context.status_code == 200
+
+        actor_facts = actor_context.json().get("world_facts", [])
+        witness_facts = witness_context.json().get("world_facts", [])
+
+        actor_fact = next((f for f in actor_facts if f["world_event_id"] == event_id), None)
+        witness_fact = next((f for f in witness_facts if f["world_event_id"] == event_id), None)
+        if actor_fact and witness_fact:
+            break
+        await asyncio.sleep(0.05)
+
+    assert actor_fact is not None
+    assert witness_fact is not None
+    assert actor_fact["you_were_present"] is True
+    assert witness_fact["you_were_present"] is False
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_surfaces_missed_world_events_for_late_dweller(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Heartbeat includes missed_world_events for dwellers created after escalation."""
+    agent1 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Heartbeat Agent A", "username": "heartbeat-agent-a"},
+    )
+    agent1_key = agent1.json()["api_key"]["key"]
+
+    agent2 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Heartbeat Agent B", "username": "heartbeat-agent-b"},
+    )
+    agent2_key = agent2.json()["api_key"]["key"]
+
+    agent3 = await client.post(
+        "/api/auth/agent",
+        json={"name": "Heartbeat Agent C", "username": "heartbeat-agent-c"},
+    )
+    agent3_key = agent3.json()["api_key"]["key"]
+
+    world_id, dweller1_id = await create_world_with_dweller(client, agent1_key)
+
+    action_response = await act_with_context(
+        client,
+        dweller1_id,
+        agent1_key,
+        action_type="decide",
+        content="I publish a permanent inter-district coordination charter effective immediately.",
+        importance=0.9,
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    confirm_response = await client.post(
+        f"/api/actions/{action_id}/confirm-importance",
+        headers={"X-API-Key": agent2_key},
+        json={"rationale": "This is clearly world-shaping and should be escalated."},
+    )
+    assert confirm_response.status_code == 200, f"Confirm failed: {confirm_response.json()}"
+
+    escalate_response = await client.post(
+        f"/api/actions/{action_id}/escalate",
+        headers={"X-API-Key": agent1_key},
+        json={
+            "title": "Inter-District Charter Published",
+            "description": (
+                "A permanent charter established inter-district coordination rules for governance, "
+                "resource handling, and emergency response obligations."
+            ),
+            "year_in_world": 2089,
+            "affected_regions": ["Test Region"],
+        },
+    )
+    assert escalate_response.status_code == 200, f"Escalation failed: {escalate_response.json()}"
+    event_id = escalate_response.json()["event"]["id"]
+
+    propagated_rows = await wait_for_propagation_count(
+        db_session=db_session,
+        event_id=event_id,
+        expected=1,
+    )
+    assert propagated_rows == 1
+
+    late_dweller_response = await client.post(
+        f"/api/dwellers/worlds/{world_id}/dwellers",
+        headers={"X-API-Key": agent3_key},
+        json={
+            "name": "Late Arrival",
+            "origin_region": "Test Region",
+            "generation": "Third-generation",
+            "name_context": "This name reflects contemporary naming drift in Test Region's third generation.",
+            "cultural_identity": "Culturally rooted in current urban district identity and blended social practices.",
+            "role": "Logistics monitor",
+            "age": 27,
+            "personality": "Pragmatic and observant personality profile with enough detail to satisfy validation limits.",
+            "background": "Detailed personal history includes training, migration, and logistics service across districts.",
+        },
+    )
+    assert late_dweller_response.status_code == 200, f"Dweller creation failed: {late_dweller_response.json()}"
+    late_dweller_id = late_dweller_response.json()["dweller"]["id"]
+
+    claim_response = await client.post(
+        f"/api/dwellers/{late_dweller_id}/claim",
+        headers={"X-API-Key": agent3_key},
+    )
+    assert claim_response.status_code == 200, f"Claim failed: {claim_response.json()}"
+
+    heartbeat_response = await client.get(
+        "/api/heartbeat",
+        headers={"X-API-Key": agent3_key},
+    )
+    assert heartbeat_response.status_code == 200, f"Heartbeat failed: {heartbeat_response.json()}"
+    missed_world_events = heartbeat_response.json().get("missed_world_events", [])
+    assert isinstance(missed_world_events, list)
+
+    world_entry = next((entry for entry in missed_world_events if entry["world_id"] == world_id), None)
+    assert world_entry is not None
+    assert world_entry["event_count"] >= 1
 
 
 @pytest.mark.asyncio
@@ -565,3 +902,83 @@ async def test_confirmation_rationale_is_stored(client: AsyncClient):
     detail_data = detail_response.json()
     assert "importance_confirmed" in detail_data["action"]
     assert detail_data["action"]["importance_confirmed"]["rationale"] == expected_rationale
+
+
+@pytest.mark.asyncio
+async def test_nominate_action_sets_status_and_increments_count(client: AsyncClient):
+    """Nominating an eligible action sets escalation_status=nominated and increments counter."""
+    agent_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Owner", "username": "nominate-owner"},
+    )
+    assert agent_response.status_code == 200
+    agent_key = agent_response.json()["api_key"]["key"]
+
+    _, dweller_id = await create_world_with_dweller(client, agent_key)
+    action_response = await act_with_context(
+        client,
+        dweller_id,
+        agent_key,
+        action_type="decide",
+        content="I authorize a world-scale treaty revision for all districts.",
+        importance=0.9,
+    )
+    assert action_response.status_code == 200, action_response.json()
+    action_id = action_response.json()["action"]["id"]
+
+    first_nomination = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": agent_key},
+    )
+    assert first_nomination.status_code == 200, first_nomination.json()
+    data = first_nomination.json()
+    assert data["escalation_status"] == "nominated"
+    assert data["nomination_count"] == 1
+    assert data["nominated_at"] is not None
+
+    second_nomination = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": agent_key},
+    )
+    assert second_nomination.status_code == 200, second_nomination.json()
+    assert second_nomination.json()["nomination_count"] == 2
+
+    detail_response = await client.get(f"/api/actions/{action_id}")
+    assert detail_response.status_code == 200, detail_response.json()
+    detail = detail_response.json()["action"]
+    assert detail["escalation_status"] == "nominated"
+    assert detail["nomination_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_cannot_nominate_other_agents_action(client: AsyncClient):
+    """Only action owner can nominate their action."""
+    owner_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Owner 2", "username": "nominate-owner-2"},
+    )
+    owner_key = owner_response.json()["api_key"]["key"]
+
+    other_response = await client.post(
+        "/api/auth/agent",
+        json={"name": "Nominate Other", "username": "nominate-other"},
+    )
+    other_key = other_response.json()["api_key"]["key"]
+
+    _, dweller_id = await create_world_with_dweller(client, owner_key)
+    action_response = await act_with_context(
+        client,
+        dweller_id,
+        owner_key,
+        action_type="decide",
+        content="I enact a citywide emergency protocol with global implications.",
+        importance=0.88,
+    )
+    action_id = action_response.json()["action"]["id"]
+
+    nominate_response = await client.post(
+        f"/api/actions/{action_id}/nominate",
+        headers={"X-API-Key": other_key},
+    )
+    assert nominate_response.status_code == 403
+    assert "own actions" in nominate_response.json()["detail"].lower()

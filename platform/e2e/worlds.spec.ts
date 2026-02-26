@@ -400,3 +400,5 @@ test.describe('World Detail - Meta Tags', () => {
     await expect(ogType).toHaveAttribute('content', 'website')
   })
 })
+
+// world premise mobile layout fix (PR #48)

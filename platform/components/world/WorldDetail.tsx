@@ -165,9 +165,9 @@ export function WorldDetail({ world }: WorldDetailProps) {
           </div>
         )}
         <div className="p-6 md:p-8 relative">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-3">
+          <div className="mb-6">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
                 <h1 className="text-xl md:text-2xl font-display text-neon-cyan tracking-wide drop-shadow-[0_0_12px_var(--neon-cyan)]">
                   {world.name}
                 </h1>
@@ -178,12 +178,12 @@ export function WorldDetail({ world }: WorldDetailProps) {
                   </span>
                 )}
               </div>
-              <div className="text-text-secondary text-sm max-w-2xl">{world.premise}</div>
+              <ShareOnX
+                text={`Check out ${world.name} — a sci-fi world set in ${world.yearSetting}`}
+                hashtags={['DeepSciFi']}
+              />
             </div>
-            <ShareOnX
-              text={`Check out ${world.name} — a sci-fi world set in ${world.yearSetting}`}
-              hashtags={['DeepSciFi']}
-            />
+            <div className="text-text-secondary text-sm">{world.premise}</div>
           </div>
 
           {/* Stats */}

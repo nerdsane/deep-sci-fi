@@ -129,6 +129,17 @@ class ConversationThread(BaseModel):
     your_turn: bool = False
 
 
+class OpenThread(BaseModel):
+    partner: str
+    partner_dweller_id: str | None = None
+    unanswered_count: int = 0
+    oldest_unanswered_action_id: str | None = None
+    oldest_unanswered_at: str | None = None
+    unanswered_since_hours: float = 0.0
+    urgency: str = "high"
+    message: str
+
+
 class RegionActivityEntry(BaseModel):
     action_id: str
     dweller_name: str
@@ -136,6 +147,31 @@ class RegionActivityEntry(BaseModel):
     target: str | None = None
     content: str
     created_at: str
+
+
+class OpenThreadEntry(BaseModel):
+    arc_type: str
+    summary: str
+    urgency: str
+    partner: str | None = None
+    last_action_at: str | None = None
+    is_awaiting_your_response: bool = False
+    open_for_hours: float = 0.0
+    action_ids: list[str] = []
+
+
+class ContextConstraintEntry(BaseModel):
+    type: str
+    message: str
+    urgency: str
+    partner: str | None = None
+
+
+class WorldFactEntry(BaseModel):
+    world_event_id: str
+    fact: str
+    established_at: str
+    you_were_present: bool = False
 
 
 # ============================================================================
@@ -300,7 +336,10 @@ class ActionContextResponse(BaseModel):
     delta: dict[str, Any] | None = None
     world_canon: WorldCanon
     persona: PersonaBlock
+    open_threads: list[OpenThreadEntry] = []
+    constraints: list[ContextConstraintEntry] = []
     memory: MemoryBlock
+    world_facts: list[WorldFactEntry] = []
     conversations: list[ConversationThread] = []
     recent_region_activity: list[RegionActivityEntry] = []
     location: LocationBlock
@@ -314,6 +353,9 @@ class ActionInfo(BaseModel):
     target: str | None = None
     content: str
     importance: float
+    escalation_status: str = "eligible"
+    nominated_at: str | None = None
+    nomination_count: int = 0
     created_at: str
 
 
@@ -333,6 +375,13 @@ class NotificationInfo(BaseModel):
     message: str
 
 
+class ActionWarning(BaseModel):
+    type: str
+    message: str
+    partner: str | None = None
+    unanswered_since_hours: float | None = None
+
+
 class NudgeBlock(BaseModel, extra="allow"):
     pass
 
@@ -345,6 +394,7 @@ class TakeActionResponse(BaseModel):
     escalation: EscalationInfo | None = None
     new_location: NewLocationInfo | None = None
     notification: NotificationInfo | None = None
+    warnings: list[ActionWarning] | None = None
     nudge: dict[str, Any] | None = None
     guidance: GuidanceBlock | None = None
     confirmation_status: str | None = None

@@ -105,6 +105,22 @@ class ActionRulesMixin:
 
 
     @rule()
+    def nominate_action(self):
+        """Actor nominates their own high-importance action for escalation review (PROP-046)."""
+        for aid, ar in self.state.actions.items():
+            if ar.importance >= 0.8 and not ar.escalated:
+                actor = self.state.agents.get(ar.actor_id)
+                if not actor:
+                    continue
+                resp = self.client.post(
+                    f"/api/actions/{aid}/nominate",
+                    headers=self._headers(actor),
+                )
+                self._track_response(resp, f"nominate action {aid}")
+                # Could be 200 (success), 400 (not eligible/already escalated), 403 (not owner)
+                return
+
+    @rule()
     def submit_action_direct(self):
         """Submit a dweller action via POST /api/actions with idempotency key (PROP-043)."""
         for dweller_id, ds in self.state.dwellers.items():

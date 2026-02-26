@@ -89,6 +89,23 @@ async def _publish_guidance(client: AsyncClient, api_key: str, version: str) -> 
     return response.json()["guidance"]
 
 
+async def _guidance_analytics(client: AsyncClient, api_key: str, version: str) -> dict:
+    """Fetch guidance analytics with temporary admin-key override for tests."""
+    original_admin_key = auth_module.ADMIN_API_KEY
+    auth_module.ADMIN_API_KEY = api_key
+    try:
+        response = await client.get(
+            "/api/admin/guidance/story-writing/analytics",
+            headers={"X-API-Key": api_key},
+            params={"version": version},
+        )
+    finally:
+        auth_module.ADMIN_API_KEY = original_admin_key
+
+    assert response.status_code == 200, response.json()
+    return response.json()
+
+
 def _story_payload(world_id: str, title: str) -> dict:
     return {
         "world_id": world_id,
@@ -122,6 +139,23 @@ class TestStoryWritingGuidance:
         ).scalars().all()
         assert len(rows) == 1
         assert rows[0].version == "2026-02-24-001"
+
+    @pytest.mark.asyncio
+    async def test_get_active_guidance_available_to_authenticated_agent(
+        self, client: AsyncClient, test_agent: dict
+    ) -> None:
+        """Any authenticated agent can read current active guidance."""
+        expected_version = "2026-02-24-001-readable"
+        await _publish_guidance(client, test_agent["api_key"], expected_version)
+
+        response = await client.get(
+            "/api/admin/guidance/story-writing",
+            headers={"X-API-Key": test_agent["api_key"]},
+        )
+        assert response.status_code == 200, response.json()
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["guidance"]["version"] == expected_version
 
     @pytest.mark.asyncio
     async def test_create_story_without_token_returns_428_with_guidance_and_token(
@@ -298,3 +332,73 @@ class TestStoryWritingGuidance:
         assert detail["error"] == "Guidance updated, request a new token"
         assert detail["guidance"]["version"] == "2026-02-24-008"
         assert "token" in detail
+
+    @pytest.mark.asyncio
+    async def test_review_creates_guidance_signal_and_admin_analytics(
+        self, client: AsyncClient, test_agent: dict
+    ) -> None:
+        """Story review writes compliance signal and analytics aggregates it."""
+        guidance_version = "2026-02-24-009"
+        await _publish_guidance(client, test_agent["api_key"], guidance_version)
+        world_id = await _create_world(client, test_agent["api_key"])
+
+        token_response = await client.post(
+            "/api/stories",
+            headers={"X-API-Key": test_agent["api_key"]},
+            json=_story_payload(world_id, "Guidance Analytics Story"),
+        )
+        assert token_response.status_code == 428
+        token = token_response.json()["detail"]["token"]
+
+        create_response = await client.post(
+            "/api/stories",
+            headers={
+                "X-API-Key": test_agent["api_key"],
+                "X-Guidance-Token": token,
+            },
+            json=_story_payload(world_id, "Guidance Analytics Story"),
+        )
+        assert create_response.status_code == 200, create_response.json()
+        story_id = create_response.json()["story"]["id"]
+
+        reviewer_response = await client.post(
+            "/api/auth/agent",
+            json={"name": "Guidance Reviewer", "username": "guidance-reviewer"},
+        )
+        assert reviewer_response.status_code == 200, reviewer_response.json()
+        reviewer_key = reviewer_response.json()["api_key"]["key"]
+
+        review_response = await client.post(
+            f"/api/stories/{story_id}/review",
+            headers={"X-API-Key": reviewer_key},
+            json={
+                "recommend_acclaim": True,
+                "improvements": ["Reduce meta-commentary in the ending paragraph."],
+                "canon_notes": "Strong world grounding and clear timeline consistency.",
+                "event_notes": "Events align well and avoid conceptual drift.",
+                "style_notes": "Pacing is clear, but meta framing appears near the ending.",
+                "canon_issues": [],
+                "event_issues": [],
+                "style_issues": ["Meta framing weakens the final beat."],
+            },
+        )
+        assert review_response.status_code == 200, review_response.json()
+
+        analytics = await _guidance_analytics(client, test_agent["api_key"], guidance_version)
+        assert analytics["version"] == guidance_version
+        assert analytics["stories_written"] >= 1
+        assert analytics["reviewed_count"] >= 1
+        assert analytics["review_count"] >= 1
+        assert analytics["avg_review_score"] > 0.0
+        assert isinstance(analytics["rule_compliance_signals"], list)
+        assert any(signal["rule_id"] == "meta" for signal in analytics["rule_compliance_signals"])
+
+        history_response = await client.get(
+            f"/api/stories?author_id={test_agent['user']['id']}",
+            headers={"X-API-Key": test_agent["api_key"]},
+        )
+        assert history_response.status_code == 200, history_response.json()
+        stories = history_response.json()["stories"]
+        matching = [story for story in stories if story["id"] == story_id]
+        assert matching, "Expected created story in author history"
+        assert matching[0].get("guidance_signal"), "Expected guidance_signal for reviewed guided story"

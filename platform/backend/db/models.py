@@ -111,6 +111,9 @@ class User(Base):
     )
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_reason: Mapped[str | None] = mapped_column(String(100))
+    expected_cycle_hours: Mapped[float | None] = mapped_column(Float)
 
     # Relationships
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
@@ -699,6 +702,19 @@ class DwellerAction(Base):
     # Importance and escalation
     importance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
     escalation_eligible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    escalation_status: Mapped[str] = mapped_column(
+        String(50),
+        default="eligible",
+        server_default=text("'eligible'"),
+        nullable=False,
+    )
+    nominated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    nomination_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default=text("0"),
+        nullable=False,
+    )
     importance_confirmed_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platform_users.id")
     )
@@ -725,6 +741,7 @@ class DwellerAction(Base):
         Index("action_created_at_idx", "created_at"),
         Index("action_type_idx", "action_type"),
         Index("action_escalation_eligible_idx", "escalation_eligible"),
+        Index("action_escalation_status_idx", "escalation_status"),
         Index("action_reply_to_idx", "in_reply_to_action_id"),
     )
 
@@ -1137,6 +1154,42 @@ class WorldEvent(Base):
     )
 
 
+class WorldEventPropagation(Base):
+    """Tracks propagation of world events into dweller core memories."""
+
+    __tablename__ = "platform_world_event_propagations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    world_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_world_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dweller_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dwellers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    propagated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # Relationships
+    world_event: Mapped["WorldEvent"] = relationship("WorldEvent")
+    dweller: Mapped["Dweller"] = relationship("Dweller")
+
+    __table_args__ = (
+        UniqueConstraint("world_event_id", "dweller_id", name="world_event_prop_event_dweller_key"),
+        Index("world_event_prop_event_idx", "world_event_id"),
+        Index("world_event_prop_dweller_idx", "dweller_id"),
+        Index("world_event_prop_propagated_at_idx", "propagated_at"),
+    )
+
+
 class DwellerProposal(Base):
     """Proposed dwellers submitted for validation.
 
@@ -1376,6 +1429,9 @@ class Story(Base):
     reviews: Mapped[list["StoryReview"]] = relationship(
         "StoryReview", back_populates="story", cascade="all, delete-orphan"
     )
+    guidance_compliance_signals: Mapped[list["GuidanceComplianceSignal"]] = relationship(
+        "GuidanceComplianceSignal", back_populates="story", cascade="all, delete-orphan"
+    )
     external_feedback: Mapped[list["ExternalFeedback"]] = relationship(
         "ExternalFeedback", back_populates="story", cascade="all, delete-orphan"
     )
@@ -1434,6 +1490,48 @@ class GuidanceToken(Base):
         Index("guidance_tokens_guidance_version_idx", "guidance_version"),
         Index("guidance_tokens_expires_at_idx", "expires_at"),
         Index("guidance_tokens_consumed_idx", "consumed"),
+    )
+
+
+class GuidanceComplianceSignal(Base):
+    """Links story reviews to guidance versions with compliance analytics payloads."""
+
+    __tablename__ = "platform_guidance_compliance_signals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_stories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    guidance_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    review_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_story_reviews.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    signal_data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    story: Mapped["Story"] = relationship("Story", back_populates="guidance_compliance_signals")
+    review: Mapped["StoryReview | None"] = relationship(
+        "StoryReview", back_populates="guidance_compliance_signals"
+    )
+
+    __table_args__ = (
+        Index("guidance_signal_story_idx", "story_id"),
+        Index("guidance_signal_version_idx", "guidance_version"),
+        Index("guidance_signal_review_idx", "review_id"),
+        Index("guidance_signal_created_at_idx", "created_at"),
     )
 
 
@@ -1497,6 +1595,9 @@ class StoryReview(Base):
     # Relationships
     story: Mapped["Story"] = relationship("Story", back_populates="reviews")
     reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id])
+    guidance_compliance_signals: Mapped[list["GuidanceComplianceSignal"]] = relationship(
+        "GuidanceComplianceSignal", back_populates="review"
+    )
 
     __table_args__ = (
         Index("story_review_story_idx", "story_id"),

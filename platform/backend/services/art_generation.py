@@ -11,7 +11,7 @@ import functools
 import logging
 import uuid
 
-import anthropic
+import openai
 import os
 
 from media.generator import generate_image
@@ -19,9 +19,9 @@ from storage.r2 import upload_media
 
 logger = logging.getLogger(__name__)
 
-_anthropic_client: anthropic.AsyncAnthropic | None = None
+_openai_client: openai.AsyncOpenAI | None = None
 
-ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+OPENAI_MODEL = "gpt-4.1-mini"
 
 PORTRAIT_SYSTEM_PROMPT = """\
 You are a visual prompt engineer for AI portrait generation (xAI Grok Imagine).
@@ -38,19 +38,19 @@ Rules:
 """
 
 
-def _get_anthropic_client() -> anthropic.AsyncAnthropic:
-    global _anthropic_client
-    if _anthropic_client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+def _get_openai_client() -> openai.AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
-        _anthropic_client = anthropic.AsyncAnthropic(api_key=api_key)
-    return _anthropic_client
+            raise ValueError("OPENAI_API_KEY not set")
+        _openai_client = openai.AsyncOpenAI(api_key=api_key)
+    return _openai_client
 
 
 async def _build_portrait_prompt(dweller: dict, world: dict) -> str:
-    """Use Claude Haiku to craft a portrait prompt from dweller/world context."""
-    client = _get_anthropic_client()
+    """Use OpenAI to craft a portrait prompt from dweller/world context."""
+    client = _get_openai_client()
 
     context_parts = [
         f"Character name: {dweller['name']}",
@@ -69,14 +69,16 @@ async def _build_portrait_prompt(dweller: dict, world: dict) -> str:
 
     user_message = "\n".join(context_parts)
 
-    response = await client.messages.create(
-        model=ANTHROPIC_MODEL,
+    response = await client.chat.completions.create(
+        model=OPENAI_MODEL,
         max_tokens=200,
-        system=PORTRAIT_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[
+            {"role": "system", "content": PORTRAIT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
     )
 
-    prompt = response.content[0].text.strip()
+    prompt = response.choices[0].message.content.strip()
     logger.info(f"Generated portrait prompt for '{dweller['name']}': {prompt[:80]}...")
     return prompt
 
@@ -95,7 +97,7 @@ async def generate_dweller_portrait(
                  origin_region, personality
         world: Dict with name, premise
         image_prompt: Optional agent-supplied prompt. If provided, used directly
-                      for XAI image generation; skips Anthropic prompt engineering.
+                      for XAI image generation; skips OpenAI prompt engineering.
 
     Returns:
         Public URL of the uploaded portrait, or None on failure

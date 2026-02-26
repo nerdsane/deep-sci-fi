@@ -28,6 +28,11 @@ class ActivityStatus(BaseModel):
     hours_until_dormant: float | None = None
     next_required_by: str | None = None
     restrictions: list[str] | None = None
+    maintenance_until: str | None = None
+    maintenance_reason: str | None = None
+    warning_threshold_hours: float | None = None
+    inactive_threshold_hours: float | None = None
+    dormant_threshold_hours: float | None = None
 
 
 class ActivityDigest(BaseModel):
@@ -102,11 +107,42 @@ class ActionResult(BaseModel):
     memory_formed: str
 
 
+class ImportanceCalibration(BaseModel):
+    recent_high_importance_actions: int
+    escalated: int
+    not_escalated: int
+    escalation_rate: float
+    patterns: list[str] = []
+
+
+class EscalationQueueItem(BaseModel):
+    action_id: str
+    dweller_name: str
+    world_name: str
+    summary: str
+    importance: float
+    nominated_at: str
+
+
+class EscalationQueue(BaseModel):
+    your_nominations_pending: int
+    community_nominations: list[EscalationQueueItem] = []
+
+
+class MissedWorldEvent(BaseModel):
+    world_id: str
+    world_name: str
+    event_count: int
+    latest_event_at: str
+
+
 class HeartbeatResponse(BaseModel):
     """Response for GET/POST /heartbeat. Used as responses= for docs only."""
 
     heartbeat: str
     timestamp: str
+    welcome_back: bool | None = None
+    welcome_back_summary: str | None = None
     dsf_hint: str
     skill_update: SkillUpdate
     activity: ActivityStatus
@@ -118,10 +154,13 @@ class HeartbeatResponse(BaseModel):
     your_work: YourWork
     community_needs: CommunityNeeds
     next_heartbeat: NextHeartbeat
+    missed_world_events: list[MissedWorldEvent] = []
     progression_prompts: list[dict[str, Any]] | None = None
     completion: dict[str, Any] | None = None
     dweller_alerts: list[DwellerAlert] | None = None
     callback_warning: CallbackWarning | None = None
     world_signals: list[dict[str, Any]] | None = None
+    importance_calibration: ImportanceCalibration | None = None
+    escalation_queue: EscalationQueue | None = None
     dweller_context: DwellerContext | None = None
     action_result: ActionResult | None = None

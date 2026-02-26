@@ -13,11 +13,13 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, exists
+from sqlalchemy import exists, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from utils.deterministic import deterministic_uuid4
 from db import (
     get_db,
     User,
@@ -25,6 +27,7 @@ from db import (
     Dweller,
     World,
     WorldEvent,
+    WorldEventPropagation,
     ActionCompositionQueue,
     IdempotencyKey,
 )
@@ -46,8 +49,8 @@ from schemas.actions import (
     ConfirmImportanceResponse,
     EscalateToEventResponse,
     ListEscalationEligibleResponse,
+    NominateActionResponse,
 )
-
 
 async def get_escalated_event(db: AsyncSession, action_id: UUID) -> WorldEvent | None:
     """Get the WorldEvent that was created from escalating this action."""
@@ -61,6 +64,22 @@ async def is_action_escalated(db: AsyncSession, action_id: UUID) -> bool:
     query = select(exists().where(WorldEvent.origin_action_id == action_id))
     result = await db.execute(query)
     return result.scalar()
+
+
+def _normalized_escalation_status(action: DwellerAction) -> str:
+    """Normalize nullable legacy statuses to the default workflow state."""
+    return action.escalation_status or "eligible"
+
+
+def _format_world_event_core_memory(event: WorldEvent) -> str:
+    """Format a concise world fact string for core memory storage."""
+    description = " ".join((event.description or "").split())
+    if len(description) > 240:
+        description = f"{description[:237].rstrip()}..."
+    if description:
+        return f"World fact: {event.title} ({event.year_in_world}). {description}"
+    return f"World fact: {event.title} ({event.year_in_world})."
+
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
@@ -161,7 +180,7 @@ def _validate_idempotency_key(value: str) -> None:
 # ============================================================================
 
 
-@router.post("/compose")
+@router.post("/compose", responses={200: {"description": "Queued action composition result"}})
 async def compose_action(
     request: ActionSubmitRequest,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
@@ -274,7 +293,7 @@ async def compose_action(
     }
 
 
-@router.post("")
+@router.post("", responses={200: {"description": "Submitted action result"}})
 async def submit_action(
     request: ActionSubmitRequest,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
@@ -429,6 +448,9 @@ async def get_action(
             "content": action.content,
             "importance": action.importance,
             "escalation_eligible": action.escalation_eligible,
+            "escalation_status": _normalized_escalation_status(action),
+            "nominated_at": action.nominated_at.isoformat() if action.nominated_at else None,
+            "nomination_count": action.nomination_count or 0,
             "created_at": action.created_at.isoformat(),
         },
     }
@@ -486,6 +508,18 @@ async def confirm_importance(
                    f"Importance must be >= 0.8 (was {action.importance})."
         )
 
+    status = _normalized_escalation_status(action)
+    if status in {"rejected", "expired"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This action cannot be confirmed because escalation_status is '{status}'.",
+        )
+    if status == "accepted":
+        raise HTTPException(
+            status_code=400,
+            detail="This action has already been escalated and accepted.",
+        )
+
     if action.importance_confirmed_by:
         raise HTTPException(
             status_code=400,
@@ -531,6 +565,7 @@ async def confirm_importance(
             "id": str(action.id),
             "importance": action.importance,
             "escalation_eligible": True,
+            "escalation_status": _normalized_escalation_status(action),
             "importance_confirmed": True,
         },
         "confirmed_by": current_user.name,
@@ -567,6 +602,18 @@ async def escalate_to_event(
         raise HTTPException(
             status_code=400,
             detail="This action is not eligible for escalation."
+        )
+
+    status = _normalized_escalation_status(action)
+    if status in {"rejected", "expired"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This action cannot be escalated because escalation_status is '{status}'.",
+        )
+    if status == "accepted":
+        raise HTTPException(
+            status_code=400,
+            detail="This action has already been escalated to a world event.",
         )
 
     if not action.importance_confirmed_by:
@@ -626,6 +673,7 @@ async def escalate_to_event(
     )
     db.add(event)
     await db.flush()
+    action.escalation_status = "accepted"
 
     # Note: The action-to-event link is stored via WorldEvent.origin_action_id
 
@@ -648,6 +696,36 @@ async def escalate_to_event(
                 "dweller_name": dweller.name,
             },
         )
+
+    # Propagate world event to all dwellers' core memories inline (same transaction)
+    dwellers_result = await db.execute(
+        select(Dweller)
+        .where(Dweller.world_id == event.world_id)
+        .order_by(Dweller.created_at.asc(), Dweller.id.asc())
+    )
+    propagation_dwellers = dwellers_result.scalars().all()
+    fact_text = _format_world_event_core_memory(event)
+    propagated_at = utc_now()
+
+    for dw in propagation_dwellers:
+        propagation_stmt = (
+            pg_insert(WorldEventPropagation.__table__)
+            .values(
+                id=deterministic_uuid4(),
+                world_event_id=event.id,
+                dweller_id=dw.id,
+                propagated_at=propagated_at,
+            )
+            .on_conflict_do_nothing(index_elements=["world_event_id", "dweller_id"])
+            .returning(WorldEventPropagation.id)
+        )
+        inserted_id = (await db.execute(propagation_stmt)).scalar_one_or_none()
+        if inserted_id is None:
+            continue
+        core_memories = list(dw.core_memories or [])
+        if fact_text not in core_memories:
+            core_memories.append(fact_text)
+            dw.core_memories = core_memories
 
     await db.commit()
     await db.refresh(event)
@@ -672,6 +750,72 @@ async def escalate_to_event(
     }
 
 
+@router.post("/{action_id}/nominate", response_model=NominateActionResponse)
+async def nominate_action_for_escalation(
+    action_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Nominate your own escalation-eligible action for community escalation review."""
+    query = (
+        select(DwellerAction)
+        .options(selectinload(DwellerAction.dweller))
+        .where(DwellerAction.id == action_id)
+    )
+    result = await db.execute(query)
+    action = result.scalar_one_or_none()
+
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    if action.actor_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only nominate your own actions for escalation review.",
+        )
+
+    if not action.escalation_eligible:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This action is not eligible for nomination. "
+                "Importance must be >= 0.8."
+            ),
+        )
+
+    status = _normalized_escalation_status(action)
+    if status == "accepted":
+        raise HTTPException(
+            status_code=400,
+            detail="This action is already accepted and escalated.",
+        )
+    if status in {"rejected", "expired"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This action cannot be nominated because escalation_status is '{status}'.",
+        )
+
+    action.nomination_count = (action.nomination_count or 0) + 1
+    action.nominated_at = utc_now()
+    action.escalation_status = "nominated"
+
+    await db.commit()
+
+    if status == "eligible":
+        message = "Action nominated for escalation review."
+    else:
+        message = "Action nomination refreshed and prioritized for escalation review."
+
+    return {
+        "success": True,
+        "action_id": str(action.id),
+        "escalation_status": action.escalation_status,
+        "nomination_count": action.nomination_count,
+        "nominated_at": action.nominated_at.isoformat(),
+        "message": message,
+    }
+
+
 @router.get("/worlds/{world_id}/escalation-eligible", response_model=ListEscalationEligibleResponse)
 async def list_escalation_eligible_actions(
     world_id: UUID,
@@ -692,6 +836,10 @@ async def list_escalation_eligible_actions(
 
     # Subquery to find actions that have NOT been escalated
     not_escalated = ~exists().where(WorldEvent.origin_action_id == DwellerAction.id)
+    active_status = or_(
+        DwellerAction.escalation_status.is_(None),
+        DwellerAction.escalation_status.in_(["eligible", "nominated"]),
+    )
 
     # Base query for filtering
     base_query = (
@@ -701,6 +849,7 @@ async def list_escalation_eligible_actions(
             Dweller.world_id == world_id,
             DwellerAction.escalation_eligible == True,
             not_escalated,  # Not yet escalated
+            active_status,
         )
     )
 
@@ -741,6 +890,9 @@ async def list_escalation_eligible_actions(
                 "content": a.content[:200],
                 "importance": a.importance,
                 "importance_confirmed": a.importance_confirmed_by is not None,
+                "escalation_status": _normalized_escalation_status(a),
+                "nominated_at": a.nominated_at.isoformat() if a.nominated_at else None,
+                "nomination_count": a.nomination_count or 0,
                 "confirmed_by": a.confirmer.name if a.confirmer else None,
                 "created_at": a.created_at.isoformat(),
                 "confirm_url": f"/api/actions/{a.id}/confirm-importance" if not a.importance_confirmed_by else None,
