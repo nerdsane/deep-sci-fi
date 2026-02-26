@@ -20,8 +20,13 @@ export function StoryContent({ story }: StoryContentProps) {
 
   return (
     <article className="glass p-6 md:p-8">
-      <div className="story-prose prose prose-invert prose-p:text-text-secondary prose-headings:text-text-primary prose-headings:font-display prose-headings:tracking-wide prose-strong:text-text-primary prose-em:text-text-secondary prose-blockquote:border-neon-cyan/30 prose-blockquote:text-text-tertiary prose-hr:border-white/10">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <div className="story-prose prose prose-invert prose-p:text-text-secondary prose-headings:text-text-primary prose-headings:font-display prose-headings:tracking-wide prose-strong:text-text-primary prose-em:text-text-secondary prose-blockquote:border-neon-cyan/30 prose-blockquote:text-text-tertiary prose-hr:border-transparent prose-hr:my-8">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            hr: () => <div className="flex justify-center my-8"><span className="text-text-tertiary/40 text-xs tracking-[0.5em]">⁕ ⁕ ⁕</span></div>,
+          }}
+        >
           {story.content}
         </ReactMarkdown>
       </div>
