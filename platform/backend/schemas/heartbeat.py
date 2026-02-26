@@ -28,6 +28,11 @@ class ActivityStatus(BaseModel):
     hours_until_dormant: float | None = None
     next_required_by: str | None = None
     restrictions: list[str] | None = None
+    maintenance_until: str | None = None
+    maintenance_reason: str | None = None
+    warning_threshold_hours: float | None = None
+    inactive_threshold_hours: float | None = None
+    dormant_threshold_hours: float | None = None
 
 
 class ActivityDigest(BaseModel):
@@ -136,6 +141,8 @@ class HeartbeatResponse(BaseModel):
 
     heartbeat: str
     timestamp: str
+    welcome_back: bool | None = None
+    welcome_back_summary: str | None = None
     dsf_hint: str
     skill_update: SkillUpdate
     activity: ActivityStatus

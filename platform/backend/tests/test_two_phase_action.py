@@ -4,7 +4,7 @@ Tests:
 1. POST /act without context_token → 400
 2. POST /act/context returns a context_token
 3. Replaced context token → 400
-4. B speaks to A, A speaks to B without in_reply_to → 400
+4. B speaks to A, A speaks to B without in_reply_to → 202 + warning (grace window)
 5. B speaks to A, A replies with in_reply_to → 200
 6. Context endpoint returns threaded conversations
 7. Context endpoint returns open_threads + reply-required constraints
@@ -12,12 +12,15 @@ Tests:
 """
 
 import os
-from uuid import uuid4
+from datetime import timedelta
+from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from db import DwellerAction
 from tests.conftest import (
     SAMPLE_CAUSAL_CHAIN,
     SAMPLE_DWELLER,
@@ -26,6 +29,7 @@ from tests.conftest import (
     get_context_token,
     act_with_context,
 )
+from utils.clock import now as utc_now
 
 
 requires_postgres = pytest.mark.skipif(
@@ -228,7 +232,7 @@ class TestTwoPhaseAction:
     async def test_speak_requires_reply_to(
         self, client: AsyncClient, two_dwellers: dict
     ) -> None:
-        """B speaks to A, A speaks to B without in_reply_to → 400."""
+        """B speaks to A, A speaks to B without in_reply_to → 202 warning."""
         d = two_dwellers
 
         # B speaks to A
@@ -240,18 +244,55 @@ class TestTwoPhaseAction:
         )
         assert resp.status_code == 200, f"B speak to A failed: {resp.json()}"
 
-        # A tries to speak to B without in_reply_to → should fail
-        # because A has unanswered speaks from B
+        # A speaks without in_reply_to during grace period.
         resp = await act_with_context(
             client, d["dweller_a_id"], d["key_a"],
             action_type="speak",
             content="Hey Beta, I wanted to tell you something new.",
             target=d["dweller_b_name"],
         )
-        assert resp.status_code == 400, (
-            f"Expected 400 for missing in_reply_to, got {resp.status_code}: {resp.json()}"
+        assert resp.status_code == 202, (
+            f"Expected 202 reply_pending warning, got {resp.status_code}: {resp.json()}"
         )
-        assert "in_reply_to" in str(resp.json()).lower()
+        data = resp.json()
+        assert "warnings" in data
+        assert data["warnings"][0]["type"] == "reply_pending"
+        assert data["warnings"][0]["partner"] == d["dweller_b_name"]
+
+    @pytest.mark.asyncio
+    async def test_speak_without_reply_hard_blocks_after_grace(
+        self, client: AsyncClient, db_session: AsyncSession, two_dwellers: dict
+    ) -> None:
+        """Unanswered speak older than grace window hard-blocks with 403."""
+        d = two_dwellers
+
+        # B speaks to A
+        resp = await act_with_context(
+            client, d["dweller_b_id"], d["key_b"],
+            action_type="speak",
+            content="Alpha, please reply when you can.",
+            target=d["dweller_a_name"],
+        )
+        assert resp.status_code == 200, f"B speak to A failed: {resp.json()}"
+        b_action_id = UUID(resp.json()["action"]["id"])
+
+        # Age the unanswered message past grace (48h).
+        action = await db_session.get(DwellerAction, b_action_id)
+        assert action is not None
+        action.created_at = utc_now() - timedelta(hours=49)
+        await db_session.commit()
+
+        # A speaks without in_reply_to → should now hard-block.
+        resp = await act_with_context(
+            client, d["dweller_a_id"], d["key_a"],
+            action_type="speak",
+            content="I am skipping the reply despite overdue thread.",
+            target=d["dweller_b_name"],
+        )
+        assert resp.status_code == 403, resp.json()
+        detail = resp.json()["detail"]
+        assert detail["context"]["grace_period_hours"] == 48.0
+        assert detail["context"]["unanswered_since_hours"] >= 49.0
 
     @pytest.mark.asyncio
     async def test_speak_with_reply_to_succeeds(
@@ -308,6 +349,7 @@ class TestTwoPhaseAction:
 
         # Should have conversations
         assert "conversations" in data
+        assert "open_threads" in data
         conversations = data["conversations"]
         assert len(conversations) >= 1
 
@@ -320,6 +362,16 @@ class TestTwoPhaseAction:
             f"No conversation with {d['dweller_b_name']} found in: {conversations}"
         )
         assert len(b_conv.get("thread", [])) >= 1
+        assert b_conv.get("your_turn") is True
+
+        open_threads = data["open_threads"]
+        assert len(open_threads) >= 1
+        b_open_thread = next(
+            (t for t in open_threads if t.get("partner") == d["dweller_b_name"]),
+            None,
+        )
+        assert b_open_thread is not None
+        assert b_open_thread["urgency"] in {"high", "medium"}
 
     @pytest.mark.asyncio
     async def test_context_surfaces_open_threads_and_reply_constraints(

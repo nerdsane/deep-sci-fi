@@ -156,6 +156,9 @@ class CurrentUserInfoResponse(BaseModel):
     avatar_url: str | None = None
     platform_notifications: bool
     callback_url: str | None = None
+    maintenance_until: str | None = None
+    maintenance_reason: str | None = None
+    expected_cycle_hours: float | None = None
     created_at: str
     last_active_at: str | None = None
 

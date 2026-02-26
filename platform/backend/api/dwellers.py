@@ -41,6 +41,7 @@ from uuid import UUID
 from utils.deterministic import deterministic_uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import IntegrityError, DataError
@@ -109,6 +110,11 @@ router = APIRouter(prefix="/dwellers", tags=["dwellers"])
 SESSION_TIMEOUT_HOURS = 24
 SESSION_WARNING_HOURS = 20
 REPLY_GRACE_HOURS = float(os.getenv("DSF_REPLY_GRACE_HOURS", "12"))
+
+try:
+    REPLY_URGENCY_GRACE_HOURS = max(1.0, float(os.getenv("DSF_REPLY_GRACE_HOURS", "48")))
+except ValueError:
+    REPLY_URGENCY_GRACE_HOURS = 48.0
 
 # Keep strong references to fire-and-forget tasks so they're not GC'd before completion
 _background_tasks: set = set()
@@ -458,7 +464,7 @@ class DwellerActionRequest(BaseModel):
     )
     in_reply_to_action_id: UUID | None = Field(
         None,
-        description="For speak actions targeting another dweller: action_id you're replying to. REQUIRED if any prior conversation exists with this target. Check the context endpoint for conversation history and action IDs."
+        description="For speak actions targeting another dweller: action_id you're replying to. Strongly recommended when open_threads exist; after the reply grace window, this becomes required."
     )
 
 
@@ -1352,8 +1358,7 @@ async def get_action_context(
 
     CONVERSATIONS:
     If you have unanswered speaks from other dwellers, they appear in the
-    conversations array. You MUST reply (using in_reply_to_action_id) before
-    speaking to that dweller about something new.
+    conversations array and open_threads list with urgency metadata.
     """
     from utils.clock import now as utc_now
     from datetime import timedelta
@@ -1382,10 +1387,12 @@ async def get_action_context(
             )
         )
 
+    context_now = utc_now()
+
     # Generate context token
     context_token = deterministic_uuid4()
     dweller.last_context_token = context_token
-    dweller.last_context_at = utc_now()
+    dweller.last_context_at = context_now
 
     # Build world canon (reuse from get_dweller_state)
     region = next(
@@ -1432,7 +1439,7 @@ async def get_action_context(
     other_dwellers = other_dwellers_result.scalars().all()
 
     # Build conversation threads
-    seven_days_ago = utc_now() - timedelta(days=7)
+    seven_days_ago = context_now - timedelta(days=7)
     speak_actions_query = (
         select(DwellerAction)
         .options(selectinload(DwellerAction.dweller))
@@ -1461,6 +1468,7 @@ async def get_action_context(
 
     # Group by conversation partner
     conversations_map: dict[str, dict] = {}
+    open_threads_map: dict[str, dict[str, Any]] = {}
     for action in speak_actions:
         if action.dweller_id == dweller_id:
             # This dweller spoke to someone
@@ -1502,8 +1510,44 @@ async def get_action_context(
         if awaiting:
             conversations_map[partner_key]["unanswered_count"] += 1
             conversations_map[partner_key]["your_turn"] = True
+            if partner_key not in open_threads_map:
+                open_threads_map[partner_key] = {
+                    "partner": conversations_map[partner_key]["with_dweller"],
+                    "partner_dweller_id": conversations_map[partner_key]["dweller_id"],
+                    "unanswered_count": 0,
+                    "oldest_unanswered_action_id": None,
+                    "oldest_unanswered_at": None,
+                }
+            open_threads_map[partner_key]["unanswered_count"] += 1
+            oldest_at = open_threads_map[partner_key]["oldest_unanswered_at"]
+            if oldest_at is None or action.created_at < oldest_at:
+                open_threads_map[partner_key]["oldest_unanswered_action_id"] = str(action.id)
+                open_threads_map[partner_key]["oldest_unanswered_at"] = action.created_at
 
     conversations = list(conversations_map.values())
+    open_threads = []
+    for thread_data in open_threads_map.values():
+        oldest_unanswered_at = thread_data["oldest_unanswered_at"]
+        if oldest_unanswered_at is None:
+            continue
+        unanswered_since_hours = max(
+            0.0,
+            round((context_now - oldest_unanswered_at).total_seconds() / 3600, 1),
+        )
+        open_threads.append({
+            "partner": thread_data["partner"],
+            "partner_dweller_id": thread_data["partner_dweller_id"],
+            "unanswered_count": thread_data["unanswered_count"],
+            "oldest_unanswered_action_id": thread_data["oldest_unanswered_action_id"],
+            "oldest_unanswered_at": oldest_unanswered_at.isoformat(),
+            "unanswered_since_hours": unanswered_since_hours,
+            "urgency": "high",
+            "message": (
+                f"{thread_data['partner']} has {thread_data['unanswered_count']} unanswered "
+                f"message(s) to you ({unanswered_since_hours}h pending)."
+            ),
+        })
+    open_threads.sort(key=lambda t: t["unanswered_since_hours"], reverse=True)
 
     # If target specified, filter/highlight that conversation
     if request and request.target:
@@ -1671,7 +1715,12 @@ async def get_action_context(
     }
 
 
-@router.post("/{dweller_id}/act", response_model=TakeActionResponse, response_model_exclude_none=True)
+@router.post(
+    "/{dweller_id}/act",
+    response_model=TakeActionResponse,
+    response_model_exclude_none=True,
+    responses={202: {"model": TakeActionResponse}},
+)
 async def take_action(
     dweller_id: UUID,
     request: DwellerActionRequest,
@@ -1703,7 +1752,8 @@ async def take_action(
     SPEAK ACTIONS:
     - Target dweller is notified if they're inhabited
     - Creates notification they can check with GET /dwellers/{id}/pending
-    - If the target has unanswered speaks to you, in_reply_to_action_id is REQUIRED
+    - If the target has unanswered speaks, you'll get a reply_pending warning
+      during a grace window. After grace expires, hard block (403) applies.
 
     IMPORTANCE:
     Rate each action 0.0-1.0. High-importance actions (>=0.8) become
@@ -1807,6 +1857,7 @@ async def take_action(
 
     # Validate speak target exists BEFORE creating the action
     target_dweller = None
+    reply_pending_warning: dict[str, Any] | None = None
     if request.action_type == "speak" and request.target:
         target_name_lower = request.target.lower()
         target_dweller_query = (
@@ -1862,14 +1913,41 @@ async def take_action(
         unanswered_speaks = unanswered_result.scalars().all()
 
         if unanswered_speaks and not request.in_reply_to_action_id:
-            raise HTTPException(
-                status_code=400,
-                detail=agent_error(
-                    error=f"{target_dweller.name} has {len(unanswered_speaks)} unanswered speak(s) to you. You must reply to one.",
-                    how_to_fix="Include in_reply_to_action_id in your request. Check conversations in the context endpoint response.",
-                    unanswered_action_ids=[str(a.id) for a in unanswered_speaks],
-                )
+            oldest_unanswered = unanswered_speaks[0]
+            unanswered_since_hours = max(
+                0.0,
+                round((utc_now() - oldest_unanswered.created_at).total_seconds() / 3600, 1),
             )
+            if unanswered_since_hours > REPLY_URGENCY_GRACE_HOURS:
+                raise HTTPException(
+                    status_code=403,
+                    detail=agent_error(
+                        error=(
+                            f"{target_dweller.name} has unanswered speaks older than "
+                            f"{REPLY_URGENCY_GRACE_HOURS:g}h. Reply required before new speak."
+                        ),
+                        how_to_fix=(
+                            "Include in_reply_to_action_id for one of the unanswered actions "
+                            "from this dweller. Use POST /api/dwellers/{dweller_id}/act/context "
+                            "to inspect open_threads."
+                        ),
+                        unanswered_action_ids=[str(a.id) for a in unanswered_speaks],
+                        oldest_unanswered_action_id=str(oldest_unanswered.id),
+                        unanswered_since_hours=unanswered_since_hours,
+                        grace_period_hours=REPLY_URGENCY_GRACE_HOURS,
+                    ),
+                )
+
+            reply_pending_warning = {
+                "type": "reply_pending",
+                "message": (
+                    f"You spoke to {target_dweller.name} without replying to their "
+                    f"message from {unanswered_since_hours}h ago. Consider replying "
+                    "to maintain narrative coherence."
+                ),
+                "partner": target_dweller.name,
+                "unanswered_since_hours": unanswered_since_hours,
+            }
 
         # Even if no unanswered speaks, if there's any prior conversation between
         # these two dwellers, in_reply_to_action_id should be set to maintain threading
@@ -2104,17 +2182,22 @@ async def take_action(
             "target_notified": notification_sent,
             "message": "Target dweller notified." if notification_sent else "Target dweller not found or not inhabited.",
         }
+        if reply_pending_warning:
+            response["warnings"] = [reply_pending_warning]
 
     # Add lightweight nudge to action response
     nudge = await build_nudge(db, current_user.id, lightweight=True)
     response["nudge"] = nudge
 
-    return make_guidance_response(
+    guided_response = make_guidance_response(
         data=response,
         checklist=DWELLER_ACT_CHECKLIST,
         philosophy=DWELLER_ACT_PHILOSOPHY,
         timeout=TIMEOUT_MEDIUM_IMPACT,
     )
+    if reply_pending_warning:
+        return JSONResponse(status_code=202, content=guided_response)
+    return guided_response
 
 
 @router.get("/worlds/{world_id}/activity", response_model=WorldActivityResponse)

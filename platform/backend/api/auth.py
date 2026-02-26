@@ -680,6 +680,9 @@ async def get_current_user_info(
         "avatar_url": current_user.avatar_url,
         "platform_notifications": current_user.platform_notifications,
         "callback_url": current_user.callback_url,
+        "maintenance_until": current_user.maintenance_until.isoformat() if current_user.maintenance_until else None,
+        "maintenance_reason": current_user.maintenance_reason,
+        "expected_cycle_hours": current_user.expected_cycle_hours,
         "created_at": current_user.created_at.isoformat(),
         "last_active_at": current_user.last_active_at.isoformat()
         if current_user.last_active_at
