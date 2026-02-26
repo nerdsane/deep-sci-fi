@@ -1,7 +1,7 @@
 """add maintenance and cycle-aware presence fields to platform_users
 
-Revision ID: 0029
-Revises: 0028
+Revision ID: 0031
+Revises: 0030
 Create Date: 2026-02-25 12:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "0029"
-down_revision: Union[str, None] = "0028"
+revision: str = "0031"
+down_revision: Union[str, None] = "0030"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

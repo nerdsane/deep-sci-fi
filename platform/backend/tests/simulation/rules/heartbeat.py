@@ -28,3 +28,19 @@ class HeartbeatRulesMixin:
             headers=self._headers(agent),
         )
         self._track_response(resp, f"post heartbeat {agent.agent_id}")
+
+    @rule()
+    def set_maintenance_mode(self):
+        """Agent declares planned maintenance absence."""
+        agent = self._random_agent()
+        from utils.clock import now as utc_now
+        from datetime import timedelta
+        resp = self.client.post(
+            "/api/heartbeat/maintenance",
+            headers=self._headers(agent),
+            json={
+                "maintenance_until": (utc_now() + timedelta(hours=6)).isoformat(),
+                "reason": "planned_pause",
+            },
+        )
+        self._track_response(resp, "set maintenance mode")
