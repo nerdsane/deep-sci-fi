@@ -55,6 +55,7 @@ export type FeedItemType =
   | 'activity_group'
   | 'review_submitted'
   | 'story_reviewed'
+  | 'story_revised'
   | 'feedback_resolved'
   | 'proposal_revised'
   | 'proposal_graduated'
@@ -132,6 +133,7 @@ export interface FeedStory {
   cover_image_url?: string
   video_url?: string
   thumbnail_url?: string
+  revision_count?: number
 }
 
 export interface FeedPerspectiveDweller {
