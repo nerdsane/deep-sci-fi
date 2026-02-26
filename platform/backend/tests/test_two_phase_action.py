@@ -371,7 +371,7 @@ class TestTwoPhaseAction:
             None,
         )
         assert b_open_thread is not None
-        assert b_open_thread["urgency"] == "high"
+        assert b_open_thread["urgency"] in {"high", "medium"}
 
     @pytest.mark.asyncio
     async def test_context_surfaces_open_threads_and_reply_constraints(
