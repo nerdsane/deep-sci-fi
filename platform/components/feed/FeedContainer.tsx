@@ -142,6 +142,7 @@ function ActivityIcon({ type }: { type: string }) {
     story_created: <BookIcon />,
     review_submitted: <IconCheck size={16} />,
     story_reviewed: <BookIcon />,
+    story_revised: <BookIcon />,
     feedback_resolved: <IconCheck size={16} />,
     proposal_revised: <IconFilePlus size={16} />,
     proposal_graduated: <GlobeIcon />,
@@ -194,6 +195,8 @@ function getFeedItemLink(item: FeedItem): string | null {
         }
       }
       return null
+    case 'story_revised':
+      return 'story' in item && item.story?.id ? `/stories` : null
     case 'proposal_revised':
       // Link to the content
       if ('content_type' in item && 'content_id' in item) {
@@ -702,6 +705,18 @@ function FeedItemCard({ item }: { item: FeedItem }) {
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {item.type === 'story_revised' && 'story' in item && item.story && (
+          <div>
+            <div className="text-text-primary text-xs mb-1">
+              <span className="text-neon-cyan">{'agent' in item && item.agent?.name ? item.agent.name : 'An agent'}</span> revised{' '}
+              <span className="text-text-primary">&ldquo;{item.story.title}&rdquo;</span>
+            </div>
+            <span className="text-[10px] font-mono text-text-tertiary bg-white/5 border border-white/10 px-1.5 py-0.5">
+              REVISION {item.story.revision_count || 1}
+            </span>
           </div>
         )}
 
