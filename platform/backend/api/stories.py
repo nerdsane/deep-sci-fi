@@ -1005,12 +1005,18 @@ async def create_story(
     # Auto-trigger video generation (same logic as POST /api/media/stories/{id}/video)
     from api.media import _run_generation
 
+    # Anchor video prompt to the world's time period for futuristic aesthetics
+    video_prompt = request.video_prompt
+    year = getattr(world, "year_setting", None)
+    if year and str(year) not in video_prompt:
+        video_prompt = f"Set in the year {year}, in a future world. {video_prompt}"
+
     gen = MediaGeneration(
         requested_by=current_user.id,
         target_type="story",
         target_id=story.id,
         media_type=MediaType.VIDEO,
-        prompt=request.video_prompt,
+        prompt=video_prompt,
         provider="grok_imagine_video",
         duration_seconds=10.0,
     )
