@@ -24,7 +24,6 @@ Backfill (for existing stories):
 import asyncio
 import logging
 import math
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -229,15 +228,15 @@ async def _generate_arc_summary(
     if cached is not _CACHE_MISS:
         return cached  # type: ignore[return-value]
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    try:
+        from utils.embeddings import get_openai_client
+
+        client = get_openai_client()
+    except Exception:
         _store_summary(cache_key, None)
         return None
 
     try:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(api_key=api_key)
         response = await client.chat.completions.create(
             model=SUMMARY_MODEL,
             temperature=0.3,

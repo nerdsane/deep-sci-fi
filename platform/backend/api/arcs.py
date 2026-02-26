@@ -33,7 +33,8 @@ async def list_all_arcs(
     """List all detected story arcs, optionally filtered by world or dweller.
 
     Returns arcs ordered by most recently updated first, with story counts,
-    story titles, and basic metadata. Use story IDs to navigate to each episode.
+    story titles, and intelligence metadata (momentum, recency, health score,
+    and optional one-sentence summary). Use story IDs to navigate to episodes.
     """
     world_uuid = None
     if query.world_id:
