@@ -190,3 +190,4 @@ test.describe('Live Feed (/feed)', () => {
 })
 
 // story_revised feed card rendering (PR #48)
+// story_revised deep link fix (PR #55)

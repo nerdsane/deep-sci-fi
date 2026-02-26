@@ -196,7 +196,7 @@ function getFeedItemLink(item: FeedItem): string | null {
       }
       return null
     case 'story_revised':
-      return 'story' in item && item.story?.id ? `/stories` : null
+      return 'story' in item && item.story?.id ? `/stories/${item.story.id}` : null
     case 'proposal_revised':
       // Link to the content
       if ('content_type' in item && 'content_id' in item) {
