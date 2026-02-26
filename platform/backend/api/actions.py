@@ -5,6 +5,8 @@ Endpoints for managing high-importance dweller actions:
 - Escalating confirmed actions to world events
 """
 
+import asyncio
+import logging
 from utils.clock import now as utc_now
 from datetime import timedelta
 from typing import Any
@@ -52,6 +54,9 @@ from schemas.actions import (
     NominateActionResponse,
 )
 
+logger = logging.getLogger(__name__)
+
+
 async def get_escalated_event(db: AsyncSession, action_id: UUID) -> WorldEvent | None:
     """Get the WorldEvent that was created from escalating this action."""
     query = select(WorldEvent).where(WorldEvent.origin_action_id == action_id)
@@ -82,6 +87,57 @@ def _format_world_event_core_memory(event: WorldEvent) -> str:
 
 
 router = APIRouter(prefix="/actions", tags=["actions"])
+
+# Keep strong references to fire-and-forget tasks so they're not GC'd before completion
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+
+async def propagate_world_event_to_core_memories(world_event_id: UUID) -> None:
+    """Fan out an escalated world event into all dwellers' core memories."""
+    from db.database import SessionLocal
+
+    try:
+        async with SessionLocal() as db:
+            event = await db.get(WorldEvent, world_event_id)
+            if event is None:
+                return
+
+            dwellers_result = await db.execute(
+                select(Dweller)
+                .where(Dweller.world_id == event.world_id)
+                .order_by(Dweller.created_at.asc(), Dweller.id.asc())
+            )
+            propagation_dwellers = dwellers_result.scalars().all()
+            if not propagation_dwellers:
+                return
+
+            fact_text = _format_world_event_core_memory(event)
+            propagated_at = utc_now()
+
+            for dweller in propagation_dwellers:
+                propagation_stmt = (
+                    pg_insert(WorldEventPropagation.__table__)
+                    .values(
+                        id=deterministic_uuid4(),
+                        world_event_id=event.id,
+                        dweller_id=dweller.id,
+                        propagated_at=propagated_at,
+                    )
+                    .on_conflict_do_nothing(index_elements=["world_event_id", "dweller_id"])
+                    .returning(WorldEventPropagation.id)
+                )
+                inserted_id = (await db.execute(propagation_stmt)).scalar_one_or_none()
+                if inserted_id is None:
+                    continue
+
+                core_memories = list(dweller.core_memories or [])
+                if fact_text not in core_memories:
+                    core_memories.append(fact_text)
+                    dweller.core_memories = core_memories
+
+            await db.commit()
+    except Exception:
+        logger.exception("Failed to propagate world event %s to core memories", world_event_id)
 
 
 # ============================================================================
@@ -697,38 +753,13 @@ async def escalate_to_event(
             },
         )
 
-    # Propagate world event to all dwellers' core memories inline (same transaction)
-    dwellers_result = await db.execute(
-        select(Dweller)
-        .where(Dweller.world_id == event.world_id)
-        .order_by(Dweller.created_at.asc(), Dweller.id.asc())
-    )
-    propagation_dwellers = dwellers_result.scalars().all()
-    fact_text = _format_world_event_core_memory(event)
-    propagated_at = utc_now()
-
-    for dw in propagation_dwellers:
-        propagation_stmt = (
-            pg_insert(WorldEventPropagation.__table__)
-            .values(
-                id=deterministic_uuid4(),
-                world_event_id=event.id,
-                dweller_id=dw.id,
-                propagated_at=propagated_at,
-            )
-            .on_conflict_do_nothing(index_elements=["world_event_id", "dweller_id"])
-            .returning(WorldEventPropagation.id)
-        )
-        inserted_id = (await db.execute(propagation_stmt)).scalar_one_or_none()
-        if inserted_id is None:
-            continue
-        core_memories = list(dw.core_memories or [])
-        if fact_text not in core_memories:
-            core_memories.append(fact_text)
-            dw.core_memories = core_memories
-
     await db.commit()
     await db.refresh(event)
+
+    # Propagate in background so escalation latency is not tied to world size.
+    task = asyncio.create_task(propagate_world_event_to_core_memories(event.id))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return {
         "event": {
