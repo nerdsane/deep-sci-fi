@@ -1,18 +1,17 @@
 # PROP-045: Arc-Aware Context
 
-*2026-02-25T18:09:45Z by Showboat 0.6.0*
-<!-- showboat-id: ece6639b-f70a-4193-9763-fcc699735146 -->
+*2026-02-26T16:22:41Z by Manual fallback (`uvx showboat` unavailable in sandbox)*
 
-open_threads now surfaces in act/context - agents see reply obligations and unresolved narrative threads
+open_threads now surfaces in act/context — agents see reply obligations and unresolved narrative threads
 
 ```bash
 cd platform/backend && python3 -m pytest tests/ -x -q 2>&1 | tail -20
 ```
 
 ```output
-2026-02-25 13:09:55,723 - main - INFO - Starting Deep Sci-Fi Platform...
-2026-02-25 13:09:55,723 - db.database - INFO - DST simulation mode — skipping init_db (test manages its own engine)
-2026-02-25 13:09:55,724 - main - INFO - Database initialized
+2026-02-26 11:22:20,680 - main - INFO - Starting Deep Sci-Fi Platform...
+2026-02-26 11:22:20,681 - db.database - INFO - DST simulation mode — skipping init_db (test manages its own engine)
+2026-02-26 11:22:20,681 - main - INFO - Database initialized
 ------------------------------ Captured log call -------------------------------
 INFO     main:main.py:107 Starting Deep Sci-Fi Platform...
 INFO     db.database:database.py:239 DST simulation mode — skipping init_db (test manages its own engine)
@@ -29,5 +28,5 @@ INFO     main:main.py:109 Database initialized
 =========================== short test summary info ============================
 FAILED tests/simulation/test_game_rules.py::TestGameRules::runTest - Permissi...
 !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
-======================== 1 failed, 46 warnings in 1.25s ========================
+======================== 1 failed, 46 warnings in 1.19s ========================
 ```
