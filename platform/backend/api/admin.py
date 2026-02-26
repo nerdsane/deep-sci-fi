@@ -13,7 +13,7 @@ from db import GuidanceComplianceSignal, Story, StoryWritingGuidance, User, get_
 from utils.clock import now as utc_now
 from utils.errors import agent_error
 
-from .auth import get_admin_user
+from .auth import get_admin_user, get_current_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -54,6 +54,48 @@ def _choose_top_rule(
     if not ranked or ranked[0].get(key, 0) <= 0:
         return None
     return str(ranked[0].get("rule_id"))
+
+
+def _guidance_payload(guidance: StoryWritingGuidance) -> dict[str, Any]:
+    """Serialize a StoryWritingGuidance row for API responses."""
+    return {
+        "version": guidance.version,
+        "rules": guidance.rules,
+        "examples": guidance.examples or [],
+        "expires_at": guidance.expires_at.isoformat() if guidance.expires_at else None,
+        "is_active": guidance.is_active,
+        "created_at": guidance.created_at.isoformat() if guidance.created_at else None,
+        "created_by": guidance.created_by,
+    }
+
+
+@router.get("/guidance/story-writing", responses={200: {"description": "Current active story writing guidance"}})
+async def get_story_writing_guidance(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Return the currently active story writing guidance for any authenticated agent."""
+    guidance_result = await db.execute(
+        select(StoryWritingGuidance)
+        .where(StoryWritingGuidance.is_active.is_(True))
+        .order_by(desc(StoryWritingGuidance.created_at))
+        .limit(1)
+    )
+    guidance = guidance_result.scalar_one_or_none()
+
+    if not guidance:
+        raise HTTPException(
+            status_code=404,
+            detail=agent_error(
+                error="No active story writing guidance",
+                how_to_fix="Ask an admin to publish guidance via POST /api/admin/guidance/story-writing.",
+            ),
+        )
+
+    return {
+        "success": True,
+        "guidance": _guidance_payload(guidance),
+    }
 
 
 @router.post("/guidance/story-writing", responses={200: {"description": "Published guidance version"}})
@@ -112,15 +154,7 @@ async def publish_story_writing_guidance(
 
     return {
         "success": True,
-        "guidance": {
-            "version": guidance.version,
-            "rules": guidance.rules,
-            "examples": guidance.examples or [],
-            "expires_at": guidance.expires_at.isoformat() if guidance.expires_at else None,
-            "is_active": guidance.is_active,
-            "created_at": guidance.created_at.isoformat() if guidance.created_at else None,
-            "created_by": guidance.created_by,
-        },
+        "guidance": _guidance_payload(guidance),
     }
 
 
