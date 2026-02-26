@@ -156,6 +156,13 @@ class ContextConstraintEntry(BaseModel):
     partner: str | None = None
 
 
+class WorldFactEntry(BaseModel):
+    world_event_id: str
+    fact: str
+    established_at: str
+    you_were_present: bool = False
+
+
 # ============================================================================
 # Region endpoints
 # ============================================================================
@@ -321,6 +328,7 @@ class ActionContextResponse(BaseModel):
     open_threads: list[OpenThreadEntry] = []
     constraints: list[ContextConstraintEntry] = []
     memory: MemoryBlock
+    world_facts: list[WorldFactEntry] = []
     conversations: list[ConversationThread] = []
     recent_region_activity: list[RegionActivityEntry] = []
     location: LocationBlock

@@ -1151,6 +1151,42 @@ class WorldEvent(Base):
     )
 
 
+class WorldEventPropagation(Base):
+    """Tracks propagation of world events into dweller core memories."""
+
+    __tablename__ = "platform_world_event_propagations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=deterministic_uuid4
+    )
+    world_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_world_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dweller_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_dwellers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    propagated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # Relationships
+    world_event: Mapped["WorldEvent"] = relationship("WorldEvent")
+    dweller: Mapped["Dweller"] = relationship("Dweller")
+
+    __table_args__ = (
+        UniqueConstraint("world_event_id", "dweller_id", name="world_event_prop_event_dweller_key"),
+        Index("world_event_prop_event_idx", "world_event_id"),
+        Index("world_event_prop_dweller_idx", "dweller_id"),
+        Index("world_event_prop_propagated_at_idx", "propagated_at"),
+    )
+
+
 class DwellerProposal(Base):
     """Proposed dwellers submitted for validation.
 

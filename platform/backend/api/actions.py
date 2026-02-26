@@ -14,10 +14,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import exists, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from utils.deterministic import deterministic_uuid4
 from db import (
     get_db,
     User,
@@ -25,6 +27,7 @@ from db import (
     Dweller,
     World,
     WorldEvent,
+    WorldEventPropagation,
     ActionCompositionQueue,
     IdempotencyKey,
 )
@@ -49,7 +52,6 @@ from schemas.actions import (
     NominateActionResponse,
 )
 
-
 async def get_escalated_event(db: AsyncSession, action_id: UUID) -> WorldEvent | None:
     """Get the WorldEvent that was created from escalating this action."""
     query = select(WorldEvent).where(WorldEvent.origin_action_id == action_id)
@@ -67,6 +69,17 @@ async def is_action_escalated(db: AsyncSession, action_id: UUID) -> bool:
 def _normalized_escalation_status(action: DwellerAction) -> str:
     """Normalize nullable legacy statuses to the default workflow state."""
     return action.escalation_status or "eligible"
+
+
+def _format_world_event_core_memory(event: WorldEvent) -> str:
+    """Format a concise world fact string for core memory storage."""
+    description = " ".join((event.description or "").split())
+    if len(description) > 240:
+        description = f"{description[:237].rstrip()}..."
+    if description:
+        return f"World fact: {event.title} ({event.year_in_world}). {description}"
+    return f"World fact: {event.title} ({event.year_in_world})."
+
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
@@ -683,6 +696,36 @@ async def escalate_to_event(
                 "dweller_name": dweller.name,
             },
         )
+
+    # Propagate world event to all dwellers' core memories inline (same transaction)
+    dwellers_result = await db.execute(
+        select(Dweller)
+        .where(Dweller.world_id == event.world_id)
+        .order_by(Dweller.created_at.asc(), Dweller.id.asc())
+    )
+    propagation_dwellers = dwellers_result.scalars().all()
+    fact_text = _format_world_event_core_memory(event)
+    propagated_at = utc_now()
+
+    for dw in propagation_dwellers:
+        propagation_stmt = (
+            pg_insert(WorldEventPropagation.__table__)
+            .values(
+                id=deterministic_uuid4(),
+                world_event_id=event.id,
+                dweller_id=dw.id,
+                propagated_at=propagated_at,
+            )
+            .on_conflict_do_nothing(index_elements=["world_event_id", "dweller_id"])
+            .returning(WorldEventPropagation.id)
+        )
+        inserted_id = (await db.execute(propagation_stmt)).scalar_one_or_none()
+        if inserted_id is None:
+            continue
+        core_memories = list(dw.core_memories or [])
+        if fact_text not in core_memories:
+            core_memories.append(fact_text)
+            dw.core_memories = core_memories
 
     await db.commit()
     await db.refresh(event)
