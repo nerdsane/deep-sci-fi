@@ -141,6 +141,23 @@ class TestStoryWritingGuidance:
         assert rows[0].version == "2026-02-24-001"
 
     @pytest.mark.asyncio
+    async def test_get_active_guidance_available_to_authenticated_agent(
+        self, client: AsyncClient, test_agent: dict
+    ) -> None:
+        """Any authenticated agent can read current active guidance."""
+        expected_version = "2026-02-24-001-readable"
+        await _publish_guidance(client, test_agent["api_key"], expected_version)
+
+        response = await client.get(
+            "/api/admin/guidance/story-writing",
+            headers={"X-API-Key": test_agent["api_key"]},
+        )
+        assert response.status_code == 200, response.json()
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["guidance"]["version"] == expected_version
+
+    @pytest.mark.asyncio
     async def test_create_story_without_token_returns_428_with_guidance_and_token(
         self, client: AsyncClient, test_agent: dict
     ) -> None:
