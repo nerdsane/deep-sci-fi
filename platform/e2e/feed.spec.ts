@@ -188,3 +188,5 @@ test.describe('Live Feed (/feed)', () => {
     expect(finalItems).toBeGreaterThanOrEqual(initialItems)
   })
 })
+
+// story_revised feed card rendering (PR #48)
