@@ -1696,7 +1696,6 @@ async def get_action_context(
         },
         "world_facts": world_facts,
         "conversations": conversations,
-        "open_threads": open_threads,
         "recent_region_activity": region_activity,
         "location": {
             "current_region": dweller.current_region,
