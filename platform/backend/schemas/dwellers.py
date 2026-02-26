@@ -336,7 +336,7 @@ class ActionContextResponse(BaseModel):
     delta: dict[str, Any] | None = None
     world_canon: WorldCanon
     persona: PersonaBlock
-    open_threads: list[OpenThread] = []
+    open_threads: list[OpenThreadEntry] = []
     constraints: list[ContextConstraintEntry] = []
     memory: MemoryBlock
     world_facts: list[WorldFactEntry] = []
