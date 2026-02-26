@@ -296,12 +296,20 @@ async def generate_story_video(
             how_to_fix=budget_reason,
         ))
 
+    # Anchor video prompt to the world's time period for futuristic aesthetics
+    video_prompt = request.video_prompt
+    story_world = await db.get(World, story.world_id)
+    if story_world:
+        year = getattr(story_world, "year_setting", None)
+        if year and str(year) not in video_prompt:
+            video_prompt = f"Set in the year {year}, in a future world. {video_prompt}"
+
     gen = MediaGeneration(
         requested_by=current_user.id,
         target_type="story",
         target_id=story_id,
         media_type=MediaType.VIDEO,
-        prompt=request.video_prompt,
+        prompt=video_prompt,
         provider="grok_imagine_video",
         duration_seconds=float(request.duration_seconds),
     )
